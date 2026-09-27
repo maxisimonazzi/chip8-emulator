@@ -1,0 +1,2872 @@
+# Tutorial de CHIP-8: de cero a tu primer juego
+
+Este tutorial te lleva de la mano desde "nunca vi CHIP-8" hasta escribir, depurar y
+entender un juego completo, y termina mostrándote cómo funciona un emulador por
+dentro. Todo se hace con la consola de este proyecto (`chip8.html`), que corre en el
+navegador sin instalar nada.
+
+Cada programa que aparece acá es real: está en [`docs/ejemplos/`](ejemplos/), se
+ensambla con el ensamblador del proyecto y los tests (`tests/tutorial.test.js`) lo
+corren en el mismo núcleo que usa la consola para comprobar que hace lo que el texto
+dice. Si copiás un listado del tutorial, anda.
+
+Este tutorial es para aprender haciendo. Cuando quieras el detalle fino de algo (la
+historia, cada instrucción con todos sus casos, los quirks), andá al
+[manual de referencia](MANUAL.md). Si te interesa cómo está construido el emulador,
+leé [DESARROLLO.md](DESARROLLO.md). La portada del proyecto es el [README](../README.md).
+
+## Índice
+
+0. [Qué vas a aprender y qué necesitás](#0-qué-vas-a-aprender-y-qué-necesitás)
+1. [Usar el emulador](#1-usar-el-emulador)
+2. [Anatomía de CHIP-8 en 10 minutos](#2-anatomía-de-chip-8-en-10-minutos)
+3. [Tu primer programa, escrito a mano en hexadecimal](#3-tu-primer-programa-escrito-a-mano-en-hexadecimal)
+4. [El ensamblador](#4-el-ensamblador)
+5. [Proyecto guiado: el Cazamonedas](#5-proyecto-guiado-el-cazamonedas)
+6. [Leer un programa real](#6-leer-un-programa-real)
+7. [Depurar](#7-depurar)
+8. [Cómo funciona un emulador por dentro](#8-cómo-funciona-un-emulador-por-dentro)
+9. [Ejercicios y próximos pasos](#9-ejercicios-y-próximos-pasos)
+
+---
+
+## 0. Qué vas a aprender y qué necesitás
+
+### Qué vas a aprender
+
+- A usar la consola: cargar programas, tocar el teclado, cambiar la velocidad y los
+  quirks, y leer el monitor de depuración.
+- Cómo es la máquina CHIP-8 por dentro: memoria, registros, pila, timers, pantalla y
+  teclado.
+- A escribir un programa **a mano, byte por byte**, en hexadecimal, y a entender cada
+  uno de esos bytes.
+- A usar el **ensamblador** del proyecto para escribir con nombres en vez de números.
+- A construir un juego en seis etapas, cada una un programa completo que podés correr:
+  sprites, teclado, tiempo, choques, puntaje y sonido.
+- A leer programas ajenos y a **encontrar errores** con el monitor, instrucción por
+  instrucción.
+- Cómo funciona un emulador: el ciclo de buscar, decodificar y ejecutar, los timers a
+  60 Hz, el dibujo con XOR. Hay un emulador mínimo, de menos de 200 líneas, para leer
+  y correr.
+
+### Qué necesitás
+
+- **Un navegador** moderno (Chrome, Edge, Firefox o Safari). Con eso alcanza para las
+  partes 1, 2, 3, 6 y 7.
+- **Una terminal** (PowerShell en Windows, o la que uses en Linux o macOS) para crear
+  el archivo de la parte 3.
+- **[Node.js](https://nodejs.org/)** para el ensamblador (partes 4 y 5) y para el
+  emulador mínimo (parte 8). No hay que instalar paquetes: todo el proyecto usa solo
+  lo que trae Node. Los tests se corren con Node 22.
+- Este repositorio. Todos los comandos de la terminal se escriben **parado en la
+  carpeta raíz del proyecto** (la que tiene `chip8.html`). Las rutas usan `/`, que
+  funciona igual en PowerShell que en Linux y macOS.
+
+### Convenciones
+
+- Los números con `0x` están en hexadecimal: `0x200` es 512. Las direcciones van con 3
+  dígitos (`0x200`), los bytes con 2 (`0x1E`) y las instrucciones con 4 (`D125`).
+- Un **frame** (o **cuadro**) es 1/60 de segundo: el ritmo al que se refresca la
+  pantalla y bajan los timers.
+- **IPF** son las *instrucciones por frame*: cuántas instrucciones ejecuta el emulador
+  en cada uno de esos 1/60 de segundo.
+- Las instrucciones se escriben con los nombres de la referencia de Cowgod (`LD`,
+  `DRW`, `SKNP`...), que son los que usan el ensamblador y el monitor.
+
+### Los ejemplos
+
+| Archivo | Parte | Qué hace |
+|---|---|---|
+| `01-a-mano.asm` | 3 y 4 | Dibuja la letra A de la fuente, en el centro. |
+| `02-hola.asm` | 4 | Escribe HOLA con sprites propios. |
+| `03-fantasma.asm` | 5, etapa A | Dibuja el protagonista del juego. |
+| `04-mover.asm` | 5, etapa B | Lo mueve con el teclado. |
+| `05-ritmo.asm` | 5, etapa C | Lo mueve a velocidad fija con el temporizador. |
+| `06-monedas.asm` | 5, etapa D | Bordes, una moneda y choques. |
+| `07-puntaje.asm` | 5, etapa E | Puntaje en pantalla. |
+| `08-sonido.asm` | 5, etapa F | El juego completo, con sonido. |
+| `09-contador-con-bug.asm` | 7 | Un programa con un error, para depurarlo. |
+| `10-contador.asm` | 7 | El mismo, arreglado. |
+| `11-sin-fin.asm` | 7 | Un programa que se sale de su camino y termina en error. |
+| `mini-emulador.js` | 8 | Un emulador de CHIP-8 mínimo, en JavaScript. |
+
+Al lado de cada `.asm` está su `.ch8` ya ensamblado, listo para cargar en la consola.
+
+---
+
+## 1. Usar el emulador
+
+### 1.1 Abrir la consola
+
+Hacé doble clic en `chip8.html`. Se abre en el navegador y anda así, directo desde el
+disco: no necesita internet ni servidor. Si igual preferís abrirla desde un servidor
+local, corré `node tools/serve.js` (o `npm run serve`) y entrá a
+<http://localhost:8008/>.
+
+Vas a ver una consolita beige con estas partes:
+
+- Arriba, la **pantalla** (un monitor de fósforo verde) y dos luces: **RUN** y
+  **SONIDO**. El botón **?** abre la ayuda.
+- Debajo de la pantalla, el **cartucho** (qué programa está cargado y cuánto ocupa) con
+  el botón **Cargar ROM**, y los botones de **ejecución**: Pausa, Paso, Frame y
+  Reiniciar.
+- A la derecha, el **keypad** hexadecimal de 16 teclas.
+- El **panel de control**: velocidad, pantalla y sonido, y los interruptores de quirks.
+- Debajo de todo, el estante de **cartuchos incluidos** (los programas de demostración).
+- El **monitor** de depuración: a la derecha si tu pantalla es ancha, o debajo de la
+  consola si es angosta.
+
+Apenas abre, la consola carga el primer cartucho incluido, *Rebote*, y lo pone a
+correr.
+
+### 1.2 Los cartuchos incluidos
+
+Para cambiar de programa, tocá cualquiera de los cartuchos del estante: se carga y
+arranca solo.
+
+| Cartucho | Qué muestra | Controles |
+|---|---|---|
+| **Rebote** | Una pelotita con cara que rebota por la pantalla y suena al tocar un borde. | Ninguno. |
+| **Teclado** | El keypad en pantalla: cada tecla se ilumina mientras la tenés apretada y la última aparece en grande. | Las 16 teclas, varias a la vez si querés. |
+| **Atrapa** | Un jueguito: mové la paleta y atrapá los bloques que caen. Tres errores y perdés. | Izquierda: A o Q. Derecha: D o E. Al terminar, cualquier tecla. |
+| **Autotest** | Un programa que se prueba a sí mismo: 19 comprobaciones de instrucciones, cada una con una tilde o una cruz. | Ninguno. No toques teclas mientras corre. |
+| **Fuente** | Los 16 dígitos hexadecimales que el intérprete guarda en memoria. | Ninguno. |
+
+Los cinco están escritos en ensamblador y sus fuentes están en `roms/`. En la
+[parte 6](#6-leer-un-programa-real) vamos a leer dos de ellos.
+
+### 1.3 Cargar tus propias ROMs
+
+Un programa de CHIP-8 es un archivo binario (por costumbre, con extensión `.ch8`) con
+los bytes tal cual van en la memoria. Hay dos formas de cargarlo:
+
+- Tocá **Cargar ROM** y elegí el archivo.
+- **Arrastralo** sobre cualquier parte de la página y soltalo cuando aparezca el cartel
+  *Soltá el cartucho acá*.
+
+El programa se copia a la memoria a partir de la dirección `0x200`, la máquina se
+reinicia y arranca a correr. Puede ocupar hasta **3584 bytes** (de `0x200` a `0xFFF`);
+si es más grande, o si está vacío, la consola te avisa y no lo carga.
+
+### 1.4 El teclado
+
+La computadora original de CHIP-8, el COSMAC VIP, tenía un teclado hexadecimal de 16
+teclas, del `0` al `F`. En tu computadora se usa el bloque izquierdo del teclado, con esta
+correspondencia:
+
+```text
+  Tu teclado            Keypad CHIP-8
+┌───┬───┬───┬───┐     ┌───┬───┬───┬───┐
+│ 1 │ 2 │ 3 │ 4 │     │ 1 │ 2 │ 3 │ C │
+├───┼───┼───┼───┤     ├───┼───┼───┼───┤
+│ Q │ W │ E │ R │     │ 4 │ 5 │ 6 │ D │
+├───┼───┼───┼───┤ ──> ├───┼───┼───┼───┤
+│ A │ S │ D │ F │     │ 7 │ 8 │ 9 │ E │
+├───┼───┼───┼───┤     ├───┼───┼───┼───┤
+│ Z │ X │ C │ V │     │ A │ 0 │ B │ F │
+└───┴───┴───┴───┘     └───┴───┴───┴───┘
+```
+
+Se usa la **posición física** de cada tecla, no la letra que tiene impresa: si tu
+teclado es AZERTY o Dvorak, igual vale el bloque de la izquierda. Fijate que las
+teclas **W, A, S, D** son el `5`, el `7`, el `8` y el `9` del keypad: muchos juegos de
+CHIP-8 usan esas cuatro para moverse, y el nuestro también.
+
+También podés tocar el **keypad de la pantalla** con el mouse o con los dedos (admite
+varias teclas a la vez). Cada tecla muestra, chiquita, cuál es su equivalente en tu
+teclado. Y si navegás con Tab, podés mantener apretada la tecla enfocada con Enter.
+
+Las teclas no le llegan a la máquina mientras escribís en un campo de texto (por
+ejemplo, el número de IPF) ni mientras está abierta la ayuda.
+
+### 1.5 La velocidad: instrucciones por frame
+
+CHIP-8 no tiene una velocidad fija. El emulador trabaja de a frames: en cada 1/60 de
+segundo ejecuta una cantidad de instrucciones (las **IPF**) y después baja los timers.
+En el panel **Velocidad** la elegís de tres maneras: con la barra (que es logarítmica,
+así los valores chicos son fáciles de elegir), escribiendo el número exacto o con los
+botones rápidos **7, 15, 30, 100, 500 y 1000**. Abajo te muestra cuántas instrucciones
+por segundo son.
+
+- **15 IPF** (el valor por defecto, unas 900 instrucciones por segundo) se parece a la
+  velocidad del COSMAC VIP.
+- Muchos juegos escritos en las últimas décadas esperan bastante más: de 30 a 1000.
+- Los timers **siempre** bajan 60 veces por segundo, sin importar las IPF. Por eso un
+  programa bien escrito mide el tiempo con los timers, no contando instrucciones (lo
+  vas a hacer en la [etapa C](#53-etapa-c-el-ritmo-con-el-temporizador)).
+
+### 1.6 Quirks y perfiles
+
+Los intérpretes de CHIP-8 que se escribieron a lo largo de los años no se comportan
+igual en algunos detalles. Esos detalles se llaman **quirks** ("mañas"). La consola
+tiene un interruptor para cada uno (se prende hacia arriba) y un selector de **perfil**
+que los pone todos juntos:
+
+| # | Interruptor | Qué hace cuando está prendido | Afecta a |
+|---|---|---|---|
+| 1 | `VF=0` | OR, AND y XOR ponen VF en 0. | `8XY1` `8XY2` `8XY3` |
+| 2 | `MEM` | Guardar o leer registros deja I apuntando después del último. | `FX55` `FX65` |
+| 3 | `SHIFT` | Los desplazamientos operan sobre VX e ignoran VY. | `8XY6` `8XYE` |
+| 4 | `BXNN` | El salto con desplazamiento suma VX (X = primer dígito de NNN) en vez de V0. | `BNNN` |
+| 5 | `CLIP` | Lo que se sale de la pantalla por la derecha o por abajo se recorta (apagado, reaparece del otro lado). | `DXYN` |
+| 6 | `VBLANK` | Dibujar espera al próximo frame: como mucho un `DXYN` por frame. | `DXYN` |
+
+| Perfil | Interruptores prendidos |
+|---|---|
+| **COSMAC VIP** (por defecto) | 1, 2, 5 y 6 |
+| **SUPER-CHIP** | 3, 4 y 5 |
+| **XO-CHIP** | 2 |
+
+Si movés los interruptores a mano y la combinación no coincide con ningún perfil, el
+selector muestra **Personalizado**. Los cambios se aplican en el momento, sin reiniciar. Si pasás el mouse por un interruptor, debajo
+aparece qué hace.
+
+¿Cuándo cambiar el perfil? Si un juego se ve raro (sprites rotos, números que no
+cambian, saltos a cualquier lado), probá SUPER-CHIP o XO-CHIP: muchos juegos modernos se
+escribieron para esos intérpretes. Los programas de este tutorial están escritos para
+andar igual con los tres perfiles, y en la
+[sección 5.7](#57-código-que-anda-en-cualquier-intérprete) vas a ver cómo se logra.
+El detalle de cada quirk está en el [manual, sección 11](MANUAL.md#11-quirks).
+
+### 1.7 Pantalla y sonido
+
+- **Paleta**: *Verde fósforo*, *Ámbar*, *Blanco* o *LCD*.
+- **Scanlines**: las líneas horizontales de los monitores viejos.
+- **Persistencia**: los píxeles se apagan de a poco, como el fósforo de un tubo. Además
+  de lindo, disimula el parpadeo típico de CHIP-8 (vas a ver de dónde sale en la
+  [etapa B](#52-etapa-b-moverlo-con-el-teclado)).
+- **Silencio** y **Volumen**.
+
+El beep suena mientras el temporizador de sonido de la máquina vale más de 0, y
+mientras suena se prende la luz **SONIDO**. Los navegadores no dejan reproducir audio
+hasta que tocás la página: mientras debajo de la pantalla diga *Sonido: tocá la consola
+para activarlo*, hacé un clic o apretá una tecla y listo.
+
+Todos los ajustes (velocidad, quirks, pantalla y sonido) se guardan en tu navegador
+para la próxima vez.
+
+### 1.8 Controles de ejecución y atajos
+
+| Botón | Atajo | Qué hace |
+|---|---|---|
+| **Pausa / Continuar** | Espacio | Detiene la máquina o la vuelve a poner en marcha. |
+| **Paso** | N | Ejecuta **una sola instrucción**. Si estaba corriendo, primero la pausa. |
+| **Frame** | | Ejecuta **un frame**: hasta IPF instrucciones y un tic de los timers. También pausa. |
+| **Reiniciar** | Retroceso | Reinicia la máquina y vuelve a cargar el mismo programa. Si estaba en pausa, sigue en pausa. |
+| **?** | H | Abre o cierra la ayuda. |
+| | Esc | Cierra la ayuda. |
+
+Un detalle importante para depurar: **Paso no hace correr el tiempo**. Los timers
+bajan una vez por frame, así que con Paso quedan congelados; con Frame, o
+con Continuar, vuelven a bajar.
+
+### 1.9 El monitor
+
+El monitor muestra el estado completo de la máquina y se actualiza mientras corre. Con
+el botón **Ocultar** lo plegás.
+
+- **ESTADO**: `PC` (la dirección de la próxima instrucción), `I`, `SP` (cuántas
+  direcciones hay en la pila), `DT` y `ST` (los timers), las `IPF` elegidas y cuántas
+  **INSTRUCCIONES** se ejecutaron desde que cargaste o reiniciaste. PC e I están en
+  hexadecimal; SP, DT, ST y las cuentas, en decimal.
+- **REGISTROS V0–VF**: los 16 registros, en hexadecimal. Los que cambiaron desde la
+  última actualización se resaltan: cuando avanzás con Paso, ves exactamente qué tocó
+  cada instrucción.
+- **DESENSAMBLADO**: las instrucciones alrededor del PC (7 antes y 12 después), con su
+  dirección, sus bytes y su nombre. La del PC está marcada con un punto: es la que se
+  va a ejecutar **a continuación**.
+- **PILA**: los 16 lugares de la pila; el tope (la última dirección guardada) está
+  marcado.
+- **MEMORIA EN I**: 32 bytes alrededor de la dirección a la que apunta I (el de I,
+  resaltado). Sirve para ver qué sprite está por dibujar un `DRW`.
+
+Si la máquina se detiene por un error, el mensaje aparece también al pie del monitor.
+
+### 1.10 Qué significa cada estado
+
+La etiqueta al lado de **MONITOR**, la luz **RUN** y los carteles sobre la pantalla te
+dicen en qué anda la máquina:
+
+| Estado | Luz RUN | En la pantalla | Qué pasa |
+|---|---|---|---|
+| **Sin cartucho** | Apagada | *INSERTÁ UN CARTUCHO* | No hay programa cargado (casi no pasa: la consola arranca con *Rebote*). |
+| **Ejecutando** | Verde | El programa | Corriendo normalmente. |
+| **Esperando tecla** | Verde, parpadea | Cartel *ESPERANDO TECLA* | El programa ejecutó `LD Vx, K` (`FX0A`) y está parado hasta que **apretes y sueltes** una tecla. |
+| **Pausado** | Ámbar | Cartel *PAUSA* | Lo pausaste vos, o usaste Paso o Frame. |
+| **Error** | Roja | Cartel *ERROR* con el mensaje | El programa hizo algo imposible: una instrucción que no existe, un `RET` sin `CALL` o demasiados `CALL` anidados. El mensaje dice qué instrucción y en qué dirección. Pausa, Paso y Frame quedan deshabilitados: tocá **Reiniciar**. |
+
+---
+
+## 2. Anatomía de CHIP-8 en 10 minutos
+
+CHIP-8 no es un chip ni una computadora: es una **máquina virtual** que inventó Joseph
+Weisbecker en 1977 para que la gente pudiera programar juegos en el COSMAC VIP, una
+computadora de aficionado muy modesta, sin pelearse con el código máquina de su
+procesador. Un programa CHIP-8 es una lista de instrucciones de 2 bytes que un
+programa intérprete lee y ejecuta de a una. Un emulador como este hace lo mismo que
+aquel intérprete. La historia completa está en el [manual](MANUAL.md#1-qué-es-chip-8).
+
+Esto es lo que necesitás saber para programar.
+
+### 2.1 La memoria
+
+Hay **4096 bytes** (4 KB) de memoria, con direcciones de `0x000` a `0xFFF` (12 bits).
+Todo vive ahí: el programa, sus datos y la fuente de dígitos.
+
+```text
+0x000 ┌──────────────────────────────────────┐
+      │ Reservado. En el VIP, acá vivía el   │
+      │ intérprete; en este emulador está    │
+      │ vacío, salvo la fuente.              │
+0x050 │   Fuente: 16 dígitos × 5 bytes       │
+0x0A0 │                                      │
+0x200 ├──────────────────────────────────────┤
+      │ Tu programa: instrucciones y datos   │
+      │ (hasta 3584 bytes)                   │
+      │                                      │
+0xFFF └──────────────────────────────────────┘
+```
+
+- Los programas **siempre** se cargan a partir de `0x200`, y la ejecución arranca ahí.
+- Cada instrucción ocupa **2 bytes**, el más significativo primero (*big-endian*): la
+  instrucción `D125` son los bytes `D1` y `25`, en ese orden.
+- Instrucciones y datos (los dibujos, por ejemplo) comparten la misma memoria. Nada
+  impide que la CPU ejecute tus dibujos como si fueran instrucciones: pasa si te
+  olvidás de terminar el programa, y lo vas a ver en la [parte 7](#73-cuando-la-máquina-se-detiene).
+
+Más en el [manual, sección 3](MANUAL.md#3-memoria).
+
+### 2.2 Los registros
+
+```text
+ V0 V1 V2 V3 V4 V5 V6 V7 V8 V9 VA VB VC VD VE VF     16 registros de 8 bits (0..255)
+┌──┬──┬──┬──┬──┬──┬──┬──┬──┬──┬──┬──┬──┬──┬──┬──┐
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │▓▓│     VF: la bandera
+└──┴──┴──┴──┴──┴──┴──┴──┴──┴──┴──┴──┴──┴──┴──┴──┘
+┌────────┐  ┌────────┐
+│   I    │  │   PC   │     I: una dirección de memoria.  PC: la próxima instrucción.
+└────────┘  └────────┘
+```
+
+- **V0 a VF** son 16 registros de 8 bits: cada uno guarda un número de 0 a 255. Las
+  cuentas "dan la vuelta": 255 + 1 da 0, y 0 - 1 da 255.
+- **VF** es especial: varias instrucciones lo usan como **bandera** (el acarreo de una
+  suma, el préstamo de una resta, el choque al dibujar) y lo pisan sin preguntar. No
+  guardes ahí nada que quieras conservar.
+- **I** guarda una dirección de memoria: la del sprite que vas a dibujar, o la de los
+  datos que vas a leer o escribir.
+- **PC** (*program counter*) es la dirección de la próxima instrucción. No lo tocás
+  directamente: cambia solo, o con saltos y llamadas.
+
+Más en el [manual, sección 4](MANUAL.md#4-registros).
+
+### 2.3 La pila
+
+Para llamar a una **subrutina** se usa `CALL`, que guarda en la **pila** la dirección
+a la que hay que volver; `RET` la saca y vuelve ahí. La pila tiene lugar para **16**
+direcciones: se pueden anidar hasta 16 llamadas. Un `CALL` de más, o un `RET` sin
+`CALL`, detienen la máquina con un error. El monitor muestra la pila y `SP`, que dice
+cuántas direcciones hay guardadas. Más en el [manual](MANUAL.md#45-la-pila-y-sp).
+
+### 2.4 Los timers
+
+Hay dos temporizadores de 8 bits. Si valen más de 0, bajan de a uno **60 veces por
+segundo**, sin importar la velocidad de la CPU, hasta llegar a 0.
+
+- **DT** (*delay timer*), el temporizador de retardo: lo cargás con un número y lo vas
+  mirando; cuando llega a 0, pasó ese tiempo. Si lo cargás con 30, llega a 0 en medio
+  segundo.
+- **ST** (*sound timer*), el de sonido: mientras vale más de 0, suena el beep. Cargarlo
+  con 6 hace sonar un pitido de 1/10 de segundo.
+
+Más en el [manual, sección 5](MANUAL.md#5-timers-de-retardo-y-sonido).
+
+### 2.5 La pantalla
+
+La pantalla tiene **64 × 32 píxeles** en blanco y negro (bueno, en verde y negro).
+La coordenada `(0, 0)` es la esquina de arriba a la izquierda: x crece hacia la
+derecha (0 a 63) e y crece hacia abajo (0 a 31).
+
+La única forma de dibujar es con **sprites**: dibujitos de **8 píxeles de ancho** y de
+1 a 15 filas de alto, guardados en memoria **un byte por fila**. Cada bit es un píxel
+(1 = prendido) y el bit más alto es el de la izquierda:
+
+```text
+byte   binario     cómo se ve
+0x78   01111000    .####...
+0xFC   11111100    ######..
+0xB4   10110100    #.##.#..
+0xFC   11111100    ######..
+0xFC   11111100    ######..
+0xA8   10101000    #.#.#...
+```
+
+La instrucción `DRW Vx, Vy, n` dibuja las `n` filas que hay en memoria a partir de la
+dirección `I`, con la esquina en `(Vx, Vy)`. Y lo hace con **XOR**: cada bit en 1 del
+sprite **invierte** el píxel que le toca. Eso tiene dos consecuencias enormes:
+
+1. Dibujar el mismo sprite dos veces en el mismo lugar **lo borra**. Así se anima en
+   CHIP-8: se borra dibujando de nuevo y se dibuja en el lugar nuevo.
+2. Si al dibujar se apagó algún píxel que estaba prendido, `DRW` deja **VF = 1**; si
+   no, VF = 0. Así se detectan los **choques**.
+
+Otros detalles: si el sprite se sale por la derecha o por abajo, con el perfil COSMAC
+VIP lo que sobra se recorta. Y la posición de partida siempre "da la vuelta": `x = 70`
+es lo mismo que `x = 6`. Más en el [manual, sección 6](MANUAL.md#6-pantalla).
+
+### 2.6 La fuente
+
+El intérprete guarda en memoria, a partir de `0x050`, los **16 dígitos hexadecimales**
+(`0` a `F`) dibujados en 4 × 5 píxeles, 5 bytes cada uno. No tenés que saber dónde
+está cada uno: `LD F, Vx` apunta I al dígito que vale Vx, listo para dibujarlo con
+`DRW Vx, Vy, 5`. El cartucho *Fuente* los muestra todos. Más en el
+[manual, sección 8](MANUAL.md#8-fuente-hexadecimal).
+
+### 2.7 El teclado
+
+Las 16 teclas se identifican con su valor, de `0` a `F`. Hay dos formas de leerlas:
+
+- `SKP Vx` y `SKNP Vx` miran si la tecla **cuyo número está en Vx** está apretada o no,
+  y según eso saltean o no la instrucción siguiente. No esperan: el programa sigue.
+- `LD Vx, K` **detiene** el programa hasta que apretás y soltás una tecla, y guarda su
+  número en Vx.
+
+Más en el [manual, sección 7](MANUAL.md#7-teclado-hexadecimal).
+
+### 2.8 Cómo se lee una instrucción
+
+Cada instrucción tiene 4 dígitos hexadecimales (4 *nibbles*). El primero dice qué
+familia de instrucción es; los otros, según el caso, son números de registro o valores:
+
+```text
+ D 1 2 5        DRW V1, V2, 5
+ │ │ │ └── N   = 5     cantidad de filas
+ │ │ └──── Y   = 2     registro con la coordenada y
+ │ └────── X   = 1     registro con la coordenada x
+ └──────── familia D: dibujar
+
+ 6 1 1 E        LD V1, 0x1E
+ │ │ └─┴── NN  = 0x1E  un byte (30)
+ │ └────── X   = 1     el registro
+ └──────── familia 6: cargar un número en un registro
+
+ 1 2 0 C        JP 0x20C
+ │ └─┴─┴── NNN = 0x20C una dirección (12 bits)
+ └──────── familia 1: saltar
+```
+
+### 2.9 Las 35 instrucciones, de un vistazo
+
+Este es el machete. X e Y son registros, N un dígito, NN un byte y NNN una dirección.
+"Saltear" quiere decir no ejecutar la instrucción que sigue (el PC avanza 2 bytes de
+más). Donde dice "con `VF=0`", "con `SHIFT`", etc., el resultado depende de ese
+quirk (sección [1.6](#16-quirks-y-perfiles)). La explicación completa de cada una está en el
+[manual, sección 10](MANUAL.md#10-referencia-completa-de-las-35-instrucciones).
+
+| Opcode | Instrucción | Qué hace |
+|---|---|---|
+| `00E0` | `CLS` | Borra la pantalla. |
+| `00EE` | `RET` | Vuelve de una subrutina. |
+| `0NNN` | `SYS NNN` | Llamaba a código máquina del VIP; acá se ignora. |
+| `1NNN` | `JP NNN` | Salta a NNN. |
+| `2NNN` | `CALL NNN` | Llama a la subrutina en NNN. |
+| `3XNN` | `SE VX, NN` | Saltea la siguiente si VX = NN. |
+| `4XNN` | `SNE VX, NN` | Saltea la siguiente si VX ≠ NN. |
+| `5XY0` | `SE VX, VY` | Saltea la siguiente si VX = VY. |
+| `6XNN` | `LD VX, NN` | VX = NN. |
+| `7XNN` | `ADD VX, NN` | VX = VX + NN (no toca VF). |
+| `8XY0` | `LD VX, VY` | VX = VY. |
+| `8XY1` | `OR VX, VY` | VX = VX OR VY. Con el quirk `VF=0`, además VF = 0. |
+| `8XY2` | `AND VX, VY` | VX = VX AND VY. Con `VF=0`, además VF = 0. |
+| `8XY3` | `XOR VX, VY` | VX = VX XOR VY. Con `VF=0`, además VF = 0. |
+| `8XY4` | `ADD VX, VY` | VX = VX + VY; VF = 1 si hubo acarreo (pasó de 255). |
+| `8XY5` | `SUB VX, VY` | VX = VX − VY; VF = 1 si **no** hubo préstamo (VX ≥ VY). |
+| `8XY6` | `SHR VX, VY` | VX = VY desplazado un bit a la derecha (con `SHIFT`, VX desplazado); VF = el bit que salió. |
+| `8XY7` | `SUBN VX, VY` | VX = VY − VX; VF = 1 si **no** hubo préstamo (VY ≥ VX). |
+| `8XYE` | `SHL VX, VY` | VX = VY desplazado un bit a la izquierda (con `SHIFT`, VX desplazado); VF = el bit que salió. |
+| `9XY0` | `SNE VX, VY` | Saltea la siguiente si VX ≠ VY. |
+| `ANNN` | `LD I, NNN` | I = NNN. |
+| `BNNN` | `JP V0, NNN` | Salta a NNN + V0 (con `BXNN`, a NNN + VX). |
+| `CXNN` | `RND VX, NN` | VX = un número al azar AND NN. |
+| `DXYN` | `DRW VX, VY, N` | Dibuja un sprite de N filas en (VX, VY); VF = 1 si hubo choque. |
+| `EX9E` | `SKP VX` | Saltea la siguiente si la tecla VX está apretada. |
+| `EXA1` | `SKNP VX` | Saltea la siguiente si la tecla VX **no** está apretada. |
+| `FX07` | `LD VX, DT` | VX = temporizador de retardo. |
+| `FX0A` | `LD VX, K` | Espera una tecla (apretar y soltar) y la guarda en VX. |
+| `FX15` | `LD DT, VX` | Temporizador de retardo = VX. |
+| `FX18` | `LD ST, VX` | Temporizador de sonido = VX. |
+| `FX1E` | `ADD I, VX` | I = I + VX. |
+| `FX29` | `LD F, VX` | I = dirección del dígito VX de la fuente. |
+| `FX33` | `LD B, VX` | Guarda VX en decimal: centenas en I, decenas en I+1, unidades en I+2. |
+| `FX55` | `LD [I], VX` | Guarda V0..VX en la memoria, desde I. Con `MEM`, I queda después del último. |
+| `FX65` | `LD VX, [I]` | Carga V0..VX desde la memoria, desde I. Con `MEM`, I queda después del último. |
+
+---
+
+## 3. Tu primer programa, escrito a mano en hexadecimal
+
+Vamos a escribir un programa sin ninguna herramienta: pensando cada byte. Es la mejor
+manera de perderle el miedo a la máquina. El programa borra la pantalla y dibuja la
+letra **A** de la fuente en el centro. Son 7 instrucciones: 14 bytes.
+
+### 3.1 El plan
+
+1. Borrar la pantalla.
+2. Poner en un registro el dígito que queremos dibujar (`0xA`) y apuntar I a su dibujo
+   en la fuente.
+3. Poner la posición en otros dos registros. Los dígitos de la fuente miden 4 × 5
+   píxeles, así que para centrarlo: x = (64 − 4) / 2 = **30** e y = (32 − 5) / 2 = 13,5,
+   o sea **13**.
+4. Dibujar las 5 filas.
+5. Quedarse quieto para siempre. Un programa de CHIP-8 no tiene cómo "terminar": la CPU
+   sigue ejecutando lo que venga después. Así que el programa termina en una
+   instrucción que salta a sí misma.
+
+### 3.2 Byte por byte
+
+Ahora hay que traducir cada paso a una instrucción, con el machete de la
+[sección 2.9](#29-las-35-instrucciones-de-un-vistazo):
+
+- **Borrar la pantalla** es `CLS`, que siempre es `00E0`.
+- **V0 = 0x0A** es `LD VX, NN` (`6XNN`) con X = 0 y NN = `0A`: `600A`.
+- **I = dirección del dígito que vale V0** es `LD F, VX` (`FX29`) con X = 0: `F029`.
+- **V1 = 30**: 30 en hexadecimal es `1E` (1 × 16 + 14), así que es `611E`.
+- **V2 = 13**: 13 es `0D`, así que es `620D`.
+- **Dibujar 5 filas en (V1, V2)** es `DRW VX, VY, N` (`DXYN`) con X = 1, Y = 2 y N = 5:
+  `D125`.
+- **Saltar a sí misma**: el programa empieza en `0x200` y cada instrucción ocupa 2
+  bytes, así que la séptima está en `0x200 + 6 × 2 = 0x20C`. `JP NNN` es `1NNN`:
+  `120C`.
+
+El programa completo, con la dirección donde queda cada instrucción:
+
+<!-- verificar: tabla-a-mano -->
+| Dirección | Bytes | Instrucción | Qué hace |
+|---|---|---|---|
+| `0x200` | `00 E0` | `CLS` | Borra la pantalla. |
+| `0x202` | `60 0A` | `LD V0, 0x0A` | V0 = 10, el dígito A. |
+| `0x204` | `F0 29` | `LD F, V0` | I = dirección del dibujo de la A (`0x050 + 10 × 5 = 0x082`). |
+| `0x206` | `61 1E` | `LD V1, 0x1E` | V1 = 30, la x. |
+| `0x208` | `62 0D` | `LD V2, 0x0D` | V2 = 13, la y. |
+| `0x20A` | `D1 25` | `DRW V1, V2, 5` | Dibuja 5 filas desde I en (V1, V2). |
+| `0x20C` | `12 0C` | `JP 0x20C` | Salta a sí misma, para siempre. |
+
+Todo junto: `00E0 600A F029 611E 620D D125 120C`.
+
+> Para pasar de decimal a hexadecimal (y al revés) sirve la calculadora de tu sistema
+> en modo *programador*. O Node: `(30).toString(16)` da `'1e'` y `0x1E` da `30`.
+
+### 3.3 Crear el archivo `.ch8`
+
+Un `.ch8` no es un archivo de texto: son esos 14 bytes, crudos. Un editor de texto no
+sirve para escribirlo. Elegí una de estas formas (las tres dejan `a-mano.ch8` en la
+carpeta donde estás parado).
+
+**PowerShell** (anda igual en Windows PowerShell 5.1 y en PowerShell 7):
+
+```powershell
+[IO.File]::WriteAllBytes("$PWD\a-mano.ch8", [byte[]](0x00,0xE0,0x60,0x0A,0xF0,0x29,0x61,0x1E,0x62,0x0D,0xD1,0x25,0x12,0x0C))
+```
+
+`[byte[]](...)` convierte la lista de números en bytes y `WriteAllBytes` los escribe
+tal cual. El `$PWD\` hace falta porque `WriteAllBytes` necesita la ruta completa.
+Ojo: **no** uses `echo ... > archivo` en PowerShell, porque escribe texto, no bytes.
+
+**Node**, en cualquier sistema:
+
+```sh
+node -e "require('fs').writeFileSync('a-mano.ch8', Buffer.from('00E0600AF029611E620DD125120C', 'hex'))"
+```
+
+**Linux, macOS o Git Bash**, con `xxd`:
+
+```sh
+echo 00E0600AF029611E620DD125120C | xxd -r -p > a-mano.ch8
+```
+
+Para comprobar que quedó bien, el archivo tiene que pesar exactamente 14 bytes. En
+PowerShell, `Format-Hex a-mano.ch8` te muestra su contenido en hexadecimal; en Linux y
+macOS, `xxd a-mano.ch8`.
+
+### 3.4 Cargarlo
+
+Arrastrá `a-mano.ch8` sobre la consola (o usá **Cargar ROM**). En la ranura del
+cartucho aparecen el nombre del archivo y su tamaño, 14 bytes, y en el centro de la
+pantalla, la A:
+
+<!-- salida (fragmento): node docs/ejemplos/mini-emulador.js docs/ejemplos/01-a-mano.ch8 -->
+```text
+..............................####..............................
+..............................#..#..............................
+..............................####..............................
+..............................#..#..............................
+..............................#..#..............................
+```
+
+En el monitor vas a ver que el PC se queda clavado en `0x20C` mientras el contador de
+INSTRUCCIONES sube y sube: la máquina está ejecutando el `JP 0x20C` sin parar, unas 900
+veces por segundo. Así es un programa CHIP-8 "terminado".
+
+### 3.5 Mirarlo paso a paso
+
+Ahora vamos a ver cada instrucción hacer lo suyo:
+
+1. Apretá **Espacio** para pausar.
+2. Apretá **Retroceso** para reiniciar. Como estaba en pausa, queda en pausa: la
+   pantalla vacía, `PC = 0x200` y, en el DESENSAMBLADO, tus 7 instrucciones a partir de
+   `0x200` (después vienen muchos `SYS 0x000`: es la memoria vacía, llena de ceros,
+   que el desensamblador muestra como si fueran instrucciones).
+3. Apretá **N** (o el botón **Paso**) y mirá qué cambia cada vez:
+
+| Paso | Se ejecutó | Qué ves en el monitor |
+|---|---|---|
+| 1 | `CLS` | `PC = 0x202`. La pantalla ya estaba vacía. |
+| 2 | `LD V0, 0x0A` | V0 = `0A`, resaltado. |
+| 3 | `LD F, V0` | `I = 0x082`. En MEMORIA EN I, a partir del byte resaltado: `F0 90 F0 90 90`. ¡Es la A! |
+| 4 | `LD V1, 0x1E` | V1 = `1E`. |
+| 5 | `LD V2, 0x0D` | V2 = `0D`. |
+| 6 | `DRW V1, V2, 5` | Aparece la A. VF = `00`: no se apagó ningún píxel. |
+| 7 | `JP 0x20C` | El PC queda en `0x20C`. Y ahí se va a quedar. |
+
+Mirá la memoria en el paso 3: los 5 bytes de la A son `F0 90 F0 90 90`, o sea
+`1111`, `1001`, `1111`, `1001`, `1001` en binario (los 4 bits de la izquierda). Si
+pintás cada 1, es la A.
+
+### 3.6 Jugá con los bytes
+
+Cambiá bytes, volvé a crear el archivo y cargalo. Algunas ideas:
+
+- **Otro dígito**: cambiá `600A` por `6007` y dibuja un 7. Cualquier valor de `00` a
+  `0F` sirve.
+- **Otro lugar**: cambiá `611E` (x = 30) y `620D` (y = 13).
+- **Pegado al borde**: con `611E` cambiado por `613E` (x = 62), o sea
+  `00E0 600A F029 613E 620D D125 120C`, solo entran las dos primeras columnas de la A.
+  Con el perfil COSMAC VIP, las otras dos se recortan. Pasá al perfil XO-CHIP (que no
+  recorta) y apretá **Retroceso**: las dos columnas que faltaban aparecen del otro lado,
+  en las columnas 0 y 1.
+- **Dibujar dos veces**: agregá otro `D125` justo después del primero. La instrucción
+  del salto ahora queda en `0x20E`, así que también hay que cambiarla por `120E`:
+  `00E0 600A F029 611E 620D D125 D125 120E`. La A **no aparece**: el segundo dibujo, con
+  XOR, apagó todo lo que prendió el primero. Y VF queda en `01`, porque ese segundo
+  dibujo apagó píxeles prendidos.
+
+Ese último detalle, tener que corregir la dirección del salto porque agregaste una
+instrucción, es exactamente lo que resuelve el ensamblador.
+
+---
+
+## 4. El ensamblador
+
+Escribir en hexadecimal es buenísimo para entender, pero para programar de verdad es un
+suplicio: hay que calcular direcciones a mano y cualquier instrucción que agregás corre
+todas las que vienen después. Un **ensamblador** traduce texto como `DRW V1, V2, 5` a
+los bytes `D1 25`, y calcula las direcciones por vos a partir de **etiquetas**. El del
+proyecto es `tools/chip8asm.js`: un solo archivo, sin dependencias.
+
+### 4.1 El mismo programa, en ensamblador
+
+Este es el programa de la parte 3 escrito en ensamblador:
+
+```asm
+; 01-a-mano.asm — el programa de la parte 3, ahora en ensamblador
+;
+; Borra la pantalla y dibuja el dígito A de la fuente en el centro.
+; Ensamblado da exactamente los mismos 14 bytes que escribimos a mano:
+;   00E0 600A F029 611E 620D D125 120C
+
+DIGITO   EQU 0xA        ; el dígito de la fuente que vamos a mostrar
+X_CENTRO EQU 30         ; (64 - 4) / 2: centrado en horizontal
+Y_CENTRO EQU 13         ; (32 - 5) / 2, redondeado para abajo
+
+        CLS             ; 00E0  borrar la pantalla
+        LD V0, DIGITO   ; 600A  V0 = 0x0A
+        LD F, V0        ; F029  I = dirección del glifo de V0 en la fuente
+        LD V1, X_CENTRO ; 611E  V1 = 30
+        LD V2, Y_CENTRO ; 620D  V2 = 13
+        DRW V1, V2, 5   ; D125  dibujar 5 filas desde I, en (V1, V2)
+fin:    JP fin          ; 120C  saltar acá mismo, para siempre
+```
+
+- Todo lo que va después de un `;` es un **comentario**.
+- `DIGITO EQU 0xA` define una **constante**: un nombre para un número. No ocupa
+  memoria; cada vez que escribís `DIGITO`, el ensamblador pone `0xA`.
+- `fin:` es una **etiqueta**: un nombre para la dirección donde queda la instrucción de
+  esa línea. `JP fin` salta ahí. Si mañana agregás instrucciones antes, `fin` se corre
+  solo y no hay que tocar nada.
+- Las instrucciones van con sangría por costumbre, para que las etiquetas resalten.
+
+### 4.2 Ensamblar desde la terminal
+
+<!-- salida: node tools/chip8asm.js docs/ejemplos/01-a-mano.asm -->
+```text
+Ensamblado 01-a-mano.asm: 14 bytes -> docs/ejemplos/01-a-mano.ch8
+```
+
+Si no le decís otra cosa, el ensamblador escribe el `.ch8` al lado del `.asm`, con el
+mismo nombre. Con un segundo argumento elegís otro nombre:
+`node tools/chip8asm.js programa.asm salida.ch8`. (También hay un atajo de npm:
+`npm run asm -- programa.asm`.)
+
+Comprobá que da exactamente lo mismo que tu archivo hecho a mano. En Windows:
+
+```powershell
+fc.exe /b a-mano.ch8 docs/ejemplos/01-a-mano.ch8
+```
+
+(Escribí `fc.exe` y no `fc` a secas, porque en PowerShell `fc` es otro comando.) Te
+tiene que decir que no encontró diferencias. En Linux o macOS, `cmp a-mano.ch8
+docs/ejemplos/01-a-mano.ch8` no dice nada si los archivos son iguales.
+
+### 4.3 El listado
+
+Con `--listing`, además, te muestra qué bytes generó cada línea y en qué dirección
+quedaron:
+
+<!-- salida: node tools/chip8asm.js docs/ejemplos/01-a-mano.asm --listing -->
+```text
+   1                     ; 01-a-mano.asm — el programa de la parte 3, ahora en ensamblador
+   2                     ;
+   3                     ; Borra la pantalla y dibuja el dígito A de la fuente en el centro.
+   4                     ; Ensamblado da exactamente los mismos 14 bytes que escribimos a mano:
+   5                     ;   00E0 600A F029 611E 620D D125 120C
+   6                     
+   7                     DIGITO   EQU 0xA        ; el dígito de la fuente que vamos a mostrar
+   8                     X_CENTRO EQU 30         ; (64 - 4) / 2: centrado en horizontal
+   9                     Y_CENTRO EQU 13         ; (32 - 5) / 2, redondeado para abajo
+  10                     
+  11  0x200  00 E0               CLS             ; 00E0  borrar la pantalla
+  12  0x202  60 0A               LD V0, DIGITO   ; 600A  V0 = 0x0A
+  13  0x204  F0 29               LD F, V0        ; F029  I = dirección del glifo de V0 en la fuente
+  14  0x206  61 1E               LD V1, X_CENTRO ; 611E  V1 = 30
+  15  0x208  62 0D               LD V2, Y_CENTRO ; 620D  V2 = 13
+  16  0x20A  D1 25               DRW V1, V2, 5   ; D125  dibujar 5 filas desde I, en (V1, V2)
+  17  0x20C  12 0C       fin:    JP fin          ; 120C  saltar acá mismo, para siempre
+  18                     
+Ensamblado 01-a-mano.asm: 14 bytes -> docs/ejemplos/01-a-mano.ch8
+```
+
+Las columnas son: número de línea, dirección, bytes y la línea original. El listado es
+tu mapa para depurar: cuando el monitor diga que el PC está en `0x20A`, acá ves que es
+el `DRW`. Las líneas de comentario y los `EQU` no generan bytes.
+
+### 4.4 La sintaxis, completa
+
+- **Una instrucción por línea.** Los nombres de instrucciones, los registros y las
+  directivas se pueden escribir en mayúsculas o minúsculas: `ld v1, 5` es lo mismo que
+  `LD V1, 5`. Las etiquetas y las constantes, en cambio, distinguen: `Fin` y `fin` son
+  dos nombres distintos.
+- **Comentarios**: desde `;` hasta el final de la línea.
+- **Etiquetas**: un nombre seguido de `:`. Pueden tener letras, dígitos, `_` y `.`, y
+  no pueden empezar con un dígito. Pueden ir solas en su línea o antes de una
+  instrucción. Se pueden usar antes de definirlas: el ensamblador lee el archivo dos
+  veces, así que `JP mas_adelante` anda aunque `mas_adelante:` esté más abajo.
+- **Números**: decimal (`42`), hexadecimal (`0x2A` o `$2A`) y binario (`0b00101010` o
+  `%00101010`).
+- **Bytes negativos**: donde va un byte podés poner un número de −128 a −1, que se
+  guarda en complemento a dos. `ADD V3, -1` es lo mismo que `ADD V3, 0xFF`, y como la
+  suma da la vuelta, resta 1.
+- **Expresiones**: números, etiquetas y constantes sumados y restados, como
+  `tabla + 3` o `XMAX + 1`.
+- **`NOMBRE EQU valor`**: define una constante.
+- **`DB`**: pone bytes en memoria, tal cual. Para los dibujos y las tablas.
+- **`DW`**: pone palabras de 16 bits, el byte alto primero. `DW 0x00E0` genera lo
+  mismo que `CLS`.
+- **Nombres reservados**: no podés usar como etiqueta ni como constante los nombres de
+  los registros (`V0` a `VF`, `I`, `DT`, `ST`), los operandos especiales (`K`, `F`,
+  `B`), los nombres de instrucciones ni `EQU`, `DB` y `DW`. Así que `i:` o `b:` no
+  sirven como etiquetas.
+- **Instrucciones**: exactamente las del machete de la
+  [sección 2.9](#29-las-35-instrucciones-de-un-vistazo), más dos atajos: `SHR VX` y
+  `SHL VX` son `SHR VX, VX` y `SHL VX, VX`.
+
+Por ejemplo, este fragmento es válido, y cada par de líneas genera los mismos bytes:
+
+```asm
+LARGO   EQU 3
+        LD V1, 42
+        ld v1, 0x2A
+        LD V2, %00001111
+        LD V2, 0b00001111
+        ADD V3, -1
+        ADD V3, 0xFF
+        LD I, tabla + LARGO
+        LD I, tabla + 3
+        DW 0x00E0
+        CLS
+tabla:  DB 1, 2, 3, 4
+```
+
+La documentación completa de la sintaxis está en el comentario del principio de
+`tools/chip8asm.js`.
+
+### 4.5 Sprites propios con `DB`: HOLA
+
+Con `DB` podés dibujar lo que quieras. Escribir cada fila en binario (`%`) es lo más
+cómodo: se ve el dibujo en los unos y ceros. Este programa escribe HOLA:
+
+```asm
+; 02-hola.asm — sprites propios con DB: escribe HOLA en el centro
+;
+; Cada letra es un sprite de 5 filas: un byte por fila, un bit por píxel
+; (1 = prendido). El bit más alto es el píxel de la izquierda. Las letras
+; usan solo las 4 columnas de la izquierda; las otras 4 quedan en 0.
+
+X0      EQU 22          ; x de la primera letra: (64 - 19) / 2, redondeado
+Y0      EQU 13          ; y de todas las letras
+AVANCE  EQU 5           ; 4 columnas de letra + 1 de separación
+
+        CLS
+        LD V1, X0
+        LD V2, Y0
+        LD I, letra_h
+        DRW V1, V2, 5
+        ADD V1, AVANCE
+        LD I, letra_o
+        DRW V1, V2, 5
+        ADD V1, AVANCE
+        LD I, letra_l
+        DRW V1, V2, 5
+        ADD V1, AVANCE
+        LD I, letra_a
+        DRW V1, V2, 5
+fin:    JP fin
+
+letra_h:
+        DB %10010000    ; #..#
+        DB %10010000    ; #..#
+        DB %11110000    ; ####
+        DB %10010000    ; #..#
+        DB %10010000    ; #..#
+letra_o:
+        DB %01100000    ; .##.
+        DB %10010000    ; #..#
+        DB %10010000    ; #..#
+        DB %10010000    ; #..#
+        DB %01100000    ; .##.
+letra_l:
+        DB %10000000    ; #...
+        DB %10000000    ; #...
+        DB %10000000    ; #...
+        DB %10000000    ; #...
+        DB %11110000    ; ####
+letra_a:
+        DB %01100000    ; .##.
+        DB %10010000    ; #..#
+        DB %11110000    ; ####
+        DB %10010000    ; #..#
+        DB %10010000    ; #..#
+```
+
+- Los datos van **después** del `JP fin`. Como la CPU nunca pasa del salto, nunca los
+  ejecuta como si fueran instrucciones.
+- Cada letra tiene su etiqueta: `LD I, letra_o` apunta I a su primer byte. Las
+  instrucciones ocupan de `0x200` a `0x21D`, así que `letra_h` queda en `0x21E`,
+  `letra_o` en `0x223` (5 bytes después), y así.
+- `ADD V1, AVANCE` corre la x 5 píxeles para la letra siguiente.
+
+Así queda (las filas 13 a 17 de la pantalla, con `#` para los píxeles prendidos):
+
+<!-- salida (fragmento): node docs/ejemplos/mini-emulador.js docs/ejemplos/02-hola.ch8 -->
+```text
+......................#..#..##..#.....##........................
+......................#..#.#..#.#....#..#.......................
+......................####.#..#.#....####.......................
+......................#..#.#..#.#....#..#.......................
+......................#..#..##..####.#..#.......................
+```
+
+(Esa salida la genera el emulador mínimo que vas a ver en la
+[parte 8](#8-cómo-funciona-un-emulador-por-dentro).)
+
+### 4.6 Cuando algo está mal
+
+Si hay un error, el ensamblador no genera nada y te dice **en qué línea** está y por
+qué. Estos son los errores más comunes:
+
+<!-- verificar: tabla-errores -->
+| Si escribís | El ensamblador dice | Qué pasó |
+|---|---|---|
+| `DRAW V1, V2, 5` | `Línea 1: instrucción desconocida: "DRAW"` | Se llama `DRW`. |
+| `LD V1 5` | `Línea 1: no se puede usar "V1" dentro de una expresión (es un nombre reservado)` | Falta la coma: `LD V1, 5`. |
+| `LD V1, 300` | `Línea 1: valor fuera de rango para un byte (-128..255): "300" = 300` | Los registros son de 8 bits. |
+| `DRW V1, V2, 16` | `Línea 1: valor fuera de rango para un nibble (0..15): "16" = 16` | Un sprite tiene como mucho 15 filas. |
+| `JP 0x1000` | `Línea 1: dirección fuera de rango (0..0xFFF): "0x1000" = 4096` | La memoria llega hasta `0xFFF`. |
+| `JP fin` | `Línea 1: etiqueta o constante desconocida: "fin"` | La etiqueta no está definida (o está escrita con otras mayúsculas). |
+| `LD V1, V10` | `Línea 1: etiqueta o constante desconocida: "V10" (los registros van de V0 a VF)` | No existe V10: los registros son V0 a VF. |
+| `LD V1, 0x2G` | `Línea 1: número inválido: "0x2G"` | G no es un dígito hexadecimal. |
+| `SKP 5` | `Línea 1: operandos inválidos para SKP: "5" (formas válidas: SKP Vx)` | `SKP` recibe un **registro** que tiene el número de tecla: `LD V0, 5` y después `SKP V0`. |
+| `JP V1, 0x300` | `Línea 1: JP con registro solo admite V0 (JP V0, dirección)` | El salto con desplazamiento siempre suma V0. |
+| `CLS V1` | `Línea 1: CLS espera 0 operandos y recibió 1 (formas válidas: CLS)` | `CLS` no lleva operandos. |
+| `i: CLS` | `Línea 1: "i" es un nombre reservado y no puede usarse como etiqueta ni constante` | `I` es un registro. |
+
+Cuando el programa tiene varias líneas, el número de línea te lleva directo al
+problema. Este archivo tiene una etiqueta repetida:
+
+<!-- verificar: error -->
+```asm
+; mal.asm — una etiqueta definida dos veces
+        LD V0, 5
+bucle:  ADD V0, 1
+        JP bucle
+bucle:  CLS
+```
+
+```text
+mal.asm: Línea 5: "bucle" ya estaba definido en la línea 3
+```
+
+Lo que el ensamblador **no** puede ver son los errores de lógica: usar `SKP` donde iba
+`SKNP`, olvidarse de apuntar I antes de un `DRW`, pisar un registro que estabas usando.
+Para esos está el monitor, y la [parte 7](#7-depurar).
+
+### 4.7 Ida y vuelta con el monitor
+
+El DESENSAMBLADO del monitor usa exactamente esta misma sintaxis, así que cualquier
+línea que veas ahí la podés copiar a un `.asm`. Las palabras que no son instrucciones
+válidas aparecen como `DW 0x....`, que también se puede ensamblar. Eso sí: el monitor
+no sabe qué es código y qué es un dibujo. Los bytes del fantasmita que vas a dibujar en
+la parte 5 (`78 FC ...`) los muestra como `ADD V8, 0xFC`.
+
+---
+
+## 5. Proyecto guiado: el Cazamonedas
+
+Vamos a hacer un juego: un fantasmita que se mueve con **W, A, S y D** y junta las
+monedas que van apareciendo, con puntaje y sonido. Lo construimos en seis etapas; cada
+una es un programa completo que podés ensamblar y cargar, y cada una agrega algo nuevo.
+
+Todos los `.ch8` ya están ensamblados en `docs/ejemplos/`. Si cambiás un `.asm`,
+volvé a ensamblarlo, por ejemplo:
+
+```sh
+node tools/chip8asm.js docs/ejemplos/04-mover.asm
+```
+
+### El plan antes de empezar
+
+En CHIP-8 no hay variables: hay 16 registros, y algunas instrucciones usan registros
+fijos (`LD V2, [I]` carga V0, V1 y V2; `DRW` y las restas pisan VF). Para no pisarnos
+solos, conviene repartir los registros desde el principio y respetar el reparto en
+todas las etapas:
+
+| Registro | Uso |
+|---|---|
+| V0 a V3 | Temporales: se usan un momento y se descartan. El puntaje (etapa E) los pisa. |
+| V4, V5 | Posición del fantasmita (x, y). |
+| V6, V7 | Posición nueva, mientras decidimos si se mueve. |
+| V8, V9 | Posición de la moneda. |
+| VE | Puntaje. |
+| VF | Bandera. Nunca guardamos nada ahí. |
+
+Y la pantalla, con el juego terminado:
+
+```text
+filas 0 a 4     el puntaje (etapa E)
+fila  6         el techo, una línea de lado a lado (etapa D)
+filas 8 a 31    la zona de juego
+```
+
+### 5.1 Etapa A: dibujar un sprite
+
+```asm
+; 03-fantasma.asm — Cazamonedas, etapa A: dibujar un sprite propio
+;
+; El protagonista del juego es un fantasmita de 6x6 píxeles. Por ahora
+; lo dibujamos una vez en el centro de la pantalla y nos quedamos quietos.
+;
+; Registros:
+;   V4, V5  posición del fantasmita (x, y)
+
+        CLS
+        LD V4, 29       ; x = (64 - 6) / 2
+        LD V5, 13       ; y = (32 - 6) / 2
+        LD I, fantasma  ; I apunta a los 6 bytes del sprite
+        DRW V4, V5, 6   ; dibujar 6 filas
+fin:    JP fin
+
+fantasma:
+        DB %01111000    ; .####.
+        DB %11111100    ; ######
+        DB %10110100    ; #.##.#   los ojos son dos agujeros
+        DB %11111100    ; ######
+        DB %11111100    ; ######
+        DB %10101000    ; #.#.#.   el borde de la sábana
+```
+
+Ya conocés todo lo que hay acá. El dibujo es el de la
+[sección 2.5](#25-la-pantalla): 6 filas de 6 píxeles (los dos bits de la derecha de
+cada byte van en 0). Para centrarlo, x = (64 − 6) / 2 = 29 e y = (32 − 6) / 2 = 13.
+
+Cargá `docs/ejemplos/03-fantasma.ch8` y ahí está. Probá cambiarle la cara: los ojos
+son los dos ceros del medio de la tercera fila.
+
+### 5.2 Etapa B: moverlo con el teclado
+
+```asm
+; 04-mover.asm — Cazamonedas, etapa B: mover el fantasmita con el teclado
+;
+; W, A, S y D de tu teclado son las teclas 5, 7, 8 y 9 del keypad.
+; En cada vuelta del bucle miramos las cuatro teclas con SKNP. Si el
+; fantasmita se movió, lo borramos (dibujarlo otra vez en el mismo lugar
+; lo apaga, porque DRW dibuja con XOR) y lo dibujamos en la posición nueva.
+;
+; Registros:
+;   V0      temporal (el número de tecla que consultamos)
+;   V4, V5  posición del fantasmita (x, y)
+;   V6, V7  posición nueva (x, y)
+
+ARRIBA  EQU 5           ; W
+IZQ     EQU 7           ; A
+ABAJO   EQU 8           ; S
+DER     EQU 9           ; D
+
+inicio:
+        CLS
+        LD V4, 29
+        LD V5, 13
+        LD I, fantasma
+        DRW V4, V5, 6
+
+bucle:
+        LD V6, V4       ; la posición nueva arranca igual a la actual
+        LD V7, V5
+        LD V0, ARRIBA
+        SKNP V0         ; si la tecla NO está apretada, saltea la línea siguiente
+        ADD V7, -1      ; y = y - 1  (-1 es lo mismo que 0xFF)
+        LD V0, ABAJO
+        SKNP V0
+        ADD V7, 1
+        LD V0, IZQ
+        SKNP V0
+        ADD V6, -1
+        LD V0, DER
+        SKNP V0
+        ADD V6, 1
+
+        SE V6, V4       ; ¿cambió x? entonces hay que moverlo
+        JP mover
+        SE V7, V5       ; ¿cambió y?
+        JP mover
+        JP bucle        ; no se movió: no hay nada que redibujar
+
+mover:
+        DRW V4, V5, 6   ; borrar: XOR sobre el dibujo viejo lo apaga
+        LD V4, V6
+        LD V5, V7
+        DRW V4, V5, 6   ; dibujar en la posición nueva
+        JP bucle
+
+fantasma:
+        DB %01111000    ; .####.
+        DB %11111100    ; ######
+        DB %10110100    ; #.##.#
+        DB %11111100    ; ######
+        DB %11111100    ; ######
+        DB %10101000    ; #.#.#.
+```
+
+Lo nuevo:
+
+- **Leer una tecla.** `SKNP V0` saltea la instrucción siguiente si la tecla cuyo
+  número está en V0 **no** está apretada. Leído al revés: la línea de abajo solo se
+  ejecuta si la tecla está apretada. Ese par (`SKNP` + una instrucción) es el "if" de
+  una línea de CHIP-8, y lo vas a ver en todos lados.
+- **Moverse solo si hace falta.** `SE V6, V4` saltea el `JP mover` si la x nueva es
+  igual a la vieja; o sea, **salta a `mover` si la x cambió**. Lo mismo con la y. Si
+  no cambió nada, no se redibuja.
+- **Animar con XOR.** En `mover`, el primer `DRW` dibuja el fantasmita donde ya
+  estaba: como dibujar es hacer XOR, eso lo **borra**. Después actualiza la posición y
+  lo dibuja en el lugar nuevo.
+
+Cargalo y movelo. Vas a notar dos cosas.
+
+**Parpadea.** Entre el borrado y el nuevo dibujo, el fantasmita no está en la
+pantalla. Con el perfil COSMAC VIP, cada `DRW` espera al frame siguiente (el quirk
+`VBLANK`), así que durante un frame entero no se ve. Es el parpadeo típico de los juegos
+de CHIP-8; la opción **Persistencia** de la consola lo disimula. En la
+[parte 6](#61-rebote-paso-a-paso) vas a ver otra forma de reducirlo.
+
+**La velocidad depende de la máquina.** Con el perfil COSMAC VIP avanza 30 píxeles por
+segundo, tanto a 15 como a 1000 IPF: cada paso tiene dos `DRW` y cada uno espera un
+frame, así que da un paso cada 2 frames. Pero pasá al perfil XO-CHIP (que no espera):
+a 15 IPF avanza 50 píxeles por segundo, y a 1000 IPF avanza más de 50 píxeles **en un
+solo frame**, casi el ancho de la pantalla. Y si lo llevás contra un borde, reaparece
+del otro lado. Las dos cosas las arreglamos en las próximas etapas.
+
+### 5.3 Etapa C: el ritmo con el temporizador
+
+```asm
+; 05-ritmo.asm — Cazamonedas, etapa C: velocidad fija con el temporizador
+;
+; En la etapa B el fantasmita se movía tan rápido como corriera la CPU.
+; Ahora cada vuelta del bucle espera a que el temporizador de retardo (DT)
+; llegue a 0 y lo vuelve a cargar con RITMO. DT baja 60 veces por segundo
+; pase lo que pase, así que el fantasmita avanza 60 / RITMO = 20 píxeles
+; por segundo tanto a 15 como a 1000 instrucciones por frame.
+;
+; Registros:
+;   V0      temporal
+;   V4, V5  posición del fantasmita (x, y)
+;   V6, V7  posición nueva (x, y)
+
+ARRIBA  EQU 5           ; W
+IZQ     EQU 7           ; A
+ABAJO   EQU 8           ; S
+DER     EQU 9           ; D
+RITMO   EQU 3           ; cuadros (1/60 s) por paso
+
+inicio:
+        CLS
+        LD V4, 29
+        LD V5, 13
+        LD I, fantasma
+        DRW V4, V5, 6
+
+bucle:
+        LD V0, DT       ; ¿ya pasaron RITMO cuadros desde el paso anterior?
+        SE V0, 0
+        JP bucle        ; todavía no: seguir esperando
+        LD V0, RITMO
+        LD DT, V0       ; el próximo paso, dentro de RITMO cuadros
+
+        LD V6, V4
+        LD V7, V5
+        LD V0, ARRIBA
+        SKNP V0
+        ADD V7, -1
+        LD V0, ABAJO
+        SKNP V0
+        ADD V7, 1
+        LD V0, IZQ
+        SKNP V0
+        ADD V6, -1
+        LD V0, DER
+        SKNP V0
+        ADD V6, 1
+
+        SE V6, V4
+        JP mover
+        SE V7, V5
+        JP mover
+        JP bucle
+
+mover:
+        DRW V4, V5, 6   ; borrar
+        LD V4, V6
+        LD V5, V7
+        DRW V4, V5, 6   ; dibujar en la posición nueva
+        JP bucle
+
+fantasma:
+        DB %01111000    ; .####.
+        DB %11111100    ; ######
+        DB %10110100    ; #.##.#
+        DB %11111100    ; ######
+        DB %11111100    ; ######
+        DB %10101000    ; #.#.#.
+```
+
+Lo único nuevo son las cinco líneas del principio del bucle:
+
+- `LD V0, DT` / `SE V0, 0` / `JP bucle`: mientras el temporizador no llegue a 0,
+  seguimos dando vueltas acá.
+- Cuando llega a 0, lo volvemos a cargar con `RITMO` (3) y hacemos un paso.
+
+DT baja 60 veces por segundo pase lo que pase, así que hay exactamente un paso cada 3
+frames: **20 píxeles por segundo** con cualquier perfil y cualquier velocidad. Los tests
+del proyecto lo comprueban con los tres perfiles y con 15, 30, 100 y 1000 IPF.
+
+Un detalle de diseño: el temporizador se recarga **al principio** del paso, no al
+final. Así el tiempo que tarda el paso mismo queda adentro de esos 3 frames, y el ritmo
+no se corre.
+
+Otro detalle: **el paso tiene que entrar en esos 3 frames**. Con el perfil COSMAC VIP,
+cada `DRW` termina el frame en el que se ejecuta, así que un paso que dibuja dos veces
+ocupa como mínimo 2 frames, más las instrucciones de antes del primer `DRW`, que a 15
+IPF no entran todas en un frame. Justo entra en 3. Si probás con `RITMO EQU 2`, con el
+perfil COSMAC VIP va a 30 píxeles por segundo a 30 IPF o más, pero a 15 IPF el paso no
+entra en 2 frames, tarda 3, y baja a 20: la velocidad vuelve a depender de las IPF. Al
+diseñar para el VIP, contá los `DRW` de cada paso: cada uno puede costarte un frame.
+
+### 5.4 Etapa D: bordes, una moneda y choques
+
+Esta es la etapa más larga: aparece la moneda, y con ella los choques.
+
+```asm
+; 06-monedas.asm — Cazamonedas, etapa D: bordes, una moneda y choques con VF
+;
+; Tres cosas nuevas:
+;   - Bordes: el fantasmita ya no se sale de la pantalla ni se mete en el
+;     techo (una línea en la fila 6; arriba va a ir el marcador).
+;   - Una moneda en un lugar al azar (RND).
+;   - Choques: DRW deja VF = 1 si apagó algún píxel que estaba prendido.
+;     Si al dibujar el fantasmita VF queda en 1, es que pisó la moneda.
+;
+; Registros:
+;   V0, V1  temporales
+;   V4, V5  posición del fantasmita (x, y)
+;   V6, V7  posición nueva (x, y)
+;   V8, V9  posición de la moneda (x, y)
+;   VF      bandera: choque de DRW, préstamo de SUB
+
+ARRIBA  EQU 5           ; W
+IZQ     EQU 7           ; A
+ABAJO   EQU 8           ; S
+DER     EQU 9           ; D
+RITMO   EQU 3           ; cuadros por paso
+XMAX    EQU 58          ; 64 - 6: la x más grande del fantasmita
+YMIN    EQU 8           ; debajo del techo (fila 6), con una fila de aire
+YMAX    EQU 26          ; 32 - 6: la y más grande del fantasmita
+MONEDA_XMAX EQU 60      ; 64 - 4: la x más grande de la moneda
+MONEDA_DY   EQU 20      ; la moneda va de y = YMIN a y = YMIN + 20 = 28
+
+inicio:
+        CLS
+        LD I, linea     ; el techo: 8 tramos de 8 píxeles en la fila 6
+        LD V0, 0
+        LD V1, 6
+techo:
+        DRW V0, V1, 1
+        ADD V0, 8
+        SE V0, 64
+        JP techo
+
+        LD V4, 29
+        LD V5, 17
+        LD I, fantasma
+        DRW V4, V5, 6
+        CALL nueva_moneda
+
+bucle:
+        LD V0, DT
+        SE V0, 0
+        JP bucle
+        LD V0, RITMO
+        LD DT, V0
+
+        LD V6, V4
+        LD V7, V5
+        LD V0, ARRIBA
+        SKNP V0
+        ADD V7, -1
+        LD V0, ABAJO
+        SKNP V0
+        ADD V7, 1
+        LD V0, IZQ
+        SKNP V0
+        ADD V6, -1
+        LD V0, DER
+        SKNP V0
+        ADD V6, 1
+
+        ; Bordes: como se mueve de a 1 píxel, si se pasó fue por uno solo
+        ; y alcanza con devolverlo al límite.
+        SNE V6, -1          ; x = -1 (0xFF): se fue por la izquierda
+        LD V6, 0
+        SNE V6, XMAX + 1    ; se fue por la derecha
+        LD V6, XMAX
+        SNE V7, YMIN - 1    ; se metió en el techo
+        LD V7, YMIN
+        SNE V7, YMAX + 1    ; se fue por abajo
+        LD V7, YMAX
+
+        SE V6, V4
+        JP mover
+        SE V7, V5
+        JP mover
+        JP bucle
+
+mover:
+        LD I, fantasma      ; las subrutinas cambian I: lo recargamos siempre
+        DRW V4, V5, 6       ; borrar
+        LD V4, V6
+        LD V5, V7
+        DRW V4, V5, 6       ; dibujar en la posición nueva
+        SE VF, 0            ; VF = 1: apagó algún píxel prendido. ¡La moneda!
+        CALL agarrar
+        JP bucle
+
+; ----------------------------------------------------------------------
+; El fantasmita pisó la moneda. El XOR apagó los píxeles donde se
+; superponen, así que primero lo sacamos (la moneda vuelve a estar entera),
+; borramos la moneda, lo volvemos a dibujar y ponemos otra moneda.
+; ----------------------------------------------------------------------
+agarrar:
+        DRW V4, V5, 6       ; sacar el fantasmita (I todavía apunta a él)
+        LD I, moneda
+        DRW V8, V9, 4       ; borrar la moneda
+        LD I, fantasma
+        DRW V4, V5, 6       ; volver a dibujar el fantasmita
+        CALL nueva_moneda
+        RET
+
+; ----------------------------------------------------------------------
+; Pone la moneda en un lugar al azar. Si cae encima del fantasmita
+; (VF = 1 al dibujarla), la borra y prueba en otro lugar.
+; Usa V0 y cambia I.
+; ----------------------------------------------------------------------
+nueva_moneda:
+        RND V8, 0x3F        ; x al azar entre 0 y 63
+        LD V0, MONEDA_XMAX
+        SUB V0, V8          ; VF = 1 si no hubo préstamo, o sea si x <= 60
+        SE VF, 1
+        JP nueva_moneda     ; no entra en la pantalla: probar otra vez
+        RND V9, 0x1F        ; y al azar entre 0 y 31
+        LD V0, MONEDA_DY
+        SUB V0, V9          ; VF = 1 si y <= 20
+        SE VF, 1
+        JP nueva_moneda
+        ADD V9, YMIN        ; bajarla debajo del techo: y entre 8 y 28
+        LD I, moneda
+        DRW V8, V9, 4
+        SE VF, 1            ; ¿no tocó nada? listo
+        RET
+        DRW V8, V9, 4       ; cayó sobre el fantasmita: borrarla
+        JP nueva_moneda     ; y probar en otro lugar
+
+; ----------------------------------------------------------------------
+; Sprites
+; ----------------------------------------------------------------------
+fantasma:
+        DB %01111000    ; .####.
+        DB %11111100    ; ######
+        DB %10110100    ; #.##.#
+        DB %11111100    ; ######
+        DB %11111100    ; ######
+        DB %10101000    ; #.#.#.
+moneda:
+        DB %01100000    ; .##.
+        DB %11110000    ; ####
+        DB %11110000    ; ####
+        DB %01100000    ; .##.
+linea:
+        DB %11111111    ; ########
+```
+
+Lo nuevo, por partes:
+
+**El techo.** `techo` es un bucle que dibuja 8 veces el sprite `linea` (un solo byte,
+`%11111111`) en la fila 6, avanzando la x de a 8: `ADD V0, 8`, y `SE V0, 64` para
+cortar cuando llega al borde.
+
+**Los bordes.** Como el fantasmita se mueve de a un píxel, si se pasó del límite fue
+por uno solo, y alcanza con devolverlo:
+
+- `SNE V6, -1` / `LD V6, 0`: si la x nueva es −1 (o sea `0xFF`: 0 − 1 da la vuelta),
+  la dejamos en 0. `SNE` saltea el `LD` si **no** es igual; o sea, el `LD` se ejecuta
+  solo si es igual.
+- `SNE V6, XMAX + 1` / `LD V6, XMAX`: lo mismo contra el borde derecho. Acá se ve lo
+  útil de las expresiones: `XMAX + 1` es 59.
+- Y lo mismo para arriba (`YMIN - 1`) y para abajo (`YMAX + 1`).
+
+**El choque.** Después de dibujar el fantasmita en su lugar nuevo, `SE VF, 0` saltea
+el `CALL agarrar` si VF es 0. Si VF es 1, el dibujo apagó algún píxel que estaba
+prendido, y lo único que puede haber en la zona de juego es la moneda. Hay que mirar VF
+**inmediatamente**: la próxima instrucción que lo toque (otro `DRW`, una resta) lo pisa.
+
+**Agarrar la moneda.** Cuando el fantasmita pisó la moneda, el XOR dejó un dibujo
+mezclado: donde se superponían, los píxeles se apagaron. Por eso `agarrar` va en este
+orden: saca el fantasmita (la moneda vuelve a quedar entera), borra la moneda (ahora sí,
+dibujándola otra vez), vuelve a dibujar el fantasmita y pone una moneda nueva.
+
+**Un número al azar, dentro de un rango.** `RND V8, 0x3F` da un número entre 0 y 63
+(al azar AND `0x3F`). Pero la moneda mide 4 píxeles, así que x tiene que ser 60 como
+mucho. CHIP-8 no tiene "si es mayor que": para comparar se **resta** y se mira el
+préstamo. `SUB V0, V8` calcula `60 − x` y deja **VF = 1 si no hubo préstamo**, o sea si
+`60 >= x`. Si VF es 0, el número no sirve y se tira otro. Con la y pasa lo mismo, y
+después se le suma `YMIN` para que la moneda caiga debajo del techo.
+
+**Una moneda encima del fantasmita.** Si la moneda nueva cae sobre el fantasmita, al
+dibujarla VF queda en 1. En ese caso `nueva_moneda` la borra y prueba otro lugar.
+
+**`LD I, fantasma` al principio de `mover`.** Las subrutinas apuntan I a la moneda.
+Antes, en las etapas B y C, I apuntaba siempre al fantasmita y alcanzaba con cargarlo
+una vez; ahora hay que cargarlo antes de dibujar. Anotá esta regla, porque es la fuente
+de errores más común en CHIP-8: **antes de cada `DRW`, fijate a dónde apunta I**.
+
+Fijate también el comentario de cada subrutina: "Usa V0 y cambia I". Es su contrato:
+quien la llama sabe qué registros puede perder. En la [parte 7](#7-depurar) vas a ver
+qué pasa cuando no se respeta.
+
+### 5.5 Etapa E: el puntaje
+
+El puntaje vive en VE. Mostrarlo en decimal lleva tres instrucciones especiales:
+
+- `LD B, VE` (`FX33`) escribe en la memoria, a partir de I, las **centenas**, las
+  **decenas** y las **unidades** de VE: con VE = 137, deja 1, 3 y 7.
+- `LD V2, [I]` (`FX65`) carga en **V0, V1 y V2** los tres bytes que hay a partir de I.
+  Carga todos los registros desde V0 hasta el que nombrás: por eso, en el reparto,
+  V0 a V3 son temporales.
+- `LD F, Vx` (`FX29`) apunta I al dibujo de cada dígito.
+
+Esta es la subrutina que lo dibuja:
+
+```asm
+; (fragmento de docs/ejemplos/07-puntaje.asm)
+; ----------------------------------------------------------------------
+; Dibuja el puntaje (VE) en decimal en las columnas 1, 6 y 11 de la fila 0.
+; DRW dibuja con XOR: llamarla dos veces con el mismo puntaje lo borra.
+; Usa V0..V3 y cambia I.
+; ----------------------------------------------------------------------
+dibuja_puntaje:
+        LD I, bcd
+        LD B, VE            ; bcd = centenas, bcd+1 = decenas, bcd+2 = unidades
+        LD V2, [I]          ; V0, V1, V2 = esos tres dígitos
+        LD V3, 0            ; y = 0
+        LD F, V0            ; I = glifo de las centenas...
+        LD V0, 1            ; ...así que V0 queda libre para la x
+        DRW V0, V3, 5
+        LD F, V1
+        LD V1, 6
+        DRW V1, V3, 5
+        LD F, V2
+        LD V2, 11
+        DRW V2, V3, 5
+        RET
+
+; ----------------------------------------------------------------------
+; Datos
+; ----------------------------------------------------------------------
+bcd:    DB 0, 0, 0          ; lugar para los tres dígitos de LD B, VE
+```
+
+`bcd` son tres bytes reservados con `DB 0, 0, 0` para que `LD B, VE` tenga dónde
+escribir. Un truco: después de `LD F, V0`, I ya apunta al dígito de las centenas, así
+que V0 queda libre y se reusa para la x.
+
+Para cambiar el número de la pantalla se usa, otra vez, XOR: llamar a
+`dibuja_puntaje` con el puntaje viejo lo **borra**, y después de sumar, llamarla de
+nuevo dibuja el nuevo. Así queda `agarrar`:
+
+```asm
+; (fragmento de docs/ejemplos/07-puntaje.asm)
+agarrar:
+        DRW V4, V5, 6       ; sacar el fantasmita (I todavía apunta a él)
+        LD I, moneda
+        DRW V8, V9, 4       ; borrar la moneda
+        CALL dibuja_puntaje ; borrar el puntaje viejo (XOR)...
+        ADD VE, 1
+        CALL dibuja_puntaje ; ...y dibujar el nuevo
+        LD I, fantasma      ; dibuja_puntaje cambió I
+        DRW V4, V5, 6       ; volver a dibujar el fantasmita
+        CALL nueva_moneda
+        RET
+```
+
+Y al arrancar, antes del bucle, `LD VE, 0` y un `CALL dibuja_puntaje` muestran el
+`000`. Con eso, la subrutina y los tres bytes de `bcd`, la etapa E está completa.
+
+<details>
+<summary>Listado completo de <code>07-puntaje.asm</code></summary>
+
+```asm
+; 07-puntaje.asm — Cazamonedas, etapa E: el puntaje en pantalla
+;
+; Cada moneda suma un punto. El puntaje (VE) se muestra en decimal arriba
+; a la izquierda, con tres dígitos de la fuente:
+;   LD B, VE    (FX33) guarda centenas, decenas y unidades en memoria,
+;   LD V2, [I]  (FX65) las carga en V0, V1 y V2,
+;   LD F, Vx    (FX29) apunta I al glifo de cada dígito.
+;
+; Registros:
+;   V0..V3  temporales (dibuja_puntaje usa los cuatro)
+;   V4, V5  posición del fantasmita (x, y)
+;   V6, V7  posición nueva (x, y)
+;   V8, V9  posición de la moneda (x, y)
+;   VE      puntaje
+;   VF      bandera: choque de DRW, préstamo de SUB
+
+ARRIBA  EQU 5           ; W
+IZQ     EQU 7           ; A
+ABAJO   EQU 8           ; S
+DER     EQU 9           ; D
+RITMO   EQU 3           ; cuadros por paso
+XMAX    EQU 58          ; 64 - 6: la x más grande del fantasmita
+YMIN    EQU 8           ; debajo del techo (fila 6), con una fila de aire
+YMAX    EQU 26          ; 32 - 6: la y más grande del fantasmita
+MONEDA_XMAX EQU 60      ; 64 - 4: la x más grande de la moneda
+MONEDA_DY   EQU 20      ; la moneda va de y = YMIN a y = YMIN + 20 = 28
+
+inicio:
+        CLS
+        LD I, linea     ; el techo: 8 tramos de 8 píxeles en la fila 6
+        LD V0, 0
+        LD V1, 6
+techo:
+        DRW V0, V1, 1
+        ADD V0, 8
+        SE V0, 64
+        JP techo
+
+        LD VE, 0
+        CALL dibuja_puntaje
+
+        LD V4, 29
+        LD V5, 17
+        LD I, fantasma
+        DRW V4, V5, 6
+        CALL nueva_moneda
+
+bucle:
+        LD V0, DT
+        SE V0, 0
+        JP bucle
+        LD V0, RITMO
+        LD DT, V0
+
+        LD V6, V4
+        LD V7, V5
+        LD V0, ARRIBA
+        SKNP V0
+        ADD V7, -1
+        LD V0, ABAJO
+        SKNP V0
+        ADD V7, 1
+        LD V0, IZQ
+        SKNP V0
+        ADD V6, -1
+        LD V0, DER
+        SKNP V0
+        ADD V6, 1
+
+        ; Bordes: como se mueve de a 1 píxel, si se pasó fue por uno solo
+        ; y alcanza con devolverlo al límite.
+        SNE V6, -1          ; x = -1 (0xFF): se fue por la izquierda
+        LD V6, 0
+        SNE V6, XMAX + 1    ; se fue por la derecha
+        LD V6, XMAX
+        SNE V7, YMIN - 1    ; se metió en el techo
+        LD V7, YMIN
+        SNE V7, YMAX + 1    ; se fue por abajo
+        LD V7, YMAX
+
+        SE V6, V4
+        JP mover
+        SE V7, V5
+        JP mover
+        JP bucle
+
+mover:
+        LD I, fantasma      ; las subrutinas cambian I: lo recargamos siempre
+        DRW V4, V5, 6       ; borrar
+        LD V4, V6
+        LD V5, V7
+        DRW V4, V5, 6       ; dibujar en la posición nueva
+        SE VF, 0            ; VF = 1: apagó algún píxel prendido. ¡La moneda!
+        CALL agarrar
+        JP bucle
+
+; ----------------------------------------------------------------------
+; El fantasmita pisó la moneda: la sacamos, sumamos un punto y ponemos
+; otra moneda.
+; ----------------------------------------------------------------------
+agarrar:
+        DRW V4, V5, 6       ; sacar el fantasmita (I todavía apunta a él)
+        LD I, moneda
+        DRW V8, V9, 4       ; borrar la moneda
+        CALL dibuja_puntaje ; borrar el puntaje viejo (XOR)...
+        ADD VE, 1
+        CALL dibuja_puntaje ; ...y dibujar el nuevo
+        LD I, fantasma      ; dibuja_puntaje cambió I
+        DRW V4, V5, 6       ; volver a dibujar el fantasmita
+        CALL nueva_moneda
+        RET
+
+; ----------------------------------------------------------------------
+; Pone la moneda en un lugar al azar. Si cae encima del fantasmita
+; (VF = 1 al dibujarla), la borra y prueba en otro lugar.
+; Usa V0 y cambia I.
+; ----------------------------------------------------------------------
+nueva_moneda:
+        RND V8, 0x3F        ; x al azar entre 0 y 63
+        LD V0, MONEDA_XMAX
+        SUB V0, V8          ; VF = 1 si no hubo préstamo, o sea si x <= 60
+        SE VF, 1
+        JP nueva_moneda     ; no entra en la pantalla: probar otra vez
+        RND V9, 0x1F        ; y al azar entre 0 y 31
+        LD V0, MONEDA_DY
+        SUB V0, V9          ; VF = 1 si y <= 20
+        SE VF, 1
+        JP nueva_moneda
+        ADD V9, YMIN        ; bajarla debajo del techo: y entre 8 y 28
+        LD I, moneda
+        DRW V8, V9, 4
+        SE VF, 1            ; ¿no tocó nada? listo
+        RET
+        DRW V8, V9, 4       ; cayó sobre el fantasmita: borrarla
+        JP nueva_moneda     ; y probar en otro lugar
+
+; ----------------------------------------------------------------------
+; Dibuja el puntaje (VE) en decimal en las columnas 1, 6 y 11 de la fila 0.
+; DRW dibuja con XOR: llamarla dos veces con el mismo puntaje lo borra.
+; Usa V0..V3 y cambia I.
+; ----------------------------------------------------------------------
+dibuja_puntaje:
+        LD I, bcd
+        LD B, VE            ; bcd = centenas, bcd+1 = decenas, bcd+2 = unidades
+        LD V2, [I]          ; V0, V1, V2 = esos tres dígitos
+        LD V3, 0            ; y = 0
+        LD F, V0            ; I = glifo de las centenas...
+        LD V0, 1            ; ...así que V0 queda libre para la x
+        DRW V0, V3, 5
+        LD F, V1
+        LD V1, 6
+        DRW V1, V3, 5
+        LD F, V2
+        LD V2, 11
+        DRW V2, V3, 5
+        RET
+
+; ----------------------------------------------------------------------
+; Datos
+; ----------------------------------------------------------------------
+bcd:    DB 0, 0, 0          ; lugar para los tres dígitos de LD B, VE
+
+fantasma:
+        DB %01111000    ; .####.
+        DB %11111100    ; ######
+        DB %10110100    ; #.##.#
+        DB %11111100    ; ######
+        DB %11111100    ; ######
+        DB %10101000    ; #.#.#.
+moneda:
+        DB %01100000    ; .##.
+        DB %11110000    ; ####
+        DB %11110000    ; ####
+        DB %01100000    ; .##.
+linea:
+        DB %11111111    ; ########
+```
+
+</details>
+
+### 5.6 Etapa F: sonido
+
+El temporizador de sonido es lo más fácil de CHIP-8: lo cargás con una duración y
+suena **mientras valga más de 0**; baja solo, 60 veces por segundo. No hay que
+apagarlo. Vamos a hacer un pitido corto por cada moneda y uno largo cada 10:
+
+```asm
+; (fragmento de docs/ejemplos/08-sonido.asm)
+agarrar:
+        DRW V4, V5, 6       ; sacar el fantasmita (I todavía apunta a él)
+        LD I, moneda
+        DRW V8, V9, 4       ; borrar la moneda
+        CALL dibuja_puntaje ; borrar el puntaje viejo (XOR)...
+        ADD VE, 1
+        CALL dibuja_puntaje ; ...y dibujar el nuevo
+
+        ; Sonido: pitido corto, o largo si el puntaje terminó en 0.
+        ; LD B, VE (en dibuja_puntaje) dejó las unidades en bcd + 2.
+        LD I, bcd + 2
+        LD V0, [I]          ; V0 = unidades del puntaje
+        LD V1, BIP_CORTO
+        SNE V0, 0           ; ¿terminó en 0 (10, 20, 30...)?
+        LD V1, BIP_LARGO
+        LD ST, V1           ; suena mientras ST > 0; ST baja solo
+
+        LD I, fantasma      ; dibuja_puntaje y LD V0, [I] cambiaron I
+        DRW V4, V5, 6       ; volver a dibujar el fantasmita
+        CALL nueva_moneda
+        RET
+```
+
+- `BIP_CORTO EQU 4` y `BIP_LARGO EQU 20`: un quinceavo y un tercio de segundo.
+- Para saber si el puntaje terminó en 0, no hace falta dividir: `dibuja_puntaje` ya
+  dejó las unidades en `bcd + 2`. `LD V0, [I]` con X = 0 carga **un solo** byte, en V0.
+- `SNE V0, 0` / `LD V1, BIP_LARGO`: si las unidades son 0, se cambia la duración.
+
+Ese es el juego completo. Cargá `docs/ejemplos/08-sonido.ch8`, tocá la consola para
+habilitar el sonido y juntá diez monedas.
+
+<details>
+<summary>Listado completo de <code>08-sonido.asm</code></summary>
+
+```asm
+; 08-sonido.asm — Cazamonedas, etapa F: el juego completo, con sonido
+;
+; Mové el fantasmita con W, A, S y D (teclas 5, 7, 8 y 9 del keypad) y
+; juntá monedas. Cada moneda suena con un pitido corto; cada 10 monedas,
+; con uno largo. El temporizador de sonido (ST) hace sonar el beep
+; mientras vale más de 0 y baja solo, 60 veces por segundo: alcanza con
+; cargarlo con la duración que queremos y olvidarse.
+;
+; Registros:
+;   V0..V3  temporales (dibuja_puntaje usa los cuatro)
+;   V4, V5  posición del fantasmita (x, y)
+;   V6, V7  posición nueva (x, y)
+;   V8, V9  posición de la moneda (x, y)
+;   VE      puntaje
+;   VF      bandera: choque de DRW, préstamo de SUB
+
+ARRIBA  EQU 5           ; W
+IZQ     EQU 7           ; A
+ABAJO   EQU 8           ; S
+DER     EQU 9           ; D
+RITMO   EQU 3           ; cuadros por paso
+BIP_CORTO EQU 4         ; duración de los pitidos, en sesentavos de segundo
+BIP_LARGO EQU 20
+XMAX    EQU 58          ; 64 - 6: la x más grande del fantasmita
+YMIN    EQU 8           ; debajo del techo (fila 6), con una fila de aire
+YMAX    EQU 26          ; 32 - 6: la y más grande del fantasmita
+MONEDA_XMAX EQU 60      ; 64 - 4: la x más grande de la moneda
+MONEDA_DY   EQU 20      ; la moneda va de y = YMIN a y = YMIN + 20 = 28
+
+inicio:
+        CLS
+        LD I, linea     ; el techo: 8 tramos de 8 píxeles en la fila 6
+        LD V0, 0
+        LD V1, 6
+techo:
+        DRW V0, V1, 1
+        ADD V0, 8
+        SE V0, 64
+        JP techo
+
+        LD VE, 0
+        CALL dibuja_puntaje
+
+        LD V4, 29
+        LD V5, 17
+        LD I, fantasma
+        DRW V4, V5, 6
+        CALL nueva_moneda
+
+bucle:
+        LD V0, DT
+        SE V0, 0
+        JP bucle
+        LD V0, RITMO
+        LD DT, V0
+
+        LD V6, V4
+        LD V7, V5
+        LD V0, ARRIBA
+        SKNP V0
+        ADD V7, -1
+        LD V0, ABAJO
+        SKNP V0
+        ADD V7, 1
+        LD V0, IZQ
+        SKNP V0
+        ADD V6, -1
+        LD V0, DER
+        SKNP V0
+        ADD V6, 1
+
+        ; Bordes: como se mueve de a 1 píxel, si se pasó fue por uno solo
+        ; y alcanza con devolverlo al límite.
+        SNE V6, -1          ; x = -1 (0xFF): se fue por la izquierda
+        LD V6, 0
+        SNE V6, XMAX + 1    ; se fue por la derecha
+        LD V6, XMAX
+        SNE V7, YMIN - 1    ; se metió en el techo
+        LD V7, YMIN
+        SNE V7, YMAX + 1    ; se fue por abajo
+        LD V7, YMAX
+
+        SE V6, V4
+        JP mover
+        SE V7, V5
+        JP mover
+        JP bucle
+
+mover:
+        LD I, fantasma      ; las subrutinas cambian I: lo recargamos siempre
+        DRW V4, V5, 6       ; borrar
+        LD V4, V6
+        LD V5, V7
+        DRW V4, V5, 6       ; dibujar en la posición nueva
+        SE VF, 0            ; VF = 1: apagó algún píxel prendido. ¡La moneda!
+        CALL agarrar
+        JP bucle
+
+; ----------------------------------------------------------------------
+; El fantasmita pisó la moneda: la sacamos, sumamos un punto, hacemos
+; sonar un pitido y ponemos otra moneda.
+; ----------------------------------------------------------------------
+agarrar:
+        DRW V4, V5, 6       ; sacar el fantasmita (I todavía apunta a él)
+        LD I, moneda
+        DRW V8, V9, 4       ; borrar la moneda
+        CALL dibuja_puntaje ; borrar el puntaje viejo (XOR)...
+        ADD VE, 1
+        CALL dibuja_puntaje ; ...y dibujar el nuevo
+
+        ; Sonido: pitido corto, o largo si el puntaje terminó en 0.
+        ; LD B, VE (en dibuja_puntaje) dejó las unidades en bcd + 2.
+        LD I, bcd + 2
+        LD V0, [I]          ; V0 = unidades del puntaje
+        LD V1, BIP_CORTO
+        SNE V0, 0           ; ¿terminó en 0 (10, 20, 30...)?
+        LD V1, BIP_LARGO
+        LD ST, V1           ; suena mientras ST > 0; ST baja solo
+
+        LD I, fantasma      ; dibuja_puntaje y LD V0, [I] cambiaron I
+        DRW V4, V5, 6       ; volver a dibujar el fantasmita
+        CALL nueva_moneda
+        RET
+
+; ----------------------------------------------------------------------
+; Pone la moneda en un lugar al azar. Si cae encima del fantasmita
+; (VF = 1 al dibujarla), la borra y prueba en otro lugar.
+; Usa V0 y cambia I.
+; ----------------------------------------------------------------------
+nueva_moneda:
+        RND V8, 0x3F        ; x al azar entre 0 y 63
+        LD V0, MONEDA_XMAX
+        SUB V0, V8          ; VF = 1 si no hubo préstamo, o sea si x <= 60
+        SE VF, 1
+        JP nueva_moneda     ; no entra en la pantalla: probar otra vez
+        RND V9, 0x1F        ; y al azar entre 0 y 31
+        LD V0, MONEDA_DY
+        SUB V0, V9          ; VF = 1 si y <= 20
+        SE VF, 1
+        JP nueva_moneda
+        ADD V9, YMIN        ; bajarla debajo del techo: y entre 8 y 28
+        LD I, moneda
+        DRW V8, V9, 4
+        SE VF, 1            ; ¿no tocó nada? listo
+        RET
+        DRW V8, V9, 4       ; cayó sobre el fantasmita: borrarla
+        JP nueva_moneda     ; y probar en otro lugar
+
+; ----------------------------------------------------------------------
+; Dibuja el puntaje (VE) en decimal en las columnas 1, 6 y 11 de la fila 0.
+; DRW dibuja con XOR: llamarla dos veces con el mismo puntaje lo borra.
+; Usa V0..V3 y cambia I.
+; ----------------------------------------------------------------------
+dibuja_puntaje:
+        LD I, bcd
+        LD B, VE            ; bcd = centenas, bcd+1 = decenas, bcd+2 = unidades
+        LD V2, [I]          ; V0, V1, V2 = esos tres dígitos
+        LD V3, 0            ; y = 0
+        LD F, V0            ; I = glifo de las centenas...
+        LD V0, 1            ; ...así que V0 queda libre para la x
+        DRW V0, V3, 5
+        LD F, V1
+        LD V1, 6
+        DRW V1, V3, 5
+        LD F, V2
+        LD V2, 11
+        DRW V2, V3, 5
+        RET
+
+; ----------------------------------------------------------------------
+; Datos
+; ----------------------------------------------------------------------
+bcd:    DB 0, 0, 0          ; lugar para los tres dígitos de LD B, VE
+
+fantasma:
+        DB %01111000    ; .####.
+        DB %11111100    ; ######
+        DB %10110100    ; #.##.#
+        DB %11111100    ; ######
+        DB %11111100    ; ######
+        DB %10101000    ; #.#.#.
+moneda:
+        DB %01100000    ; .##.
+        DB %11110000    ; ####
+        DB %11110000    ; ####
+        DB %01100000    ; .##.
+linea:
+        DB %11111111    ; ########
+```
+
+</details>
+
+### 5.7 Código que anda en cualquier intérprete
+
+El Cazamonedas anda igual con los perfiles COSMAC VIP, SUPER-CHIP y XO-CHIP, y a
+cualquier velocidad (los tests lo juegan con los tres perfiles). No es casualidad:
+sigue estas reglas.
+
+| Regla | Por qué | Quirk que esquiva |
+|---|---|---|
+| Medí el tiempo con DT, nunca contando instrucciones. | Las IPF cambian de un intérprete a otro. | La velocidad (no es un quirk, pero es la diferencia más grande) |
+| Contá los `DRW` de cada paso y dale tiempo de sobra. | En el VIP, cada `DRW` puede costar un frame entero. | `VBLANK` |
+| Mirá VF justo después de la instrucción que lo pone; nunca después de `OR`, `AND` o `XOR`. | Algunos intérpretes ponen VF en 0 después de esas tres y otros no. | `VF=0` |
+| Después de `LD [I], Vx` o `LD Vx, [I]`, volvé a cargar I. | Algunos intérpretes dejan I donde estaba y otros lo corren. | `MEM` |
+| Si desplazás, usá `SHR Vx` / `SHL Vx` (X = Y). | Unos desplazan VX y otros VY; si son el mismo registro, da igual. | `SHIFT` |
+| No uses `JP V0, NNN`. | Unos suman V0 y otros VX. | `BXNN` |
+| Que los sprites no se salgan de la pantalla. | Unos recortan lo que sobra y otros lo hacen aparecer del otro lado. | `CLIP` |
+
+Los detalles de cada quirk, con ejemplos y una tabla comparativa, están en el
+[manual, sección 11](MANUAL.md#11-quirks).
+
+---
+
+## 6. Leer un programa real
+
+Leer programas ajenos es la mejor forma de aprender trucos. Los cartuchos incluidos
+están escritos en el mismo ensamblador y muy comentados; sus fuentes están en `roms/`.
+Vamos a recorrer `rebote.asm` entero y los mejores momentos de `atrapa.asm`.
+
+### 6.1 Rebote, paso a paso
+
+`roms/rebote.asm` tiene la misma forma que nuestro Cazamonedas: un encabezado con
+comentarios, las constantes, la preparación, el bucle principal, las subrutinas y, al
+final, los dibujos. Las primeras líneas (`; @name Rebote`, `; @description ...`) son
+etiquetas que lee `tools/embed-roms.js` para mostrar el nombre y la descripción en el
+estante de cartuchos.
+
+Las constantes:
+
+```asm
+; (fragmento de roms/rebote.asm)
+TICK    EQU 2           ; cuadros por paso de animación
+XMIN    EQU 0           ; límites de la esquina superior izquierda de la pelota
+XMAX    EQU 56          ; 64 - 8
+YMIN    EQU 9           ; justo debajo de la línea
+YMAX    EQU 24          ; 32 - 8
+BEEP    EQU 3           ; pitido de 3/60 s
+```
+
+La preparación: borra la pantalla, dibuja el título una sola vez y pone la pelota en
+su lugar. Fijate que **I apunta a la pelota durante todo el bucle**: el título se dibuja
+antes, así que después nadie más toca I.
+
+```asm
+; (fragmento de roms/rebote.asm)
+inicio:
+        CLS
+        CALL titulo             ; dibuja "CHIP-8" y la línea (una sola vez)
+
+        LD VA, 0xFE
+        LD VB, BEEP
+        LD V3, 1                ; empieza yendo hacia abajo a la derecha
+        LD V4, 1
+        LD V1, 20               ; posición actual
+        LD V2, 14
+        LD V5, 21               ; posición siguiente = actual + dirección
+        LD V6, 15
+
+        LD I, pelota            ; I apunta a la pelota durante todo el bucle
+        DRW V1, V2, 8           ; primera aparición
+```
+
+El bucle principal:
+
+```asm
+; (fragmento de roms/rebote.asm)
+bucle:
+        LD V0, DT               ; esperar a que el temporizador llegue a 0
+        SE V0, 0
+        JP bucle
+        LD V0, TICK             ; y volver a cargarlo para el próximo paso
+        LD DT, V0
+
+        LD V7, V5               ; calcular la posición de después
+        ADD V7, V3
+        LD V8, V6
+        ADD V8, V4
+
+        DRW V5, V6, 8           ; 1) dibujar la pelota en la posición nueva
+
+        SNE V7, XMIN            ; ¿la próxima posición toca un borde?
+        CALL rebota_x           ;   (SNE saltea el CALL si NO es igual)
+        SNE V7, XMAX
+        CALL rebota_x
+        SNE V8, YMIN
+        CALL rebota_y
+        SNE V8, YMAX
+        CALL rebota_y
+
+        DRW V1, V2, 8           ; 2) borrar la pelota vieja (XOR la apaga)
+
+        LD V1, V5               ; avanzar: actual <- siguiente <- después
+        LD V2, V6
+        LD V5, V7
+        LD V6, V8
+        JP bucle
+```
+
+- **El ritmo**, con DT, igual que en nuestra etapa C, pero con `TICK EQU 2`: 30 pasos
+  por segundo.
+- **Tres posiciones.** V1, V2 es la posición que se ve; V5, V6 la que se dibuja en este
+  paso; V7, V8 la del paso siguiente. Calcular un paso por adelantado permite decidir
+  el rebote **antes** de llegar al borde.
+- **Primero dibuja, después borra.** Nosotros borramos el fantasmita y después lo
+  dibujamos en el lugar nuevo, y en el medio no se ve nada. Rebote hace al revés:
+  dibuja la pelota en el lugar nuevo y recién después borra la vieja. Como las dos
+  posiciones están a un píxel en diagonal y se superponen casi enteras, en el frame
+  intermedio la pelota se ve casi completa: parpadea mucho menos.
+- **`SNE` + `CALL`**: `SNE V7, XMIN` saltea el `CALL rebota_x` si la próxima x **no**
+  es el borde. O sea: "si la próxima x es el borde, rebotá". Es el mismo "if" de una
+  línea que usamos con `SKNP`.
+
+El rebote:
+
+```asm
+; (fragmento de roms/rebote.asm)
+; Invierte la dirección horizontal y hace sonar el pitido.
+rebota_x:
+        XOR V3, VA              ; 1 <-> 0xFF
+        LD ST, VB
+        RET
+
+; Invierte la dirección vertical y hace sonar el pitido.
+rebota_y:
+        XOR V4, VA
+        LD ST, VB
+        RET
+```
+
+La dirección se guarda como `1` (avanza) o `0xFF` (que sumado es −1: retrocede). Para
+darla vuelta sin preguntar cuál es, se hace XOR con `0xFE`, que VA tiene guardado desde
+el principio: `0x01 XOR 0xFE = 0xFF` y `0xFF XOR 0xFE = 0x01`. Y `LD ST, VB` hace sonar
+el pitido de 3 frames.
+
+La línea debajo del título es un bucle como nuestro techo:
+
+```asm
+; (fragmento de roms/rebote.asm)
+        LD I, linea             ; 8 tramos de 8 píxeles = 64 columnas
+        LD V0, 0
+        LD V1, 7
+titulo_linea:
+        DRW V0, V1, 1
+        ADD V0, 8
+        SE V0, 64
+        JP titulo_linea
+        RET
+```
+
+Y la pelota, con su carita:
+
+```asm
+; (fragmento de roms/rebote.asm)
+pelota:                         ; una pelotita con cara
+        DB %00111100            ;   ..####..
+        DB %01111110            ;   .######.
+        DB %11011011            ;   ##.##.##   ojos
+        DB %11111111            ;   ########
+        DB %10111101            ;   #.####.#   comisuras
+        DB %11000011            ;   ##....##   sonrisa
+        DB %01111110            ;   .######.
+        DB %00111100            ;   ..####..
+```
+
+Para verlo funcionar por dentro, cargá *Rebote*, pausalo y avanzá con Paso: vas a ver
+V1 a V8 cambiar en el monitor mientras el PC recorre el bucle.
+
+### 6.2 Lo mejor de Atrapa
+
+`roms/atrapa.asm` es un juego completo en 366 bytes. Tiene cuatro ideas que vale la
+pena robar.
+
+**Mover un sprite con un solo `DRW`.** En lugar de borrar la paleta y volver a
+dibujarla (dos `DRW`, y parpadeo en el medio), dibuja con XOR solo **la diferencia**
+entre la posición vieja y la nueva:
+
+```asm
+; (fragmento de roms/atrapa.asm)
+        ; --- la paleta ---
+        SKNP VB                 ; tecla 7 apretada -> izquierda
+        JP izquierda
+        SKNP VC                 ; tecla 4 apretada -> izquierda
+        JP izquierda
+        SKNP VD                 ; tecla 9 apretada -> derecha
+        JP derecha
+        SKNP VE                 ; tecla 6 apretada -> derecha
+        JP derecha
+        JP bloque
+
+izquierda:
+        SNE V3, 0               ; ya está en el borde
+        JP bloque
+        ADD V3, -2
+        LD I, paleta_delta      ; apaga 2 columnas a la derecha y prende 2 a la izquierda
+        LD V0, PALETA_Y
+        DRW V3, V0, 2
+        JP bloque
+
+derecha:
+        SNE V3, PALETA_MAX
+        JP bloque
+        LD I, paleta_delta      ; apaga 2 columnas a la izquierda y prende 2 a la derecha
+        LD V0, PALETA_Y
+        DRW V3, V0, 2
+        ADD V3, 2
+```
+
+```asm
+; (fragmento de roms/atrapa.asm)
+paleta:         DB %11111100, %11111100
+paleta_delta:   DB %11000011, %11000011         ; diferencia al moverse 2 píxeles
+bloque_sprite:  DB %11110000, %11110000, %11110000, %11110000
+bloque_delta:   DB %11110000, 0, 0, 0, %11110000 ; diferencia al bajar 1 píxel
+```
+
+La paleta mide 6 píxeles (`%11111100`). Si se corre 2 a la izquierda, hay que prender
+las 2 columnas nuevas de la izquierda y apagar las 2 de la derecha que quedan
+descubiertas: dibujado en la x nueva, eso es `%11000011`. Con XOR, prender y apagar es
+la misma operación, así que un solo `DRW` de `paleta_delta` mueve la paleta. El bloque
+que cae hace lo mismo: `bloque_delta` apaga su fila de arriba y prende una abajo.
+
+**Velocidad con decimales.** El bloque no baja un píxel por paso: baja "96/256 de
+píxel". CHIP-8 no tiene decimales, pero tiene acarreo:
+
+```asm
+; (fragmento de roms/atrapa.asm)
+        ; --- el bloque ---
+bloque:
+        ADD VA, V9              ; acumulador += velocidad
+        SE VF, 1                ; ¿se pasó de 255? entonces baja
+        JP paso
+        LD I, bloque_delta      ; apaga su fila de arriba y prende la de abajo
+        DRW V5, V6, 5
+        ADD V6, 1
+        SNE V6, BLOQUE_ARRIBA
+        CALL mira_si_atrapa
+        SNE V6, BLOQUE_PISO
+        JP se_escapo
+        JP paso
+```
+
+VA es un acumulador: en cada paso se le suma la velocidad (V9). Cuando la suma pasa de
+255, `ADD VA, V9` deja VF = 1 y el bloque baja un píxel. Con V9 = 96, eso pasa 96 de
+cada 256 pasos, y a medida que V9 crece, el bloque cae más rápido. (Ojo: esto anda con
+`ADD VX, VY`, que pone VF. `ADD VX, NN` no lo toca.)
+
+**Comparar con restas.** Para saber si la paleta atajó el bloque hay que ver si se
+superponen en x. Como en nuestra `nueva_moneda`, se resta y se mira el préstamo:
+
+```asm
+; (fragmento de roms/atrapa.asm)
+; ----------------------------------------------------------------------
+; El bloque llegó justo encima de la paleta: ¿se superponen en x?
+; Se atrapa si  bloque_x + 3 >= paleta_x  y  paleta_x + 5 >= bloque_x.
+; ----------------------------------------------------------------------
+mira_si_atrapa:
+        LD V0, V5
+        ADD V0, 3
+        SUB V0, V3              ; VF = 1 si bloque_x + 3 >= paleta_x
+        SE VF, 1
+        RET
+        LD V0, V3
+        ADD V0, 5
+        SUB V0, V5              ; VF = 1 si paleta_x + 5 >= bloque_x
+        SE VF, 1
+        RET
+```
+
+**Esperar una tecla para volver a empezar.** Al perder, muestra "FIN", espera un
+segundo con DT (para que una tecla que venías apretando no reinicie el juego sin
+querer) y después usa `LD V0, K`, que detiene todo hasta que apretás **y soltás** una
+tecla. Mientras espera, el monitor dice *Esperando tecla*.
+
+```asm
+; (fragmento de roms/atrapa.asm)
+fin_del_juego:
+        CLS
+        CALL dibuja_puntaje
+        LD V1, 11
+        LD V0, 20
+        LD I, grande_f
+        DRW V0, V1, 10
+        LD V0, 30
+        LD I, grande_i
+        DRW V0, V1, 10
+        LD V0, 38
+        LD I, grande_n
+        DRW V0, V1, 10
+        LD V0, 60               ; un segundo de pausa antes de aceptar teclas
+        CALL espera
+        LD V0, K                ; esperar que aprieten y suelten una tecla
+        JP inicio
+```
+
+---
+
+## 7. Depurar
+
+Todo programa tiene errores. El monitor de la consola te deja mirar la máquina por
+dentro, instrucción por instrucción, hasta encontrarlos.
+
+### 7.1 El método
+
+1. **Describí el síntoma con precisión.** No "anda mal", sino "muestra el 0, después el
+   1, y se queda en el 1".
+2. **Pensá qué debería pasar**: qué valor debería tener cada registro en cada momento.
+   El listado del ensamblador (`--listing`) te dice en qué dirección está cada línea.
+3. **Llevá la máquina hasta ahí.** Pausá (Espacio), reiniciá (Retroceso: sigue en
+   pausa) y avanzá con **Paso** (N) de a una instrucción, o con **Frame** de a un frame.
+4. **Compará** lo que esperabas con lo que muestra el monitor. Los registros que
+   cambian se resaltan: con Paso, ves exactamente qué tocó cada instrucción.
+
+Acordate de que **Paso no hace correr el tiempo**: DT y ST solo bajan con Frame o
+cuando la máquina corre. Un bucle que espera a DT, avanzado con Paso, no termina nunca.
+
+### 7.2 Un contador que se traba
+
+Este programa debería mostrar los dígitos del 0 al 9, uno cada medio segundo, y
+quedarse en el 9:
+
+```asm
+; 09-contador-con-bug.asm — tiene un error a propósito (ver la parte 7)
+;
+; Tendría que mostrar los dígitos del 0 al 9 en el centro de la pantalla,
+; uno cada medio segundo, y quedarse en el 9. Pero no hace eso...
+;
+; Registros:
+;   V0      el dígito que toca mostrar
+;   V1, V2  posición del dígito (x, y)
+;   V3      cuántos cuadros esperar (parámetro de "esperar")
+
+        CLS
+        LD V0, 0            ; empezamos por el 0
+        LD V1, 30           ; x
+        LD V2, 13           ; y
+proximo:
+        LD F, V0            ; I = glifo del dígito V0
+        DRW V1, V2, 5       ; mostrarlo
+        LD V3, 30           ; esperar 30 cuadros = medio segundo
+        CALL esperar
+        SNE V0, 9           ; ¿era el 9? terminamos
+        JP fin
+        DRW V1, V2, 5       ; borrarlo (I sigue apuntando al mismo glifo)
+        ADD V0, 1           ; el dígito siguiente
+        JP proximo
+fin:    JP fin
+
+; Espera V3 cuadros usando el temporizador de retardo.
+esperar:
+        LD DT, V3
+esperar_bucle:
+        LD V0, DT
+        SE V0, 0
+        JP esperar_bucle
+        RET
+```
+
+Cargá `docs/ejemplos/09-contador-con-bug.ch8`. **Síntoma**: muestra el 0, después el
+1... y se queda en el 1, que parpadea cada medio segundo. Nunca llega al 2.
+
+Vamos a buscarlo. Primero, las direcciones: `proximo` está en `0x208`, el `CALL` en
+`0x20E`, `esperar` en `0x21C` y `esperar_bucle` en `0x21E` (el listado o el
+DESENSAMBLADO te las dan). Pausá, reiniciá y avanzá con Paso:
+
+| Pasos | Última instrucción | Qué muestra el monitor |
+|---|---|---|
+| 1 a 7 | de `CLS` a `LD V3, 0x1E` | El 0 está en pantalla. V0 = `00` (el contador), V1 = `1E`, V2 = `0D`, V3 = `1E`, `I = 0x050`. El PC está en `0x20E`: lo que sigue es `CALL 0x21C`. |
+| 8 | `CALL 0x21C` | `PC = 0x21C`, `SP = 1` y en la PILA, `0x210`: la dirección de la instrucción que sigue al `CALL`, adonde va a volver el `RET`. |
+| 9 | `LD DT, V3` | `DT = 30` (DT se muestra en decimal; `1E` es 30). |
+| 10 | `LD V0, DT` | **V0 = `1E`**. |
+
+¡Ahí está! V0 era el contador, y la subrutina `esperar` lo usa para leer el
+temporizador. Cuando DT llegue a 0, V0 también va a valer 0: el `RET` vuelve a `0x210`
+con el contador en 0, el programa le suma 1 y muestra... otra vez el 1. Y así para
+siempre.
+
+No hace falta esperar a que termine la espera para darse cuenta, pero si querés verlo,
+fijate que con más Pasos DT sigue en 30 (el tiempo no corre); con **Frame** baja de a
+uno, y V0 lo sigue.
+
+**El arreglo** es usar en la subrutina un registro que no le importe a nadie. El
+parámetro V3 sirve: `esperar` lo recibe y ya no lo necesita. Solo cambian dos
+instrucciones:
+
+```asm
+; (fragmento de docs/ejemplos/10-contador.asm)
+; Espera V3 cuadros usando el temporizador de retardo.
+; Solo usa V3: no toca ningún otro registro.
+esperar:
+        LD DT, V3
+esperar_bucle:
+        LD V3, DT           ; antes decía LD V0, DT y pisaba el contador
+        SE V3, 0
+        JP esperar_bucle
+        RET
+```
+
+Cargá `docs/ejemplos/10-contador.ch8`: ahora cuenta del 0 al 9 en unos cinco segundos
+y se queda en el 9.
+
+<details>
+<summary>Listado completo de <code>10-contador.asm</code></summary>
+
+```asm
+; 10-contador.asm — el contador de la parte 7, ya arreglado
+;
+; Muestra los dígitos del 0 al 9 en el centro de la pantalla, uno cada
+; medio segundo, y se queda en el 9.
+;
+; Registros:
+;   V0      el dígito que toca mostrar
+;   V1, V2  posición del dígito (x, y)
+;   V3      cuántos cuadros esperar (parámetro de "esperar")
+
+        CLS
+        LD V0, 0            ; empezamos por el 0
+        LD V1, 30           ; x
+        LD V2, 13           ; y
+proximo:
+        LD F, V0            ; I = glifo del dígito V0
+        DRW V1, V2, 5       ; mostrarlo
+        LD V3, 30           ; esperar 30 cuadros = medio segundo
+        CALL esperar
+        SNE V0, 9           ; ¿era el 9? terminamos
+        JP fin
+        DRW V1, V2, 5       ; borrarlo (I sigue apuntando al mismo glifo)
+        ADD V0, 1           ; el dígito siguiente
+        JP proximo
+fin:    JP fin
+
+; Espera V3 cuadros usando el temporizador de retardo.
+; Solo usa V3: no toca ningún otro registro.
+esperar:
+        LD DT, V3
+esperar_bucle:
+        LD V3, DT           ; antes decía LD V0, DT y pisaba el contador
+        SE V3, 0
+        JP esperar_bucle
+        RET
+```
+
+</details>
+
+La lección: **cada subrutina tiene que decir qué registros usa** (como el "Usa V0 y
+cambia I" de las subrutinas del Cazamonedas), y quien la llama no puede guardar nada
+ahí. Es el error más común en ensamblador, en CHIP-8 y en cualquier otra máquina.
+
+### 7.3 Cuando la máquina se detiene
+
+Este programa es la etapa A del Cazamonedas sin la última línea:
+
+```asm
+; 11-sin-fin.asm — un programa al que le falta el final (ver la parte 7)
+;
+; Es la etapa A del Cazamonedas (03-fantasma.asm) sin la última
+; instrucción, "fin: JP fin". Después de dibujar el fantasmita, la CPU
+; sigue de largo y empieza a ejecutar los bytes del sprite como si fueran
+; instrucciones.
+
+        CLS
+        LD V4, 29       ; x = (64 - 6) / 2
+        LD V5, 13       ; y = (32 - 6) / 2
+        LD I, fantasma  ; I apunta a los 6 bytes del sprite
+        DRW V4, V5, 6   ; dibujar 6 filas
+
+fantasma:
+        DB %01111000    ; .####.
+        DB %11111100    ; ######
+        DB %10110100    ; #.##.#
+        DB %11111100    ; ######
+        DB %11111100    ; ######
+        DB %10101000    ; #.#.#.
+```
+
+Cargá `docs/ejemplos/11-sin-fin.ch8`. El fantasmita aparece y, un par de segundos
+después, la consola se detiene: la luz RUN se pone roja y la pantalla dice
+
+```text
+ERROR
+Instrucción inválida o desconocida (opcode 0xF090 en la dirección 0x050).
+Presioná Reiniciar (Retroceso) para volver a empezar.
+```
+
+El monitor muestra `PC = 0x050` y que se ejecutaron **1457 instrucciones** (el monitor
+lo escribe `1.457`). ¿Qué hace el PC en `0x050`, que es la fuente? Reiniciá y avanzá con Paso:
+
+1. Las 5 primeras instrucciones dibujan el fantasmita. El PC queda en `0x20A`... que
+   es donde empieza el dibujo.
+2. El DESENSAMBLADO muestra los bytes del dibujo como si fueran instrucciones: `78 FC`
+   es `ADD V8, 0xFC` y `B4 FC` es `JP V0, 0x4FC`. Paso: V8 = `FC`. Paso: como V0 vale
+   0, el PC salta a `0x4FC`.
+3. De `0x4FC` en adelante la memoria está vacía. `0000` es `SYS 0x000`, que se ignora,
+   así que la CPU avanza por 1410 instrucciones que no hacen nada hasta `0xFFE`, da la
+   vuelta a `0x000`, sigue por los ceros y en `0x050` encuentra la fuente.
+4. Los primeros bytes de la fuente, `F0 90`, no son ninguna instrucción (no existe
+   `FX90`), y la máquina se detiene.
+
+Dos lecciones. La primera: **el error casi nunca aparece donde está el problema**. La
+máquina se detuvo en la fuente, pero el problema era una línea que faltaba 1400
+instrucciones antes. La segunda: todo programa termina en `fin: JP fin` (o en un bucle
+que no se termina), y los datos van donde la CPU nunca llega.
+
+Y un dato curioso: con el perfil **SUPER-CHIP** pasa otra cosa. Con el quirk `BXNN`, el
+`JP V0, 0x4FC` suma V4 (que vale 29) en lugar de V0, y salta a `0x519`, una dirección
+**impar**. La CPU recorre la memoria desalineada, termina ejecutando la fuente como
+código y, medio minuto después (a 15 IPF), se detiene con otro error: desbordamiento
+de pila. El mismo error de programación, dos síntomas distintos según el intérprete.
+
+### 7.4 Los errores que detienen la máquina
+
+La máquina se detiene en tres casos, y el mensaje siempre dice la instrucción y su
+dirección. Probalos con estos programitas de una línea:
+
+<!-- verificar: detiene -->
+```asm
+; Un RET sin CALL
+        RET
+```
+
+```text
+Subdesbordamiento de pila (stack underflow): RET sin dirección de retorno, la pila está vacía (opcode 0x00EE en la dirección 0x200).
+```
+
+Pasa cuando se llega a una subrutina con `JP` en lugar de `CALL`, o cuando el programa
+"se cae" adentro de una subrutina.
+
+<!-- verificar: detiene -->
+```asm
+; Una subrutina que se llama a sí misma, sin fin
+rutina: CALL rutina
+```
+
+```text
+Desbordamiento de pila (stack overflow): CALL con los 16 niveles de la pila ocupados (opcode 0x2200 en la dirección 0x200).
+```
+
+Pasa cuando se usa `CALL` para volver al principio de un bucle (se necesitaba `JP`),
+o cuando una subrutina sale con `JP` en lugar de `RET`: cada vuelta deja una dirección
+más en la pila, hasta llenar los 16 lugares.
+
+El tercero, *instrucción inválida*, ya lo viste: casi siempre es la CPU ejecutando
+datos.
+
+### 7.5 Lista de errores comunes
+
+- **`SKP` por `SKNP`, `SE` por `SNE`.** Todas "saltean la siguiente": pensá siempre en
+  qué caso se **ejecuta** la línea de abajo.
+- **I apunta a otra cosa.** Antes de cada `DRW`, `LD I, ...`. Si dibujás basura o un
+  número de la fuente, mirá I y MEMORIA EN I en el monitor.
+- **VF leído tarde.** VF lo pisan `DRW`, `ADD VX, VY`, las restas, los
+  desplazamientos y (con el perfil COSMAC VIP) `OR`, `AND` y `XOR`. Leelo en la
+  instrucción siguiente.
+- **`ADD VX, NN` no avisa.** Si necesitás saber si una suma pasó de 255, usá
+  `ADD VX, VY`, que sí pone VF.
+- **Un registro pisado.** Una subrutina que usa un registro tuyo, o un `LD Vx, [I]`
+  que carga desde V0 hasta Vx.
+- **Falta el final.** Sin `fin: JP fin`, la CPU sigue de largo y ejecuta tus datos.
+- **El tiempo depende de la velocidad.** Si el programa va más rápido o más lento al
+  cambiar las IPF, medí el tiempo con DT.
+
+---
+
+## 8. Cómo funciona un emulador por dentro
+
+Un emulador es un programa que imita a otra máquina: guarda el estado de esa máquina
+en variables y ejecuta sus instrucciones de a una, haciendo con cada una lo mismo que
+haría el original. CHIP-8 es el ejemplo clásico para aprender a escribir uno porque es
+chiquito: 35 instrucciones, 4 KB de memoria, una pantalla de 64 × 32.
+
+Para verlo sin distracciones, en `docs/ejemplos/mini-emulador.js` hay un emulador
+completo de menos de 200 líneas. Implementa las 35 instrucciones con el comportamiento
+del COSMAC VIP, pero sin opciones de quirks, sin la espera del vblank, sin controlar
+errores y con un `LD Vx, K` simplificado; y en lugar de dibujar en el navegador,
+imprime la pantalla como texto. Los tests del proyecto lo corren al lado del núcleo de
+verdad con todos los ejemplos del tutorial y comprueban que, frame a frame, los dos
+terminan con la misma pantalla, los mismos registros y el mismo PC.
+
+### 8.1 El estado
+
+Toda la máquina entra en un puñado de variables:
+
+```js
+// (fragmento de docs/ejemplos/mini-emulador.js)
+class MiniChip8 {
+  constructor(rom, { random } = {}) {
+    this.memory = new Uint8Array(4096);    // 4 KB de RAM
+    this.memory.set(FONT, 0x050);
+    this.memory.set(rom, 0x200);           // los programas empiezan en 0x200
+    this.V = new Uint8Array(16);           // V0..VF: 8 bits cada uno
+    this.I = 0;
+    this.pc = 0x200;
+    this.stack = [];                       // direcciones de retorno
+    this.delayTimer = 0;
+    this.soundTimer = 0;
+    this.display = new Uint8Array(64 * 32); // 1 = píxel prendido
+    this.keys = new Uint8Array(16);        // 1 = tecla apretada
+    this.random = random || (() => Math.floor(Math.random() * 256));
+  }
+```
+
+`Uint8Array` es un arreglo de bytes: cada elemento guarda un número de 0 a 255 y, si le
+asignás algo más grande, se queda con los 8 bits de abajo. Es justo cómo se comportan
+los registros de CHIP-8, así que las cuentas "dan la vuelta" solas.
+
+### 8.2 Buscar, decodificar, ejecutar
+
+El corazón de cualquier emulador (y de cualquier CPU) es este ciclo:
+
+```js
+// (fragmento de docs/ejemplos/mini-emulador.js)
+  // Una instrucción: buscar (fetch), decodificar (decode) y ejecutar (execute).
+  step() {
+    const m = this.memory, V = this.V;
+    // 1. Fetch: dos bytes; el primero es la parte alta (big-endian).
+    const op = (m[this.pc] << 8) | m[(this.pc + 1) & 0xFFF];
+    this.pc = (this.pc + 2) & 0xFFF;
+    // 2. Decode: los campos que usan las instrucciones.
+    const x = (op >> 8) & 0xF;   // segundo nibble: un registro
+    const y = (op >> 4) & 0xF;   // tercer nibble: otro registro
+    const n = op & 0xF;          // último nibble
+    const nn = op & 0xFF;        // último byte
+    const nnn = op & 0xFFF;      // últimos 12 bits: una dirección
+    // 3. Execute: el primer nibble dice de qué familia es.
+    switch (op >> 12) {
+      case 0x0:
+        if (op === 0x00E0) this.display.fill(0);            // CLS
+        else if (op === 0x00EE) this.pc = this.stack.pop(); // RET
+        break;                                              // 0NNN: se ignora
+      case 0x1: this.pc = nnn; break;                       // JP NNN
+      case 0x2: this.stack.push(this.pc); this.pc = nnn; break; // CALL NNN
+      case 0x3: if (V[x] === nn) this.skip(); break;        // SE VX, NN
+      case 0x4: if (V[x] !== nn) this.skip(); break;        // SNE VX, NN
+      case 0x5: if (V[x] === V[y]) this.skip(); break;      // SE VX, VY
+      case 0x6: V[x] = nn; break;                           // LD VX, NN
+      case 0x7: V[x] += nn; break;                          // ADD VX, NN (VF no cambia)
+      case 0x8: this.alu(x, y, n); break;                   // 8XYN: aritmética
+      case 0x9: if (V[x] !== V[y]) this.skip(); break;      // SNE VX, VY
+      case 0xA: this.I = nnn; break;                        // LD I, NNN
+      case 0xB: this.pc = (nnn + V[0]) & 0xFFF; break;      // JP V0, NNN
+      case 0xC: V[x] = this.random() & nn; break;           // RND VX, NN
+      case 0xD: this.draw(V[x], V[y], n); break;            // DRW VX, VY, N
+      case 0xE:
+        if (nn === 0x9E && this.keys[V[x] & 0xF]) this.skip();  // SKP VX
+        if (nn === 0xA1 && !this.keys[V[x] & 0xF]) this.skip(); // SKNP VX
+        break;
+      case 0xF: this.misc(x, nn); break;                    // FXNN: varias
+    }
+  }
+```
+
+1. **Buscar** (*fetch*): leer los dos bytes que hay en el PC y juntarlos en un número de
+   16 bits. El PC avanza 2 **antes** de ejecutar: por eso "saltear la siguiente" es
+   sumarle 2 más, y por eso `CALL` guarda un PC que ya apunta a la instrucción de
+   después.
+2. **Decodificar** (*decode*): separar los campos con desplazamientos y máscaras. `x`,
+   `y`, `n`, `nn` y `nnn` son los mismos X, Y, N, NN y NNN de la
+   [sección 2.8](#28-cómo-se-lee-una-instrucción).
+3. **Ejecutar** (*execute*): un `switch` sobre el primer nibble, y adentro de cada caso,
+   lo que haga falta.
+
+### 8.3 La aritmética y VF
+
+```js
+// (fragmento de docs/ejemplos/mini-emulador.js)
+  // 8XYN. El Uint8Array se queda con los 8 bits de abajo de cada resultado.
+  // VF se escribe al final: así, si X es F, VF termina con la bandera.
+  alu(x, y, n) {
+    const V = this.V, vx = V[x], vy = V[y];
+    switch (n) {
+      case 0x0: V[x] = vy; break;
+      case 0x1: V[x] = vx | vy; V[0xF] = 0; break;   // en el VIP, OR, AND y XOR
+      case 0x2: V[x] = vx & vy; V[0xF] = 0; break;   // dejan VF en 0
+      case 0x3: V[x] = vx ^ vy; V[0xF] = 0; break;
+      case 0x4: V[x] = vx + vy; V[0xF] = vx + vy > 255 ? 1 : 0; break; // acarreo
+      case 0x5: V[x] = vx - vy; V[0xF] = vx >= vy ? 1 : 0; break;      // 1 = sin préstamo
+      case 0x6: V[x] = vy >> 1; V[0xF] = vy & 1; break;
+      case 0x7: V[x] = vy - vx; V[0xF] = vy >= vx ? 1 : 0; break;
+      case 0xE: V[x] = vy << 1; V[0xF] = vy >> 7; break;
+    }
+  }
+```
+
+Dos detalles que los emuladores suelen hacer mal: las banderas se calculan con los
+valores **originales** (`vx` y `vy` se leen antes de escribir nada), y VF se escribe
+**al final**. Así, `SUB VF, V1` deja en VF la bandera y no la resta, como en el VIP.
+
+### 8.4 Dibujar con XOR
+
+```js
+// (fragmento de docs/ejemplos/mini-emulador.js)
+  // DXYN: N filas de 8 píxeles desde memory[I], dibujadas con XOR.
+  draw(vx, vy, n) {
+    const x0 = vx % 64, y0 = vy % 32;      // el punto de partida da la vuelta...
+    let collision = 0;
+    for (let row = 0; row < n; row++) {
+      const y = y0 + row;
+      if (y >= 32) break;                  // ...pero lo que sale por abajo se recorta
+      const bits = this.memory[(this.I + row) & 0xFFF];
+      for (let col = 0; col < 8; col++) {
+        const x = x0 + col;
+        if (x >= 64) break;                // y lo que sale por la derecha, también
+        if (bits & (0x80 >> col)) {        // el bit más alto es el píxel de la izquierda
+          const i = y * 64 + x;
+          if (this.display[i]) collision = 1; // estaba prendido: se apaga y hay choque
+          this.display[i] ^= 1;
+        }
+      }
+    }
+    this.V[0xF] = collision;
+  }
+```
+
+La pantalla es un arreglo de 64 × 32 bytes, fila por fila: el píxel (x, y) está en la
+posición `y * 64 + x`. Para cada bit en 1 del sprite, el píxel se invierte (`^= 1`), y
+si estaba prendido, hubo choque. `0x80 >> col` es la máscara del bit de la columna
+`col`, empezando por el más alto.
+
+### 8.5 El tiempo
+
+```js
+// (fragmento de docs/ejemplos/mini-emulador.js)
+  // Un cuadro de 60 Hz: unas cuantas instrucciones y un tic de cada timer.
+  runFrame(ipf = 15) {
+    for (let i = 0; i < ipf; i++) this.step();
+    if (this.delayTimer > 0) this.delayTimer--;
+    if (this.soundTimer > 0) this.soundTimer--;  // mientras sea > 0, suena el beep
+  }
+```
+
+Esa es toda la idea de "instrucciones por frame": en cada 1/60 de segundo, unas cuantas
+instrucciones y un tic de cada timer. El núcleo de la consola hace lo mismo, con los
+dos detalles que le faltan al mini emulador: corta el frame si el programa queda
+esperando una tecla y, con el quirk `VBLANK`, justo después de un `DRW`:
+
+```js
+// (fragmento de chip8.html)
+  /*
+   * Un frame de 60 Hz: hasta `ipf` instrucciones y después un tic de los timers.
+   * Corta antes si la máquina se detiene, si queda esperando una tecla o, con
+   * displayWait, justo después de un DXYN (el VIP esperaba el vblank para dibujar).
+   */
+  Chip8.prototype.runFrame = function (ipf) {
+    if (this.halted) return 0;
+    var executed = 0;
+    for (var i = 0; i < ipf; i++) {
+      if (!this.step()) break;
+      executed++;
+      if (this.waitingForKey || (this._drew && this.quirks.displayWait)) break;
+    }
+    this.tickTimers();
+    return executed;
+  };
+```
+
+¿Y quién llama a `runFrame` 60 veces por segundo? En la consola, el bucle de la
+interfaz usa `requestAnimationFrame`, que el navegador llama en cada refresco del
+monitor (60 veces por segundo en la mayoría, más en algunos). En cada llamada mide
+cuánto tiempo pasó y ejecuta tantos frames de 1/60 de segundo como correspondan (como
+mucho 4 seguidos, para no trabarse si la pestaña estuvo en segundo plano). Así el
+programa corre a la misma velocidad en un monitor de 60 Hz que en uno de 144 Hz.
+
+### 8.6 El teclado
+
+En el mini emulador, el teclado es un arreglo de 16 posiciones: la interfaz pone un 1
+mientras la tecla está apretada, y `SKP`/`SKNP` lo miran. `LD Vx, K` es más delicado.
+El mini emulador lo simplifica ("si hay alguna tecla apretada, esa es"), pero el
+COSMAC VIP esperaba a que apretaras **y soltaras** una tecla. El núcleo de la consola lo
+hace así:
+
+```js
+// (fragmento de chip8.html)
+  /*
+   * FX0A en el COSMAC VIP: espera a que una tecla se presione y SE SUELTE.
+   * Solo cuenta una transición suelta -> presionada ocurrida después de empezar la
+   * espera (una tecla que ya estaba apretada tiene que soltarse y volver a apretarse).
+   * El valor se escribe en VX recién cuando se suelta esa misma tecla.
+   */
+  Chip8.prototype.setKey = function (key, pressed) {
+    key &= 0xF;
+    var was = this.keys[key] !== 0;
+    var now = !!pressed;
+    this.keys[key] = now ? 1 : 0;
+    if (!this.waitingForKey || was === now) return;
+    if (now) {
+      if (this._waitKey < 0) this._waitKey = key;
+    } else if (key === this._waitKey) {
+      this.V[this._waitReg] = key;
+      this.waitingForKey = false;
+      this._waitKey = -1;
+    }
+  };
+```
+
+`FX0A` no espera adentro de un bucle (eso congelaría el navegador): pone
+`waitingForKey = true` y deja que el tiempo siga pasando. Mientras tanto, `step()` no
+hace nada. Cuando la interfaz avisa que se soltó la tecla que se había apretado,
+`setKey` guarda su número en VX y la máquina sigue.
+
+### 8.7 El sonido
+
+El mini emulador no suena: solo baja el temporizador. En la consola, la interfaz usa Web
+Audio: con el primer clic o la primera tecla crea un oscilador de **onda cuadrada de
+440 Hz** que queda sonando siempre, conectado a un control de volumen que está en 0. En
+cada frame, si la máquina está corriendo y ST vale más de 0, sube ese volumen; si no,
+lo baja. Así el beep empieza y termina justo con el temporizador, sin clics.
+
+### 8.8 Probalo
+
+El mini emulador corre desde la terminal: le pasás un `.ch8` y cuántos frames
+correrlo (120 si no le decís nada), y te muestra cómo quedó la pantalla:
+
+```sh
+node docs/ejemplos/mini-emulador.js docs/ejemplos/01-a-mano.ch8 10
+```
+
+<!-- salida (fragmento): node docs/ejemplos/mini-emulador.js docs/ejemplos/01-a-mano.ch8 10 -->
+```text
+................................................................
+................................................................
+..............................####..............................
+..............................#..#..............................
+..............................####..............................
+..............................#..#..............................
+..............................#..#..............................
+................................................................
+```
+
+(Son 32 filas de 64 caracteres; acá se ven las del medio.) Probá con los otros
+ejemplos, con los cartuchos de `roms/`, o con tus propios programas. Si le pasás
+`docs/ejemplos/11-sin-fin.ch8`, fijate que no se detiene: el mini emulador no controla
+errores y sigue ejecutando lo que venga.
+
+Leé el archivo entero: con lo que viste en este tutorial, lo vas a entender línea por
+línea. Y en la [parte 9](#9-ejercicios-y-próximos-pasos) hay ideas para mejorarlo.
+
+### 8.9 Cómo está organizado `chip8.html`
+
+La consola es un único archivo HTML, sin dependencias, que funciona abierto
+directamente desde el disco. Adentro tiene cinco bloques:
+
+| Bloque | Qué tiene |
+|---|---|
+| `<style id="chip8-style">` | Todo el aspecto de la consola. |
+| El HTML del `<body>` | La consola, el panel, el estante de cartuchos, el monitor y la ayuda. |
+| `<script id="chip8-core">` | El núcleo del emulador: la clase `Chip8`, los quirks, la fuente y el desensamblador. No toca la página, así que también corre en Node. |
+| `<script id="chip8-roms">` | Los cartuchos incluidos. Lo genera `tools/embed-roms.js` a partir de `roms/*.asm`: no se edita a mano. |
+| `<script id="chip8-ui">` | La interfaz: pantalla, keypad, controles, monitor, sonido y el bucle principal. |
+
+Alrededor están las herramientas (`tools/chip8asm.js`, el ensamblador;
+`tools/embed-roms.js`, que ensambla las demos y las incrusta; `tools/serve.js`, el
+servidor local) y los tests, que se corren con `node --test` desde la raíz. Los tests
+sacan los bloques de `chip8.html` y los ejecutan en Node, así que prueban exactamente
+el código que corre en tu navegador.
+
+La arquitectura completa, las decisiones de diseño y cómo se verificó cada parte están
+en [DESARROLLO.md](DESARROLLO.md).
+
+---
+
+## 9. Ejercicios y próximos pasos
+
+### 9.1 Ejercicios
+
+Van de menor a mayor. Cada uno tiene una pista, escondida para que la mires solo si la
+necesitás.
+
+**1. Dos dígitos a mano.** Modificá el programa de la parte 3 para que muestre `42`,
+centrado, escribiendo los bytes a mano.
+
+<details>
+<summary>Pista</summary>
+
+Necesitás dos veces `LD Vx, NN` + `LD F, Vx` + `DRW`, con la x del segundo dígito 5
+píxeles más a la derecha (`ADD V1, 5` es `7105`). Contá bien las instrucciones: la del
+salto final cambia de dirección.
+
+</details>
+
+**2. Un fantasmita más rápido.** Hacé que el Cazamonedas avance 2 píxeles por paso.
+
+<details>
+<summary>Pista</summary>
+
+Cambiar los `ADD V6, 1` por `ADD V6, 2` es fácil; lo difícil son los bordes. Ahora el
+fantasmita se puede pasar por 2, y `SNE V6, -1` no alcanza: desde x = 1, un paso a la
+izquierda da −1, pero desde x = 0 da −2 (`0xFE`). Revisá los cuatro bordes.
+
+</details>
+
+**3. Contra reloj.** Agregale al Cazamonedas un límite de 30 segundos. Cuando se
+termina, mostrá el puntaje, esperá una tecla con `LD V0, K` y empezá de nuevo.
+
+<details>
+<summary>Pista</summary>
+
+Con `RITMO` en 3, hay 20 pasos por segundo. Un registro libre (VA a VD no los usa
+nadie) que cuente pasos y otro que cuente segundos alcanzan. Para "empezar de nuevo", `JP inicio`: acordate de que
+`inicio` tiene que dejar todo como al principio (el puntaje en 0, la pantalla limpia).
+
+</details>
+
+**4. Una moneda inquieta.** Hacé que la moneda cambie de lugar sola cada 3 segundos si
+nadie la agarra.
+
+<details>
+<summary>Pista</summary>
+
+Ya tenés casi todo: borrar la moneda es dibujarla otra vez, y `nueva_moneda` pone otra.
+Solo falta un contador de pasos.
+
+</details>
+
+**5. Récord.** Guardá el mejor puntaje de la sesión en memoria y mostralo arriba a la
+derecha.
+
+<details>
+<summary>Pista</summary>
+
+Reservá un byte con `DB 0`. Para leerlo y escribirlo: `LD I, record` y después
+`LD V0, [I]` o `LD [I], V0` (con X = 0, un solo registro). Para comparar puntajes,
+restá y mirá VF, como en `nueva_moneda`.
+
+</details>
+
+**6. Un enemigo.** Agregá algo que rebote por la pantalla, como la pelota de *Rebote*;
+si toca al fantasmita, perdés puntos.
+
+<details>
+<summary>Pista</summary>
+
+El problema nuevo es que VF = 1 ya no alcanza para saber **con qué** chocaste. Cuando
+haya choque, compará las posiciones (con restas) para saber si fue la moneda o el
+enemigo.
+
+</details>
+
+**7. Depurar a propósito.** En `08-sonido.asm`, borrá el `LD I, fantasma` del principio
+de `mover`. Antes de probarlo, pensá: ¿qué va a pasar después de agarrar la primera
+moneda? Después comprobalo en la consola y con el monitor.
+
+<details>
+<summary>Pista</summary>
+
+¿Cuál es la última instrucción `LD I` que se ejecuta antes de volver al bucle después
+de agarrar una moneda? Está en `nueva_moneda`.
+
+</details>
+
+**8. Mejorá el emulador mínimo.** Algunas ideas, de menor a mayor:
+
+- Que `LD Vx, K` espere a que aprieten **y suelten** una tecla, como el VIP.
+- Que se detenga con un mensaje ante una instrucción inválida, un `RET` sin `CALL` o
+  una pila llena.
+- Una opción para el quirk `VF=0` (o para todos).
+- Que dibuje en un `<canvas>` en el navegador, con el teclado de la
+  [sección 1.4](#14-el-teclado).
+
+<details>
+<summary>Pista</summary>
+
+Compará con el núcleo de `chip8.html` (el bloque `chip8-core`): hace todo eso. Y
+`tests/tutorial.test.js` tiene un test que corre el mini emulador al lado del núcleo:
+te sirve para comprobar que no rompiste nada.
+
+</details>
+
+**9. ROMs de otros.** Conseguí ROMs de dominio público (hay muchas en los enlaces de
+abajo), cargalas y probá cuáles necesitan otro perfil de quirks o más IPF.
+
+### 9.2 Próximos pasos
+
+- **El manual.** El [manual de referencia](MANUAL.md) tiene todo lo que este tutorial
+  resumió: la historia, cada instrucción con sus casos borde, los quirks con ejemplos y
+  la temporización del VIP.
+- **ROMs de prueba.** La [chip8-test-suite](https://github.com/Timendus/chip8-test-suite)
+  de Timendus tiene ROMs que prueban las instrucciones, los quirks y el teclado. Son la
+  forma estándar de comprobar un emulador: cargalas en la consola y probá los perfiles.
+- **SUPER-CHIP y XO-CHIP.** CHIP-8 tuvo descendientes con más pantalla (128 × 64), más
+  memoria, desplazamiento de pantalla, color y sonido de verdad. Están en la
+  [sección 13 del manual](MANUAL.md#13-variantes-y-extensiones).
+- **Octo.** Si querés hacer juegos en serio, [Octo](https://github.com/JohnEarnest/Octo),
+  de John Earnest, es un entorno para programar CHIP-8 y XO-CHIP con un ensamblador de
+  alto nivel. Alrededor de él se formó una comunidad que organizó concursos anuales de
+  juegos (la Octojam).
+- **Otras guías.** Las referencias clásicas (la de Cowgod, la guía para escribir un
+  emulador de Tobias Langhoff y las demás) están listadas en el
+  [manual, sección 15](MANUAL.md#15-referencias).
