@@ -1,0 +1,13 @@
+{
+  "name": "chip8-consola",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Emulador de CHIP-8 que corre en el navegador, en un solo archivo HTML y sin dependencias",
+  "scripts": {
+    "test": "node --test",
+    "asm": "node tools/chip8asm.js",
+    "roms": "node tools/embed-roms.js",
+    "serve": "node tools/serve.js"
+  },
+  "license": "MIT"
+}
