@@ -32,16 +32,34 @@
  *   --verbose          Muestra los mensajes de la consola de la página.
  *   --help             Muestra esta ayuda.
  *
- * Escenarios:
- *    1 carga sin errores (http y file://)     10 interruptores de quirks y ajustes
- *    2 velocidad real (60 Hz)                 11 controles de velocidad
- *    3 teclado físico                         12 sonido
- *    4 keypad en pantalla (mouse y toques)    13 monitor de depuración
- *    5 atajos                                 14 errores de ejecución
- *    6 carga de ROMs (archivo y arrastre)     15 diseño adaptable y nitidez
- *    7 cartuchos incluidos                    16 movimiento reducido
- *    8 Atrapa: la paleta sigue al teclado     17 pestaña oculta y vuelta
- *    9 Autotest con cada perfil
+ * Escenarios (todos con entrada real: teclas, clics, toques, archivos y arrastre):
+ *    1 carga sin errores por http y por file://, sin 404 del ícono
+ *    2 velocidad real: ~60 frames/s con IPF 15 y 1000 (también sin dibujo)
+ *    3 teclado físico: las 16 teclas con el demo Teclado
+ *    4 keypad en pantalla: mouse, arrastrar afuera y dos dedos a la vez
+ *    5 atajos (Espacio, N, Retroceso, H, Esc) y el modelo de foco: un clic no deja el foco en
+ *      el botón; con el foco puesto desde el teclado, Espacio activa el control
+ *    6 carga de ROMs: selector de archivos, ROM vacía o grande (el aviso no tapa nada) y arrastre
+ *    7 cada cartucho del estante carga y corre 3 s
+ *    8 Atrapa: A y D mueven la paleta
+ *    9 Autotest con cada perfil: 19 comprobaciones y 0 fallas
+ *   10 interruptores de quirks, perfiles, ajustes guardados y localStorage roto
+ *   11 controles de velocidad: deslizador, campo numérico y botones
+ *   12 sonido: gesto para habilitarlo, silencio y pausa
+ *   13 monitor: Paso, desensamblado, registros, pila, Frame y ocultar
+ *   14 error de ejecución con la máquina corriendo: CRT, monitor, un solo anuncio y Reiniciar
+ *   15 diseño adaptable de 360 a 1440 px y nitidez con escala 1,25 y 2
+ *   16 prefers-reduced-motion apaga parpadeos y animaciones
+ *   17 pestaña congelada u oculta: al volver no se pone al día de golpe
+ *   18 modo de pantalla: Tubo CRT y Píxeles puros (dos colores exactos, sin efectos, interruptores
+ *      deshabilitados), se conserva al recargar y se cambia con las flechas
+ *   19 selector rápido de cartuchos bajo la ranura, a 1440×900 y sin scrollear
+ *   20 selectores de perfil y paleta: después de elegir, las teclas van al CHIP-8; N, H y
+ *      Retroceso funcionan; con Tab y flechas cambian de forma nativa
+ *   21 keypad con el teclado: Tab hasta una tecla, Enter breve (~120 ms) y Espacio sostenido; FX0A
+ *   22 error con la máquina en pausa (Reiniciar deja 0x200 en pausa) o corriendo (vuelve a correr)
+ *   23 ícono de la pestaña embebido: ningún pedido da 404 por http
+ *   24 pantalla angosta (360×640 y 375×667): la pantalla y el keypad entero en la primera vista
  */
 
 const { spawn, spawnSync } = require('node:child_process');
@@ -132,7 +150,14 @@ const TYPES = {
 };
 
 function startServer() {
+  // Cada pedido queda anotado (ruta y código de respuesta) en server.requests: el escenario 23
+  // revisa que la página no pida nada que no exista (por ejemplo, /favicon.ico).
+  const requests = [];
   const server = http.createServer((req, res) => {
+    const entry = { url: req.url, status: 0, at: Date.now() };
+    requests.push(entry);
+    if (requests.length > 2000) requests.shift();
+    res.on('finish', () => { entry.status = res.statusCode; });
     let urlPath;
     try {
       urlPath = decodeURIComponent(new URL(req.url, 'http://127.0.0.1').pathname);
@@ -159,6 +184,7 @@ function startServer() {
       res.end(data);
     });
   });
+  server.requests = requests;
   return new Promise((resolve, reject) => {
     server.once('error', reject);
     server.listen(0, '127.0.0.1', () => resolve(server));
@@ -575,6 +601,8 @@ const hx = (v, d = 3) => '0x' + (v >>> 0).toString(16).toUpperCase().padStart(d,
 
 const KEYS_EXPR = 'Array.from(window.chip8.cpu.keys)';
 const E2E = 'window.chip8.cpu.__e2e';
+// Cantidad de comprobaciones de roms/autotest.asm (la misma constante que tests/roms.test.js).
+const AUTOTEST_CHECKS = 19;
 
 async function counters(page) {
   return page.ev(`({ calls: ${E2E}.calls, instr: ${E2E}.instr, steps: ${E2E}.steps, resets: ${E2E}.resets, now: performance.now() })`);
@@ -955,6 +983,12 @@ scenario(6, 'Carga de ROMs: selector de archivos, errores y arrastrar y soltar',
     const c1 = await counters(page);
     const name = await page.ev("document.getElementById('cart-name').textContent");
     s.check(t && pattern.test(t), `ROM ${label}: aparece un aviso de error en castellano («${t}»)`, t);
+    const cover = await page.ev(`(() => {
+      const t = document.querySelector('#toasts .toast--error'); if (!t) return ['sin aviso'];
+      const a = t.getBoundingClientRect();
+      return ['#keypad', '#status', '#screen', '#btn-reset'].filter((sel) => { const b = document.querySelector(sel).getBoundingClientRect(); return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom; });
+    })()`);
+    s.check(cover.length === 0, `ROM ${label}: el aviso no tapa el keypad, la línea de estado, la pantalla ni el transporte`, 'tapa: ' + cover.join(', '));
     s.check(name === 'fuente.ch8' && c1.calls > c0.calls + 10 && !(await page.ev('window.chip8.cpu.halted')), `ROM ${label}: la ROM anterior sigue en la ranura y corriendo`, `${name}, frames +${c1.calls - c0.calls}`);
     if (label.startsWith('de')) await page.shot('06-error-rom-grande');
     await page.ev("document.querySelectorAll('#toasts .toast').forEach((t) => t.remove())");
@@ -1040,7 +1074,7 @@ scenario(9, 'Autotest con cada perfil elegido en el selector', async (ctx, s) =>
     const done = await page.poll(`(() => { const c = window.chip8.cpu; const op = (c.memory[c.pc] << 8) | c.memory[c.pc + 1]; return c.halted || op === (0x1000 | c.pc); })()`, 30000, 100);
     const secs = ((Date.now() - t0) / 1000).toFixed(1);
     const r = await page.ev('({ vd: window.chip8.cpu.V[13], ve: window.chip8.cpu.V[14], halted: window.chip8.cpu.halted, err: window.chip8.cpu.error })');
-    s.check(done && !r.halted && r.ve === 0 && r.vd >= 16, `${id}: autotest terminó en ${secs} s con VD=${r.vd} comprobaciones y VE=${r.ve} fallas`, JSON.stringify(r));
+    s.check(done && !r.halted && r.ve === 0 && r.vd === AUTOTEST_CHECKS, `${id}: autotest terminó en ${secs} s con VD=${r.vd} comprobaciones (se esperan ${AUTOTEST_CHECKS}) y VE=${r.ve} fallas`, JSON.stringify(r));
     await page.shot('09-autotest-' + id);
   }
   s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
@@ -1211,6 +1245,9 @@ scenario(13, 'Monitor: Paso, desensamblado, registros, pila, Frame y ocultar', a
   await stepClick();
   const m3 = await mon();
   s.check(m3.pc === '0x20A' && m3.row === '0x20A' && m3.sp === '1' && m3.stack0 === '0x206' && m3.top === '0x206', `Paso 3 (CALL): PC ${m3.pc}, SP ${m3.sp}, la pila muestra ${m3.stack0} como tope`, JSON.stringify(m3));
+  // Los títulos DESENSAMBLADO y PILA no quedan pegados a la grilla de registros.
+  const gaps = await page.ev(`(() => { const g = document.getElementById('vgrid').getBoundingClientRect(); return Array.from(document.querySelectorAll('#mon-body h3')).filter((h) => /DESENSAMBLADO|PILA/.test(h.textContent)).map((h) => Math.round(h.getBoundingClientRect().top - g.bottom)); })()`);
+  s.check(gaps.length === 2 && gaps.every((g) => g >= 8), `DESENSAMBLADO y PILA tienen aire sobre la grilla de registros (${gaps.join(' y ')} px)`, JSON.stringify(gaps));
   await page.shot('13-monitor-call');
   await stepClick();
   const m4 = await mon();
@@ -1253,6 +1290,9 @@ scenario(14, 'Error de ejecución: opcode inválido 5121 y recuperación', async
   s.check(e.mon && e.monText === e.text && e.badge === 'Error', 'el monitor muestra el mismo error y el estado «Error»', JSON.stringify(e));
   s.check(e.pc === 0x202, `PC queda en la instrucción culpable (${hx(e.pc)})`);
   s.check(e.dis[0] && e.dis[1] && e.dis[2] && !e.dis[3], 'Pausa, Paso y Frame quedan deshabilitados; Reiniciar habilitado', JSON.stringify(e.dis));
+  // El error se anuncia una sola vez, por la línea de estado: sin aviso flotante ni role=alert.
+  const ann = await page.ev(`({ status: document.getElementById('status').textContent, toasts: document.querySelectorAll('#toasts .toast').length, alerts: document.querySelectorAll('[role="alert"]').length })`);
+  s.check(ann.status === 'Error: ' + e.text && ann.toasts === 0 && ann.alerts === 0, `el error se anuncia una vez en la línea de estado («${ann.status.slice(0, 40)}…»), sin aviso flotante ni role=alert`, JSON.stringify(ann));
   await page.shot('14-error');
   await page.press('Space');
   await page.press('KeyN');
@@ -1261,7 +1301,7 @@ scenario(14, 'Error de ejecución: opcode inválido 5121 y recuperación', async
   await page.click('#btn-reset');
   await sleep(200);
   const r = await page.ev(`({ crt: !document.getElementById('crt-msg').hidden, mon: !document.getElementById('mon-error').hidden, halted: window.chip8.cpu.halted, wait: window.chip8.cpu.waitingForKey, paused: window.chip8.isPaused(), dis: ['btn-pause', 'btn-step', 'btn-frame', 'btn-reset'].map((id) => document.getElementById(id).disabled), badge: document.getElementById('mon-badge').textContent })`);
-  s.check(!r.crt && !r.mon && !r.halted && r.wait && !r.paused && r.dis.every((d) => !d), `Reiniciar borra el error y vuelve a correr (monitor: «${r.badge}»)`, JSON.stringify(r));
+  s.check(!r.crt && !r.mon && !r.halted && r.wait && !r.paused && r.dis.every((d) => !d), `estaba corriendo: Reiniciar borra el error y vuelve a correr (monitor: «${r.badge}»)`, JSON.stringify(r));
   await page.shot('14-recuperado');
   s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
 });
@@ -1275,7 +1315,8 @@ scenario(15, 'Diseño adaptable (360 a 1440 px) y nitidez con escala 1,25 y 2', 
     const cv = document.getElementById('screen');
     const over = [];
     document.querySelectorAll('body *').forEach((el) => { const b = el.getBoundingClientRect(); if (b.width && b.right > innerWidth + 0.5 && getComputedStyle(el).position !== 'fixed') over.push((el.id ? '#' + el.id : el.tagName.toLowerCase() + '.' + el.className).slice(0, 40)); });
-    return { sw: document.documentElement.scrollWidth, iw: innerWidth, minKey: Math.min(...keys.map((k) => Math.min(k.width, k.height))), canvas: { l: c.left, r: c.right, w: c.width, h: c.height, t: c.top }, back: [cv.width, cv.height], dpr: devicePixelRatio, over: over.slice(0, 6) };
+    const cs = document.getElementById('cart-size');
+    return { sw: document.documentElement.scrollWidth, iw: innerWidth, cartSize: { text: cs.textContent, sw: cs.scrollWidth, cw: cs.clientWidth }, minKey: Math.min(...keys.map((k) => Math.min(k.width, k.height))), canvas: { l: c.left, r: c.right, w: c.width, h: c.height, t: c.top }, back: [cv.width, cv.height], dpr: devicePixelRatio, over: over.slice(0, 6) };
   })()`);
   for (const w of [360, 414, 768, 1024, 1440]) {
     const mobile = w <= 414;
@@ -1285,6 +1326,7 @@ scenario(15, 'Diseño adaptable (360 a 1440 px) y nitidez con escala 1,25 y 2', 
     const m = await measure();
     s.check(m.sw <= m.iw, `${w}px: sin scroll horizontal (scrollWidth ${m.sw} ≤ ${m.iw})`, 'se salen: ' + m.over.join(', '));
     s.check(m.minKey >= 44, `${w}px: teclas del keypad de al menos 44 px (mínimo ${m.minKey.toFixed(1)})`);
+    s.check(m.cartSize.sw <= m.cartSize.cw + 1, `${w}px: la etiqueta del cartucho se lee entera («${m.cartSize.text}»)`, JSON.stringify(m.cartSize));
     s.check(m.canvas.w > 0 && m.canvas.h > 0 && m.canvas.l >= 0 && m.canvas.r <= m.iw + 0.5, `${w}px: la pantalla se ve entera (${m.canvas.w.toFixed(0)}×${m.canvas.h.toFixed(0)} CSS px)`, JSON.stringify(m.canvas));
     await page.ev('window.scrollTo(0, 0)');
     await page.shot(`15-ancho-${w}`);
@@ -1339,8 +1381,10 @@ scenario(17, 'Pestaña oculta o congelada: al volver no se recupera el atraso', 
   await page.instrument();
   await sleep(500);
 
-  // Mide con las marcas de tiempo de cada runFrame (reloj de la página) qué pasó mientras
-  // estuvo oculta/congelada y en el primer segundo después de volver.
+  // Mide con las marcas de tiempo de cada runFrame (reloj de la página). Lo que importa es qué
+  // pasa después del último hueco sin frames (más de 250 ms quieta): Chrome a veces congela solo
+  // una parte del tiempo pedido, o de a tramos, así que se mide desde el final de ese hueco y no
+  // desde el momento en que se la volvió a activar.
   async function trial(label, hide, show, probeMid) {
     const a = await page.ev(`({ dt: window.chip8.cpu.delayTimer, now: performance.now() })`);
     const nodeA = Date.now();
@@ -1350,30 +1394,38 @@ scenario(17, 'Pestaña oculta o congelada: al volver no se recupera el atraso', 
     const mid = probeMid ? await page.ev('document.visibilityState', 10000).catch(() => null) : null;
     await show();
     const tShow = Date.now();
-    await sleep(1000);
+    await sleep(1300);
     const b = await page.ev(`({ dt: window.chip8.cpu.delayTimer, now: performance.now(), times: ${E2E}.times.slice() })`);
     const hs = a.now + (tHide - nodeA), he = a.now + (tShow - nodeA);
-    const inRange = (lo, hi) => b.times.filter((t) => t >= lo && t < hi).length;
+    const T = b.times;
+    const inRange = (lo, hi) => T.filter((t) => t >= lo && t < hi).length;
     const during = inRange(hs + 100, he - 100);
-    const first = inRange(he - 20, he + 250);
-    const after = inRange(he - 20, he + 1000);
+    // Huecos de más de 250 ms: cuánto estuvo quieta en total (a veces Chrome deja pasar un frame
+    // suelto en medio de la congelación) y dónde termina el último.
+    let gap = 0, gapEnd = he, stall = 0, stalls = 0, prev = null;
+    for (const t of T) {
+      if (t >= hs - 50 && prev !== null && t - prev > 250) { gap = t - prev; gapEnd = t; stall += gap; stalls++; }
+      prev = t;
+    }
+    const first = inRange(gapEnd, gapEnd + 250);
+    const after = inRange(gapEnd, gapEnd + 1000);
     let burst = 0;
-    for (let i = 0; i < b.times.length; i++) {
-      if (b.times[i] < he - 20) continue;
+    for (let i = 0; i < T.length; i++) {
+      if (T[i] < gapEnd) continue;
       let j = i;
-      while (j + 1 < b.times.length && b.times[j + 1] - b.times[i] < 5) j++;
+      while (j + 1 < T.length && T[j + 1] - T[i] < 5) j++;
       burst = Math.max(burst, j - i + 1);
     }
-    const r = { hiddenSecs: (tShow - tHide) / 1000, during, first, after, burst, vis: mid, dtDrop: a.dt - b.dt };
-    s.info(`${label}: ${r.hiddenSecs.toFixed(1)} s${mid ? ' (estado «' + mid + '»)' : ''}, ${during} frames mientras tanto; al volver: ${first} frames en 0,25 s y ${after} en 1 s (ráfaga máxima ${burst}); DT bajó ${r.dtDrop} en total`);
+    const r = { hiddenSecs: (tShow - tHide) / 1000, during, gap: Math.round(gap), stall: Math.round(stall), stalls, fits: gapEnd + 1000 <= b.now, first, after, burst, vis: mid, dtDrop: a.dt - b.dt };
+    s.info(`${label}: ${r.hiddenSecs.toFixed(1)} s${mid ? ' (estado «' + mid + '»)' : ''}, ${during} frames mientras tanto, quieta ${r.stall} ms en ${stalls} tramo(s), el último de ${r.gap} ms; después de ese tramo: ${first} frames en 0,25 s y ${after} en 1 s (ráfaga máxima ${burst}); DT bajó ${r.dtDrop} en total`);
     return r;
   }
-  const noBacklog = (r) => r.first <= 22 && r.after >= 15 && r.after <= 75 && r.burst <= 4;
+  const noBacklog = (r) => r.fits && r.first <= 22 && r.after >= 15 && r.after <= 75 && r.burst <= 4;
 
   // a) Congelar la página (Page.setWebLifecycleState). Chrome a veces ignora el pedido con la
   // pestaña visible; entonces se prueba ocultándola primero (como una pestaña en segundo plano).
   let fz = null;
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  for (let attempt = 1; attempt <= 4; attempt++) {
     const alsoHide = attempt > 1;
     let bg = null;
     fz = await trial(`Congelada${alsoHide ? ' y oculta' : ''} (intento ${attempt})`, async () => {
@@ -1389,13 +1441,13 @@ scenario(17, 'Pestaña oculta o congelada: al volver no se recupera el atraso', 
         await ctx.browser.cdp.send('Target.closeTarget', { targetId: bg }).catch(() => {});
       }
     }, false);
-    if (fz.during <= 20) break;
+    if (fz.stall >= 1000 && fz.fits) break;
     await sleep(300);
   }
-  if (fz.during <= 20) {
-    s.check(noBacklog(fz), `congelada 2 s: al volver no se pone al día (${fz.first} frames en 0,25 s, ${fz.after} en 1 s, ≈60 y no ≈180)`, JSON.stringify(fz));
+  if (fz.stall >= 1000 && fz.fits) {
+    s.check(noBacklog(fz), `congelada (${(fz.stall / 1000).toFixed(1)} s sin frames, el último tramo de ${(fz.gap / 1000).toFixed(1)} s): al volver no se pone al día (${fz.first} frames en 0,25 s, ${fz.after} en 1 s, ≈60 y no ≈180)`, JSON.stringify(fz));
   } else {
-    s.info('El navegador no congeló la página (siguió corriendo): esa variante no se evalúa.');
+    s.info('El navegador no llegó a congelar la página ni un segundo: esa variante no se evalúa.');
   }
 
   // b) Ocultar la pestaña activando otra.
@@ -1413,9 +1465,487 @@ scenario(17, 'Pestaña oculta o congelada: al volver no se recupera el atraso', 
   const vis = await page.ev('window.__e2eVis');
   s.info('visibilitychange: ' + (vis.length ? vis.join(', ') : '(ninguno)'));
   s.check(hd.vis === 'hidden' && vis.length >= 2, `la pestaña llegó a ocultarse (estado «${hd.vis}») y volvió`);
-  s.check(hd.during <= 20, `oculta: casi no corre mientras está oculta (${hd.during} frames en 2 s)`);
+  s.check(hd.during <= 20 && hd.stall >= 1500, `oculta: casi no corre mientras está oculta (${hd.during} frames en 2 s, ${(hd.stall / 1000).toFixed(1)} s sin frames)`, JSON.stringify(hd));
   s.check(noBacklog(hd), `oculta 2 s: al volver no se pone al día (${hd.first} frames en 0,25 s, ${hd.after} en 1 s, ≈60 y no ≈180)`, JSON.stringify(hd));
   s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// Lee el lienzo #screen píxel por píxel: cuántos colores distintos hay, cuántos píxeles físicos
+// no son exactamente el color que les toca según cpu.display (fondo o encendido de la paleta) y
+// cuántas celdas CHIP-8 tienen en el centro un brillo intermedio (la estela del fósforo).
+const SCREEN_PIXELS_EXPR = `(() => {
+  const cv = document.getElementById('screen');
+  const W = cv.width, H = cv.height, sc = W / 64;
+  const d = cv.getContext('2d').getImageData(0, 0, W, H).data;
+  const crt = document.getElementById('crt');
+  const rgb = (v) => { const m = /(\\d+)\\D+(\\d+)\\D+(\\d+)/.exec(v || ''); return m ? (+m[1] << 16) | (+m[2] << 8) | +m[3] : -1; };
+  const bg = rgb(crt.style.getPropertyValue('--scr-bg')), on = rgb(crt.style.getPropertyValue('--scr-fg'));
+  const disp = window.chip8.cpu.display;
+  const colors = new Map();
+  let wrong = 0, mid = 0, lit = 0;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4, c = (d[i] << 16) | (d[i + 1] << 8) | d[i + 2];
+      colors.set(c, (colors.get(c) || 0) + 1);
+      if (c !== (disp[Math.floor(y / sc) * 64 + Math.floor(x / sc)] ? on : bg)) wrong++;
+    }
+  }
+  for (let cy = 0; cy < 32; cy++) {
+    for (let cx = 0; cx < 64; cx++) {
+      const x = Math.floor((cx + 0.5) * sc), y = Math.floor((cy + 0.5) * sc), i = (y * W + x) * 4;
+      const c = (d[i] << 16) | (d[i + 1] << 8) | d[i + 2];
+      if (c !== bg && c !== on) mid++;
+      if (disp[cy * 64 + cx]) lit++;
+    }
+  }
+  const hex6 = (c) => '#' + c.toString(16).padStart(6, '0');
+  return { distinct: colors.size, wrong, mid, lit, bg: hex6(bg), on: hex6(on), scale: sc, size: [W, H], only: colors.size <= 2 ? Array.from(colors.keys()).map(hex6) : null };
+})()`;
+
+// 18 -------------------------------------------------------------------------------
+scenario(18, 'Modo de pantalla: Tubo CRT y Píxeles puros (mouse, recarga y flechas)', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  const look = () => page.ev(`(() => {
+    const crt = document.getElementById('crt');
+    const disp = (sel) => getComputedStyle(document.querySelector(sel)).display;
+    const seg = (m) => document.querySelector('#screen-mode .seg[data-mode="' + m + '"]');
+    const ae = document.activeElement;
+    return { mode: window.chip8.getScreenMode(), data: crt.getAttribute('data-mode'), crtChecked: seg('crt').getAttribute('aria-checked'), puroChecked: seg('puro').getAttribute('aria-checked'),
+      tabs: [seg('crt').tabIndex, seg('puro').tabIndex], glow: disp('#glow'), vignette: disp('.crt-vignette'), glare: disp('.crt-glare'),
+      scanDis: document.getElementById('tg-scan').disabled, persistDis: document.getElementById('tg-persist').disabled,
+      scan: document.getElementById('tg-scan').getAttribute('aria-pressed'), persist: document.getElementById('tg-persist').getAttribute('aria-pressed'),
+      focus: ae && ae.getAttribute ? ae.getAttribute('data-mode') : null };
+  })()`);
+  const effectsOn = (l) => l.glow !== 'none' && l.vignette !== 'none' && l.glare !== 'none';
+  const effectsOff = (l) => l.glow === 'none' && l.vignette === 'none' && l.glare === 'none';
+  const isCrt = (l) => l.mode === 'crt' && l.data === 'crt' && l.crtChecked === 'true' && l.puroChecked === 'false' && effectsOn(l) && !l.scanDis && !l.persistDis;
+  const isPuro = (l) => l.mode === 'puro' && l.data === 'puro' && l.puroChecked === 'true' && l.crtChecked === 'false' && effectsOff(l) && l.scanDis && l.persistDis;
+  // Varias muestras del lienzo mientras corre Rebote.
+  const sample = async (n) => {
+    const out = [];
+    for (let i = 0; i < n; i++) { out.push(await page.ev(SCREEN_PIXELS_EXPR)); await sleep(70); }
+    return out;
+  };
+
+  await clickCart(page, 'rebote');
+  await sleep(400);
+  const l0 = await look();
+  s.check(isCrt(l0) && l0.scan === 'true' && l0.persist === 'true', 'de fábrica: Tubo CRT con resplandor, viñeta y reflejo; Scanlines y Persistencia activos', JSON.stringify(l0));
+  const c0 = await sample(10);
+  const trail = Math.max(...c0.map((p) => p.mid)), crtColors = Math.max(...c0.map((p) => p.distinct));
+  s.check(trail > 0 && crtColors > 2, `Tubo CRT con Rebote: la pelota deja estela (hasta ${trail} celdas a medio apagar) y el lienzo tiene más de dos colores (${crtColors})`);
+  await page.rect('#crt');
+  await page.shot('18-modo-crt');
+
+  // Clic con el mouse en «Píxeles puros».
+  await page.click('#screen-mode .seg[data-mode="puro"]');
+  await sleep(150);
+  const l1 = await look();
+  s.check(isPuro(l1), 'clic en «Píxeles puros»: queda elegido y desaparecen el resplandor, la viñeta y el reflejo', JSON.stringify(l1));
+  s.check(l1.scanDis && l1.persistDis && l1.scan === 'true' && l1.persist === 'true', 'en Píxeles puros, Scanlines y Persistencia quedan deshabilitados y conservan su preferencia (siguen «activos»)', JSON.stringify(l1));
+  const p1 = await sample(10);
+  const bad1 = p1.filter((p) => p.distinct > 2 || p.wrong || p.mid).map((p) => JSON.stringify({ colores: p.distinct, distintos: p.wrong, estela: p.mid }));
+  s.check(bad1.length === 0 && p1.some((p) => p.lit > 0), `Píxeles puros con Rebote corriendo: en 10 muestras hay solo fondo y encendido (${p1[0].bg} y ${p1[0].on}), cada píxel físico coincide con cpu.display y no queda estela`, bad1.join(' '));
+  await page.click('#tg-scan');
+  await sleep(60);
+  s.check((await page.ev("document.getElementById('tg-scan').getAttribute('aria-pressed')")) === 'true', 'un clic en Scanlines deshabilitado no lo cambia');
+
+  // Imagen fija: dos colores exactos, en cada paleta.
+  await clickCart(page, 'fuente');
+  await sleep(300);
+  const pf = await page.ev(SCREEN_PIXELS_EXPR);
+  s.check(pf.distinct === 2 && pf.wrong === 0 && pf.lit > 0 && pf.only.includes(pf.bg) && pf.only.includes(pf.on), `Píxeles puros con Fuente: lienzo de ${pf.size.join('×')} (escala ${pf.scale}), exactamente dos colores (${(pf.only || []).join(', ')}) y 0 píxeles fuera de lugar`, JSON.stringify(pf));
+  await page.rect('#crt');
+  await page.shot('18-modo-puro');
+  const palBad = [];
+  for (const pal of ['ambar', 'blanco', 'lcd', 'fosforo']) {
+    await chooseSelect(page, '#palette', pal);
+    await sleep(120);
+    const p = await page.ev(SCREEN_PIXELS_EXPR);
+    if (p.distinct !== 2 || p.wrong) palBad.push(`${pal}: ${p.distinct} colores, ${p.wrong} fuera de lugar`);
+    if (pal === 'lcd') await page.shot('18-modo-puro-lcd');
+  }
+  s.check(palBad.length === 0, 'Píxeles puros con las paletas Ámbar, Blanco, LCD y Verde fósforo: siempre dos colores exactos', palBad.join('; '));
+
+  // La elección sobrevive a una recarga.
+  await page.reload();
+  await page.instrument();
+  await sleep(400);
+  const l2 = await look();
+  const p2 = await page.ev(SCREEN_PIXELS_EXPR);
+  s.check(isPuro(l2) && l2.tabs.join() === '-1,0', 'después de recargar sigue en Píxeles puros (y el grupo tiene el foco de Tab en esa opción)', JSON.stringify(l2));
+  s.check(p2.distinct <= 2 && p2.wrong === 0 && p2.mid === 0, `después de recargar el lienzo sigue con dos colores exactos (${p2.distinct}, ${p2.wrong} fuera de lugar)`, JSON.stringify(p2));
+
+  // Con el teclado: Tab entra al grupo por la opción elegida y las flechas cambian el modo.
+  await page.ev("document.querySelector('#ipf-chips .chip:last-child').focus()");
+  await page.press('Tab');
+  await sleep(50);
+  const f0 = await look();
+  s.check(f0.focus === 'puro', `Tab desde el último botón de velocidad entra al grupo por «Píxeles puros» (foco: ${f0.focus})`);
+  await page.press('ArrowRight');
+  await sleep(150);
+  const l3 = await look();
+  const p3 = await page.ev(SCREEN_PIXELS_EXPR);
+  s.check(isCrt(l3) && l3.focus === 'crt' && l3.tabs.join() === '0,-1', 'Flecha derecha: pasa a Tubo CRT, el foco sigue a la opción y vuelven los efectos', JSON.stringify(l3));
+  s.check(p3.distinct > 2, `en Tubo CRT vuelven las scanlines (${p3.distinct} colores en el lienzo)`);
+  await page.press('ArrowLeft');
+  await sleep(150);
+  const l4 = await look();
+  s.check(isPuro(l4) && l4.focus === 'puro', 'Flecha izquierda: vuelve a Píxeles puros', JSON.stringify(l4));
+  await page.press('ArrowDown');
+  await sleep(150);
+  const l5 = await look();
+  s.check(isCrt(l5) && l5.focus === 'crt' && (await page.ev('window.chip8.isPaused()')) === false, 'Flecha abajo: Tubo CRT otra vez (y las flechas no pausan ni tocan la máquina)', JSON.stringify(l5));
+  // Clic de vuelta en «Tubo CRT» con el mouse después de pasar a puros.
+  await page.click('#screen-mode .seg[data-mode="puro"]');
+  await page.click('#screen-mode .seg[data-mode="crt"]');
+  await sleep(150);
+  const l6 = await look();
+  s.check(isCrt(l6) && l6.scan === 'true' && l6.persist === 'true', 'clic en «Tubo CRT»: vuelven resplandor, viñeta, reflejo y los interruptores', JSON.stringify(l6));
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 19 -------------------------------------------------------------------------------
+scenario(19, 'Selector rápido de cartuchos bajo la ranura (1440×900, sin scrollear)', async (ctx, s) => {
+  const page = await freshApp(ctx, s, { width: 1440, height: 900 });
+  await sleep(300);
+  const demos = await page.ev('window.chip8.demos.map((d) => ({ id: d.id, name: d.name, controls: d.controls, bytes: Array.from(d.bytes) }))');
+  const chips = await page.ev("Array.from(document.querySelectorAll('#cart-chips .chip')).map((c) => c.textContent)");
+  const picker = await page.ev("({ hidden: document.getElementById('cart-picker').hidden, label: document.getElementById('cart-chips-label').textContent, more: document.querySelector('#cart-picker .cart-more') && document.querySelector('#cart-picker .cart-more').textContent })");
+  s.check(!picker.hidden && chips.length === demos.length && chips.every((t, i) => t === demos[i].name), `«${picker.label}» muestra un chip por demo (${chips.join(', ')}) y el enlace «${picker.more}»`, JSON.stringify({ picker, chips }));
+  for (let i = 0; i < demos.length; i++) {
+    const d = demos[i];
+    const r = await page.rect(`#cart-chips .chip:nth-child(${i + 1})`, false);
+    const vp = await page.ev('({ sy: scrollY, ih: innerHeight, iw: innerWidth })');
+    const inView = vp.sy === 0 && r.y >= 0 && r.y + r.h <= vp.ih && r.x >= 0 && r.x + r.w <= vp.iw;
+    await page.clickAt(r.cx, r.cy);
+    const loaded = await page.poll(`document.getElementById('cart-name').textContent === ${JSON.stringify(d.name)}`, 3000);
+    await sleep(80);
+    const st = await page.ev(`(() => {
+      const cc = document.getElementById('cart-controls'), b = cc.getBoundingClientRect(), m = window.chip8.cpu.memory;
+      const chipEls = document.querySelectorAll('#cart-chips .chip');
+      return { pressed: Array.from(chipEls).map((c) => c.getAttribute('aria-pressed')).join(''), shelf: Array.from(document.querySelectorAll('#shelf-list .cart')).map((c) => c.getAttribute('aria-pressed')).join(''),
+        ctrl: cc.hidden ? null : cc.textContent, ctrlTop: b.top, ctrlBottom: b.bottom, rom: Array.from(m.slice(0x200, 0x200 + ${d.bytes.length})).join(','),
+        sy: scrollY, focused: document.activeElement === chipEls[${i}], halted: window.chip8.cpu.halted, size: document.getElementById('cart-size').textContent };
+    })()`);
+    const want = demos.map((_, j) => (j === i ? 'true' : 'false')).join('');
+    const wantCtrl = d.controls ? 'Controles: ' + d.controls : null;
+    const ctrlInView = st.ctrl === null || (st.ctrlTop >= 0 && st.ctrlBottom <= vp.ih);
+    s.check(inView && loaded && st.pressed === want && st.shelf === want && st.ctrl === wantCtrl && ctrlInView && st.rom === d.bytes.join(',') && st.sy === 0 && !st.focused && !st.halted,
+      `chip «${d.name}»: visible sin scrollear, carga el demo («${st.size}»), queda marcado (también en el estante) y muestra «${(st.ctrl || '(sin controles)').slice(0, 48)}…»`,
+      JSON.stringify({ inView, r, loaded, ...st, rom: st.rom === d.bytes.join(',') ? 'igual' : 'DISTINTA', wantCtrl }));
+    if (i === 2) await page.shot('19-selector-cartuchos');
+  }
+  // «Detalles ↓» lleva al estante de abajo.
+  const more = await page.rect('#cart-picker .cart-more', false);
+  await page.clickAt(more.cx, more.cy);
+  const reached = await page.poll("(() => { const b = document.getElementById('shelf-title').getBoundingClientRect(); return b.top >= -1 && b.bottom <= innerHeight && scrollY > 0; })()", 2000);
+  const sy = await page.ev('scrollY');
+  s.check(reached, `«Detalles ↓» baja hasta el estante «Cartuchos incluidos» (scroll ${Math.round(sy)} px)`);
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 20 -------------------------------------------------------------------------------
+scenario(20, 'Selectores de perfil y paleta: el foco no se queda con las teclas del CHIP-8', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  await clickCart(page, 'teclado');
+  await page.ev('window.scrollTo(0, 0)');
+  const st = () => page.ev("({ ae: document.activeElement ? (document.activeElement.id || document.activeElement.tagName) : null, preset: document.getElementById('preset').value, palette: document.getElementById('palette').value, crtPal: document.getElementById('crt').getAttribute('data-palette'), quirks: Object.assign({}, window.chip8.cpu.quirks), help: document.getElementById('help').open, paused: window.chip8.isPaused() })");
+  // Elegir con el mouse: el clic abre la lista desplegable y se elige ahí. En Chrome sin ventana
+  // la lista no se puede cliquear por coordenadas; flechas + Enter la manejan, y esas teclas van
+  // a la lista (no al <select>), igual que un clic sobre una opción.
+  async function pickWithMouse(sel) {
+    await page.click(sel);
+    await sleep(200);
+    await page.press('ArrowDown');
+    await sleep(60);
+    await page.press('Enter');
+    await sleep(200);
+  }
+  // Teclas mapeadas cuyas letras, sin preventDefault, cambiarían la opción por búsqueda
+  // (X → XO-CHIP, S → SUPER-CHIP, C → COSMAC VIP, V → Verde fósforo, A → Ámbar).
+  const MAPPED = [['KeyX', 0x0], ['KeyS', 0x8], ['KeyC', 0xB], ['KeyV', 0xF], ['KeyA', 0x7], ['Digit1', 0x1]];
+  async function keysReach() {
+    const bad = [];
+    for (const [code, k] of MAPPED) {
+      await page.keyDown(code);
+      await sleep(30);
+      const d = await page.ev(KEYS_EXPR);
+      await page.keyUp(code);
+      await sleep(20);
+      const u = await page.ev(KEYS_EXPR);
+      if (!(d.every((v, j) => (j === k ? v === 1 : v === 0)) && u.every((v) => v === 0))) bad.push(`${code}: ${d.join('')} -> ${u.join('')}`);
+    }
+    return bad;
+  }
+
+  await pickWithMouse('#preset');
+  const a = await st();
+  s.check(a.preset === 'schip' && sameQuirks(a.quirks, presetQuirks('schip')) && a.ae !== 'preset', `perfil SUPER-CHIP elegido con el mouse: el selector suelta el foco (queda en ${a.ae})`, JSON.stringify(a));
+  await pickWithMouse('#palette');
+  const b = await st();
+  s.check(b.palette === 'ambar' && b.crtPal === 'ambar' && b.ae !== 'palette', `paleta Ámbar elegida con el mouse: el selector suelta el foco (queda en ${b.ae})`, JSON.stringify(b));
+  const bad1 = await keysReach();
+  const b2 = await st();
+  s.check(bad1.length === 0 && b2.preset === 'schip' && b2.palette === 'ambar', 'después de elegir con el mouse, X S C V A 1 aprietan sus teclas del CHIP-8 y los selectores no cambian', bad1.join('; ') + ' ' + JSON.stringify(b2));
+
+  // Con el selector enfocado desde el teclado: las teclas mapeadas igual van al CHIP-8 y la
+  // búsqueda por letra del <select> no cambia la opción.
+  await page.ev("document.getElementById('volume').focus()");
+  await page.press('Tab');
+  const t1 = await st();
+  const bad2 = await keysReach();
+  const t2 = await st();
+  s.check(t1.ae === 'preset' && bad2.length === 0 && t2.preset === 'schip' && t2.ae === 'preset' && sameQuirks(t2.quirks, presetQuirks('schip')), `con Perfil enfocado (Tab desde Volumen), X S C V A 1 van al CHIP-8 y el perfil sigue en ${t2.preset}`, bad2.join('; ') + ' ' + JSON.stringify(t2));
+  await page.ev("document.getElementById('palette').focus()");
+  const bad3 = await keysReach();
+  const t3 = await st();
+  s.check(bad3.length === 0 && t3.palette === 'ambar' && t3.ae === 'palette', `con Paleta enfocada, las mismas teclas van al CHIP-8 y la paleta sigue en ${t3.palette}`, bad3.join('; ') + ' ' + JSON.stringify(t3));
+
+  // N, H y Retroceso con un selector enfocado.
+  await page.ev("document.getElementById('preset').focus()");
+  await page.press('KeyN'); // con la máquina corriendo, N la pausa (y ejecuta una)
+  await sleep(60);
+  const n0 = await counters(page);
+  await page.press('KeyN');
+  await sleep(60);
+  await page.press('KeyN');
+  await sleep(60);
+  const n1 = await counters(page);
+  const n1s = await st();
+  s.check(n1s.paused && n1.steps === n0.steps + 2 && n1s.preset === 'schip', `con Perfil enfocado, N pausa y ejecuta de a una instrucción (+${n1.steps - n0.steps} pasos) sin cambiar el perfil`, JSON.stringify({ n1s, pasos: n1.steps - n0.steps }));
+  await page.press('Backspace');
+  await sleep(60);
+  const n2 = await counters(page);
+  s.check(n2.resets === n1.resets + 1 && (await st()).preset === 'schip', 'con Perfil enfocado, Retroceso reinicia una vez');
+  await page.press('KeyH');
+  await sleep(150);
+  const h1 = await st();
+  await page.press('Escape');
+  await sleep(150);
+  const h2 = await st();
+  s.check(h1.help && !h2.help && h2.preset === 'schip', 'con Perfil enfocado, H abre la ayuda (y Esc la cierra)', JSON.stringify({ h1, h2 }));
+
+  // Tab hasta Perfil y flechas: cambian la opción de forma nativa y el foco se queda.
+  await page.ev("document.getElementById('volume').focus()");
+  await page.press('Tab');
+  await page.press('ArrowDown');
+  await sleep(100);
+  const r1 = await st();
+  await page.press('ArrowUp');
+  await sleep(100);
+  const r2 = await st();
+  s.check(r1.ae === 'preset' && r1.preset === 'xochip' && sameQuirks(r1.quirks, presetQuirks('xochip')), `Tab hasta Perfil + Flecha abajo: pasa a XO-CHIP (con sus quirks) y el foco se queda en el selector (${r1.ae})`, JSON.stringify(r1));
+  s.check(r2.ae === 'preset' && r2.preset === 'schip' && sameQuirks(r2.quirks, presetQuirks('schip')), 'Flecha arriba: vuelve a SUPER-CHIP', JSON.stringify(r2));
+  await page.shot('20-selectores');
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 21 -------------------------------------------------------------------------------
+scenario(21, 'Keypad con el teclado: Tab hasta una tecla y Enter o Espacio (FX0A la recibe)', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  const WAIT_ROM = [0xF3, 0x0A, 0x12, 0x02]; // 200: LD V3, K   202: JP 202
+  await page.ev(`window.chip8.loadRomBytes(${JSON.stringify(WAIT_ROM)}, 'espera-tecla')`);
+  await page.waitFor('window.chip8.cpu.waitingForKey', { timeout: 2000, desc: 'esperando tecla (FX0A)' });
+  // Registro con la hora exacta (reloj de la página) de cada tecla física y de cada cambio en cpu.setKey.
+  await page.ev(`(() => {
+    const c = window.chip8.cpu;
+    window.__e2eKeyEv = [];
+    ['keydown', 'keyup'].forEach((t) => document.addEventListener(t, (e) => window.__e2eKeyEv.push([t, e.code, performance.now()]), true));
+    const log = c.__keyLog = [];
+    const sk = c.setKey;
+    c.setKey = function (k, down) { log.push([k, !!down, performance.now()]); return sk.apply(this, arguments); };
+  })()`);
+  await page.ev("document.getElementById('btn-reset').focus()");
+  const order = [];
+  for (let i = 0; i < 11; i++) {
+    await page.press('Tab', 0);
+    order.push(await page.ev('document.activeElement.dataset.key || document.activeElement.id'));
+  }
+  const want = KEYPAD_LAYOUT.slice(0, 11).map(String);
+  s.check(order.join() === want.join(), `Tab desde Reiniciar recorre el keypad en orden (${order.map((k) => (/^\d+$/.test(k) ? Number(k).toString(16).toUpperCase() : k)).join(' ')}) y llega a la tecla 9`, order.join());
+  const timing = async (code) => {
+    const l = await page.ev('({ keys: window.chip8.cpu.__keyLog.slice(), ev: window.__e2eKeyEv.slice() })');
+    const dn = l.keys.find((e) => e[0] === 9 && e[1]);
+    const up = l.keys.find((e) => e[0] === 9 && !e[1] && dn && e[2] >= dn[2]);
+    const kd = l.ev.find((e) => e[0] === 'keydown' && e[1] === code);
+    const ku = l.ev.find((e) => e[0] === 'keyup' && e[1] === code);
+    return { hold: dn && up ? Math.round(up[2] - dn[2]) : null, afterKeyUp: up && ku ? Math.round(up[2] - ku[2]) : null, physical: kd && ku ? Math.round(ku[2] - kd[2]) : null };
+  };
+  const clearLogs = () => page.ev('window.chip8.cpu.__keyLog.length = 0; window.__e2eKeyEv.length = 0; true');
+
+  // Enter breve: la tecla se aprieta y se suelta sola después de ~120 ms.
+  await clearLogs();
+  const c0 = await counters(page);
+  await page.keyDown('Enter');
+  const d = await page.ev(`({ key: window.chip8.cpu.keys[9], cap: document.querySelector('#keypad .key[data-key="9"]').classList.contains('is-down') })`);
+  await sleep(20);
+  await page.keyUp('Enter');
+  const still = await page.ev('window.chip8.cpu.keys[9]');
+  await page.poll('window.chip8.cpu.keys[9] === 0', 1000);
+  await sleep(120);
+  const tm = await timing('Enter');
+  const r = await page.ev(`({ v3: window.chip8.cpu.V[3], wait: window.chip8.cpu.waitingForKey, pc: window.chip8.cpu.pc, paused: window.chip8.isPaused(), key: window.chip8.cpu.keys[9], cap: document.querySelectorAll('#keypad .key.is-down').length, focus: document.activeElement.dataset.key, halted: window.chip8.cpu.halted })`);
+  const c1 = await counters(page);
+  s.info(`Enter: tecla física ${tm.physical} ms, tecla 9 apretada ${tm.hold} ms`);
+  s.check(d.key === 1 && d.cap && still === 1, 'Enter sobre la tecla 9 enfocada la aprieta (y se ve apretada); soltar Enter enseguida no la suelta todavía', JSON.stringify({ d, still }));
+  s.check(tm.hold !== null && tm.hold >= 110 && tm.hold <= 250, `la tecla 9 queda apretada ~120 ms aunque Enter duró ${tm.physical} ms (medido ${tm.hold} ms)`, JSON.stringify(tm));
+  s.check(r.v3 === 9 && !r.wait && r.pc === 0x202 && r.key === 0 && r.cap === 0 && !r.halted, `FX0A recibió la tecla: V3 = ${r.v3}, PC ${hx(r.pc)}, ya no espera`, JSON.stringify(r));
+  s.check(!r.paused && c1.resets === c0.resets && r.focus === '9', 'Enter no pausa, no reinicia y el foco sigue en la tecla 9', JSON.stringify({ r, reinicios: c1.resets - c0.resets }));
+
+  // Espacio sostenido: la tecla queda apretada todo el rato y se suelta al soltar Espacio.
+  await page.ev(`window.chip8.loadRomBytes(${JSON.stringify(WAIT_ROM)}, 'espera-tecla')`);
+  await page.waitFor('window.chip8.cpu.waitingForKey', { timeout: 2000, desc: 'esperando tecla otra vez' });
+  if ((await page.ev('document.activeElement.dataset.key')) !== '9') await page.ev("document.querySelector('#keypad .key[data-key=\"9\"]').focus()");
+  await clearLogs();
+  await page.keyDown('Space');
+  await sleep(400);
+  const mid = await page.ev('({ key: window.chip8.cpu.keys[9], wait: window.chip8.cpu.waitingForKey, paused: window.chip8.isPaused() })');
+  await page.keyUp('Space');
+  await page.poll('window.chip8.cpu.keys[9] === 0', 1000);
+  await sleep(80);
+  const tm2 = await timing('Space');
+  const r2 = await page.ev('({ v3: window.chip8.cpu.V[3], wait: window.chip8.cpu.waitingForKey, paused: window.chip8.isPaused() })');
+  s.info(`Espacio: tecla física ${tm2.physical} ms, tecla 9 apretada ${tm2.hold} ms, se soltó ${tm2.afterKeyUp} ms después de soltar Espacio`);
+  s.check(mid.key === 1 && mid.wait && !mid.paused, 'Espacio sostenido sobre la tecla 9: sigue apretada (FX0A espera que se suelte) y la máquina no se pausa', JSON.stringify(mid));
+  s.check(tm2.hold >= 380 && tm2.afterKeyUp !== null && tm2.afterKeyUp >= 0 && tm2.afterKeyUp < 60, `se suelta junto con Espacio (${tm2.afterKeyUp} ms después)`, JSON.stringify(tm2));
+  s.check(r2.v3 === 9 && !r2.wait && !r2.paused, `FX0A recibió la tecla otra vez (V3 = ${r2.v3}) y la máquina sigue corriendo`, JSON.stringify(r2));
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 22 -------------------------------------------------------------------------------
+scenario(22, 'Error con la máquina en pausa o corriendo: Reiniciar respeta ese estado', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  // 200: SKP V0 (salta si la tecla 0 está apretada)   202: JP 200   204: 5121 (inválido)
+  // Sin tocar nada da vueltas para siempre; con X (tecla 0) apretada, va a la instrucción inválida.
+  const rom = writeFixture(ctx, 'invalido-con-x.ch8', [0xE0, 0x9E, 0x12, 0x00, 0x51, 0x21]);
+  await page.setFiles('#file-input', [rom]);
+  await page.waitFor("document.getElementById('cart-name').textContent === 'invalido-con-x.ch8'", { timeout: 3000 });
+  const view = () => page.ev(`({ pc: window.chip8.cpu.pc, halted: window.chip8.cpu.halted, paused: window.chip8.isPaused(), crt: !document.getElementById('crt-msg').hidden, tagPause: !document.getElementById('tag-pause').hidden, status: document.getElementById('status').textContent, dis: ['btn-pause', 'btn-step', 'btn-frame', 'btn-reset'].map((id) => document.getElementById(id).disabled), calls: ${E2E}.calls })`);
+  await page.click('#btn-pause');
+  await sleep(80);
+  const p0 = await view();
+  s.check(p0.paused && !p0.halted && (p0.pc === 0x200 || p0.pc === 0x202), `en pausa, dando vueltas en ${hx(p0.pc)}`, JSON.stringify(p0));
+  // Con el mouse: Paso hasta la instrucción inválida, con X apretada.
+  await page.keyDown('KeyX');
+  let guard = 0;
+  while (!(await page.ev('window.chip8.cpu.halted')) && guard++ < 6) {
+    await page.click('#btn-step');
+    await sleep(60);
+  }
+  await page.keyUp('KeyX');
+  const e1 = await view();
+  s.check(e1.halted && e1.pc === 0x204 && e1.crt && /^Error: .*5121/.test(e1.status), `Paso con X apretada llega al opcode inválido: se detiene en ${hx(e1.pc)} y la línea de estado dice «${e1.status.slice(0, 50)}…»`, JSON.stringify(e1));
+  await page.click('.tagline');
+  await page.press('KeyN');
+  await sleep(60);
+  const e2 = await view();
+  s.check(e2.status === e1.status, 'N durante el error no pisa el mensaje de la línea de estado', JSON.stringify({ antes: e1.status, despues: e2.status }));
+  await page.shot('22-error-en-pausa');
+  await page.click('#btn-reset');
+  await sleep(100);
+  const r1 = await view();
+  await sleep(600);
+  const r1b = await view();
+  s.check(!r1.halted && !r1.crt && r1.pc === 0x200 && r1.paused && r1.tagPause && !r1.dis[1] && /pausa/i.test(r1.status), `Reiniciar (mouse): vuelve a ${hx(r1.pc)} y sigue en pausa, con «PAUSA» en pantalla y Paso habilitado («${r1.status}»)`, JSON.stringify(r1));
+  s.check(r1b.pc === 0x200 && r1b.calls === r1.calls, `sigue quieto en 0x200 (${r1b.calls - r1.calls} frames en 0,6 s)`, JSON.stringify(r1b));
+  await page.click('#btn-step');
+  await sleep(60);
+  const r2 = await view();
+  s.check(r2.pc === 0x202 && r2.paused && !r2.halted, `Paso sigue funcionando después de reiniciar (PC ${hx(r2.pc)})`, JSON.stringify(r2));
+  await page.shot('22-reiniciado-en-pausa');
+
+  // Lo mismo con el teclado: N hasta el error y Retroceso.
+  await page.click('.tagline');
+  await page.keyDown('KeyX');
+  guard = 0;
+  while (!(await page.ev('window.chip8.cpu.halted')) && guard++ < 6) {
+    await page.press('KeyN');
+    await sleep(40);
+  }
+  await page.keyUp('KeyX');
+  const k1 = await view();
+  await page.press('Backspace');
+  await sleep(100);
+  const k2 = await view();
+  s.check(k1.halted && !k2.halted && k2.pc === 0x200 && k2.paused, `con el teclado (N hasta el error, después Retroceso): vuelve a 0x200 en pausa`, JSON.stringify({ k1, k2 }));
+
+  // Error con la máquina corriendo: Reiniciar la deja corriendo.
+  await page.keyDown('KeyX');
+  await page.click('#btn-pause'); // continuar: con X apretada llega enseguida al error
+  const halted = await page.poll('window.chip8.cpu.halted', 2000);
+  await page.keyUp('KeyX');
+  const g1 = await view();
+  s.check(halted && g1.pc === 0x204 && g1.crt, `corriendo con X apretada: se detiene en ${hx(g1.pc)}`, JSON.stringify(g1));
+  await page.click('#btn-reset');
+  await sleep(100);
+  const g2 = await view();
+  await sleep(500);
+  const g3 = await view();
+  s.check(!g2.halted && !g2.paused && !g2.tagPause && g3.calls - g2.calls > 20 && !g3.halted && (g3.pc === 0x200 || g3.pc === 0x202), `estaba corriendo: Reiniciar la vuelve a poner en marcha (${g3.calls - g2.calls} frames en 0,5 s, «${g2.status}»)`, JSON.stringify({ g2, g3 }));
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 23 -------------------------------------------------------------------------------
+scenario(23, 'Ícono de la pestaña: embebido, sin pedidos que den 404 por http', async (ctx, s) => {
+  const page = await Page.open(ctx);
+  s.page = page;
+  const net = [];
+  const off = ctx.browser.cdp.on((m) => {
+    if (m.sessionId !== page.sessionId) return;
+    if (m.method === 'Network.responseReceived') net.push({ url: m.params.response.url.slice(0, 60), status: m.params.response.status });
+    else if (m.method === 'Network.loadingFailed' && !m.params.canceled) net.push({ url: m.params.requestId, status: 'falló: ' + m.params.errorText });
+  });
+  try {
+    await page.send('Network.enable');
+    await clearStorage(page, ctx);
+    const since = Date.now();
+    await page.goto(ctx.base + 'chip8.html');
+    await sleep(2500);
+    const reqs = ctx.server.requests.filter((r) => r.at >= since);
+    const icon = await page.ev(`(async () => {
+      const l = document.querySelector('link[rel~="icon"]');
+      if (!l) return null;
+      const img = new Image();
+      const ok = await new Promise((res) => { img.onload = () => res(true); img.onerror = () => res(false); img.src = l.href; });
+      return { href: l.getAttribute('href').slice(0, 26), type: l.type, ok, w: img.naturalWidth, h: img.naturalHeight, links: document.querySelectorAll('link[rel~="icon"]').length };
+    })()`);
+    s.check(icon && /^data:image\/svg\+xml,/.test(icon.href) && icon.ok && icon.w > 0 && icon.h > 0, `la página declara su ícono embebido (${icon && icon.href}…, ${icon && icon.type}) y el navegador lo dibuja (${icon && icon.w}×${icon && icon.h})`, JSON.stringify(icon));
+    const bad = reqs.filter((r) => r.status >= 400);
+    const fav = reqs.filter((r) => /favicon/i.test(r.url));
+    s.info('Pedidos al servidor: ' + reqs.map((r) => `${r.url} ${r.status}`).join(', '));
+    s.check(reqs.some((r) => /chip8\.html/.test(r.url) && r.status === 200) && bad.length === 0 && fav.length === 0, `el servidor recibió ${reqs.length} pedido(s), ninguno con error y ninguno a /favicon.ico`, JSON.stringify(reqs));
+    const netBad = net.filter((n) => typeof n.status !== 'number' || n.status >= 400);
+    s.check(netBad.length === 0, `la página no ve respuestas con error en la red (${net.length} respuestas)`, JSON.stringify(netBad));
+    s.check(page.favicon.length === 0 && page.errors.length === 0, 'sin errores de consola (ni por el ícono)', page.favicon.concat(page.errors).join(' | '));
+  } finally {
+    off();
+  }
+});
+
+// 24 -------------------------------------------------------------------------------
+scenario(24, 'Pantalla angosta: a 360×640 la pantalla y el keypad entero entran sin scrollear', async (ctx, s) => {
+  for (const [w, h] of [[360, 640], [375, 667]]) {
+    const page = await freshApp(ctx, s, { width: w, height: h, dpr: 2, mobile: true });
+    await page.ev('window.scrollTo(0, 0)');
+    await sleep(400);
+    const m = await page.ev(`(() => {
+      const r = (el) => { const b = el.getBoundingClientRect(); return { t: Math.round(b.top), b: Math.round(b.bottom), l: Math.round(b.left), r: Math.round(b.right) }; };
+      const keys = Array.from(document.querySelectorAll('#keypad .key')).map((k) => k.getBoundingClientRect());
+      return { ih: innerHeight, iw: innerWidth, sy: scrollY, sw: document.documentElement.scrollWidth, crt: r(document.getElementById('crt')), screen: r(document.getElementById('screen')),
+        keys: { t: Math.round(Math.min(...keys.map((k) => k.top))), b: Math.round(Math.max(...keys.map((k) => k.bottom))), l: Math.round(Math.min(...keys.map((k) => k.left))), r: Math.round(Math.max(...keys.map((k) => k.right))), min: Math.min(...keys.map((k) => Math.min(k.width, k.height))) },
+        slot: r(document.getElementById('slot')).t, transport: r(document.getElementById('btn-pause')).t };
+    })()`);
+    s.info(`${w}×${h}: pantalla ${m.crt.t}–${m.crt.b} px, keypad ${m.keys.t}–${m.keys.b} px (teclas de ${m.keys.min.toFixed(0)} px), ranura en ${m.slot} px, transporte en ${m.transport} px`);
+    s.check(m.sy === 0 && m.sw <= m.iw, `${w}×${h}: arranca arriba y sin scroll horizontal (${m.sw} ≤ ${m.iw})`, JSON.stringify(m));
+    s.check(m.crt.t >= 0 && m.crt.b <= m.ih && m.screen.l >= 0 && m.screen.r <= m.iw, `${w}×${h}: la pantalla entra entera en la primera vista (${m.crt.t}–${m.crt.b} de ${m.ih})`, JSON.stringify(m.crt));
+    s.check(m.keys.t >= m.crt.b && m.keys.b <= m.ih && m.keys.l >= 0 && m.keys.r <= m.iw, `${w}×${h}: las 16 teclas del keypad entran enteras debajo de la pantalla (${m.keys.t}–${m.keys.b} de ${m.ih})`, JSON.stringify(m.keys));
+    s.check(m.keys.min >= 44, `${w}×${h}: teclas de al menos 44 px (${m.keys.min.toFixed(1)})`);
+    s.check(m.slot >= m.keys.b && m.transport >= m.keys.b, `${w}×${h}: la ranura y el transporte quedan después del keypad`, JSON.stringify(m));
+    await page.shot(`24-angosta-${w}x${h}`);
+    s.check(page.errors.length === 0, `${w}×${h}: sin errores de consola`, page.errors.join(' | '));
+    await page.close();
+  }
 });
 
 // ---------------------------------------------------------------- principal
@@ -1469,7 +1999,7 @@ async function main() {
   const server = await startServer();
   const port = server.address().port;
   const browser = new Browser(exe, opts);
-  const ctx = { opts, browser, pages: new Set(), shots: [], base: `http://127.0.0.1:${port}/`, origin: `http://127.0.0.1:${port}` };
+  const ctx = { opts, browser, server, pages: new Set(), shots: [], base: `http://127.0.0.1:${port}/`, origin: `http://127.0.0.1:${port}` };
 
   let cleaned = false;
   const cleanup = async () => {
