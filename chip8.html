@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CHIP-8</title>
+<style id="chip8-style">
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body { background: #1b1714; color: #e8e0d0; font-family: system-ui, sans-serif; }
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script id="chip8-core">
+/*
+ * Núcleo del emulador CHIP-8.
+ * Código puro: no toca el DOM ni la consola, así corre igual en el navegador y en
+ * Node (los tests lo extraen de este archivo y lo evalúan tal cual).
+ * Expone un único global: globalThis.Chip8Core.
+ */
+(function () {
+  'use strict';
+
+  var FONT_ADDR = 0x050;
+  var PROGRAM_START = 0x200;
+  var MEMORY_SIZE = 4096;
+  var MAX_ROM_SIZE = MEMORY_SIZE - PROGRAM_START; // 3584 bytes
+  var DISPLAY_WIDTH = 64;
+  var DISPLAY_HEIGHT = 32;
+  var STACK_SIZE = 16;
+
+  // Fuente hexadecimal estándar: 16 glifos de 4x5 píxeles (5 bytes cada uno; los
+  // 4 bits altos de cada byte son los píxeles).
+  var FONT = new Uint8Array([
+    0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
+    0x20, 0x60, 0x20, 0x20, 0x70, // 1
+    0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
+    0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
+    0x90, 0x90, 0xF0, 0x10, 0x10, // 4
+    0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
+    0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
+    0xF0, 0x10, 0x20, 0x40, 0x40, // 7
+    0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
+    0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
+    0xF0, 0x90, 0xF0, 0x90, 0x90, // A
+    0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+    0xF0, 0x80, 0x80, 0x80, 0xF0, // C
+    0xE0, 0x90, 0x90, 0x90, 0xE0, // D
+    0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
+    0xF0, 0x80, 0xF0, 0x80, 0x80  // F
+  ]);
+
+  /*
+   * Quirks: comportamientos en los que difieren las implementaciones históricas.
+   *   vfReset     8XY1/8XY2/8XY3 ponen VF = 0 (efecto secundario del intérprete del VIP).
+   *   memory      FX55/FX65 dejan I = I + X + 1 (el VIP incrementaba I al recorrer).
+   *   shifting    8XY6/8XYE desplazan VX en sí mismo e ignoran VY (SUPER-CHIP).
+   *   jumping     BNNN se comporta como BXNN: salta a NNN + VX (SUPER-CHIP).
+   *   clipping    los sprites se recortan en los bordes en vez de reaparecer del otro lado.
+   *   displayWait DXYN espera al vblank: como máximo un dibujo por frame (VIP).
+   */
+  var QUIRK_KEYS = ['vfReset', 'memory', 'shifting', 'jumping', 'clipping', 'displayWait'];
+
+  function freezePreset(label, quirks) {
+    return Object.freeze({ label: label, quirks: Object.freeze(quirks) });
+  }
+
+  var QUIRK_PRESETS = Object.freeze({
+    vip: freezePreset('COSMAC VIP', { vfReset: true, memory: true, shifting: false, jumping: false, clipping: true, displayWait: true }),
+    schip: freezePreset('SUPER-CHIP', { vfReset: false, memory: false, shifting: true, jumping: true, clipping: true, displayWait: false }),
+    xochip: freezePreset('XO-CHIP', { vfReset: false, memory: true, shifting: false, jumping: false, clipping: false, displayWait: false })
+  });
+
+  function copyQuirks(src) {
+    var out = {};
+    for (var i = 0; i < QUIRK_KEYS.length; i++) out[QUIRK_KEYS[i]] = !!src[QUIRK_KEYS[i]];
+    return out;
+  }
+
+  var DEFAULT_QUIRKS = Object.freeze(copyQuirks(QUIRK_PRESETS.vip.quirks));
+
+  function hex(value, digits) {
+    var s = value.toString(16).toUpperCase();
+    while (s.length < digits) s = '0' + s;
+    return '0x' + s;
+  }
+
+  function defaultRandom() {
+    return Math.floor(Math.random() * 256);
+  }
+
+  function Chip8(options) {
+    options = options || {};
+    this.memory = new Uint8Array(MEMORY_SIZE);
+    this.V = new Uint8Array(16);
+    this.I = 0;
+    this.pc = PROGRAM_START;
+    this.stack = new Uint16Array(STACK_SIZE);
+    this.sp = 0;
+    this.delayTimer = 0;
+    this.soundTimer = 0;
+    this.display = new Uint8Array(DISPLAY_WIDTH * DISPLAY_HEIGHT);
+    this.keys = new Uint8Array(16);
+    this.quirks = copyQuirks(DEFAULT_QUIRKS);
+    if (options.quirks) this.setQuirks(options.quirks);
+    this.random = typeof options.random === 'function' ? options.random : defaultRandom;
+    this.waitingForKey = false;
+    this.halted = false;
+    this.error = null;
+    this.displayDirty = true;
+    this.rom = new Uint8Array(0);
+    // Estado interno de FX0A y de displayWait.
+    this._waitReg = 0;      // registro X que recibe la tecla
+    this._waitKey = -1;     // tecla presionada durante la espera (-1 = ninguna todavía)
+    this._drew = false;     // la última instrucción ejecutada fue un DXYN
+    this.reset();
+  }
+
+  Chip8.prototype.reset = function () {
+    this.memory.fill(0);
+    this.memory.set(FONT, FONT_ADDR);
+    this.memory.set(this.rom, PROGRAM_START);
+    this.V.fill(0);
+    this.I = 0;
+    this.pc = PROGRAM_START;
+    this.stack.fill(0);
+    this.sp = 0;
+    this.delayTimer = 0;
+    this.soundTimer = 0;
+    this.display.fill(0);
+    this.keys.fill(0);
+    this.waitingForKey = false;
+    this.halted = false;
+    this.error = null;
+    this.displayDirty = true;
+    this._waitReg = 0;
+    this._waitKey = -1;
+    this._drew = false;
+  };
+
+  Chip8.prototype.loadRom = function (bytes) {
+    var length = bytes.length >>> 0;
+    if (length > MAX_ROM_SIZE) {
+      throw new RangeError('La ROM ocupa ' + length + ' bytes y el máximo es ' + MAX_ROM_SIZE +
+        ' (de 0x200 a 0xFFF).');
+    }
+    this.rom = new Uint8Array(bytes); // copia (los números se truncan a 8 bits)
+    this.reset();
+  };
+
+  Chip8.prototype.setQuirks = function (partial) {
+    if (!partial) return;
+    for (var i = 0; i < QUIRK_KEYS.length; i++) {
+      var k = QUIRK_KEYS[i];
+      if (Object.prototype.hasOwnProperty.call(partial, k)) this.quirks[k] = !!partial[k];
+    }
+  };
+
+  Chip8.prototype.tickTimers = function () {
+    if (this.delayTimer > 0) this.delayTimer--;
+    if (this.soundTimer > 0) this.soundTimer--;
+  };
+
+  /*
+   * FX0A en el COSMAC VIP: espera a que una tecla se presione y SE SUELTE.
+   * Solo cuenta una transición suelta -> presionada ocurrida después de empezar la
+   * espera (una tecla que ya estaba apretada tiene que soltarse y volver a apretarse).
+   * El valor se escribe en VX recién cuando se suelta esa misma tecla.
+   */
+  Chip8.prototype.setKey = function (key, pressed) {
+    key &= 0xF;
+    var was = this.keys[key] !== 0;
+    var now = !!pressed;
+    this.keys[key] = now ? 1 : 0;
+    if (!this.waitingForKey || was === now) return;
+    if (now) {
+      if (this._waitKey < 0) this._waitKey = key;
+    } else if (key === this._waitKey) {
+      this.V[this._waitReg] = key;
+      this.waitingForKey = false;
+      this._waitKey = -1;
+    }
+  };
+
+  // Detiene la máquina con un mensaje; pc vuelve a apuntar a la instrucción culpable.
+  Chip8.prototype._fail = function (opcode, message) {
+    this.pc = (this.pc - 2) & 0xFFF;
+    this.halted = true;
+    this.error = message + ' (opcode ' + hex(opcode, 4) + ' en la dirección ' + hex(this.pc, 3) + ').';
+    return false;
+  };
+
+  Chip8.prototype._invalid = function (opcode) {
+    return this._fail(opcode, 'Instrucción inválida o desconocida');
+  };
+
+  Chip8.prototype._draw = function (vx, vy, n) {
+    var V = this.V, memory = this.memory, display = this.display;
+    var x0 = vx % DISPLAY_WIDTH;
+    var y0 = vy % DISPLAY_HEIGHT;
+    var clip = this.quirks.clipping;
+    var collision = 0;
+    for (var row = 0; row < n; row++) {
+      var y = y0 + row;
+      if (y >= DISPLAY_HEIGHT) {
+        if (clip) break;
+        y -= DISPLAY_HEIGHT;
+      }
+      var bits = memory[(this.I + row) & 0xFFF];
+      if (bits === 0) continue;
+      var base = y * DISPLAY_WIDTH;
+      for (var col = 0; col < 8; col++) {
+        if ((bits & (0x80 >> col)) === 0) continue;
+        var x = x0 + col;
+        if (x >= DISPLAY_WIDTH) {
+          if (clip) break;
+          x -= DISPLAY_WIDTH;
+        }
+        var idx = base + x;
+        if (display[idx]) {
+          display[idx] = 0;
+          collision = 1;
+        } else {
+          display[idx] = 1;
+        }
+      }
+    }
+    V[0xF] = collision;
+    this.displayDirty = true;
+  };
+
+  /*
+   * Ejecuta exactamente una instrucción. No toca los timers.
+   * Devuelve true si ejecutó algo; false si la máquina está detenida, esperando una
+   * tecla (FX0A) o si la instrucción era inválida (en ese caso queda halted).
+   * Regla general: cuando una instrucción escribe VX y VF, VF se escribe al final,
+   * así con X = F el registro queda con la bandera.
+   */
+  Chip8.prototype.step = function () {
+    if (this.halted || this.waitingForKey) return false;
+    var memory = this.memory, V = this.V;
+    var pc = this.pc & 0xFFF;
+    var opcode = (memory[pc] << 8) | memory[(pc + 1) & 0xFFF];
+    this.pc = (pc + 2) & 0xFFF;
+    this._drew = false;
+
+    var x = (opcode >> 8) & 0xF;
+    var y = (opcode >> 4) & 0xF;
+    var n = opcode & 0xF;
+    var nn = opcode & 0xFF;
+    var nnn = opcode & 0xFFF;
+    var vx, vy, flag;
+
+    switch (opcode >> 12) {
+      case 0x0:
+        if (opcode === 0x00E0) {
+          this.display.fill(0);
+          this.displayDirty = true;
+        } else if (opcode === 0x00EE) {
+          if (this.sp <= 0) return this._fail(opcode, 'Subdesbordamiento de pila (stack underflow): RET sin dirección de retorno, la pila está vacía');
+          this.pc = this.stack[--this.sp] & 0xFFF;
+        }
+        // 0NNN (SYS): rutina en código máquina del 1802; se ignora.
+        break;
+      case 0x1:
+        this.pc = nnn;
+        break;
+      case 0x2:
+        if (this.sp >= STACK_SIZE) return this._fail(opcode, 'Desbordamiento de pila (stack overflow): CALL con los ' + STACK_SIZE + ' niveles de la pila ocupados');
+        this.stack[this.sp++] = this.pc;
+        this.pc = nnn;
+        break;
+      case 0x3:
+        if (V[x] === nn) this.pc = (this.pc + 2) & 0xFFF;
+        break;
+      case 0x4:
+        if (V[x] !== nn) this.pc = (this.pc + 2) & 0xFFF;
+        break;
+      case 0x5:
+        if (n !== 0) return this._invalid(opcode);
+        if (V[x] === V[y]) this.pc = (this.pc + 2) & 0xFFF;
+        break;
+      case 0x6:
+        V[x] = nn;
+        break;
+      case 0x7:
+        V[x] = V[x] + nn; // el Uint8Array descarta el acarreo; VF no se toca
+        break;
+      case 0x8:
+        vx = V[x];
+        vy = V[y];
+        switch (n) {
+          case 0x0: V[x] = vy; break;
+          // En el VIP las operaciones lógicas dejan VF en 0 (quirk vfReset).
+          case 0x1: V[x] = vx | vy; if (this.quirks.vfReset) V[0xF] = 0; break;
+          case 0x2: V[x] = vx & vy; if (this.quirks.vfReset) V[0xF] = 0; break;
+          case 0x3: V[x] = vx ^ vy; if (this.quirks.vfReset) V[0xF] = 0; break;
+          case 0x4:
+            V[x] = vx + vy;
+            V[0xF] = vx + vy > 0xFF ? 1 : 0;
+            break;
+          case 0x5:
+            V[x] = vx - vy;
+            V[0xF] = vx >= vy ? 1 : 0; // 1 = no hubo préstamo
+            break;
+          case 0x6:
+            // Original: VX = VY >> 1. Con shifting (SUPER-CHIP) se desplaza el propio VX.
+            if (this.quirks.shifting) vy = vx;
+            V[x] = vy >> 1;
+            V[0xF] = vy & 1;
+            break;
+          case 0x7:
+            V[x] = vy - vx;
+            V[0xF] = vy >= vx ? 1 : 0;
+            break;
+          case 0xE:
+            if (this.quirks.shifting) vy = vx;
+            V[x] = vy << 1;
+            V[0xF] = vy >> 7;
+            break;
+          default:
+            return this._invalid(opcode);
+        }
+        break;
+      case 0x9:
+        if (n !== 0) return this._invalid(opcode);
+        if (V[x] !== V[y]) this.pc = (this.pc + 2) & 0xFFF;
+        break;
+      case 0xA:
+        this.I = nnn;
+        break;
+      case 0xB:
+        // Original: salta a NNN + V0. Con jumping (SUPER-CHIP, "BXNN"): NNN + VX.
+        this.pc = (nnn + V[this.quirks.jumping ? x : 0]) & 0xFFF;
+        break;
+      case 0xC:
+        V[x] = this.random() & nn;
+        break;
+      case 0xD:
+        this._draw(V[x], V[y], n);
+        this._drew = true;
+        break;
+      case 0xE:
+        if (nn === 0x9E) {
+          if (this.keys[V[x] & 0xF]) this.pc = (this.pc + 2) & 0xFFF;
+        } else if (nn === 0xA1) {
+          if (!this.keys[V[x] & 0xF]) this.pc = (this.pc + 2) & 0xFFF;
+        } else {
+          return this._invalid(opcode);
+        }
+        break;
+      case 0xF:
+        switch (nn) {
+          case 0x07: V[x] = this.delayTimer; break;
+          case 0x0A:
+            // Queda bloqueada (pc ya apunta a la siguiente) hasta que setKey resuelva la espera.
+            this.waitingForKey = true;
+            this._waitReg = x;
+            this._waitKey = -1;
+            break;
+          case 0x15: this.delayTimer = V[x]; break;
+          case 0x18: this.soundTimer = V[x]; break;
+          case 0x1E: this.I = (this.I + V[x]) & 0xFFFF; break; // VF no cambia
+          case 0x29: this.I = FONT_ADDR + (V[x] & 0xF) * 5; break;
+          case 0x33:
+            vx = V[x];
+            memory[this.I & 0xFFF] = (vx / 100) | 0;
+            memory[(this.I + 1) & 0xFFF] = ((vx / 10) | 0) % 10;
+            memory[(this.I + 2) & 0xFFF] = vx % 10;
+            break;
+          case 0x55:
+            for (var i = 0; i <= x; i++) memory[(this.I + i) & 0xFFF] = V[i];
+            if (this.quirks.memory) this.I = (this.I + x + 1) & 0xFFFF;
+            break;
+          case 0x65:
+            for (var j = 0; j <= x; j++) V[j] = memory[(this.I + j) & 0xFFF];
+            if (this.quirks.memory) this.I = (this.I + x + 1) & 0xFFFF;
+            break;
+          default:
+            return this._invalid(opcode);
+        }
+        break;
+    }
+    return true;
+  };
+
+  /*
+   * Un frame de 60 Hz: hasta `ipf` instrucciones y después un tic de los timers.
+   * Corta antes si la máquina se detiene, si queda esperando una tecla o, con
+   * displayWait, justo después de un DXYN (el VIP esperaba el vblank para dibujar).
+   */
+  Chip8.prototype.runFrame = function (ipf) {
+    if (this.halted) return 0;
+    var executed = 0;
+    for (var i = 0; i < ipf; i++) {
+      if (!this.step()) break;
+      executed++;
+      if (this.waitingForKey || (this._drew && this.quirks.displayWait)) break;
+    }
+    this.tickTimers();
+    return executed;
+  };
+
+  function reg(r) {
+    return 'V' + r.toString(16).toUpperCase();
+  }
+
+  // Desensambla un opcode con mnemónicos al estilo Cowgod.
+  function disassemble(opcode) {
+    opcode &= 0xFFFF;
+    var x = (opcode >> 8) & 0xF;
+    var y = (opcode >> 4) & 0xF;
+    var n = opcode & 0xF;
+    var nn = opcode & 0xFF;
+    var nnn = opcode & 0xFFF;
+    var VX = reg(x), VY = reg(y);
+    var invalid = 'DW ' + hex(opcode, 4);
+    switch (opcode >> 12) {
+      case 0x0:
+        if (opcode === 0x00E0) return 'CLS';
+        if (opcode === 0x00EE) return 'RET';
+        return 'SYS ' + hex(nnn, 3);
+      case 0x1: return 'JP ' + hex(nnn, 3);
+      case 0x2: return 'CALL ' + hex(nnn, 3);
+      case 0x3: return 'SE ' + VX + ', ' + hex(nn, 2);
+      case 0x4: return 'SNE ' + VX + ', ' + hex(nn, 2);
+      case 0x5: return n === 0 ? 'SE ' + VX + ', ' + VY : invalid;
+      case 0x6: return 'LD ' + VX + ', ' + hex(nn, 2);
+      case 0x7: return 'ADD ' + VX + ', ' + hex(nn, 2);
+      case 0x8:
+        switch (n) {
+          case 0x0: return 'LD ' + VX + ', ' + VY;
+          case 0x1: return 'OR ' + VX + ', ' + VY;
+          case 0x2: return 'AND ' + VX + ', ' + VY;
+          case 0x3: return 'XOR ' + VX + ', ' + VY;
+          case 0x4: return 'ADD ' + VX + ', ' + VY;
+          case 0x5: return 'SUB ' + VX + ', ' + VY;
+          case 0x6: return 'SHR ' + VX + ', ' + VY;
+          case 0x7: return 'SUBN ' + VX + ', ' + VY;
+          case 0xE: return 'SHL ' + VX + ', ' + VY;
+          default: return invalid;
+        }
+      case 0x9: return n === 0 ? 'SNE ' + VX + ', ' + VY : invalid;
+      case 0xA: return 'LD I, ' + hex(nnn, 3);
+      case 0xB: return 'JP V0, ' + hex(nnn, 3);
+      case 0xC: return 'RND ' + VX + ', ' + hex(nn, 2);
+      case 0xD: return 'DRW ' + VX + ', ' + VY + ', ' + n;
+      case 0xE:
+        if (nn === 0x9E) return 'SKP ' + VX;
+        if (nn === 0xA1) return 'SKNP ' + VX;
+        return invalid;
+      default: // 0xF
+        switch (nn) {
+          case 0x07: return 'LD ' + VX + ', DT';
+          case 0x0A: return 'LD ' + VX + ', K';
+          case 0x15: return 'LD DT, ' + VX;
+          case 0x18: return 'LD ST, ' + VX;
+          case 0x1E: return 'ADD I, ' + VX;
+          case 0x29: return 'LD F, ' + VX;
+          case 0x33: return 'LD B, ' + VX;
+          case 0x55: return 'LD [I], ' + VX;
+          case 0x65: return 'LD ' + VX + ', [I]';
+          default: return invalid;
+        }
+    }
+  }
+
+  // Desensambla `count` palabras consecutivas desde `start` (las direcciones dan la vuelta en 0xFFF).
+  function disassembleRange(memory, start, count) {
+    var out = [];
+    for (var i = 0; i < count; i++) {
+      var addr = (start + 2 * i) & 0xFFF;
+      var opcode = (memory[addr] << 8) | memory[(addr + 1) & 0xFFF];
+      out.push({ addr: addr, opcode: opcode, text: disassemble(opcode) });
+    }
+    return out;
+  }
+
+  globalThis.Chip8Core = {
+    Chip8: Chip8,
+    QUIRK_PRESETS: QUIRK_PRESETS,
+    DEFAULT_QUIRKS: DEFAULT_QUIRKS,
+    FONT: FONT,
+    FONT_ADDR: FONT_ADDR,
+    PROGRAM_START: PROGRAM_START,
+    MEMORY_SIZE: MEMORY_SIZE,
+    MAX_ROM_SIZE: MAX_ROM_SIZE,
+    DISPLAY_WIDTH: DISPLAY_WIDTH,
+    DISPLAY_HEIGHT: DISPLAY_HEIGHT,
+    STACK_SIZE: STACK_SIZE,
+    disassemble: disassemble,
+    disassembleRange: disassembleRange
+  };
+})();
+</script>
+<script id="chip8-roms">
+/* GENERADO por tools/embed-roms.js a partir de roms/*.asm — no editar a mano. */
+globalThis.CHIP8_DEMOS = [];
+</script>
+<script id="chip8-ui">
+/* Interfaz: la construye el agente de UI. */
+</script>
+</body>
+</html>
