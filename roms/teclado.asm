@@ -36,7 +36,9 @@
 ;   Para que responda rápido incluso a 15 instrucciones por cuadro, el
 ;   repaso de las teclas está "desenrollado": en vez de un bucle, hay un
 ;   bloque de 6 instrucciones por tecla, y los estados de 8 teclas se
-;   cargan de una vez en V0..V7 con LD V7, [I].
+;   cargan de una vez en V0..V7 con LD V7, [I]. Así, a 15 instrucciones por
+;   cuadro una tecla se ilumina en 7 cuadros como mucho (poco más de 1/10 de
+;   segundo); a 7, el ajuste más lento de la consola, puede tardar hasta 13.
 ;
 ; Registros:
 ;   V0..V7  estados de las 8 teclas del grupo que se está revisando

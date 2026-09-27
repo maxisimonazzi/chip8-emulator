@@ -20,16 +20,35 @@
 ;   fila 7       una línea horizontal
 ;   filas 9..31  el área donde rebota la pelota (sprite de 8x8)
 ;
-; Cómo se mueve sin parpadear demasiado:
+; Cómo se mueve:
 ;   En cada paso dibujamos la pelota en la posición NUEVA y recién después
-;   borramos la VIEJA (dibujándola otra vez, que por XOR la apaga). Como las
-;   dos posiciones se superponen casi por completo, el cuadro intermedio
-;   muestra la pelota casi entera en vez de una pantalla vacía.
-;
+;   borramos la VIEJA (dibujándola otra vez, que por XOR la apaga). Entre los
+;   dos DRW, la pantalla muestra las dos pelotas mezcladas por XOR: los
+;   píxeles que comparten se APAGAN, así que ese cuadro intermedio no muestra
+;   la pelota entera sino una silueta deformada (36 píxeles en vez de 44, con
+;   la cara irreconocible). Igual se ve algo en ese lugar, que es mejor que
+;   borrar primero y dejar un cuadro vacío.
 ;   En el COSMAC VIP (quirk "espera de vblank") cada DRW espera al próximo
-;   cuadro, así que un paso usa como mínimo dos cuadros. Por eso cada paso
-;   dura exactamente 2 cuadros (TICK): 30 pasos por segundo, 1 píxel por paso,
-;   igual a 15 que a 1000 instrucciones por cuadro.
+;   cuadro, así que la silueta queda en pantalla uno de cada dos cuadros y la
+;   pelota "vibra"; la opción Persistencia de la consola lo suaviza. Sin ese
+;   quirk los dos DRW suelen caer en el mismo cuadro: a 15 instrucciones por
+;   cuadro la silueta aparece en uno de cada cinco cuadros, y desde 30 no
+;   aparece nunca.
+;   La otra forma de no tener cuadro intermedio es mover el sprite con un solo
+;   DRW que dibuje solo la diferencia entre la posición vieja y la nueva, como
+;   hace Atrapa. Acá no alcanza: la pelota mide 8 de ancho y se mueve en
+;   diagonal, así que entre las dos posiciones ocupa 9x9 y esa diferencia no
+;   entra en un sprite de 8 píxeles de ancho.
+;
+; La velocidad:
+;   Cada paso dura exactamente 2 cuadros (TICK): 30 pasos por segundo, 1 píxel
+;   por paso. Como en el VIP cada DRW espera al próximo cuadro, un paso usa
+;   como mínimo dos cuadros, y hace falta que las instrucciones del paso
+;   entren en ellos: la velocidad es exacta con 15 o más instrucciones por
+;   cuadro (15, 30, 100, 500 y 1000 dan lo mismo; alcanza con 14 en el VIP y
+;   con 10 en SUPER-CHIP y XO-CHIP). Con 7, el ajuste más lento de la consola,
+;   no entran y la pelota va más despacio: unos 19 pasos por segundo en el VIP
+;   y 22 en los otros dos.
 ;
 ; Registros:
 ;   V1, V2  posición que se ve ahora (x, y)

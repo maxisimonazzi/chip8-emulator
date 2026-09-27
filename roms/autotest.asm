@@ -351,6 +351,13 @@ prueba_subn:
         JP falla
         SE VF, 0
         JP falla
+        LD V1, 50
+        LD V2, 50
+        SUBN V1, V2             ; 0: iguales cuenta como "sin préstamo"
+        SE V1, 0
+        JP falla
+        SE VF, 1
+        JP falla
         LD VF, 30
         LD V1, 100
         SUBN VF, V1             ; VF = bandera (1)
@@ -574,6 +581,13 @@ prueba_fuente:
 
 ; 15 — LD DT, Vx / LD Vx, DT: el temporizador de retardo se lee igual a
 ; como se cargó y después baja solo. También ejecuta LD ST, Vx (con 0).
+;
+; Para no quedarse esperando para siempre si DT no baja, la espera tiene un
+; tope de 400 vueltas de 5 instrucciones (unas 2000 instrucciones). DT tiene
+; que bajar en el cuadro siguiente, así que alcanza de sobra hasta con 1000
+; instrucciones por cuadro, el máximo de la consola; y si DT no baja, la cruz
+; aparece enseguida: en unos 2 segundos a 15 instrucciones por cuadro y en
+; unos 5 a 7.
 prueba_tiempo:
         LD V1, 0
         LD ST, V1               ; FX18 (silencio)
@@ -586,25 +600,34 @@ prueba_tiempo:
         AND V4, V3
         SE V4, 0
         JP falla
-        LD V5, 0                ; contador para no esperar para siempre
-        LD V6, 0
-tiempo_espera:                  ; esperar hasta que DT <= 26
-        LD V2, DT
-        LD V3, 26
-        SUB V3, V2              ; VF = 1 si 26 >= DT
-        SE VF, 0
+        LD V5, 200              ; tope de la espera: 200 x 2 vueltas
+        LD V6, 2
+tiempo_espera:                  ; esperar hasta que DT cambie
+        LD V3, DT
+        SE V3, V2
         JP tiempo_bajo
-        ADD V5, 1
+        ADD V5, -1
         SE V5, 0
         JP tiempo_espera
-        ADD V6, 1
-        SE V6, 40
+        LD V5, 200
+        ADD V6, -1
+        SE V6, 0
         JP tiempo_espera
         JP falla                ; se cansó de esperar: el temporizador no baja
 tiempo_bajo:
-        SNE V2, 0               ; bajó, pero no de golpe a 0
+        SNE V3, 0               ; cambió, pero no de golpe a 0
         JP falla
+        LD V4, 8                ; y bajó (no subió): sumándole de 1 a 8 a lo que
+tiempo_cuenta:                  ; se leyó ahora, se vuelve a lo de antes. Con
+        ADD V3, 1               ; muy pocas instrucciones por cuadro, entre dos
+        SE V3, V2               ; lecturas pasan varios cuadros: por eso hasta 8.
+        JP tiempo_sigue
         JP pasa
+tiempo_sigue:
+        ADD V4, -1
+        SE V4, 0
+        JP tiempo_cuenta
+        JP falla
 
 ; C0 — RND Vx, 0 siempre da 0; RND Vx, 0x0F nunca pasa de 15.
 prueba_azar:

@@ -9,6 +9,9 @@
  *       node tools/chip8asm.js entrada.asm [salida.ch8] [--listing]
  *     Si no indicás la salida, se usa el mismo nombre con extensión .ch8.
  *     Con --listing además imprime el listado (dirección, bytes y línea fuente).
+ *     Con --help (o -h) muestra el uso. Ante cualquier problema (archivo que no
+ *     se puede leer o escribir, error en la fuente, opción desconocida, archivos
+ *     de más) explica qué pasó en una línea y sale con código 1.
  *
  * API
  *   assemble(fuente, { origin = 0x200 } = {})
@@ -78,6 +81,10 @@
  *   SNE Vx, Vy         9xy0   saltea la siguiente si Vx != Vy
  *   LD I, nnn          Annn   I = nnn
  *   JP V0, nnn         Bnnn   salta a nnn + V0
+ *   JP Vx, xnn         Bxnn   la misma instrucción leída como en SUPER-CHIP
+ *                             (salta a xnn + Vx): solo vale si x es el primer
+ *                             dígito hexadecimal de la dirección, por ejemplo
+ *                             "JP V3, 0x3A0" = B3A0 ("JP V1, 0x3A0" es un error)
  *   RND Vx, nn         Cxnn   Vx = número al azar & nn
  *   DRW Vx, Vy, n      Dxyn   dibuja un sprite de n filas en (Vx, Vy)
  *   SKP Vx             Ex9E   saltea la siguiente si la tecla Vx está apretada
@@ -93,7 +100,12 @@
  *   LD Vx, [I]         Fx65   carga V0..Vx desde memoria a partir de I
  *
  *   Todo lo que produce el desensamblador se puede volver a ensamblar, incluso
- *   "DW 0x5121" (así muestra las palabras que no son instrucciones válidas).
+ *   "DW 0x5121" (así muestra las palabras que no son instrucciones válidas) y
+ *   "JP V3, 0x3A0" (así muestra BNNN con el quirk de saltos de SUPER-CHIP).
+ *
+ *   Los registros y los nombres especiales (DT, ST, ...) se escriben sin
+ *   espacios adentro: "V 1" o "D T" son un error. Solo [I] admite espacios
+ *   entre los corchetes ("[ I ]").
  *
  * EJEMPLO
  *       LD V0, 10          ; x
@@ -213,11 +225,17 @@
 
   // Clasifica un operando: registro, nombre especial o expresión.
   function classify(text, lineNo) {
-    const up = text.toUpperCase().replace(/\s+/g, '');
+    const up = text.trim().toUpperCase();
     const m = /^V([0-9A-F])$/.exec(up);
     if (m) return { kind: 'reg', reg: parseInt(m[1], 16), text };
-    if (up === '[I]') return { kind: '[I]', text };
+    if (/^\[\s*I\s*\]$/.test(up)) return { kind: '[I]', text };
     if (SPECIALS.includes(up)) return { kind: up, text };
+    // "V 1", "D T": un registro o nombre especial con espacios adentro.
+    const joined = up.replace(/\s+/g, '');
+    if (joined !== up && (/^V[0-9A-F]$/.test(joined) || SPECIALS.includes(joined))) {
+      throw AsmError(lineNo, 'el operando "' + text.trim() + '" tiene espacios adentro: se escribe "' +
+        text.trim().replace(/\s+/g, '') + '"');
+    }
     return { kind: 'expr', terms: parseExpression(text, lineNo), text };
   }
 
@@ -233,9 +251,19 @@
     SYS: [[[N], (o, v) => v(o[0], 'addr')]],
     JP: [
       [[N], (o, v) => 0x1000 | v(o[0], 'addr')],
+      // BNNN. "JP V0, nnn" es la lectura clásica (salta a nnn + V0); "JP Vx, xnn"
+      // es la de SUPER-CHIP (salta a xnn + Vx), y solo existe si x es el primer
+      // dígito de la dirección, porque ese dígito es el que elige el registro.
       [[R, N], (o, v, line) => {
-        if (o[0].reg !== 0) throw AsmError(line, 'JP con registro solo admite V0 (JP V0, dirección)');
-        return 0xB000 | v(o[1], 'addr');
+        const addr = v(o[1], 'addr');
+        const x = o[0].reg;
+        if (x !== 0 && x !== addr >> 8) {
+          const X = x.toString(16).toUpperCase();
+          throw AsmError(line, 'JP V' + X + ' solo se puede usar con una dirección que empiece con ' + X +
+            ' (0x' + X + '00..0x' + X + 'FF, la forma BXNN de SUPER-CHIP), y ' + hex(addr, 3) +
+            ' no empieza con ' + X + '; JP V0 acepta cualquier dirección');
+        }
+        return 0xB000 | addr;
       }],
     ],
     CALL: [[[N], (o, v) => 0x2000 | v(o[0], 'addr')]],
@@ -519,20 +547,45 @@
   if (typeof require !== 'undefined' && typeof module !== 'undefined' && require.main === module) {
     const fs = require('fs');
     const path = require('path');
+    const USAGE = 'Uso: node tools/chip8asm.js entrada.asm [salida.ch8] [--listing]';
+    // Muestra el problema y el uso, y termina con código 1.
+    const fail = (message) => {
+      console.error('chip8asm: ' + message + '\n' + USAGE);
+      process.exit(1);
+    };
+    // Explica en castellano los errores más comunes del sistema de archivos.
+    const fsReason = (e, file) => {
+      if (e.code === 'ENOENT') {
+        const dir = path.dirname(path.resolve(file));
+        return fs.existsSync(dir) ? 'el archivo no existe' : 'la carpeta "' + path.dirname(file) + '" no existe';
+      }
+      if (e.code === 'EISDIR') return 'es una carpeta, no un archivo';
+      if (e.code === 'EACCES' || e.code === 'EPERM') return 'no hay permiso';
+      if (e.code === 'EBUSY') return 'otro programa lo tiene abierto';
+      return e.message;
+    };
+
     const args = process.argv.slice(2);
-    const wantListing = args.includes('--listing');
-    const files = args.filter((a) => !a.startsWith('--'));
-    if (files.length < 1 || files.length > 2 || args.includes('--help') || args.includes('-h')) {
-      console.error('Uso: node tools/chip8asm.js entrada.asm [salida.ch8] [--listing]');
-      process.exit(files.length < 1 ? 1 : 0);
+    if (args.includes('--help') || args.includes('-h')) {
+      console.log(USAGE);
+      process.exit(0);
     }
+    let wantListing = false;
+    const files = [];
+    for (const a of args) {
+      if (a === '--listing') wantListing = true;
+      else if (a.startsWith('-') && a !== '-') fail('opción desconocida: ' + a);
+      else files.push(a);
+    }
+    if (files.length < 1) fail('falta el archivo de entrada');
+    if (files.length > 2) fail('sobran argumentos: ' + files.slice(2).join(' '));
     const input = files[0];
     const output = files[1] || input.replace(/\.[^./\\]*$/, '') + '.ch8';
     let source;
     try {
       source = fs.readFileSync(input, 'utf8');
     } catch (e) {
-      console.error('No pude leer "' + input + '": ' + e.message);
+      console.error('No pude leer "' + input + '": ' + fsReason(e, input));
       process.exit(1);
     }
     let result;
@@ -542,7 +595,12 @@
       console.error(path.basename(input) + ': ' + e.message);
       process.exit(1);
     }
-    fs.writeFileSync(output, result.bytes);
+    try {
+      fs.writeFileSync(output, result.bytes);
+    } catch (e) {
+      console.error('No pude escribir "' + output + '": ' + fsReason(e, output));
+      process.exit(1);
+    }
     if (wantListing) console.log(formatListing(result.listing));
     console.log('Ensamblado ' + path.basename(input) + ': ' + result.bytes.length + ' bytes -> ' + output);
   }

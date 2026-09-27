@@ -26,8 +26,31 @@
 ;   fila 6        línea que separa el marcador
 ;   filas 7..31   zona de juego; la paleta (6x2) está en las filas 30 y 31
 ;
-; El juego avanza un "paso" cada TICK cuadros (lo marca el temporizador de
-; retardo), así que corre igual a 15 que a 1000 instrucciones por cuadro.
+; La velocidad:
+;   El juego avanza un "paso" cada TICK cuadros (lo marca el temporizador de
+;   retardo): 20 pasos por segundo con 15 o más instrucciones por cuadro, con
+;   cualquier configuración de quirks. La única diferencia es la pausita al
+;   anotar un punto: redibujar el puntaje son 7 DRW, y en el COSMAC VIP (quirk
+;   "espera de vblank") cada uno espera un cuadro, así que ese paso dura 9
+;   cuadros en vez de 3; en SUPER-CHIP y XO-CHIP dura 5 cuadros a 15
+;   instrucciones por cuadro y 3 desde 30. Con 7 instrucciones por cuadro, el
+;   ajuste más lento de la consola, muchos pasos no entran en 3 cuadros y todo
+;   va más despacio: alrededor de un 15% en el VIP y de un 8% en los otros dos.
+;   Como la paleta y el bloque se mueven en los mismos pasos, eso no cambia lo
+;   difícil que es.
+;
+; Que sea justo:
+;   La paleta avanza 2 píxeles por paso: para ir de un borde al otro (de x = 0
+;   a x = 56, o de 58 a 2) necesita 28 pasos. El bloque baja 21 filas desde que
+;   aparece (y = 7) hasta el piso (y = 28), y con la velocidad máxima
+;   (VEL_MAXIMA = 160/256 de píxel por paso) eso le lleva 34 pasos. Así que
+;   cualquier bloque se puede atrapar, aparezca donde aparezca, y sobran 6
+;   pasos (0,3 segundos) para reaccionar. Si subís VEL_MAXIMA, fijate que
+;   21 * 256 / VEL_MAXIMA siga siendo más que 28.
+;   El bloque cuenta como atrapado en cuanto toca la paleta, en cualquier paso
+;   en que esté entre y = 26 (justo encima) e y = 28 (encima de ella), aunque
+;   la paleta llegue de costado cuando el bloque ya bajó: si se ven tocándose,
+;   lo atrapaste.
 ;
 ; Registros:
 ;   V0, V1, V2, V4  temporales (FX33/FX65 usan V0..V2)
@@ -45,11 +68,11 @@ TICK      EQU 3         ; cuadros por paso: 20 pasos por segundo
 PALETA_Y  EQU 30
 PALETA_MAX EQU 58       ; 64 - 6
 BLOQUE_Y0 EQU 7         ; donde aparece cada bloque
-BLOQUE_ARRIBA EQU 26    ; justo encima de la paleta: ¿la atrapó?
-BLOQUE_PISO EQU 28      ; tocó el piso: se escapó
+BLOQUE_ARRIBA EQU 26    ; desde acá el bloque toca la paleta: ¿la atrapó?
+BLOQUE_PISO EQU 28      ; tocó el piso: si no la atrapó, se escapó
 VEL_INICIAL EQU 96      ; 96/256 de píxel por paso = 7,5 píxeles por segundo
-VEL_AUMENTO EQU 6       ; cuánto se acelera por cada punto
-VEL_MAXIMA EQU 249      ; tope de la velocidad (antes de sumar)
+VEL_AUMENTO EQU 4       ; cuánto se acelera por cada punto
+VEL_MAXIMA EQU 160      ; tope de la velocidad: 12,5 píxeles por segundo
 
 inicio:
         CLS
@@ -111,18 +134,24 @@ derecha:
 bloque:
         ADD VA, V9              ; acumulador += velocidad
         SE VF, 1                ; ¿se pasó de 255? entonces baja
-        JP paso
+        JP toca
         LD I, bloque_delta      ; apaga su fila de arriba y prende la de abajo
         DRW V5, V6, 5
         ADD V6, 1
-        SNE V6, BLOQUE_ARRIBA
-        CALL mira_si_atrapa
-        SNE V6, BLOQUE_PISO
+
+        ; --- ¿el bloque toca la paleta? ---
+toca:
+        LD V0, BLOQUE_ARRIBA - 1
+        SUB V0, V6              ; VF = 1 si el bloque todavía está arriba (y < 26)
+        SE VF, 0
+        JP paso
+        CALL mira_si_atrapa     ; si la atrapa, ya aparece el bloque siguiente
+        SNE V6, BLOQUE_PISO     ; no la atrapó y llegó al piso: se escapó
         JP se_escapo
         JP paso
 
 ; ----------------------------------------------------------------------
-; El bloque llegó justo encima de la paleta: ¿se superponen en x?
+; El bloque toca la paleta (y = 26, 27 o 28): ¿se superponen en x?
 ; Se atrapa si  bloque_x + 3 >= paleta_x  y  paleta_x + 5 >= bloque_x.
 ; ----------------------------------------------------------------------
 mira_si_atrapa:
@@ -145,10 +174,11 @@ mira_si_atrapa:
         CALL dibuja_puntaje     ; borrar el puntaje viejo (XOR)...
         ADD V8, 1
         CALL dibuja_puntaje     ; ...y dibujar el nuevo
-        LD V0, VEL_MAXIMA       ; acelerar, sin pasarse del tope
+        ADD V9, VEL_AUMENTO     ; acelerar...
+        LD V0, VEL_MAXIMA
         SUB V0, V9              ; VF = 1 si VEL_MAXIMA >= velocidad
-        SE VF, 0
-        ADD V9, VEL_AUMENTO
+        SE VF, 1
+        LD V9, VEL_MAXIMA       ; ...sin pasarse del tope
         CALL nuevo_bloque
         RET
 

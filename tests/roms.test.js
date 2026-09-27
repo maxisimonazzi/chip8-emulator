@@ -277,30 +277,62 @@ describe('rebote', () => {
     }
   });
 
-  it('se mueve a la misma velocidad a 15 y a 1000 instrucciones por cuadro', () => {
-    // Cuenta los pasos: cada vez que la pelota aparece completa (44 píxeles en
-    // una caja de 8x8) en una posición distinta de la anterior.
+  // Cuenta los pasos en 10 s: cada vez que la pelota aparece completa (44
+  // píxeles en una caja de 8x8) en una posición distinta de la anterior.
+  function reboteSteps(preset, ipf) {
     const ballAt = (cpu) => {
       const box = playBox(cpu).split(',').map(Number);
       if (litCount(cpu, 0, 9, 64, 23) !== 44 || box[2] - box[0] !== 7 || box[3] - box[1] !== 7) return null;
       return box[0] + ',' + box[1];
     };
+    const cpu = demo('rebote', preset);
+    run(cpu, 100, ipf);
+    let prev = null;
+    let n = 0;
+    for (let f = 0; f < 600; f++) {
+      run(cpu, 1, ipf);
+      const pos = ballAt(cpu);
+      if (pos !== null && prev !== null && pos !== prev) n++;
+      if (pos !== null) prev = pos;
+    }
+    return n;
+  }
+
+  it('se mueve a 30 pasos por segundo con 15 o más instrucciones por cuadro', () => {
     for (const preset of PRESETS) {
-      const steps = [15, 1000].map((ipf) => {
-        const cpu = demo('rebote', preset);
-        run(cpu, 100, ipf);
-        let prev = null;
-        let n = 0;
-        for (let f = 0; f < 600; f++) {
-          run(cpu, 1, ipf);
-          const pos = ballAt(cpu);
-          if (pos !== null && prev !== null && pos !== prev) n++;
-          if (pos !== null) prev = pos;
-        }
-        return n;
-      });
-      assert.ok(Math.abs(steps[0] - steps[1]) <= 1, preset + ': ' + steps.join(' vs '));
-      assert.ok(Math.abs(steps[0] - 300) <= 2, preset + ': 30 pasos por segundo, fueron ' + steps[0] + ' en 10 s');
+      for (const ipf of [15, 30, 100, 1000]) {
+        const n = reboteSteps(preset, ipf);
+        assert.ok(Math.abs(n - 300) <= 2, preset + ', IPF ' + ipf + ': 30 pasos por segundo, fueron ' + n + ' en 10 s');
+      }
+    }
+  });
+
+  it('a 7 instrucciones por cuadro va más despacio, como dice el comentario de rebote.asm', () => {
+    // "unos 19 pasos por segundo en el VIP y 22 en los otros dos"
+    const want = { vip: 19, schip: 22, xochip: 22 };
+    for (const preset of PRESETS) {
+      const perSecond = reboteSteps(preset, 7) / 10;
+      assert.ok(Math.abs(perSecond - want[preset]) <= 1, preset + ': ' + perSecond + ' pasos por segundo');
+    }
+  });
+
+  it('el cuadro intermedio muestra el XOR de las dos pelotas (36 píxeles), no la pelota entera', () => {
+    // Con "espera de vblank" (VIP) se ven alternados: la pelota (44) y la silueta (36).
+    const cpu = run(demo('rebote', 'vip'), 60);
+    const counts = {};
+    for (let f = 0; f < 600; f++) {
+      run(cpu, 1);
+      const n = litCount(cpu, 0, 9, 64, 23);
+      counts[n] = (counts[n] || 0) + 1;
+    }
+    assert.deepEqual(counts, { 36: 300, 44: 300 });
+    // Sin ese quirk y con 30 o más instrucciones por cuadro, la silueta no se ve nunca.
+    for (const preset of ['schip', 'xochip']) {
+      const c = run(demo('rebote', preset), 60, 30);
+      for (let f = 0; f < 600; f++) {
+        run(c, 1, 30);
+        assert.equal(litCount(c, 0, 9, 64, 23), 44, preset + ', cuadro ' + f);
+      }
     }
   });
 });
@@ -502,6 +534,66 @@ describe('atrapa', () => {
     assert.equal(hearts(cpu), 3, 'el jugador automático no pierde vidas');
   });
 
+  // Jugador perfecto: lee los registros (V3 = x de la paleta, V5 = x del
+  // bloque) y va hacia el bloque por el camino más corto.
+  function perfectPlayer(cpu) {
+    const px = cpu.V[3], bx = cpu.V[5];
+    cpu.setKey(7, px > bx + 3);
+    cpu.setKey(9, px + 5 < bx);
+  }
+
+  it('a la velocidad máxima cualquier bloque se puede atrapar, aparezca donde aparezca', () => {
+    const source = rom('atrapa').source;
+    const equ = (name) => Number(new RegExp('^' + name + '\\s+EQU\\s+(\\d+)', 'm').exec(source)[1]);
+    const fall = equ('BLOQUE_PISO') - equ('BLOQUE_Y0');
+    const stepsToFloor = Math.ceil(fall * 256 / equ('VEL_MAXIMA'));
+    assert.ok(stepsToFloor > 28, 'el bloque tarda ' + stepsToFloor + ' pasos y la paleta necesita 28');
+    // El peor caso siempre: los bloques aparecen alternados en x = 0 y x = 60,
+    // así que la paleta tiene que cruzar la pantalla entera cada vez.
+    for (const preset of PRESETS) {
+      let n = 0;
+      const cpu = demo('atrapa', preset, { random: () => (n++ % 2 ? 0 : 60) });
+      let catchesAtMax = 0, score = 0;
+      for (let f = 0; f < 60 * 120 && catchesAtMax < 10; f++) {
+        perfectPlayer(cpu);
+        run(cpu, 1);
+        if (cpu.V[8] !== score) {
+          score = cpu.V[8];
+          if (cpu.V[9] === equ('VEL_MAXIMA')) catchesAtMax++;
+        }
+        assert.equal(cpu.V[7], 3, preset + ': se perdió una vida con puntaje ' + score + ' y velocidad ' + cpu.V[9]);
+      }
+      assert.equal(catchesAtMax, 10, preset + ': debería llegar a la velocidad máxima (puntaje ' + score + ')');
+    }
+  });
+
+  it('un bloque que la paleta toca de costado, ya encima de ella, cuenta como atrapado', () => {
+    // La paleta espera al costado del bloque, sin tocarlo, hasta que el bloque
+    // baja a la fila 27 (su última fila tapa la fila 30 de la paleta) y recién
+    // ahí se mete debajo.
+    for (const preset of PRESETS) {
+      for (const ipf of [15, 1000]) {
+        const cpu = demo('atrapa', preset, { random: seeded(4) });
+        let result = null;
+        for (let f = 0; f < 3000 && !result; f++) {
+          const px = cpu.V[3], bx = cpu.V[5], by = cpu.V[6];
+          const side = bx + 4 + ((bx + 4) & 1) <= 58 ? bx + 4 + ((bx + 4) & 1) : bx - 6 - (bx & 1);
+          const goal = by >= 27 ? bx : side;
+          cpu.setKey(7, px > goal + 1);
+          cpu.setKey(9, px < goal - 1);
+          const score = cpu.V[8], lives = cpu.V[7];
+          run(cpu, 1, ipf);
+          if (cpu.V[8] > score) result = 'atrapado con y = ' + by;
+          else if (cpu.V[7] < lives) result = 'perdió una vida con y = ' + by;
+        }
+        assert.equal(result, 'atrapado con y = 27', preset + ', IPF ' + ipf);
+        run(cpu, 3, ipf);
+        assert.equal(paddleX(cpu), cpu.V[3], 'la paleta queda entera');
+        assert.equal(litCount(cpu, 0, 30, 64, 2), 12, 'en las filas 30 y 31 solo queda la paleta');
+      }
+    }
+  });
+
   it('corre a la misma velocidad a 15 y a 1000 instrucciones por cuadro', () => {
     const trace = (ipf) => {
       const cpu = demo('atrapa', 'vip', { random: seeded(5) });
@@ -533,24 +625,114 @@ function finished(cpu, id = 'autotest') {
   return cpu.pc === fin && cpu.memory[fin] === (0x10 | (fin >> 8)) && cpu.memory[fin + 1] === (fin & 0xFF);
 }
 
+// Cantidad de pruebas que promete autotest.asm: la dice el encabezado ("VD =
+// cantidad de pruebas ejecutadas (N)") y tiene que coincidir con @description,
+// con los CALL de la lista y con la tabla de etiquetas.
+const AUTOTEST_CHECKS = 19;
+
+// Corre autotest hasta "fin: JP fin" (o hasta maxFrames) y devuelve los cuadros.
+function runAutotest(cpu, ipf, maxFrames = 600) {
+  let frames = 0;
+  while (!finished(cpu) && frames < maxFrames) {
+    run(cpu, 1, ipf);
+    frames++;
+  }
+  return frames;
+}
+
+// Cambia cómo ejecuta la CPU los opcodes que cumplen (op & mask) === value.
+function patchOpcode(cpu, mask, value, exec) {
+  const step = cpu.step;
+  cpu.step = function () {
+    const op = (this.memory[this.pc] << 8) | this.memory[this.pc + 1];
+    if ((op & mask) !== value) return step.call(this);
+    exec.call(this, (op >> 8) & 0xF, (op >> 4) & 0xF);
+    this.pc += 2;
+    return true;
+  };
+}
+
 describe('autotest', () => {
+  it('el encabezado, @description, la lista de pruebas y las etiquetas dicen ' + AUTOTEST_CHECKS + ' pruebas', () => {
+    const { source } = rom('autotest');
+    assert.match(source, new RegExp('VD = cantidad de pruebas ejecutadas \\(' + AUTOTEST_CHECKS + '\\)'));
+    assert.match(tagsOf(source).description, new RegExp('ejecuta ' + AUTOTEST_CHECKS + ' comprobaciones'));
+    assert.equal((source.match(/^\s+CALL prueba_\w+/gm) || []).length, AUTOTEST_CHECKS);
+    const labels = source.slice(source.indexOf('\netiquetas:'), source.indexOf('\nbien:'));
+    assert.equal((labels.match(/^\s+DB 0x[0-9A-F], 0x[0-9A-F]\s/gm) || []).length, AUTOTEST_CHECKS);
+  });
+
   for (const preset of PRESETS) {
-    for (const ipf of [15, 1000]) {
-      it('termina con VE = 0 fallas y VD >= 16 pruebas (' + preset + ', IPF ' + ipf + ')', () => {
+    for (const ipf of [7, 15, 1000]) {
+      it('termina con VE = 0 fallas y VD = ' + AUTOTEST_CHECKS + ' pruebas (' + preset + ', IPF ' + ipf + ')', () => {
         const cpu = demo('autotest', preset);
-        let frames = 0;
-        while (!finished(cpu) && frames < 600) {
-          run(cpu, 1, ipf);
-          frames++;
-        }
+        runAutotest(cpu, ipf);
         assert.ok(finished(cpu), 'debería quedar en "fin: JP fin"');
-        assert.ok(cpu.V[0xD] >= 16, 'VD = ' + cpu.V[0xD]);
+        assert.equal(cpu.V[0xD], AUTOTEST_CHECKS, 'VD (pruebas hechas)');
         assert.equal(cpu.V[0xE], 0, 'VE (fallas):\n' + renderAscii(cpu));
         run(cpu, 10, ipf);
         assert.ok(finished(cpu), 'se queda en el bucle final');
       });
     }
   }
+
+  it('también pasa con 1 instrucción por cuadro', () => {
+    const cpu = demo('autotest');
+    runAutotest(cpu, 1, 3000);
+    assert.ok(finished(cpu));
+    assert.equal(cpu.V[0xD], AUTOTEST_CHECKS);
+    assert.equal(cpu.V[0xE], 0, renderAscii(cpu));
+  });
+
+  it('detecta la bandera de SUBN mal calculada cuando Vy == Vx', () => {
+    // VF = 1 si Vy > Vx (en lugar de >=): solo se nota con operandos iguales.
+    for (const preset of PRESETS) {
+      for (const ipf of [7, 15, 1000]) {
+        const cpu = demo('autotest', preset, { guard: false });
+        patchOpcode(cpu, 0xF00F, 0x8007, function (x, y) {
+          const vx = this.V[x], vy = this.V[y];
+          this.V[x] = (vy - vx) & 0xFF;
+          this.V[0xF] = vy > vx ? 1 : 0;
+        });
+        runAutotest(cpu, ipf);
+        assert.ok(finished(cpu), preset + ', IPF ' + ipf);
+        assert.equal(cpu.V[0xD], AUTOTEST_CHECKS);
+        assert.equal(cpu.V[0xE], 1, preset + ', IPF ' + ipf + ': debería fallar la prueba 87');
+      }
+    }
+  });
+
+  it('si DT no baja, lo informa en un par de segundos (no se queda colgado)', () => {
+    for (const preset of PRESETS) {
+      for (const ipf of [7, 15, 1000]) {
+        const normal = runAutotest(demo('autotest', preset), ipf);
+        const cpu = demo('autotest', preset);
+        cpu.tickTimers = function () { if (this.soundTimer > 0) this.soundTimer--; }; // DT congelado
+        const frames = runAutotest(cpu, ipf, 3000);
+        assert.ok(finished(cpu), preset + ', IPF ' + ipf);
+        assert.equal(cpu.V[0xE], 1, 'debería fallar solo la prueba 15');
+        const extra = (frames - normal) / 60;
+        const limit = ipf >= 15 ? 2.5 : 5.5; // "unos 2 segundos a 15 ... y unos 5 a 7"
+        assert.ok(extra <= limit, preset + ', IPF ' + ipf + ': tardó ' + extra.toFixed(1) + ' s de más');
+      }
+    }
+  });
+
+  it('detecta un DT que baja de golpe a 0 o que sube en vez de bajar', () => {
+    const broken = {
+      'a 0': function () { this.delayTimer = 0; if (this.soundTimer > 0) this.soundTimer--; },
+      'sube': function () { if (this.delayTimer > 0) this.delayTimer = (this.delayTimer + 1) & 0xFF; if (this.soundTimer > 0) this.soundTimer--; },
+    };
+    for (const [name, tick] of Object.entries(broken)) {
+      for (const ipf of [1, 15, 1000]) {
+        const cpu = demo('autotest');
+        cpu.tickTimers = tick;
+        runAutotest(cpu, ipf, 3000);
+        assert.ok(finished(cpu), name + ', IPF ' + ipf);
+        assert.equal(cpu.V[0xE], 1, name + ', IPF ' + ipf);
+      }
+    }
+  });
 
   it('muestra una tilde en cada celda y el resumen invertido', () => {
     const cpu = demo('autotest');

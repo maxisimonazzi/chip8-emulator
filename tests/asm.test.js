@@ -1,6 +1,6 @@
 'use strict';
 // Tests del ensamblador tools/chip8asm.js.
-const { describe, it } = require('node:test');
+const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -85,6 +85,56 @@ describe('todas las instrucciones', () => {
 
   it('[I] admite espacios adentro', () => {
     assert.deepEqual(bytesOf('LD [ I ], V2'), [0xF2, 0x55]);
+    assert.deepEqual(bytesOf('LD V2, [I ]'), [0xF2, 0x65]);
+    assert.deepEqual(bytesOf('LD [\tI], V2'), [0xF2, 0x55]);
+  });
+
+  it('los registros y los nombres especiales no admiten espacios adentro', () => {
+    assertAsmError('LD V 1, 5', 1, '"V1"');
+    assertAsmError('LD V1, D T', 1, '"DT"');
+    assertAsmError('SKP v  f', 1, 'espacios');
+    assertAsmError('LD S T, V1', 1, 'espacios');
+    assertAsmError('DRW V1, V 2, 5', 1, 'espacios');
+    assertAsmError('\nLD I , 5\nLD [I], V 3', 3, 'espacios');
+  });
+});
+
+describe('JP con registro (BNNN)', () => {
+  it('JP V0, dirección vale para cualquier dirección', () => {
+    for (let a = 0; a <= 0xFFF; a++) {
+      const text = 'JP V0, 0x' + a.toString(16);
+      assert.deepEqual(bytesOf(text), [0xB0 | (a >> 8), a & 0xFF], text);
+    }
+    assert.deepEqual(bytesOf('jp v0, fin\nfin:'), [0xB2, 0x02]);
+  });
+
+  it('JP VX, dirección (la lectura BXNN de SUPER-CHIP) vale si X es el primer dígito de la dirección', () => {
+    assert.deepEqual(bytesOf('JP V3, 0x3A0'), [0xB3, 0xA0]);
+    assert.deepEqual(bytesOf('jp vf, 0xf00'), [0xBF, 0x00]);
+    assert.deepEqual(bytesOf('JP VA, 0xAFF'), [0xBA, 0xFF]);
+    assert.deepEqual(bytesOf('BASE EQU 0x200\nJP V2, BASE + 0x34'), [0xB2, 0x34]);
+    for (let x = 1; x < 16; x++) {
+      for (const nn of [0x00, 0x5A, 0xFF]) {
+        const addr = (x << 8) | nn;
+        assert.deepEqual(bytesOf('JP V' + x.toString(16) + ', ' + addr), [0xB0 | x, nn]);
+      }
+    }
+  });
+
+  it('JP VX con una dirección que no empieza con X es un error que lo explica', () => {
+    assertAsmError('JP V1, 0x300', 1, 'V0');
+    assertAsmError('JP V1, 0x300', 1, 'empiece con 1');
+    assertAsmError('JP V1, 0x300', 1, '0x100..0x1FF');
+    assertAsmError('JP VF, 0x0F0', 1, 'empiece con F');
+    assertAsmError('\nJP V3, fin\nfin:', 2, '0x202');
+  });
+
+  it('assemble(disassemble(w, { jumping: true })) reproduce todas las palabras BNNN', () => {
+    const { disassemble } = loadCore();
+    for (let w = 0xB000; w <= 0xBFFF; w++) {
+      const text = disassemble(w, { jumping: true });
+      assert.deepEqual(bytesOf(text), [w >> 8, w & 0xFF], text);
+    }
   });
 });
 
@@ -242,7 +292,7 @@ describe('errores (siempre con "Línea N: ")', () => {
     assertAsmError('ADD I, 5', 1, 'inválidos');
   });
 
-  it('JP con un registro que no es V0', () => {
+  it('JP con un registro que no corresponde a la dirección', () => {
     assertAsmError('JP V1, 0x300', 1, 'V0');
   });
 
@@ -378,5 +428,77 @@ describe('línea de comandos', () => {
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  describe('los problemas se explican en castellano, sin stack trace, y salen con código 1', () => {
+    const TOOL = path.join(ROOT, 'tools', 'chip8asm.js');
+    const USAGE = 'Uso: node tools/chip8asm.js entrada.asm [salida.ch8] [--listing]';
+    let dir, src;
+    const cli = (...args) => spawnSync(process.execPath, [TOOL, ...args], { cwd: dir, encoding: 'utf8' });
+    // Ningún mensaje de Node en inglés: ni "at ...", ni "node:fs", ni "Error:".
+    const assertClean = (res) => {
+      assert.doesNotMatch(res.stderr, /^\s+at |node:|Error:|ENOENT|EISDIR/m, res.stderr);
+    };
+
+    before(() => {
+      dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chip8asm-cli-'));
+      src = path.join(dir, 'p.asm');
+      fs.writeFileSync(src, 'CLS\n');
+    });
+    after(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+    it('la carpeta de salida no existe', () => {
+      const res = cli('p.asm', path.join('no-existe', 'x.ch8'));
+      assert.equal(res.status, 1);
+      assertClean(res);
+      assert.match(res.stderr, /No pude escribir ".*x\.ch8": la carpeta ".*no-existe" no existe/);
+    });
+
+    it('la salida es una carpeta', () => {
+      const res = cli('p.asm', '.');
+      assert.equal(res.status, 1);
+      assertClean(res);
+      assert.match(res.stderr, /No pude escribir "\.": /);
+    });
+
+    it('la entrada no existe', () => {
+      const res = cli('nada.asm');
+      assert.equal(res.status, 1);
+      assertClean(res);
+      assert.match(res.stderr, /No pude leer "nada\.asm": el archivo no existe/);
+    });
+
+    it('sin archivo de entrada', () => {
+      const res = cli();
+      assert.equal(res.status, 1);
+      assert.match(res.stderr, /falta el archivo de entrada/);
+      assert.ok(res.stderr.includes(USAGE));
+    });
+
+    it('con archivos de más', () => {
+      const res = cli('p.asm', 'b.ch8', 'c', 'd');
+      assert.equal(res.status, 1);
+      assert.match(res.stderr, /sobran argumentos: c d/);
+      assert.ok(res.stderr.includes(USAGE));
+      assert.ok(!fs.existsSync(path.join(dir, 'b.ch8')), 'no escribe nada');
+    });
+
+    it('con una opción desconocida (por ejemplo, --listing mal escrito)', () => {
+      for (const opt of ['--lsting', '-l', '--LISTING']) {
+        const res = cli('p.asm', opt);
+        assert.equal(res.status, 1, opt);
+        assert.match(res.stderr, new RegExp('opción desconocida: ' + opt));
+        assert.ok(res.stderr.includes(USAGE));
+      }
+      assert.ok(!fs.existsSync(path.join(dir, 'p.ch8')), 'no escribe nada');
+    });
+
+    it('--help y -h muestran el uso y salen con 0', () => {
+      for (const opt of ['--help', '-h']) {
+        const res = cli(opt);
+        assert.equal(res.status, 0, opt);
+        assert.equal(res.stdout.trim(), USAGE);
+      }
+    });
   });
 });
