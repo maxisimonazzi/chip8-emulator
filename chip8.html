@@ -5,13 +5,1003 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CHIP-8</title>
 <style id="chip8-style">
+  /* ---------- Tokens ---------- */
+  :root {
+    --desk-ink: #e9dcc6;
+    --desk-dim: #b9a58a;
+    --plastic-hi: #f8f2e2;
+    --plastic: #ece2ca;
+    --plastic-md: #ddd1b4;
+    --plastic-lo: #cbbd9d;
+    --plastic-edge: #a8977a;
+    --ink: #3b2f24;
+    --ink-soft: #6e5c49;
+    --print: #7b4526;
+    --accent: #e0672a;
+    --accent-2: #b8471c;
+    --accent-3: #6b3a1f;
+    --scr-bg: rgb(4, 16, 9);
+    --scr-fg: rgb(124, 255, 150);
+    --term-bg: #06100a;
+    --term-fg: #8dffae;
+    --term-dim: #4d9d67;
+    --term-hot: #ffd479;
+    --term-err: #ff7b6b;
+    --focus: #ffb347;
+    --key: clamp(46px, calc((100vw - 120px) / 4), 62px);
+    --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-brand: "Futura", "Century Gothic", "Avenir Next", "Trebuchet MS", system-ui, sans-serif;
+    --font-mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    color-scheme: dark;
+  }
+
   *, *::before, *::after { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { -webkit-text-size-adjust: 100%; }
   html, body { margin: 0; min-height: 100%; }
-  body { background: #1b1714; color: #e8e0d0; font-family: system-ui, sans-serif; }
+  body {
+    background-color: #120d0a;
+    background-image:
+      radial-gradient(ellipse 70% 55% at 50% 22%, rgba(255, 190, 120, .15), transparent 70%),
+      repeating-linear-gradient(91deg, rgba(255, 255, 255, .012) 0 2px, rgba(0, 0, 0, .035) 2px 7px, rgba(255, 255, 255, .014) 7px 12px),
+      linear-gradient(180deg, #33251b 0%, #1f1611 55%, #120d0a 100%);
+    background-attachment: fixed;
+    color: var(--desk-ink);
+    font-family: var(--font-ui);
+    line-height: 1.4;
+  }
+  /* Viñeta de la habitación */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(ellipse at 50% 40%, transparent 45%, rgba(0, 0, 0, .6) 100%);
+    z-index: 0;
+  }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  kbd { font-family: var(--font-mono); }
+  .visually-hidden {
+    position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+
+  /* ---------- Distribución general ---------- */
+  .desk { position: relative; z-index: 1; min-height: 100vh; padding: 28px 16px 48px; }
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 800px) minmax(340px, 420px);
+    gap: 28px;
+    justify-content: center;
+    align-items: start;
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+  .col-main { min-width: 0; display: grid; gap: 30px; }
+  @media (max-width: 1200px) {
+    .layout { grid-template-columns: minmax(0, 800px); }
+  }
+
+  /* ---------- Carcasa ---------- */
+  .console {
+    position: relative;
+    padding: 20px 26px 18px;
+    border-radius: 28px 28px 34px 34px;
+    color: var(--ink);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, .5), rgba(255, 255, 255, 0) 10%),
+      linear-gradient(0deg, rgba(110, 85, 50, .16), rgba(110, 85, 50, 0) 16%),
+      radial-gradient(ellipse 120% 60% at 30% 0%, rgba(255, 255, 255, .35), transparent 60%),
+      linear-gradient(180deg, var(--plastic-hi), var(--plastic) 30%, var(--plastic-md) 100%);
+    box-shadow:
+      inset 0 2px 1px rgba(255, 255, 255, .95),
+      inset 0 -4px 2px rgba(120, 95, 60, .32),
+      inset 3px 0 2px rgba(255, 255, 255, .35),
+      inset -3px 0 2px rgba(120, 95, 60, .18),
+      0 2px 0 #b8a787,
+      0 7px 0 #9a896a,
+      0 8px 1px rgba(0, 0, 0, .45),
+      0 30px 60px -12px rgba(0, 0, 0, .85),
+      0 70px 100px -30px rgba(0, 0, 0, .75);
+  }
+  .console-top { display: flex; align-items: center; gap: 18px; min-width: 0; }
+  .brand { min-width: 0; }
+  .wordmark {
+    margin: 0;
+    font: italic 900 clamp(32px, 6.4vw, 46px)/1 var(--font-brand);
+    letter-spacing: .01em;
+    color: var(--plastic-md);
+    text-shadow:
+      -1px -1px 0 rgba(255, 255, 255, .95),
+      1px 1px 0 rgba(120, 95, 60, .6),
+      2px 2px 2px rgba(120, 95, 60, .25);
+    user-select: none;
+  }
+  .wordmark-dash { color: var(--accent); }
+  .tagline {
+    margin: 6px 0 0;
+    font: 700 10px/1.3 var(--font-ui);
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--print);
+  }
+  .vents {
+    flex: 1;
+    align-self: stretch;
+    min-width: 40px;
+    max-width: 220px;
+    margin-left: auto;
+    border-radius: 6px;
+    background: repeating-linear-gradient(90deg,
+      rgba(110, 85, 50, .26) 0 2px, rgba(255, 255, 255, .75) 2px 3px, transparent 3px 9px);
+    -webkit-mask: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+    mask: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+    opacity: .8;
+  }
+  .top-right { display: flex; align-items: center; gap: 16px; margin-left: auto; }
+  .leds { display: flex; gap: 14px; }
+  .led-wrap { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  .led-label { font: 800 9px/1 var(--font-ui); letter-spacing: .16em; color: var(--print); }
+  .led {
+    width: 13px; height: 13px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #75665a, #2d241d 70%);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, .7), 0 0 0 2px rgba(120, 95, 60, .25), 0 1px 0 2px rgba(255, 255, 255, .7);
+    transition: background .12s, box-shadow .12s;
+  }
+  .led.is-green {
+    background: radial-gradient(circle at 35% 30%, #e6ffe6, #45e063 45%, #137a2b 100%);
+    box-shadow: 0 0 8px 2px rgba(70, 230, 110, .6), 0 0 20px rgba(70, 230, 110, .35), 0 0 0 2px rgba(120, 95, 60, .25);
+  }
+  .led.is-amber {
+    background: radial-gradient(circle at 35% 30%, #fff3d6, #ffb238 45%, #a5610b 100%);
+    box-shadow: 0 0 8px 2px rgba(255, 180, 60, .6), 0 0 20px rgba(255, 180, 60, .35), 0 0 0 2px rgba(120, 95, 60, .25);
+  }
+  .led.is-red {
+    background: radial-gradient(circle at 35% 30%, #ffe0dc, #ff4a36 45%, #8e1508 100%);
+    box-shadow: 0 0 8px 2px rgba(255, 70, 50, .65), 0 0 20px rgba(255, 70, 50, .4), 0 0 0 2px rgba(120, 95, 60, .25);
+  }
+  .led.is-blink { animation: led-blink 1s steps(1, end) infinite; }
+  @keyframes led-blink { 50% { background: radial-gradient(circle at 35% 30%, #75665a, #2d241d 70%); box-shadow: inset 0 1px 2px rgba(0, 0, 0, .7), 0 0 0 2px rgba(120, 95, 60, .25); } }
+  .round-btn {
+    width: 38px; height: 38px; border-radius: 50%; border: 0;
+    font: 900 18px/1 var(--font-brand); color: #fff6ea;
+    background: radial-gradient(circle at 35% 30%, #f28b52, var(--accent) 50%, var(--accent-2) 100%);
+    box-shadow: 0 3px 0 #7d3212, 0 5px 8px rgba(0, 0, 0, .3), inset 0 1px 0 rgba(255, 255, 255, .35);
+  }
+  .round-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #7d3212, inset 0 1px 0 rgba(255, 255, 255, .35); }
+  .stripe { display: grid; gap: 3px; margin: 14px -26px 0; }
+  .stripe span { display: block; height: 5px; background: var(--accent); }
+  .stripe span:nth-child(2) { height: 3px; background: var(--accent-2); }
+  .stripe span:nth-child(3) { height: 2px; background: var(--accent-3); }
+
+  /* ---------- Pantalla CRT ---------- */
+  .bezel {
+    margin-top: 18px;
+    padding: clamp(10px, 2.6vw, 22px) clamp(10px, 2.6vw, 22px) 9px;
+    border-radius: 22px;
+    background: linear-gradient(180deg, #3a342e, #221f1b 40%, #171513);
+    box-shadow:
+      0 -2px 0 rgba(110, 85, 50, .35),
+      0 2px 0 rgba(255, 255, 255, .9),
+      inset 0 2px 1px rgba(255, 255, 255, .12),
+      inset 0 -3px 6px rgba(0, 0, 0, .6),
+      inset 0 0 0 1px rgba(0, 0, 0, .6);
+  }
+  .crt {
+    position: relative;
+    aspect-ratio: 2 / 1;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    border-radius: 3.4% / 6.8%;
+    background: var(--scr-bg);
+    box-shadow:
+      inset 0 0 0 2px rgba(0, 0, 0, .7),
+      inset 0 0 30px 8px rgba(0, 0, 0, .8),
+      0 0 0 3px #0c0b0a,
+      0 0 0 5px rgba(255, 255, 255, .05);
+    transition: background-color .3s;
+  }
+  .crt > canvas { grid-area: 1 / 1; display: block; }
+  #screen { position: relative; z-index: 1; image-rendering: crisp-edges; image-rendering: pixelated; }
+  #glow {
+    position: relative; z-index: 2; pointer-events: none;
+    mix-blend-mode: screen; opacity: .6;
+    filter: blur(var(--glow-blur, 6px));
+  }
+  .crt[data-palette="lcd"] #glow { display: none; }
+  .crt-vignette, .crt-glare { position: absolute; inset: 0; pointer-events: none; border-radius: inherit; }
+  .crt-vignette { z-index: 3; background: radial-gradient(ellipse 78% 72% at 50% 50%, transparent 55%, rgba(0, 0, 0, .5) 100%); }
+  .crt-glare {
+    z-index: 4;
+    background:
+      radial-gradient(ellipse 55% 38% at 26% 10%, rgba(255, 255, 255, .11), transparent 62%),
+      linear-gradient(162deg, rgba(255, 255, 255, .06) 0%, transparent 32%),
+      linear-gradient(0deg, rgba(255, 255, 255, .025), transparent 18%);
+  }
+  .crt[data-palette="lcd"] .crt-vignette { background: radial-gradient(ellipse 80% 75% at 50% 50%, transparent 60%, rgba(20, 40, 0, .35) 100%); }
+  .crt[data-palette="lcd"] { box-shadow: inset 0 0 0 2px rgba(0, 0, 0, .55), inset 0 3px 14px rgba(0, 0, 0, .55), 0 0 0 3px #0c0b0a; }
+  .crt-tags {
+    position: absolute; top: 5%; left: 3.5%; z-index: 5;
+    display: flex; gap: 8px; flex-wrap: wrap;
+    font: 700 clamp(9px, 1.6vw, 12px)/1 var(--font-mono);
+    letter-spacing: .12em;
+    color: var(--scr-fg);
+    text-shadow: 0 0 6px var(--scr-fg);
+    pointer-events: none;
+  }
+  .crt-tags span { padding: 3px 6px; border: 1px solid currentColor; background: rgba(0, 0, 0, .4); }
+  .crt[data-palette="lcd"] .crt-tags { text-shadow: none; }
+  .crt[data-palette="lcd"] .crt-tags span { background: rgba(155, 188, 15, .85); }
+  .crt-msg {
+    position: absolute; z-index: 6; inset: 12% 9%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+    padding: 10px 14px;
+    overflow: auto;
+    text-align: center;
+    font: clamp(10px, 1.9vw, 14px)/1.35 var(--font-mono);
+    color: var(--term-err);
+    text-shadow: 0 0 8px rgba(255, 90, 70, .6);
+    background: rgba(8, 3, 2, .82);
+    border: 1px solid currentColor;
+    border-radius: 6px;
+  }
+  .crt-msg strong { font-size: 1.25em; letter-spacing: .2em; }
+  .crt-msg small { color: #f3d7b0; text-shadow: none; font-size: .9em; }
+  .bezel-foot {
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    padding: 8px 4px 0;
+    font: 700 9px/1.2 var(--font-ui);
+    letter-spacing: .2em;
+    color: #8f877b;
+    text-transform: uppercase;
+  }
+  .bezel-label { white-space: nowrap; }
+  .audio-hint { color: #d9a25f; text-align: right; }
+  .audio-hint.is-blinking { animation: hint-pulse 2.4s ease-in-out infinite; }
+  @keyframes hint-pulse { 50% { opacity: .45; } }
+
+  /* ---------- Cubierta: ranura, transporte, keypad ---------- */
+  .deck { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 22px; margin-top: 22px; align-items: stretch; }
+  .deck-left { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .deck-right { display: flex; align-items: flex-start; justify-content: center; }
+  .section-print {
+    margin: 0 0 7px;
+    font: 800 10px/1 var(--font-ui); letter-spacing: .2em; text-transform: uppercase; color: var(--print);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-print::after { content: ""; flex: 1; border-top: 1px solid rgba(123, 69, 38, .35); }
+  .slot-area { display: flex; gap: 12px; align-items: stretch; }
+  .slot {
+    flex: 1; min-width: 0; position: relative;
+    padding: 9px 10px 0;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #3b342d, #1a1714);
+    box-shadow: inset 0 4px 7px rgba(0, 0, 0, .75), 0 1px 0 rgba(255, 255, 255, .85), 0 -1px 0 rgba(110, 85, 50, .3);
+  }
+  .cart-in {
+    display: grid; gap: 3px; min-height: 58px;
+    padding: 8px 12px 9px;
+    border-radius: 4px 4px 0 0;
+    border-top: 6px solid var(--slot-color, var(--accent));
+    background: linear-gradient(180deg, #fdf8ea, #efe5cd);
+    box-shadow: 0 -2px 6px rgba(0, 0, 0, .4);
+    transform: translateY(0);
+    transition: transform .25s ease-out;
+  }
+  .cart-in-name { font: 800 16px/1.15 var(--font-brand); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cart-in-size { font: 12px/1.2 var(--font-mono); color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .slot.is-empty .cart-in { background: transparent; border-top-color: transparent; box-shadow: none; color: #b7ab98; }
+  .slot.is-empty .cart-in-size { color: #8f8474; }
+  .slot.is-inserting .cart-in { transform: translateY(-8px); }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 10px 14px; border: 0; border-radius: 10px;
+    font-weight: 800; font-size: 13px; letter-spacing: .04em;
+    color: #f6ecd8;
+    background: linear-gradient(180deg, #5d4838, #3b2c21);
+    box-shadow: 0 4px 0 #20160e, 0 5px 8px rgba(0, 0, 0, .35), inset 0 1px 0 rgba(255, 255, 255, .18);
+    white-space: nowrap;
+  }
+  .btn svg { width: 18px; height: 18px; flex: none; }
+  .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #20160e, inset 0 1px 0 rgba(255, 255, 255, .18); }
+  .transport { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  .tbtn { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 0; border: 0; background: none; min-width: 0; }
+  .tbtn-cap {
+    width: 100%; height: 46px; display: grid; place-items: center;
+    border-radius: 10px;
+    color: #f3ead7;
+    background: linear-gradient(180deg, #4d4843, #2b2825);
+    box-shadow: 0 5px 0 #151311, 0 6px 9px rgba(0, 0, 0, .35), inset 0 1px 0 rgba(255, 255, 255, .16);
+    transition: transform 50ms, box-shadow 50ms;
+  }
+  .tbtn-cap svg { width: 22px; height: 22px; }
+  .tbtn--accent .tbtn-cap { background: linear-gradient(180deg, #ec7c43, var(--accent-2)); box-shadow: 0 5px 0 #6f2c0f, 0 6px 9px rgba(0, 0, 0, .3), inset 0 1px 0 rgba(255, 255, 255, .3); }
+  .tbtn:active:not(:disabled) .tbtn-cap { transform: translateY(4px); box-shadow: 0 1px 0 #151311, inset 0 1px 0 rgba(255, 255, 255, .16); }
+  .tbtn--accent:active:not(:disabled) .tbtn-cap { box-shadow: 0 1px 0 #6f2c0f, inset 0 1px 0 rgba(255, 255, 255, .3); }
+  .tbtn:focus-visible { outline: none; }
+  .tbtn:focus-visible .tbtn-cap { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .tbtn:disabled { cursor: not-allowed; opacity: .5; }
+  .tbtn-label { font: 800 11px/1 var(--font-ui); letter-spacing: .1em; text-transform: uppercase; color: var(--print); white-space: nowrap; }
+  .tbtn kbd { font-size: 10px; color: var(--ink-soft); white-space: nowrap; }
+  .tbtn .ico-play { display: none; }
+  .tbtn[data-paused="true"] .ico-play { display: block; }
+  .tbtn[data-paused="true"] .ico-pause { display: none; }
+  .grille-row { display: flex; align-items: center; gap: 16px; margin-top: auto; min-width: 0; }
+  .grille {
+    flex: none; width: 132px; height: 54px; border-radius: 12px;
+    background:
+      radial-gradient(circle, #3a2f25 0 2.1px, transparent 2.6px) 0 0 / 9px 9px,
+      linear-gradient(180deg, #d2c5a7, #e4d9c0);
+    box-shadow: inset 0 2px 4px rgba(90, 70, 40, .45), 0 1px 0 rgba(255, 255, 255, .8);
+  }
+  .status {
+    flex: 1; min-width: 0; margin: 0;
+    font: 12px/1.35 var(--font-mono);
+    color: var(--ink-soft);
+  }
+  .keypad-well {
+    padding: 14px 14px 10px;
+    border-radius: 16px;
+    background: linear-gradient(180deg, #d4c7a9, #e7ddc5);
+    box-shadow: inset 0 3px 6px rgba(90, 70, 40, .45), inset 0 -1px 0 rgba(255, 255, 255, .7), 0 1px 0 rgba(255, 255, 255, .85);
+  }
+  .keypad {
+    display: grid; grid-template-columns: repeat(4, var(--key)); gap: 10px;
+    touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+  }
+  .key {
+    position: relative; width: var(--key); height: var(--key);
+    padding: 0; border: 0; border-radius: 11px;
+    color: #3a2d22;
+    background: linear-gradient(180deg, #fffaf0 0%, #f0e7d3 55%, #e1d5ba 100%);
+    box-shadow:
+      0 5px 0 #b3a383,
+      0 6px 2px rgba(0, 0, 0, .25),
+      0 11px 14px -4px rgba(0, 0, 0, .35),
+      inset 0 1px 0 #fff,
+      inset 0 -2px 3px rgba(120, 95, 60, .25);
+    touch-action: none;
+    transition: transform 40ms, box-shadow 40ms, background 40ms;
+  }
+  .key::before {
+    content: ""; position: absolute; inset: 5px 5px 7px; border-radius: 8px;
+    background: radial-gradient(ellipse at 50% 30%, rgba(255, 255, 255, .55), rgba(255, 255, 255, 0) 70%);
+    box-shadow: inset 0 -1px 2px rgba(120, 95, 60, .15);
+    pointer-events: none;
+  }
+  .key--alpha {
+    color: #fff4e6;
+    background: linear-gradient(180deg, #ee8d57 0%, #d8672f 55%, #c1531f 100%);
+    box-shadow:
+      0 5px 0 #86371a,
+      0 6px 2px rgba(0, 0, 0, .25),
+      0 11px 14px -4px rgba(0, 0, 0, .35),
+      inset 0 1px 0 rgba(255, 255, 255, .45),
+      inset 0 -2px 3px rgba(80, 25, 5, .3);
+  }
+  .key--alpha::before { background: radial-gradient(ellipse at 50% 30%, rgba(255, 255, 255, .28), rgba(255, 255, 255, 0) 70%); }
+  .key-hex { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); font: 800 clamp(20px, 5.4vw, 27px)/1 var(--font-mono); pointer-events: none; }
+  .key-pc {
+    position: absolute; right: 6px; bottom: 7px;
+    padding: 1px 3px; border: 1px solid currentColor; border-radius: 3px;
+    font: 700 9px/1 var(--font-ui); opacity: .55; pointer-events: none;
+  }
+  .key.is-down {
+    transform: translateY(4px);
+    background: linear-gradient(180deg, #efe6d2 0%, #e2d6bc 100%);
+    box-shadow: 0 1px 0 #b3a383, 0 2px 2px rgba(0, 0, 0, .3), inset 0 2px 4px rgba(120, 95, 60, .35);
+  }
+  .key--alpha.is-down {
+    background: linear-gradient(180deg, #d8672f, #b84d1c);
+    box-shadow: 0 1px 0 #86371a, 0 2px 2px rgba(0, 0, 0, .3), inset 0 2px 4px rgba(80, 25, 5, .4);
+  }
+  .keypad-caption { margin: 10px 0 0; text-align: center; font: 800 9px/1 var(--font-ui); letter-spacing: .3em; color: var(--print); }
+
+  /* ---------- Panel de control ---------- */
+  .panel {
+    margin-top: 22px;
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px;
+    padding: 14px;
+    border-radius: 16px;
+    background: linear-gradient(180deg, #dcd0b3, #e8dec6);
+    box-shadow: inset 0 2px 5px rgba(90, 70, 40, .35), 0 1px 0 rgba(255, 255, 255, .85);
+  }
+  .panel-group { min-width: 0; padding: 12px 14px 12px; border-radius: 12px; background: rgba(255, 255, 255, .3); border: 1px solid rgba(123, 90, 50, .22); }
+  .group-quirks { grid-column: 1 / -1; }
+  .field-label, .field label { display: block; margin-bottom: 5px; font-size: 12px; font-weight: 700; color: var(--ink-soft); }
+  .field { margin-top: 10px; }
+  .speed-row { display: flex; align-items: center; gap: 10px; }
+  .speed-row input[type="range"] { flex: 1; min-width: 0; }
+  .num {
+    width: 76px; padding: 6px 8px; border-radius: 8px;
+    border: 1px solid rgba(80, 60, 35, .45);
+    background: #2a2521; color: #ffd18a;
+    font: 700 15px/1.2 var(--font-mono); text-align: right;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, .6);
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .chip {
+    padding: 4px 9px; border-radius: 999px;
+    border: 1px solid rgba(80, 60, 35, .35);
+    background: linear-gradient(180deg, #f8f2e3, #e3d8bf);
+    color: var(--ink); font: 700 12px/1.2 var(--font-mono);
+    box-shadow: 0 2px 0 rgba(120, 95, 60, .45);
+  }
+  .chip[aria-pressed="true"] { background: linear-gradient(180deg, #ee8d57, var(--accent-2)); color: #fff5ea; border-color: #86371a; box-shadow: 0 1px 0 #6f2c0f, inset 0 1px 2px rgba(0, 0, 0, .25); transform: translateY(1px); }
+  .hint { margin: 9px 0 0; font-size: 12px; color: var(--ink-soft); }
+  .select {
+    width: 100%; padding: 7px 10px; border-radius: 8px;
+    border: 1px solid rgba(80, 60, 35, .45);
+    background: linear-gradient(180deg, #fbf7ec, #ece3cd);
+    color: var(--ink); font-weight: 700; font-size: 13px;
+    box-shadow: 0 2px 0 rgba(120, 95, 60, .4);
+    color-scheme: light;
+  }
+  .toggles { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 12px; }
+  .toggle { display: inline-flex; align-items: center; gap: 8px; padding: 3px 2px; border: 0; background: none; color: var(--ink); font-size: 13px; font-weight: 700; }
+  .toggle-sw {
+    position: relative; flex: none; width: 36px; height: 20px; border-radius: 999px;
+    background: #8d7f69; box-shadow: inset 0 2px 3px rgba(0, 0, 0, .45);
+    transition: background .15s;
+  }
+  .toggle-sw::after {
+    content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%;
+    background: linear-gradient(180deg, #fffaf0, #ddd1b6); box-shadow: 0 1px 2px rgba(0, 0, 0, .45);
+    transition: transform .15s;
+  }
+  .toggle[aria-pressed="true"] .toggle-sw { background: var(--accent); }
+  .toggle[aria-pressed="true"] .toggle-sw::after { transform: translateX(16px); }
+
+  /* Rangos */
+  input[type="range"] { -webkit-appearance: none; appearance: none; height: 22px; background: transparent; accent-color: var(--accent); }
+  input[type="range"]::-webkit-slider-runnable-track { height: 6px; border-radius: 999px; background: #3a2f26; box-shadow: inset 0 1px 2px rgba(0, 0, 0, .6), 0 1px 0 rgba(255, 255, 255, .7); }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 18px; height: 22px; margin-top: -8px; border-radius: 5px; border: 0;
+    background: linear-gradient(180deg, #ee8d57, var(--accent-2));
+    box-shadow: 0 2px 0 #6f2c0f, 0 3px 4px rgba(0, 0, 0, .35), inset 0 1px 0 rgba(255, 255, 255, .35);
+  }
+  input[type="range"]::-moz-range-track { height: 6px; border-radius: 999px; background: #3a2f26; box-shadow: inset 0 1px 2px rgba(0, 0, 0, .6); }
+  input[type="range"]::-moz-range-thumb {
+    width: 18px; height: 22px; border-radius: 5px; border: 0;
+    background: linear-gradient(180deg, #ee8d57, var(--accent-2));
+    box-shadow: 0 2px 0 #6f2c0f, 0 3px 4px rgba(0, 0, 0, .35);
+  }
+
+  /* Interruptores DIP de quirks */
+  .quirks-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+  .quirks-head .section-print { flex: 1 1 120px; margin: 0; }
+  .preset-field { display: flex; align-items: center; gap: 8px; }
+  .preset-field label { font-size: 12px; font-weight: 700; color: var(--ink-soft); }
+  .preset-field .select { width: auto; min-width: 160px; }
+  .dip-housing {
+    position: relative;
+    display: grid; grid-template-columns: repeat(6, minmax(0, 1fr));
+    padding: 20px 8px 8px;
+    border-radius: 6px;
+    background: linear-gradient(180deg, #c93a2d, #9c291f);
+    box-shadow: 0 3px 0 #5e140e, 0 4px 6px rgba(0, 0, 0, .3), inset 0 1px 0 rgba(255, 255, 255, .3);
+  }
+  .dip-on { position: absolute; top: 5px; left: 10px; font: 800 9px/1 var(--font-ui); letter-spacing: .15em; color: #fff0e8; }
+  .dip-col { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  .dip {
+    position: relative; width: 26px; height: 46px; padding: 0; border: 0; border-radius: 3px;
+    background: #2a0e0b;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, .8), 0 1px 0 rgba(255, 255, 255, .25);
+  }
+  .dip::after {
+    content: ""; position: absolute; left: 3px; right: 3px; top: 3px; height: 19px; border-radius: 2px;
+    background: linear-gradient(180deg, #ffffff, #d9d4cc);
+    box-shadow: 0 2px 2px rgba(0, 0, 0, .5), inset 0 -2px 0 rgba(0, 0, 0, .12);
+    transform: translateY(21px);
+    transition: transform .12s ease-out;
+  }
+  .dip[aria-checked="true"]::after { transform: translateY(0); }
+  .dip-n { font: 800 10px/1 var(--font-mono); color: #ffd8cc; }
+  .dip-labels { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); margin-top: 7px; }
+  .dip-labels span { text-align: center; font: 800 10px/1.2 var(--font-mono); color: var(--print); overflow-wrap: anywhere; }
+  .quirk-hint { min-height: 2.8em; }
+
+  /* ---------- Pie de la consola ---------- */
+  .console-foot { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 16px; flex-wrap: wrap; }
+  .foot-print { font: 700 9px/1.4 var(--font-ui); letter-spacing: .2em; color: var(--print); text-transform: uppercase; opacity: .85; }
+  .plate {
+    position: relative;
+    display: flex; gap: 10px; align-items: center;
+    padding: 6px 22px;
+    border-radius: 4px;
+    font: 800 10px/1.2 var(--font-ui); letter-spacing: .16em; color: #3f3a33;
+    background: repeating-linear-gradient(90deg, rgba(255, 255, 255, .12) 0 1px, rgba(0, 0, 0, .03) 1px 3px), linear-gradient(180deg, #d9d6cf, #aaa59b 55%, #c7c3ba);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .8), inset 0 -1px 0 rgba(0, 0, 0, .25), 0 1px 2px rgba(0, 0, 0, .3);
+    text-shadow: 0 1px 0 rgba(255, 255, 255, .6);
+  }
+  .plate::before, .plate::after {
+    content: ""; position: absolute; top: 50%; width: 7px; height: 7px; margin-top: -3.5px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #f4f2ee, #7b766d 70%);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .25);
+  }
+  .plate::before { left: 7px; }
+  .plate::after { right: 7px; }
+  .plate i { font-style: normal; opacity: .5; }
+
+  /* ---------- Estante de cartuchos ---------- */
+  .shelf-title {
+    margin: 0 0 14px;
+    font: 800 12px/1 var(--font-ui); letter-spacing: .24em; text-transform: uppercase; color: var(--desk-dim);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .shelf-title::after { content: ""; flex: 1; border-top: 1px solid rgba(233, 220, 198, .18); }
+  .shelf-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 18px; }
+  .cart {
+    position: relative; display: flex; flex-direction: column;
+    padding: 18px 11px 11px; border: 0; border-radius: 9px 9px 4px 4px;
+    text-align: left; color: var(--ink);
+    background: linear-gradient(180deg, #4d4944, #2d2a27);
+    box-shadow: 0 6px 0 #191715, 0 14px 20px -6px rgba(0, 0, 0, .75), inset 0 1px 0 rgba(255, 255, 255, .15);
+    transition: transform .15s ease-out, box-shadow .15s;
+  }
+  .cart::before {
+    content: ""; position: absolute; top: 6px; left: 14px; right: 14px; height: 6px;
+    background: repeating-linear-gradient(90deg, rgba(0, 0, 0, .55) 0 2px, rgba(255, 255, 255, .09) 2px 4px);
+    border-radius: 2px;
+  }
+  .cart:hover { transform: translateY(-3px); }
+  .cart:active { transform: translateY(1px); }
+  .cart-label {
+    flex: 1; display: grid; align-content: start; gap: 5px;
+    padding: 9px 10px 10px;
+    border-radius: 4px;
+    border-top: 7px solid var(--cart-color, var(--accent));
+    background: linear-gradient(180deg, #fbf6e8, #ede3ca);
+  }
+  .cart-name { font: 800 16px/1.1 var(--font-brand); }
+  .cart-desc { font-size: 12px; line-height: 1.35; color: var(--ink-soft); }
+  .cart-ctrl { font: 11px/1.3 var(--font-mono); color: var(--print); }
+  .cart-badge {
+    position: absolute; top: -9px; right: 10px;
+    padding: 3px 8px; border-radius: 999px;
+    font: 800 9px/1.2 var(--font-ui); letter-spacing: .14em; text-transform: uppercase;
+    color: #102a17; background: #7dff9a; box-shadow: 0 0 10px rgba(125, 255, 154, .6);
+    display: none;
+  }
+  .cart[aria-pressed="true"] { box-shadow: 0 6px 0 #191715, 0 0 0 2px #7dff9a, 0 14px 20px -6px rgba(0, 0, 0, .75); }
+  .cart[aria-pressed="true"] .cart-badge { display: block; }
+  .shelf-empty { margin: 0; padding: 18px; border: 2px dashed rgba(233, 220, 198, .25); border-radius: 12px; color: var(--desk-dim); font-size: 14px; }
+
+  /* ---------- Monitor de depuración ---------- */
+  .monitor {
+    position: sticky; top: 20px;
+    min-width: 0;
+    padding: 12px;
+    border-radius: 18px;
+    background: linear-gradient(180deg, #3c3833, #25221f);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1), 0 0 0 1px #0c0b0a, 0 24px 48px -12px rgba(0, 0, 0, .85);
+    color: var(--term-fg);
+    font: 12.5px/1.45 var(--font-mono);
+  }
+  @media (max-width: 1200px) { .monitor { position: relative; top: 0; } }
+  .monitor-head { display: flex; align-items: center; gap: 10px; padding: 2px 4px 10px; }
+  .monitor-title { margin: 0; font: 800 12px/1 var(--font-ui); letter-spacing: .26em; color: #d4cab8; }
+  .badge {
+    padding: 3px 9px; border-radius: 999px;
+    font: 800 10px/1.2 var(--font-ui); letter-spacing: .08em; text-transform: uppercase;
+    color: #9a9084; border: 1px solid currentColor; background: rgba(0, 0, 0, .3);
+  }
+  .badge--run { color: #7dff9a; }
+  .badge--wait { color: #7dff9a; animation: hint-pulse 1.2s ease-in-out infinite; }
+  .badge--paused { color: #ffc15e; }
+  .badge--error { color: #ff7b6b; }
+  .mon-toggle {
+    margin-left: auto; padding: 5px 10px; border-radius: 8px;
+    border: 1px solid #5b544c; background: linear-gradient(180deg, #4a453f, #34302c);
+    color: #e2d8c6; font: 700 11px/1 var(--font-ui);
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .mon-toggle svg { width: 12px; height: 12px; transition: transform .15s; }
+  .mon-toggle[aria-expanded="false"] svg { transform: rotate(-90deg); }
+  .monitor-body {
+    padding: 12px;
+    border-radius: 10px;
+    background:
+      repeating-linear-gradient(180deg, rgba(255, 255, 255, .025) 0 1px, transparent 1px 3px),
+      radial-gradient(ellipse at 50% 30%, #0b1a10, var(--term-bg) 70%);
+    box-shadow: inset 0 0 24px rgba(0, 0, 0, .9), inset 0 0 0 1px #000;
+    text-shadow: 0 0 6px rgba(120, 255, 160, .3);
+  }
+  .monitor h3 { margin: 12px 0 6px; font: 700 10.5px/1 var(--font-mono); letter-spacing: .18em; color: var(--term-dim); text-shadow: none; }
+  .monitor h3:first-child { margin-top: 0; }
+  .mon-regs, .vgrid { display: grid; gap: 5px; }
+  .mon-regs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .vgrid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .reg, .vcell {
+    display: flex; justify-content: space-between; gap: 6px;
+    padding: 3px 7px; border-radius: 4px;
+    border: 1px solid rgba(120, 255, 160, .16);
+    white-space: nowrap; min-width: 0;
+  }
+  .reg b, .vcell b { font-weight: 700; color: var(--term-dim); }
+  .reg--wide { grid-column: span 3; }
+  .vcell.is-chg { border-color: rgba(255, 212, 121, .55); background: rgba(255, 212, 121, .1); }
+  .vcell.is-chg span { color: var(--term-hot); }
+  .mon-split { display: grid; grid-template-columns: minmax(0, 1fr) 104px; gap: 12px; }
+  .disasm, .stack { list-style: none; margin: 0; padding: 0; }
+  .disasm li { display: grid; grid-template-columns: 12px 46px 42px minmax(0, 1fr); gap: 2px; padding: 0 4px; border-radius: 3px; white-space: pre; overflow: hidden; }
+  .disasm .d-addr { color: var(--term-dim); }
+  .disasm .d-op { color: #5fbf7d; }
+  .disasm li.is-pc { background: rgba(125, 255, 154, .17); color: #e2ffe9; }
+  .disasm li.is-pc .d-mark::before { content: "\25B6"; font-size: 9px; }
+  .disasm li.is-pc .d-addr, .disasm li.is-pc .d-op { color: #bff5cc; }
+  .stack li { display: flex; justify-content: space-between; padding: 0 5px; border-radius: 3px; color: #2f6b42; }
+  .stack li.is-used { color: var(--term-fg); }
+  .stack li.is-top { background: rgba(125, 255, 154, .17); }
+  .stack li.is-top::after { content: "\25C0"; font-size: 9px; margin-left: 4px; align-self: center; }
+  .stack .s-idx { color: var(--term-dim); }
+  .memview { display: grid; gap: 1px; }
+  .mrow { display: grid; grid-template-columns: 46px repeat(8, minmax(0, 1fr)); }
+  .mrow .m-addr { color: var(--term-dim); }
+  .mrow .m-b { text-align: center; border-radius: 3px; }
+  .mrow .m-b.is-i { background: rgba(255, 212, 121, .2); color: var(--term-hot); }
+  .mon-error { margin: 12px 0 0; padding: 8px 10px; border: 1px solid currentColor; border-radius: 6px; color: var(--term-err); white-space: normal; }
+  .mon-foot { margin: 10px 0 0; color: var(--term-dim); font-size: 11px; text-shadow: none; }
+
+  /* ---------- Superposiciones ---------- */
+  .drop {
+    position: fixed; inset: 0; z-index: 50;
+    display: grid; place-items: center; padding: 16px;
+    background: rgba(12, 9, 6, .8);
+    pointer-events: none;
+  }
+  .drop-card {
+    padding: 44px 48px; max-width: 520px; text-align: center;
+    border: 3px dashed #f0a868; border-radius: 22px;
+    background: rgba(45, 33, 24, .75);
+    color: #f7ecd9;
+  }
+  .drop-card strong { display: block; font: italic 900 clamp(26px, 6vw, 40px)/1.1 var(--font-brand); color: #ffc38e; }
+  .drop-card span { display: block; margin-top: 10px; color: #d7c3a5; }
+  .toasts {
+    position: fixed; left: 50%; bottom: 18px; z-index: 60;
+    display: grid; gap: 8px; width: min(520px, calc(100vw - 32px));
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+  .toast {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 11px 12px 11px 14px; border-radius: 10px;
+    background: #2b2420; color: #f4e9d6;
+    border-left: 5px solid #7dff9a;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, .55);
+    font-size: 14px;
+    pointer-events: auto;
+    animation: toast-in .2s ease-out;
+  }
+  .toast--error { border-left-color: #ff6b57; }
+  .toast p { margin: 0; flex: 1; }
+  .toast button { flex: none; width: 26px; height: 26px; border: 0; border-radius: 6px; background: rgba(255, 255, 255, .08); font-size: 16px; line-height: 1; }
+  @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
+
+  /* ---------- Ayuda ---------- */
+  .help {
+    width: min(780px, calc(100vw - 32px));
+    max-height: calc(100vh - 40px);
+    padding: 0; border: 0; border-radius: 14px;
+    background: #f7f1e1; color: var(--ink);
+    box-shadow: 0 30px 80px rgba(0, 0, 0, .7);
+    color-scheme: light;
+  }
+  .help::backdrop { background: rgba(10, 7, 5, .75); }
+  .help-inner { padding: 22px 26px 26px; }
+  .help-head { display: flex; align-items: center; gap: 12px; padding-bottom: 12px; border-bottom: 3px solid var(--accent); }
+  .help-head h2 { margin: 0; flex: 1; font: italic 900 26px/1.1 var(--font-brand); }
+  .help-close { width: 36px; height: 36px; border: 0; border-radius: 8px; background: #e6dbc2; font-size: 22px; line-height: 1; color: var(--ink); }
+  .help h3 { margin: 20px 0 8px; font: 800 12px/1 var(--font-ui); letter-spacing: .2em; text-transform: uppercase; color: var(--print); }
+  .help p, .help li, .help dd { font-size: 14.5px; line-height: 1.55; }
+  .help p { margin: 0 0 8px; }
+  .help ul { margin: 0; padding-left: 20px; }
+  .help code { font-family: var(--font-mono); font-size: .92em; background: #ebe1ca; padding: 1px 4px; border-radius: 3px; }
+  .help kbd {
+    display: inline-block; min-width: 1.8em; padding: 2px 6px; border-radius: 5px; text-align: center;
+    background: #fffaf0; border: 1px solid #bfae8e; box-shadow: 0 2px 0 #bfae8e; font-size: 12.5px;
+  }
+  .keymap { display: flex; align-items: center; justify-content: center; gap: 18px; flex-wrap: wrap; margin: 12px 0; }
+  .keymap figure { margin: 0; text-align: center; }
+  .keymap figcaption { margin-top: 6px; font-size: 12px; font-weight: 700; color: var(--ink-soft); }
+  .keymap-grid { display: grid; grid-template-columns: repeat(4, 38px); gap: 5px; }
+  .keymap-grid span {
+    height: 38px; display: grid; place-items: center; border-radius: 6px;
+    font: 800 15px/1 var(--font-mono);
+    background: #fffaf0; border: 1px solid #c9b996; box-shadow: 0 3px 0 #c9b996;
+  }
+  .keymap-grid--hex span { background: #3a3430; color: #9dffb3; border-color: #221e1b; box-shadow: 0 3px 0 #1a1715; }
+  .keymap-grid--hex span.is-alpha { color: #ffb27a; }
+  .keymap-arrow { font-size: 26px; color: var(--accent); }
+  .shortcuts { border-collapse: collapse; }
+  .shortcuts th { text-align: left; padding: 4px 16px 4px 0; font-weight: 400; white-space: nowrap; }
+  .shortcuts td { padding: 4px 0; font-size: 14.5px; }
+  .quirk-list { margin: 0; }
+  .quirk-list dt { margin-top: 10px; font-weight: 800; }
+  .quirk-list dt code { margin-left: 6px; }
+  .quirk-list dd { margin: 2px 0 0; color: #4d4033; }
+
+  /* ---------- Pantallas angostas ---------- */
+  @media (max-width: 760px) {
+    .console { padding: 16px 14px 14px; border-radius: 22px 22px 26px 26px; }
+    .stripe { margin: 12px -14px 0; }
+    .vents { display: none; }
+    .deck { grid-template-columns: minmax(0, 1fr); }
+    .panel { grid-template-columns: minmax(0, 1fr); padding: 10px; }
+    .tagline { letter-spacing: .12em; }
+  }
+  @media (max-width: 480px) {
+    .desk { padding-top: 16px; }
+    .top-right { gap: 10px; }
+    .leds { gap: 10px; }
+    .tbtn-label { font-size: 10px; letter-spacing: .03em; }
+    .tbtn kbd { font-size: 9px; }
+    .grille { width: 84px; }
+    .slot-area { flex-direction: column; }
+    .mon-split { grid-template-columns: minmax(0, 1fr); }
+    .stack { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 10px; }
+    .mon-regs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .reg--wide { grid-column: span 2; }
+    .help-inner { padding: 18px 16px 22px; }
+    .dip { width: 22px; }
+    .preset-field { width: 100%; }
+    .preset-field .select { flex: 1; min-width: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    .led.is-blink { box-shadow: 0 0 0 3px rgba(70, 230, 110, .5); }
+  }
 </style>
 </head>
 <body>
-<main id="app"></main>
+<main class="desk" id="app">
+  <div class="layout">
+    <div class="col-main">
+      <section class="console" id="console" aria-label="Consola CHIP-8" data-mode="idle">
+        <header class="console-top">
+          <div class="brand">
+            <h1 class="wordmark">CHIP<span class="wordmark-dash">-</span>8</h1>
+            <p class="tagline">Computadora de aficionado · Intérprete hexadecimal</p>
+          </div>
+          <div class="vents" aria-hidden="true"></div>
+          <div class="top-right">
+            <div class="leds">
+              <div class="led-wrap"><span class="led" id="led-run" aria-hidden="true"></span><span class="led-label">RUN</span></div>
+              <div class="led-wrap"><span class="led" id="led-snd" aria-hidden="true"></span><span class="led-label">SONIDO</span></div>
+            </div>
+            <button class="round-btn" id="btn-help" type="button" aria-label="Ayuda (H)" title="Ayuda (H)">?</button>
+          </div>
+        </header>
+        <div class="stripe" aria-hidden="true"><span></span><span></span><span></span></div>
+
+        <div class="bezel">
+          <div class="crt" id="crt" data-palette="fosforo">
+            <canvas id="screen" width="64" height="32" role="img" aria-label="Pantalla CHIP-8 de 64 por 32 píxeles"></canvas>
+            <canvas id="glow" width="64" height="32" aria-hidden="true"></canvas>
+            <div class="crt-vignette" aria-hidden="true"></div>
+            <div class="crt-glare" aria-hidden="true"></div>
+            <div class="crt-tags" aria-hidden="true"><span id="tag-pause" hidden>PAUSA</span><span id="tag-wait" hidden>ESPERANDO TECLA</span></div>
+            <div class="crt-msg" id="crt-msg" hidden><strong id="crt-msg-title">ERROR</strong><span id="crt-msg-text"></span><small id="crt-msg-hint"></small></div>
+          </div>
+          <div class="bezel-foot"><span class="bezel-label">Video 64 × 32</span><span class="audio-hint" id="audio-hint">Sonido: tocá la consola para activarlo</span></div>
+        </div>
+
+        <div class="deck">
+          <div class="deck-left">
+            <div>
+              <p class="section-print">Cartucho</p>
+              <div class="slot-area">
+                <div class="slot is-empty" id="slot">
+                  <div class="cart-in">
+                    <span class="cart-in-name" id="cart-name">Ranura vacía</span>
+                    <span class="cart-in-size" id="cart-size">Cargá una ROM o elegí un cartucho</span>
+                  </div>
+                </div>
+                <button class="btn" id="btn-load" type="button" title="Elegí un archivo .ch8 (también podés arrastrarlo sobre la página)">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 3 6.5 8.5h3.8V15h3.4V8.5h3.8zM5 17.5h14V21H5z"/></svg>
+                  Cargar ROM
+                </button>
+                <input type="file" id="file-input" class="visually-hidden" tabindex="-1" aria-hidden="true">
+              </div>
+            </div>
+            <div>
+              <p class="section-print">Ejecución</p>
+              <div class="transport" role="group" aria-label="Control de ejecución">
+                <button class="tbtn" id="btn-pause" type="button" data-paused="false" title="Pausa / continuar (Espacio)">
+                  <span class="tbtn-cap" aria-hidden="true">
+                    <svg class="ico-pause" viewBox="0 0 24 24"><path fill="currentColor" d="M6.5 5h4v14h-4zM13.5 5h4v14h-4z"/></svg>
+                    <svg class="ico-play" viewBox="0 0 24 24"><path fill="currentColor" d="M7 4.5v15l12-7.5z"/></svg>
+                  </span>
+                  <span class="tbtn-label" id="btn-pause-label">Pausa</span><kbd>Espacio</kbd>
+                </button>
+                <button class="tbtn" id="btn-step" type="button" title="Ejecutar una sola instrucción (N)">
+                  <span class="tbtn-cap" aria-hidden="true"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M5 5v14l10-7zM16 5h3v14h-3z"/></svg></span>
+                  <span class="tbtn-label">Paso</span><kbd>N</kbd>
+                </button>
+                <button class="tbtn" id="btn-frame" type="button" title="Ejecutar un frame completo (1/60 s)">
+                  <span class="tbtn-cap" aria-hidden="true"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M3 6v12l7-6zM10.5 6v12l7-6zM18.5 6h2.5v12h-2.5z"/></svg></span>
+                  <span class="tbtn-label">Frame</span><kbd>1/60 s</kbd>
+                </button>
+                <button class="tbtn tbtn--accent" id="btn-reset" type="button" title="Reiniciar la ROM (Retroceso)">
+                  <span class="tbtn-cap" aria-hidden="true"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 4.5V1.5L7 6l5 4.5V7.5a5 5 0 1 1-5 5H4a8 8 0 1 0 8-8z"/></svg></span>
+                  <span class="tbtn-label">Reiniciar</span><kbd>Retroceso</kbd>
+                </button>
+              </div>
+            </div>
+            <div class="grille-row">
+              <div class="grille" aria-hidden="true"></div>
+              <p class="status" id="status" role="status" aria-live="polite">Encendiendo…</p>
+            </div>
+          </div>
+          <div class="deck-right">
+            <div class="keypad-well">
+              <div class="keypad" id="keypad" role="group" aria-label="Keypad hexadecimal CHIP-8"></div>
+              <p class="keypad-caption" aria-hidden="true">KEYPAD HEX</p>
+            </div>
+          </div>
+        </div>
+
+        <section class="panel" aria-label="Panel de control">
+          <div class="panel-group">
+            <h2 class="section-print">Velocidad</h2>
+            <label class="field-label" for="ipf-range">Instrucciones por frame</label>
+            <div class="speed-row">
+              <input type="range" id="ipf-range" min="0" max="1000" step="1" value="392" aria-describedby="ipf-rate">
+              <input type="number" class="num" id="ipf-input" min="1" max="1000" step="1" value="15" inputmode="numeric" aria-label="Instrucciones por frame (valor exacto)">
+            </div>
+            <div class="chips" id="ipf-chips" role="group" aria-label="Velocidades predefinidas"></div>
+            <p class="hint" id="ipf-rate">≈ 900 instrucciones por segundo · timers a 60 Hz</p>
+          </div>
+          <div class="panel-group">
+            <h2 class="section-print">Pantalla y sonido</h2>
+            <div class="field" style="margin-top:0">
+              <label for="palette">Paleta</label>
+              <select class="select" id="palette"></select>
+            </div>
+            <div class="toggles">
+              <button class="toggle" id="tg-scan" type="button" aria-pressed="true" title="Líneas de barrido alineadas con las filas de píxeles"><span class="toggle-sw" aria-hidden="true"></span>Scanlines</button>
+              <button class="toggle" id="tg-persist" type="button" aria-pressed="true" title="Los píxeles se apagan de a poco, como el fósforo: disimula el parpadeo"><span class="toggle-sw" aria-hidden="true"></span>Persistencia</button>
+              <button class="toggle" id="tg-mute" type="button" aria-pressed="false" title="Silenciar el beep"><span class="toggle-sw" aria-hidden="true"></span>Silencio</button>
+            </div>
+            <div class="field">
+              <label for="volume">Volumen</label>
+              <input type="range" id="volume" min="0" max="100" step="1" value="60" style="width:100%">
+            </div>
+          </div>
+          <div class="panel-group group-quirks">
+            <div class="quirks-head">
+              <h2 class="section-print">Quirks</h2>
+              <div class="preset-field">
+                <label for="preset">Perfil</label>
+                <select class="select" id="preset">
+                  <option value="vip">COSMAC VIP</option>
+                  <option value="schip">SUPER-CHIP</option>
+                  <option value="xochip">XO-CHIP</option>
+                  <option value="custom">Personalizado</option>
+                </select>
+              </div>
+            </div>
+            <div class="dip-housing" id="dip-bank" role="group" aria-label="Interruptores de quirks">
+              <span class="dip-on" aria-hidden="true">ON ▲</span>
+            </div>
+            <div class="dip-labels" id="dip-labels" aria-hidden="true"></div>
+            <p class="hint quirk-hint" id="quirk-hint" aria-live="polite"></p>
+          </div>
+        </section>
+
+        <footer class="console-foot">
+          <span class="foot-print">Intérprete CHIP-8 · J. Weisbecker, 1977</span>
+          <div class="plate"><span>MODELO VIP</span><i>·</i><span>4 KB RAM</span><i>·</i><span>64×32</span></div>
+        </footer>
+      </section>
+
+      <section class="shelf" aria-labelledby="shelf-title">
+        <h2 class="shelf-title" id="shelf-title">Cartuchos incluidos</h2>
+        <div class="shelf-list" id="shelf-list"></div>
+        <p class="shelf-empty" id="shelf-empty" hidden>No hay demos embebidos en este archivo. Cargá una ROM (.ch8) con «Cargar ROM» o arrastrala sobre la página.</p>
+      </section>
+    </div>
+
+    <aside class="monitor" id="monitor" aria-label="Monitor de depuración">
+      <div class="monitor-head">
+        <h2 class="monitor-title">MONITOR</h2>
+        <span class="badge badge--idle" id="mon-badge">Sin cartucho</span>
+        <button class="mon-toggle" id="mon-toggle" type="button" aria-expanded="true" aria-controls="mon-body">
+          <svg viewBox="0 0 12 12" aria-hidden="true"><path fill="currentColor" d="M1.5 3.5h9L6 9z"/></svg><span id="mon-toggle-label">Ocultar</span>
+        </button>
+      </div>
+      <div class="monitor-body" id="mon-body">
+        <h3>ESTADO</h3>
+        <div class="mon-regs">
+          <div class="reg"><b>PC</b><span id="mon-pc">0x200</span></div>
+          <div class="reg"><b>I</b><span id="mon-i">0x000</span></div>
+          <div class="reg"><b>SP</b><span id="mon-sp">0</span></div>
+          <div class="reg"><b>DT</b><span id="mon-dt">0</span></div>
+          <div class="reg"><b>ST</b><span id="mon-st">0</span></div>
+          <div class="reg"><b>IPF</b><span id="mon-ipf">15</span></div>
+          <div class="reg reg--wide"><b>INSTRUCCIONES</b><span id="mon-instr">0</span></div>
+        </div>
+        <h3>REGISTROS V0–VF</h3>
+        <div class="vgrid" id="vgrid"></div>
+        <div class="mon-split">
+          <div><h3>DESENSAMBLADO</h3><ol class="disasm" id="disasm" aria-label="Instrucciones alrededor del PC"></ol></div>
+          <div><h3>PILA</h3><ol class="stack" id="stack" aria-label="Pila de retorno"></ol></div>
+        </div>
+        <h3>MEMORIA EN I</h3>
+        <div class="memview" id="memview"></div>
+        <p class="mon-error" id="mon-error" role="alert" hidden></p>
+        <p class="mon-foot">Espacio: pausa · N: paso · Retroceso: reiniciar</p>
+      </div>
+    </aside>
+  </div>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+  <div class="drop" id="drop" hidden>
+    <div class="drop-card"><strong>Soltá el cartucho acá</strong><span>Cualquier ROM CHIP-8 de hasta 3584 bytes (.ch8)</span></div>
+  </div>
+
+  <dialog class="help" id="help" aria-labelledby="help-title">
+    <div class="help-inner">
+      <header class="help-head">
+        <h2 id="help-title">Manual rápido</h2>
+        <button class="help-close" id="help-close" type="button" aria-label="Cerrar la ayuda (Esc)">×</button>
+      </header>
+
+      <h3>Teclado</h3>
+      <p>El keypad hexadecimal del COSMAC VIP se toca con el bloque izquierdo de tu teclado. Se usa la posición física de cada tecla, así que anda igual con cualquier distribución (QWERTY, AZERTY, Dvorak…).</p>
+      <div class="keymap">
+        <figure>
+          <div class="keymap-grid" aria-hidden="true"><span>1</span><span>2</span><span>3</span><span>4</span><span>Q</span><span>W</span><span>E</span><span>R</span><span>A</span><span>S</span><span>D</span><span>F</span><span>Z</span><span>X</span><span>C</span><span>V</span></div>
+          <figcaption>Tu teclado</figcaption>
+        </figure>
+        <span class="keymap-arrow" aria-hidden="true">→</span>
+        <figure>
+          <div class="keymap-grid keymap-grid--hex" aria-hidden="true"><span>1</span><span>2</span><span>3</span><span class="is-alpha">C</span><span>4</span><span>5</span><span>6</span><span class="is-alpha">D</span><span>7</span><span>8</span><span>9</span><span class="is-alpha">E</span><span class="is-alpha">A</span><span>0</span><span class="is-alpha">B</span><span class="is-alpha">F</span></div>
+          <figcaption>Keypad CHIP-8</figcaption>
+        </figure>
+      </div>
+      <p class="visually-hidden">Correspondencia: 1 2 3 4 son 1 2 3 C; Q W E R son 4 5 6 D; A S D F son 7 8 9 E; Z X C V son A 0 B F.</p>
+      <p>También podés tocar el keypad de la consola con el mouse o con los dedos (admite varias teclas a la vez).</p>
+
+      <h3>Atajos</h3>
+      <table class="shortcuts">
+        <tbody>
+          <tr><th><kbd>Espacio</kbd></th><td>Pausa / continuar</td></tr>
+          <tr><th><kbd>N</kbd></th><td>Ejecutar una instrucción (pausa automáticamente)</td></tr>
+          <tr><th><kbd>Retroceso</kbd></th><td>Reiniciar la ROM</td></tr>
+          <tr><th><kbd>H</kbd></th><td>Abrir o cerrar esta ayuda</td></tr>
+          <tr><th><kbd>Esc</kbd></th><td>Cerrar diálogos</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Cartuchos</h3>
+      <p>Tocá <strong>Cargar ROM</strong> y elegí un archivo <code>.ch8</code>, o arrastralo sobre cualquier parte de la página. El programa se copia a partir de la dirección <code>0x200</code> y puede ocupar hasta 3584 bytes. Los cartuchos incluidos están debajo de la consola: elegí uno y arranca solo.</p>
+
+      <h3>Velocidad</h3>
+      <p>El CHIP-8 no tiene una velocidad fija: acá elegís cuántas instrucciones se ejecutan en cada frame de 60 Hz (IPF). Con 15 IPF se parece a un COSMAC VIP; muchos juegos modernos piden entre 30 y 1000. Los timers de delay y de sonido bajan siempre a 60 Hz, sin importar la velocidad.</p>
+
+      <h3>Quirks</h3>
+      <p>Los intérpretes históricos no se comportan igual en algunos detalles. Cada interruptor DIP activa uno de esos comportamientos; el perfil <strong>COSMAC VIP</strong> es el original y viene por defecto.</p>
+      <dl class="quirk-list" id="help-quirks"></dl>
+
+      <h3>Monitor</h3>
+      <p>El monitor muestra PC, I, SP, los timers, los registros V0–VF (se resaltan los que cambiaron), la pila, el desensamblado alrededor del PC y la memoria a la que apunta I. Pausá con <kbd>Espacio</kbd> y avanzá de a una instrucción con <kbd>N</kbd>.</p>
+
+      <h3>Consejos</h3>
+      <ul>
+        <li>Si un juego parpadea mucho, dejá prendida la <strong>persistencia</strong> (anti-parpadeo).</li>
+        <li>Si un juego se comporta raro (sprites rotos, saltos a cualquier lado), probá los perfiles SUPER-CHIP o XO-CHIP: muchos juegos modernos se escribieron para esos intérpretes.</li>
+        <li>El navegador no deja sonar nada hasta que tocás la página: con el primer clic o la primera tecla se habilita el beep.</li>
+        <li>Si la máquina se detiene por un error, el monitor muestra el opcode y la dirección. Reiniciá con <kbd>Retroceso</kbd>.</li>
+        <li>Los ajustes (velocidad, quirks, pantalla y sonido) se guardan en este navegador.</li>
+      </ul>
+    </div>
+  </dialog>
+</main>
 <script id="chip8-core">
 /*
  * Núcleo del emulador CHIP-8.
@@ -499,7 +1489,1276 @@
 globalThis.CHIP8_DEMOS = [];
 </script>
 <script id="chip8-ui">
-/* Interfaz: la construye el agente de UI. */
+/*
+ * Interfaz de la consola: pantalla, keypad, controles, monitor de depuración,
+ * sonido y bucle principal. Solo usa globalThis.Chip8Core (el núcleo) y
+ * globalThis.CHIP8_DEMOS (los cartuchos incluidos); la emulación vive toda en
+ * el bloque chip8-core.
+ */
+(function () {
+  'use strict';
+
+  var Core = globalThis.Chip8Core;
+  if (!Core || typeof document === 'undefined') return;
+
+  // ------------------------------------------------------------------ constantes
+  var W = Core.DISPLAY_WIDTH, H = Core.DISPLAY_HEIGHT, NPIX = W * H;
+  var MAX_ROM = Core.MAX_ROM_SIZE;
+  var PRESETS = Core.QUIRK_PRESETS;
+  var PRESET_IDS = ['vip', 'schip', 'xochip'];
+
+  var FRAME_MS = 1000 / 60;
+  var FRAME_SLACK = FRAME_MS * 0.1;   // tolerancia para no perder ticks por el jitter de requestAnimationFrame
+  var MAX_CATCHUP = 4;                // ticks de 60 Hz como máximo por cuadro de animación
+  var DECAY = 150;                    // persistencia: un píxel apagado conserva DECAY/256 de su brillo por frame
+  var FADE_FLOOR = 12;
+  var STORAGE_KEY = 'chip8-consola.ajustes';
+  var IPF_MIN = 1, IPF_MAX = 1000, IPF_DEFAULT = 15;
+  var IPF_PRESETS = [7, 15, 30, 100, 500, 1000];
+  var DISASM_BEFORE = 7, DISASM_AFTER = 12, DISASM_ROWS = DISASM_BEFORE + 1 + DISASM_AFTER;
+  var BEEP_HZ = 440, BEEP_LEVEL = 0.22;
+
+  var QUIRK_KEYS = ['vfReset', 'memory', 'shifting', 'jumping', 'clipping', 'displayWait'];
+  var QUIRK_INFO = {
+    vfReset: { tag: 'VF=0', name: 'Reset de VF', ops: '8XY1 8XY2 8XY3',
+      desc: 'OR, AND y XOR ponen VF en 0 después de operar, como el intérprete original del COSMAC VIP. Apagado, VF no se toca.' },
+    memory: { tag: 'MEM', name: 'Load/store mueve I', ops: 'FX55 FX65',
+      desc: 'Guardar o leer registros deja I apuntando después del último (I = I + X + 1), como el VIP. Apagado, I queda igual (SUPER-CHIP).' },
+    shifting: { tag: 'SHIFT', name: 'Shift sobre VX', ops: '8XY6 8XYE',
+      desc: 'Los desplazamientos operan sobre VX e ignoran VY (SUPER-CHIP). Apagado, VX = VY desplazado, como el VIP.' },
+    jumping: { tag: 'BXNN', name: 'Salto con VX', ops: 'BNNN',
+      desc: 'El salto con offset va a NNN + VX, donde X es el primer dígito de NNN (SUPER-CHIP). Apagado, va a NNN + V0.' },
+    clipping: { tag: 'CLIP', name: 'Recorte de sprites', ops: 'DXYN',
+      desc: 'Lo que se sale por la derecha o por abajo se recorta. Apagado, reaparece del otro lado de la pantalla.' },
+    displayWait: { tag: 'VBLANK', name: 'Espera de vblank', ops: 'DXYN',
+      desc: 'Dibujar espera el refresco de pantalla: como mucho un DXYN por frame, igual que el VIP. Apagado, se dibuja sin esperar.' }
+  };
+
+  var PALETTES = {
+    fosforo: { name: 'Verde fósforo', bg: [4, 16, 9], on: [124, 255, 150] },
+    ambar: { name: 'Ámbar', bg: [20, 10, 2], on: [255, 178, 62] },
+    blanco: { name: 'Blanco', bg: [11, 12, 16], on: [232, 238, 255] },
+    lcd: { name: 'LCD', bg: [155, 188, 15], on: [15, 56, 15] }
+  };
+  var PALETTE_IDS = ['fosforo', 'ambar', 'blanco', 'lcd'];
+
+  // Teclas físicas (KeyboardEvent.code) -> keypad hexadecimal del COSMAC VIP.
+  var KEY_BY_CODE = {
+    Digit1: 0x1, Digit2: 0x2, Digit3: 0x3, Digit4: 0xC,
+    KeyQ: 0x4, KeyW: 0x5, KeyE: 0x6, KeyR: 0xD,
+    KeyA: 0x7, KeyS: 0x8, KeyD: 0x9, KeyF: 0xE,
+    KeyZ: 0xA, KeyX: 0x0, KeyC: 0xB, KeyV: 0xF
+  };
+  var KEYPAD_LAYOUT = [0x1, 0x2, 0x3, 0xC, 0x4, 0x5, 0x6, 0xD, 0x7, 0x8, 0x9, 0xE, 0xA, 0x0, 0xB, 0xF];
+  var PC_HINT = ['X', '1', '2', '3', 'Q', 'W', 'E', 'A', 'S', 'D', 'Z', 'C', '4', 'R', 'F', 'V'];
+  var CART_COLORS = ['#e0672a', '#2a9d8f', '#e9b44c', '#c8553d', '#3d6ea8', '#7b5ea7', '#5c946e'];
+
+  // ------------------------------------------------------------------ utilidades
+  function $(id) { return document.getElementById(id); }
+  function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+  function hex(v, digits) {
+    var s = (v >>> 0).toString(16).toUpperCase();
+    while (s.length < digits) s = '0' + s;
+    return s;
+  }
+  var HEX2 = [];
+  for (var hx = 0; hx < 256; hx++) HEX2.push(hex(hx, 2));
+  function make(tag, className, text) {
+    var e = document.createElement(tag);
+    if (className) e.className = className;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function hasOwn(obj, key) { return Object.prototype.hasOwnProperty.call(obj, key); }
+  function copyQuirks(src) {
+    var out = {};
+    for (var i = 0; i < QUIRK_KEYS.length; i++) out[QUIRK_KEYS[i]] = !!src[QUIRK_KEYS[i]];
+    return out;
+  }
+  function clampIpf(n) {
+    n = Math.round(Number(n));
+    if (!isFinite(n)) return IPF_DEFAULT;
+    return clamp(n, IPF_MIN, IPF_MAX);
+  }
+  function formatInt(n) {
+    try { return n.toLocaleString('es-AR'); } catch (e) { return String(n); }
+  }
+  function decodeHex(str) {
+    var clean = String(str).replace(/\s+/g, '');
+    if (clean.length % 2 !== 0 || /[^0-9a-fA-F]/.test(clean)) return null;
+    var out = new Uint8Array(clean.length / 2);
+    for (var i = 0; i < out.length; i++) out[i] = parseInt(clean.substr(2 * i, 2), 16);
+    return out;
+  }
+
+  // ------------------------------------------------------------------ ajustes guardados
+  function loadSettings() {
+    var s = {
+      ipf: IPF_DEFAULT, quirks: copyQuirks(Core.DEFAULT_QUIRKS), palette: 'fosforo',
+      scanlines: true, persistence: true, muted: false, volume: 0.6, monitorOpen: true
+    };
+    var raw = null;
+    try { raw = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || 'null'); } catch (e) { raw = null; }
+    if (!raw || typeof raw !== 'object') return s;
+    if (typeof raw.ipf === 'number') s.ipf = clampIpf(raw.ipf);
+    if (raw.quirks && typeof raw.quirks === 'object') {
+      QUIRK_KEYS.forEach(function (k) { if (typeof raw.quirks[k] === 'boolean') s.quirks[k] = raw.quirks[k]; });
+    }
+    if (typeof raw.palette === 'string' && hasOwn(PALETTES, raw.palette)) s.palette = raw.palette;
+    ['scanlines', 'persistence', 'muted', 'monitorOpen'].forEach(function (k) {
+      if (typeof raw[k] === 'boolean') s[k] = raw[k];
+    });
+    if (typeof raw.volume === 'number' && isFinite(raw.volume)) s.volume = clamp(raw.volume, 0, 1);
+    return s;
+  }
+  function saveSettings() {
+    settings.quirks = copyQuirks(cpu.quirks);
+    try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings)); } catch (e) { /* sin almacenamiento: seguimos igual */ }
+  }
+
+  var settings = loadSettings();
+  var cpu = new Core.Chip8({ quirks: settings.quirks });
+
+  var state = {
+    romLoaded: false, romName: '', romSize: 0, demoId: null,
+    paused: false, errorShown: false, instr: 0
+  };
+
+  // ------------------------------------------------------------------ demos incluidos
+  var demos = [];
+  (Array.isArray(globalThis.CHIP8_DEMOS) ? globalThis.CHIP8_DEMOS : []).forEach(function (d) {
+    if (!d || typeof d.hex !== 'string') return;
+    var bytes = decodeHex(d.hex);
+    if (!bytes || bytes.length === 0 || bytes.length > MAX_ROM) return;
+    demos.push({
+      id: String(d.id), name: String(d.name || d.id), description: String(d.description || ''),
+      controls: String(d.controls || ''), hex: d.hex, bytes: bytes
+    });
+  });
+  function findDemo(id) {
+    for (var i = 0; i < demos.length; i++) if (demos[i].id === id) return demos[i];
+    return null;
+  }
+
+  // ------------------------------------------------------------------ referencias al DOM
+  var consoleEl = $('console');
+  var crtEl = $('crt'), screenCanvas = $('screen'), glowCanvas = $('glow');
+  var ledRun = $('led-run'), ledSnd = $('led-snd');
+  var tagPause = $('tag-pause'), tagWait = $('tag-wait');
+  var crtMsg = $('crt-msg'), crtMsgTitle = $('crt-msg-title'), crtMsgText = $('crt-msg-text'), crtMsgHint = $('crt-msg-hint');
+  var audioHint = $('audio-hint');
+  var slotEl = $('slot'), cartName = $('cart-name'), cartSize = $('cart-size');
+  var fileInput = $('file-input');
+  var btnPause = $('btn-pause'), pauseLabel = $('btn-pause-label'), btnStep = $('btn-step'), btnFrame = $('btn-frame'), btnReset = $('btn-reset');
+  var statusEl = $('status');
+  var ipfRange = $('ipf-range'), ipfInput = $('ipf-input'), ipfChips = $('ipf-chips'), ipfRate = $('ipf-rate');
+  var paletteSel = $('palette'), tgScan = $('tg-scan'), tgPersist = $('tg-persist'), tgMute = $('tg-mute'), volumeRange = $('volume');
+  var presetSel = $('preset'), dipBank = $('dip-bank'), dipLabels = $('dip-labels'), quirkHint = $('quirk-hint');
+  var shelfList = $('shelf-list'), shelfEmpty = $('shelf-empty');
+  var monitorEl = $('monitor'), monBody = $('mon-body'), monToggle = $('mon-toggle'), monToggleLabel = $('mon-toggle-label');
+  var monBadge = $('mon-badge'), monError = $('mon-error');
+  var monPc = $('mon-pc'), monI = $('mon-i'), monSp = $('mon-sp'), monDt = $('mon-dt'), monSt = $('mon-st'), monIpf = $('mon-ipf'), monInstr = $('mon-instr');
+  var toastsEl = $('toasts'), dropEl = $('drop'), helpDialog = $('help');
+
+  // ------------------------------------------------------------------ pantalla
+  var screenCtx = screenCanvas.getContext('2d', { alpha: false }) || screenCanvas.getContext('2d');
+  var glowCtx = glowCanvas.getContext('2d');
+  var frameCanvas = document.createElement('canvas');
+  frameCanvas.width = W;
+  frameCanvas.height = H;
+  var frameCtx = frameCanvas.getContext('2d');
+  var frameImage = frameCtx.createImageData(W, H);
+  var frame32 = new Uint32Array(frameImage.data.buffer);
+  var LITTLE_ENDIAN = new Uint8Array(new Uint32Array([1]).buffer)[0] === 1;
+  var lut = new Uint32Array(256);
+  var levels = new Uint8Array(NPIX);   // brillo de cada píxel (0..255), para la persistencia
+  var needsRender = true, fading = false;
+  var screenScale = 0, screenDpr = 0, scanPattern = null, glowEnabled = true;
+
+  // Pantalla de reposo (sin cartucho): texto con una fuente de 3x5.
+  var MINI_FONT = {
+    A: ['010', '101', '111', '101', '101'], C: ['111', '100', '100', '100', '111'],
+    E: ['111', '100', '110', '100', '111'], H: ['101', '101', '111', '101', '101'],
+    I: ['111', '010', '010', '010', '111'], N: ['1001', '1101', '1011', '1001', '1001'],
+    O: ['111', '101', '101', '101', '111'], R: ['110', '101', '110', '101', '101'],
+    S: ['111', '100', '111', '001', '111'], T: ['111', '010', '010', '010', '010'],
+    U: ['101', '101', '101', '101', '111']
+  };
+  function buildIdleBitmap() {
+    var bmp = new Uint8Array(NPIX);
+    function put(x, y) { if (x >= 0 && x < W && y >= 0 && y < H) bmp[y * W + x] = 1; }
+    function glyphOf(ch) { return MINI_FONT[ch === 'Á' ? 'A' : ch] || ['000', '000', '000', '000', '000']; }
+    function text(str, y) {
+      var width = -1, i;
+      for (i = 0; i < str.length; i++) width += glyphOf(str.charAt(i))[0].length + 1;
+      var x = Math.floor((W - width) / 2);
+      for (i = 0; i < str.length; i++) {
+        var ch = str.charAt(i), glyph = glyphOf(ch), gw = glyph[0].length;
+        for (var r = 0; r < 5; r++) for (var c = 0; c < gw; c++) if (glyph[r].charAt(c) === '1') put(x + c, y + r);
+        if (ch === 'Á') { put(x + 1, y - 2); put(x + 2, y - 3); }
+        x += gw + 1;
+      }
+    }
+    text('INSERTÁ', 6);
+    text('UN', 13);
+    text('CARTUCHO', 20);
+    for (var x = 2; x < W - 2; x += 2) { put(x, 1); put(x, H - 2); }
+    for (var y = 3; y < H - 2; y += 2) { put(1, y); put(W - 2, y); }
+    return bmp;
+  }
+  var idleBitmap = buildIdleBitmap();
+
+  function buildLut(p) {
+    for (var i = 0; i < 256; i++) {
+      var t = Math.pow(i / 255, 1.35);
+      var r = Math.round(p.bg[0] + (p.on[0] - p.bg[0]) * t);
+      var g = Math.round(p.bg[1] + (p.on[1] - p.bg[1]) * t);
+      var b = Math.round(p.bg[2] + (p.on[2] - p.bg[2]) * t);
+      lut[i] = LITTLE_ENDIAN
+        ? (((255 << 24) | (b << 16) | (g << 8) | r) >>> 0)
+        : (((r << 24) | (g << 16) | (b << 8) | 255) >>> 0);
+    }
+  }
+
+  // Pasa la pantalla del núcleo (o la de reposo) al buffer de brillo.
+  function updateLevels(decay) {
+    var src = state.romLoaded ? cpu.display : idleBitmap;
+    var any = false;
+    for (var i = 0; i < NPIX; i++) {
+      if (src[i]) {
+        levels[i] = 255;
+      } else if (levels[i] !== 0) {
+        if (decay) {
+          var l = (levels[i] * DECAY) >> 8;
+          if (l < FADE_FLOOR) l = 0; else any = true;
+          levels[i] = l;
+        } else {
+          levels[i] = 0;
+        }
+      }
+    }
+    fading = any;
+    needsRender = true;
+  }
+  function syncDisplay(allowDecay) {
+    if (cpu.displayDirty || fading) {
+      cpu.displayDirty = false;
+      updateLevels(allowDecay && settings.persistence);
+    }
+  }
+
+  function render() {
+    for (var i = 0; i < NPIX; i++) frame32[i] = lut[levels[i]];
+    frameCtx.putImageData(frameImage, 0, 0);
+    var cw = screenCanvas.width, ch = screenCanvas.height;
+    screenCtx.imageSmoothingEnabled = false;
+    screenCtx.drawImage(frameCanvas, 0, 0, cw, ch);
+    if (settings.scanlines && scanPattern) {
+      screenCtx.fillStyle = scanPattern;
+      screenCtx.fillRect(0, 0, cw, ch);
+    }
+    if (glowEnabled) glowCtx.putImageData(frameImage, 0, 0);
+  }
+
+  // Scanlines alineadas con las filas CHIP-8; en la paleta LCD, una grilla de píxeles.
+  function buildScanPattern(scale) {
+    if (scale < 3) return null;
+    var c = document.createElement('canvas');
+    var g;
+    if (settings.palette === 'lcd') {
+      c.width = scale;
+      c.height = scale;
+      g = c.getContext('2d');
+      var line = Math.max(1, Math.round(scale * 0.1));
+      g.fillStyle = 'rgba(170,200,40,0.55)';
+      g.fillRect(0, scale - line, scale, line);
+      g.fillRect(scale - line, 0, line, scale - line);
+      return screenCtx.createPattern(c, 'repeat');
+    }
+    c.width = 1;
+    c.height = scale;
+    g = c.getContext('2d');
+    var gap = Math.max(1, Math.round(scale * 0.3));
+    g.fillStyle = 'rgba(0,0,0,0.42)';
+    g.fillRect(0, scale - gap, 1, gap);
+    g.fillStyle = 'rgba(255,255,255,0.05)';
+    g.fillRect(0, 0, 1, 1);
+    return screenCtx.createPattern(c, 'repeat');
+  }
+
+  // Escala entera: cada píxel CHIP-8 ocupa exactamente scale x scale píxeles físicos.
+  function resizeScreen() {
+    var rect = crtEl.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    var dpr = window.devicePixelRatio || 1;
+    var scale = Math.max(1, Math.floor(Math.min(rect.width * 0.94 * dpr / W, rect.height * 0.9 * dpr / H)));
+    if (scale === screenScale && dpr === screenDpr) return;
+    screenScale = scale;
+    screenDpr = dpr;
+    screenCanvas.width = W * scale;
+    screenCanvas.height = H * scale;
+    var cssW = (W * scale / dpr) + 'px', cssH = (H * scale / dpr) + 'px';
+    screenCanvas.style.width = cssW;
+    screenCanvas.style.height = cssH;
+    glowCanvas.style.width = cssW;
+    glowCanvas.style.height = cssH;
+    crtEl.style.setProperty('--glow-blur', Math.max(2, scale * 0.8 / dpr).toFixed(1) + 'px');
+    scanPattern = buildScanPattern(scale);
+    needsRender = true;
+  }
+
+  function applyPalette(id) {
+    if (!hasOwn(PALETTES, id)) id = 'fosforo';
+    var p = PALETTES[id];
+    settings.palette = id;
+    buildLut(p);
+    glowEnabled = id !== 'lcd';
+    crtEl.setAttribute('data-palette', id);
+    crtEl.style.setProperty('--scr-bg', 'rgb(' + p.bg.join(',') + ')');
+    crtEl.style.setProperty('--scr-fg', 'rgb(' + p.on.join(',') + ')');
+    paletteSel.value = id;
+    if (screenScale) scanPattern = buildScanPattern(screenScale);
+    needsRender = true;
+  }
+
+  // ------------------------------------------------------------------ estado y mensajes
+  function isRunning() { return state.romLoaded && !state.paused && !cpu.halted; }
+
+  function announce(msg) { statusEl.textContent = msg; }
+
+  function toast(msg, kind) {
+    var t = make('div', 'toast toast--' + (kind || 'info'));
+    if (kind === 'error') t.setAttribute('role', 'alert');
+    t.appendChild(make('p', null, msg));
+    var close = make('button', null, '×');
+    close.type = 'button';
+    close.setAttribute('aria-label', 'Cerrar aviso');
+    close.addEventListener('click', function () { remove(); });
+    t.appendChild(close);
+    function remove() { if (t.parentNode) t.parentNode.removeChild(t); }
+    toastsEl.appendChild(t);
+    while (toastsEl.children.length > 3) toastsEl.removeChild(toastsEl.firstChild);
+    window.setTimeout(remove, kind === 'error' ? 8000 : 4500);
+  }
+
+  function showCrtMessage(title, text, hint) {
+    crtMsgTitle.textContent = title;
+    crtMsgText.textContent = text;
+    crtMsgHint.textContent = hint || '';
+    crtMsg.hidden = false;
+  }
+  function hideCrtMessage() { crtMsg.hidden = true; }
+
+  function handleHalt() {
+    if (state.errorShown || !cpu.halted) return;
+    state.errorShown = true;
+    state.paused = true;
+    var msg = cpu.error || 'La máquina se detuvo.';
+    showCrtMessage('ERROR', msg, 'Presioná Reiniciar (Retroceso) para volver a empezar.');
+    monError.textContent = msg;
+    monError.hidden = false;
+    toast(msg, 'error');
+    announce('Error: ' + msg);
+    updateTransport();
+    updateMonitor(true);
+  }
+  function clearError() {
+    state.errorShown = false;
+    hideCrtMessage();
+    monError.hidden = true;
+    monError.textContent = '';
+  }
+
+  function updateTransport() {
+    var loaded = state.romLoaded, halted = cpu.halted;
+    btnPause.disabled = !loaded || halted;
+    btnStep.disabled = !loaded || halted;
+    btnFrame.disabled = !loaded || halted;
+    btnReset.disabled = !loaded;
+    var showPlay = state.paused || halted || !loaded;
+    btnPause.setAttribute('data-paused', showPlay ? 'true' : 'false');
+    pauseLabel.textContent = showPlay ? 'Continuar' : 'Pausa';
+  }
+
+  function updateSlot() {
+    slotEl.classList.toggle('is-empty', !state.romLoaded);
+    if (state.romLoaded) {
+      cartName.textContent = state.romName;
+      cartName.title = state.romName;
+      cartSize.textContent = formatInt(state.romSize) + ' bytes' + (state.demoId ? ' · demo incluido' : '');
+    } else {
+      cartName.textContent = 'Ranura vacía';
+      cartName.title = '';
+      cartSize.textContent = 'Cargá una ROM o elegí un cartucho';
+    }
+    var color = null;
+    for (var i = 0; i < demos.length; i++) if (demos[i].id === state.demoId) color = CART_COLORS[i % CART_COLORS.length];
+    if (color) slotEl.style.setProperty('--slot-color', color); else slotEl.style.removeProperty('--slot-color');
+    slotEl.classList.remove('is-inserting');
+    if (state.romLoaded) {
+      slotEl.classList.add('is-inserting');
+      window.setTimeout(function () { slotEl.classList.remove('is-inserting'); }, 180);
+    }
+  }
+
+  // ------------------------------------------------------------------ carga de ROMs
+  function toBytes(bytes) {
+    if (bytes instanceof Uint8Array) return bytes;
+    if (bytes instanceof ArrayBuffer) return new Uint8Array(bytes);
+    if (bytes && typeof bytes.length === 'number') return new Uint8Array(bytes);
+    return null;
+  }
+
+  function loadRomBytes(bytes, name, demoId, quiet) {
+    var arr = toBytes(bytes);
+    var label = name ? String(name) : 'ROM sin nombre';
+    if (!arr) { toast('No se pudo leer la ROM.', 'error'); return false; }
+    if (arr.length === 0) { toast('La ROM «' + label + '» está vacía (0 bytes).', 'error'); return false; }
+    if (arr.length > MAX_ROM) {
+      toast('La ROM «' + label + '» ocupa ' + formatInt(arr.length) + ' bytes y el máximo es ' + formatInt(MAX_ROM) + ' (de 0x200 a 0xFFF).', 'error');
+      return false;
+    }
+    try {
+      cpu.loadRom(arr);
+    } catch (err) {
+      toast('No se pudo cargar la ROM: ' + (err && err.message ? err.message : err), 'error');
+      return false;
+    }
+    resyncKeys();
+    clearError();
+    state.romLoaded = true;
+    state.romName = label;
+    state.romSize = arr.length;
+    state.demoId = demoId || null;
+    state.instr = 0;
+    state.paused = false;
+    acc = 0;
+    cpu.displayDirty = false;
+    updateLevels(false);
+    updateSlot();
+    updateShelfSelection();
+    updateTransport();
+    updateMonitor(true);
+    if (!quiet) announce('Cartucho «' + label + '» cargado (' + formatInt(arr.length) + ' bytes). Ejecutando.');
+    return true;
+  }
+
+  function loadDemo(id, quiet) {
+    var d = findDemo(String(id));
+    if (!d) { if (!quiet) toast('No existe el demo «' + id + '».', 'error'); return false; }
+    return loadRomBytes(d.bytes, d.name, d.id, quiet);
+  }
+
+  function loadFile(file) {
+    if (!file) return;
+    var name = file.name || 'archivo';
+    if (file.size === 0) { toast('El archivo «' + name + '» está vacío.', 'error'); return; }
+    if (file.size > MAX_ROM) {
+      toast('«' + name + '» pesa ' + formatInt(file.size) + ' bytes: una ROM de CHIP-8 puede ocupar como máximo ' + formatInt(MAX_ROM) + ' bytes.', 'error');
+      return;
+    }
+    var reader = new FileReader();
+    reader.onload = function () { loadRomBytes(new Uint8Array(reader.result), name, null); };
+    reader.onerror = function () { toast('No se pudo leer «' + name + '».', 'error'); };
+    reader.readAsArrayBuffer(file);
+  }
+
+  // ------------------------------------------------------------------ control de ejecución
+  function setPaused(p, quiet) {
+    p = !!p;
+    if (!p && cpu.halted) {
+      if (!quiet) announce('La máquina se detuvo por un error: reiniciá para seguir.');
+      return;
+    }
+    if (state.paused !== p) {
+      state.paused = p;
+      acc = 0;
+      if (!quiet && state.romLoaded) announce(p ? 'En pausa.' : 'Ejecutando «' + state.romName + '».');
+    }
+    updateTransport();
+  }
+  function togglePause() { if (state.romLoaded) setPaused(!state.paused); }
+
+  function tick() {
+    state.instr += cpu.runFrame(settings.ipf);
+    syncDisplay(true);
+    if (cpu.halted) handleHalt();
+  }
+
+  function stepOnce() {
+    if (!state.romLoaded) return false;
+    setPaused(true, true);
+    if (cpu.halted) return false;
+    var ok = cpu.step();
+    if (ok) state.instr++;
+    syncDisplay(false);
+    if (cpu.halted) handleHalt();
+    announce(cpu.waitingForKey ? 'Paso: esperando una tecla (FX0A).' : 'Paso: PC = 0x' + hex(cpu.pc, 3) + '.');
+    return ok;
+  }
+
+  function frameOnce() {
+    if (!state.romLoaded) return 0;
+    setPaused(true, true);
+    if (cpu.halted) return 0;
+    var before = state.instr;
+    tick();
+    announce('Frame: ' + (state.instr - before) + ' instrucciones.');
+    return state.instr - before;
+  }
+
+  function doReset() {
+    if (!state.romLoaded) return false;
+    var wasError = state.errorShown;
+    cpu.reset();
+    resyncKeys();
+    clearError();
+    if (wasError) state.paused = false;
+    state.instr = 0;
+    acc = 0;
+    cpu.displayDirty = false;
+    updateLevels(false);
+    updateTransport();
+    updateMonitor(true);
+    announce('Reiniciado' + (state.paused ? ' (en pausa).' : '.'));
+    return true;
+  }
+
+  // ------------------------------------------------------------------ velocidad
+  function sliderToIpf(t) { return clampIpf(Math.pow(IPF_MAX, clamp(Number(t), 0, 1000) / 1000)); }
+  function ipfToSlider(n) { return Math.round(Math.log(n) / Math.log(IPF_MAX) * 1000); }
+
+  var chipButtons = [];
+  function setIpf(n, source) {
+    var v = clampIpf(n);
+    settings.ipf = v;
+    if (source !== 'range') ipfRange.value = String(ipfToSlider(v));
+    if (source !== 'typing') ipfInput.value = String(v);
+    for (var i = 0; i < chipButtons.length; i++) chipButtons[i].setAttribute('aria-pressed', IPF_PRESETS[i] === v ? 'true' : 'false');
+    ipfRate.textContent = '≈ ' + formatInt(v * 60) + ' instrucciones por segundo · timers a 60 Hz';
+    saveSettings();
+    return v;
+  }
+
+  // ------------------------------------------------------------------ quirks
+  var dipButtons = {};
+  function detectPreset() {
+    for (var i = 0; i < PRESET_IDS.length; i++) {
+      var q = PRESETS[PRESET_IDS[i]].quirks, same = true;
+      for (var j = 0; j < QUIRK_KEYS.length; j++) if (!!q[QUIRK_KEYS[j]] !== !!cpu.quirks[QUIRK_KEYS[j]]) { same = false; break; }
+      if (same) return PRESET_IDS[i];
+    }
+    return 'custom';
+  }
+  function refreshQuirkUI() {
+    QUIRK_KEYS.forEach(function (k) { dipButtons[k].setAttribute('aria-checked', cpu.quirks[k] ? 'true' : 'false'); });
+    presetSel.value = detectPreset();
+  }
+  function applyQuirks(partial) {
+    cpu.setQuirks(partial);
+    refreshQuirkUI();
+    saveSettings();
+  }
+  function setPreset(id) {
+    if (!hasOwn(PRESETS, id)) return false;
+    applyQuirks(copyQuirks(PRESETS[id].quirks));
+    announce('Perfil de quirks: ' + PRESETS[id].label + '.');
+    return true;
+  }
+  var DEFAULT_QUIRK_HINT = 'Pasá el mouse o el foco por un interruptor para ver qué hace. Los cambios se aplican en vivo.';
+  function showQuirkHint(k) {
+    var info = QUIRK_INFO[k];
+    quirkHint.textContent = info.name + ' (' + info.ops + ', ' + (cpu.quirks[k] ? 'activado' : 'desactivado') + '): ' + info.desc;
+  }
+
+  // ------------------------------------------------------------------ teclado y keypad
+  var holdCount = new Uint8Array(16);
+  var heldCodes = {};
+  var pointerKeys = {};
+  var apiHeld = new Uint8Array(16);
+  var enterHeld = new Uint8Array(16);
+  var keycaps = [];
+
+  function keyDown(k) {
+    if (holdCount[k]++ === 0) {
+      cpu.setKey(k, true);
+      if (keycaps[k]) keycaps[k].classList.add('is-down');
+    }
+  }
+  function keyUp(k) {
+    if (holdCount[k] === 0) return;
+    if (--holdCount[k] === 0) {
+      cpu.setKey(k, false);
+      if (keycaps[k]) keycaps[k].classList.remove('is-down');
+    }
+  }
+  function releaseAllKeys() {
+    heldCodes = {};
+    pointerKeys = {};
+    apiHeld.fill(0);
+    enterHeld.fill(0);
+    for (var k = 0; k < 16; k++) {
+      if (holdCount[k]) {
+        holdCount[k] = 0;
+        cpu.setKey(k, false);
+      }
+      if (keycaps[k]) keycaps[k].classList.remove('is-down');
+    }
+  }
+  // reset() del núcleo limpia las teclas: se vuelven a informar las que siguen apretadas.
+  function resyncKeys() {
+    for (var k = 0; k < 16; k++) if (holdCount[k]) cpu.setKey(k, true);
+  }
+
+  function isTypingTarget(t) {
+    if (!t || !t.tagName) return false;
+    var tag = t.tagName;
+    if (tag === 'TEXTAREA' || tag === 'SELECT' || t.isContentEditable) return true;
+    if (tag !== 'INPUT') return false;
+    var type = (t.type || 'text').toLowerCase();
+    return type !== 'range' && type !== 'checkbox' && type !== 'radio' && type !== 'button' && type !== 'file';
+  }
+  function helpOpen() { return !!(helpDialog && (helpDialog.open || helpDialog.hasAttribute('open'))); }
+
+  function onKeyDown(e) {
+    ensureAudio(e);
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (isTypingTarget(e.target)) return;
+    if (helpOpen()) {
+      if (e.code === 'KeyH') { e.preventDefault(); closeHelp(); }
+      return;
+    }
+    var k = KEY_BY_CODE[e.code];
+    if (k !== undefined) {
+      e.preventDefault();
+      if (!heldCodes[e.code]) { heldCodes[e.code] = true; keyDown(k); }
+      return;
+    }
+    switch (e.code) {
+      case 'Space':
+        e.preventDefault();
+        if (!e.repeat) togglePause();
+        break;
+      case 'KeyN':
+        e.preventDefault();
+        stepOnce();
+        break;
+      case 'Backspace':
+        e.preventDefault();
+        if (!e.repeat) doReset();
+        break;
+      case 'KeyH':
+        e.preventDefault();
+        if (!e.repeat) openHelp();
+        break;
+      case 'Escape':
+        showDrop(false);
+        break;
+    }
+  }
+  function onKeyUp(e) {
+    var k = KEY_BY_CODE[e.code];
+    if (k !== undefined && heldCodes[e.code]) {
+      delete heldCodes[e.code];
+      keyUp(k);
+      e.preventDefault();
+      return;
+    }
+    // Evita que Espacio active el botón enfocado además de pausar.
+    if (e.code === 'Space' && !isTypingTarget(e.target) && !helpOpen()) e.preventDefault();
+  }
+
+  function buildKeypad() {
+    var pad = $('keypad');
+    KEYPAD_LAYOUT.forEach(function (k) {
+      var b = make('button', 'key' + (k > 9 ? ' key--alpha' : ''));
+      b.type = 'button';
+      b.setAttribute('data-key', String(k));
+      b.setAttribute('aria-label', 'Tecla ' + k.toString(16).toUpperCase() + ' (en tu teclado: ' + PC_HINT[k] + ')');
+      var legend = make('span', 'key-hex', k.toString(16).toUpperCase());
+      legend.setAttribute('aria-hidden', 'true');
+      var hint = make('span', 'key-pc', PC_HINT[k]);
+      hint.setAttribute('aria-hidden', 'true');
+      b.appendChild(legend);
+      b.appendChild(hint);
+      b.addEventListener('pointerdown', function (e) {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        e.preventDefault();
+        ensureAudio(e);
+        if (pointerKeys[e.pointerId] !== undefined) return;
+        pointerKeys[e.pointerId] = k;
+        try { b.setPointerCapture(e.pointerId); } catch (err) { /* sin captura: igual funciona */ }
+        keyDown(k);
+      });
+      function end(e) {
+        var held = pointerKeys[e.pointerId];
+        if (held === undefined) return;
+        delete pointerKeys[e.pointerId];
+        keyUp(held);
+      }
+      b.addEventListener('pointerup', end);
+      b.addEventListener('pointercancel', end);
+      b.addEventListener('lostpointercapture', end);
+      b.addEventListener('pointerleave', function (e) {
+        // Con captura, pointerleave llega recién al soltar; sin captura, soltamos al salir.
+        if (!b.hasPointerCapture || !b.hasPointerCapture(e.pointerId)) end(e);
+      });
+      // Accesible por teclado: Enter sobre la tecla enfocada la mantiene apretada.
+      b.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!enterHeld[k]) { enterHeld[k] = 1; keyDown(k); }
+        }
+      });
+      b.addEventListener('keyup', function (e) {
+        if (e.key === 'Enter' && enterHeld[k]) { enterHeld[k] = 0; keyUp(k); }
+      });
+      b.addEventListener('blur', function () { if (enterHeld[k]) { enterHeld[k] = 0; keyUp(k); } });
+      keycaps[k] = b;
+      pad.appendChild(b);
+    });
+    pad.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  }
+
+  // ------------------------------------------------------------------ sonido (Web Audio)
+  var audio = { ctx: null, gain: null, master: null, on: false, unsupported: false };
+
+  function ensureAudio() {
+    if (audio.unsupported) return;
+    if (!audio.ctx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) { audio.unsupported = true; updateAudioHint(); return; }
+      try {
+        var ctx = new AC();
+        var osc = ctx.createOscillator();
+        osc.type = 'square';
+        osc.frequency.value = BEEP_HZ;
+        var gain = ctx.createGain();
+        gain.gain.value = audio.on ? 1 : 0;
+        var master = ctx.createGain();
+        master.gain.value = settings.volume * BEEP_LEVEL;
+        osc.connect(gain);
+        gain.connect(master);
+        master.connect(ctx.destination);
+        osc.start();
+        audio.ctx = ctx;
+        audio.gain = gain;
+        audio.master = master;
+        ctx.onstatechange = updateAudioHint;
+      } catch (err) {
+        audio.unsupported = true;
+        updateAudioHint();
+        return;
+      }
+    }
+    if (audio.ctx.state === 'suspended') {
+      try {
+        var pr = audio.ctx.resume();
+        if (pr && typeof pr.then === 'function') pr.then(updateAudioHint, function () {});
+      } catch (err) { /* se reintenta en el próximo gesto */ }
+    }
+    updateAudioHint();
+  }
+
+  function setBeep(on) {
+    if (on === audio.on) return;
+    audio.on = on;
+    if (audio.gain) {
+      try { audio.gain.gain.setTargetAtTime(on ? 1 : 0, audio.ctx.currentTime, 0.004); }
+      catch (err) { audio.gain.gain.value = on ? 1 : 0; }
+    }
+  }
+
+  function setVolume(v) {
+    settings.volume = clamp(v, 0, 1);
+    if (audio.master) {
+      try { audio.master.gain.setTargetAtTime(settings.volume * BEEP_LEVEL, audio.ctx.currentTime, 0.01); }
+      catch (err) { audio.master.gain.value = settings.volume * BEEP_LEVEL; }
+    }
+  }
+
+  function audioReady() { return !!(audio.ctx && audio.ctx.state === 'running'); }
+
+  function updateAudioHint() {
+    var text = '', blink = false;
+    if (audio.unsupported) text = 'Sonido: este navegador no tiene Web Audio';
+    else if (settings.muted) text = 'Sonido: silenciado';
+    else if (!audioReady()) { text = 'Sonido: tocá la consola para activarlo'; blink = true; }
+    audioHint.textContent = text;
+    audioHint.classList.toggle('is-blinking', blink);
+  }
+
+  function audioState() {
+    return {
+      supported: !audio.unsupported,
+      state: audio.ctx ? audio.ctx.state : 'sin-iniciar',
+      enabled: audioReady(),
+      muted: settings.muted,
+      volume: settings.volume,
+      beeping: audio.on,
+      soundTimer: cpu.soundTimer
+    };
+  }
+
+  // ------------------------------------------------------------------ indicadores
+  var MODE_INFO = {
+    idle: { badge: 'Sin cartucho', led: 'led' },
+    run: { badge: 'Ejecutando', led: 'led is-green' },
+    wait: { badge: 'Esperando tecla', led: 'led is-green is-blink' },
+    paused: { badge: 'Pausado', led: 'led is-amber' },
+    error: { badge: 'Error', led: 'led is-red' }
+  };
+  var ind = { mode: '', wait: null, snd: null };
+
+  function computeMode() {
+    if (!state.romLoaded) return 'idle';
+    if (cpu.halted) return 'error';
+    if (state.paused) return 'paused';
+    if (cpu.waitingForKey) return 'wait';
+    return 'run';
+  }
+
+  function updateIndicators() {
+    var mode = computeMode();
+    if (mode !== ind.mode) {
+      ind.mode = mode;
+      ledRun.className = MODE_INFO[mode].led;
+      monBadge.textContent = MODE_INFO[mode].badge;
+      monBadge.className = 'badge badge--' + mode;
+      tagPause.hidden = mode !== 'paused';
+      consoleEl.setAttribute('data-mode', mode);
+      updateTransport();
+    }
+    var waiting = state.romLoaded && cpu.waitingForKey && !cpu.halted;
+    if (waiting !== ind.wait) {
+      ind.wait = waiting;
+      tagWait.hidden = !waiting;
+    }
+    var snd = isRunning() && cpu.soundTimer > 0 && !document.hidden;
+    if (snd !== ind.snd) {
+      ind.snd = snd;
+      ledSnd.className = snd ? 'led is-red' : 'led';
+    }
+    setBeep(snd && !settings.muted);
+  }
+
+  // ------------------------------------------------------------------ monitor
+  var mon = {
+    open: true, onScreen: true, lastInstr: -1, prevV: new Uint8Array(16),
+    vVals: [], vCells: [], rows: [], stackRows: [], memAddr: [], memCells: []
+  };
+
+  function setHexText(el, value, digits, prefix) {
+    if (el.__v === value) return;
+    el.__v = value;
+    el.textContent = prefix + hex(value, digits);
+  }
+  function setDecText(el, value) {
+    if (el.__v === value) return;
+    el.__v = value;
+    el.textContent = formatInt(value);
+  }
+  function setClass(el, name, on) {
+    var key = '__c_' + name;
+    if (el[key] === on) return;
+    el[key] = on;
+    el.classList.toggle(name, on);
+  }
+
+  function buildMonitor() {
+    var vgrid = $('vgrid');
+    for (var i = 0; i < 16; i++) {
+      var cell = make('div', 'vcell');
+      cell.appendChild(make('b', null, 'V' + i.toString(16).toUpperCase()));
+      var val = make('span', null, '00');
+      cell.appendChild(val);
+      vgrid.appendChild(cell);
+      mon.vCells.push(cell);
+      mon.vVals.push(val);
+    }
+    var list = $('disasm');
+    for (var r = 0; r < DISASM_ROWS; r++) {
+      var li = make('li', r === DISASM_BEFORE ? 'is-pc' : null);
+      if (r === DISASM_BEFORE) li.setAttribute('aria-current', 'true');
+      li.appendChild(make('span', 'd-mark'));
+      li.__addr = make('span', 'd-addr', '');
+      li.__op = make('span', 'd-op', '');
+      li.__text = make('span', 'd-text', '');
+      li.appendChild(li.__addr);
+      li.appendChild(li.__op);
+      li.appendChild(li.__text);
+      list.appendChild(li);
+      mon.rows.push(li);
+    }
+    var stack = $('stack');
+    for (var s = 0; s < Core.STACK_SIZE; s++) {
+      var sli = make('li');
+      sli.appendChild(make('span', 's-idx', s.toString(16).toUpperCase()));
+      sli.__val = make('span', 's-val', '---');
+      sli.appendChild(sli.__val);
+      stack.appendChild(sli);
+      mon.stackRows.push(sli);
+    }
+    var mem = $('memview');
+    for (var m = 0; m < 4; m++) {
+      var row = make('div', 'mrow');
+      var a = make('span', 'm-addr', '');
+      row.appendChild(a);
+      mon.memAddr.push(a);
+      for (var c = 0; c < 8; c++) {
+        var b = make('span', 'm-b', '00');
+        row.appendChild(b);
+        mon.memCells.push(b);
+      }
+      mem.appendChild(row);
+    }
+  }
+
+  function updateMonitor(force) {
+    if (!mon.open || document.hidden) return;
+    if (!mon.onScreen && !force) return;
+    var mem = cpu.memory, V = cpu.V;
+    setHexText(monPc, cpu.pc, 3, '0x');
+    setHexText(monI, cpu.I, 3, '0x');
+    setDecText(monSp, cpu.sp);
+    setDecText(monDt, cpu.delayTimer);
+    setDecText(monSt, cpu.soundTimer);
+    setDecText(monIpf, settings.ipf);
+    setDecText(monInstr, state.instr);
+
+    // Registros: se resaltan los que cambiaron desde la actualización anterior en la que hubo ejecución.
+    var executed = state.instr !== mon.lastInstr;
+    mon.lastInstr = state.instr;
+    for (var i = 0; i < 16; i++) {
+      var v = V[i];
+      if (mon.vVals[i].__v !== v) { mon.vVals[i].__v = v; mon.vVals[i].textContent = HEX2[v]; }
+      if (executed) {
+        setClass(mon.vCells[i], 'is-chg', v !== mon.prevV[i]);
+        mon.prevV[i] = v;
+      }
+    }
+
+    // Desensamblado centrado en el PC (misma paridad que el PC).
+    var start = (cpu.pc - 2 * DISASM_BEFORE) & 0xFFF;
+    for (var r = 0; r < DISASM_ROWS; r++) {
+      var addr = (start + 2 * r) & 0xFFF;
+      var op = (mem[addr] << 8) | mem[(addr + 1) & 0xFFF];
+      var li = mon.rows[r];
+      if (li.__a !== addr) { li.__a = addr; li.__addr.textContent = '0x' + hex(addr, 3); }
+      if (li.__o !== op) { li.__o = op; li.__op.textContent = hex(op, 4); li.__text.textContent = Core.disassemble(op); }
+    }
+
+    // Pila: 16 niveles, el tope marcado.
+    var sp = cpu.sp;
+    for (var s = 0; s < mon.stackRows.length; s++) {
+      var sli = mon.stackRows[s];
+      var sv = s < sp ? cpu.stack[s] : -1;
+      if (sli.__v !== sv) { sli.__v = sv; sli.__val.textContent = sv < 0 ? '---' : '0x' + hex(sv, 3); }
+      setClass(sli, 'is-used', s < sp);
+      setClass(sli, 'is-top', s === sp - 1);
+    }
+
+    // Memoria alrededor de I.
+    var iAddr = cpu.I & 0xFFF;
+    var base = ((iAddr & 0xFF8) - 8) & 0xFFF;
+    for (var m = 0; m < 4; m++) {
+      var rowAddr = (base + 8 * m) & 0xFFF;
+      setHexText(mon.memAddr[m], rowAddr, 3, '0x');
+      for (var c = 0; c < 8; c++) {
+        var a = (rowAddr + c) & 0xFFF;
+        var cell = mon.memCells[m * 8 + c];
+        var bv = mem[a];
+        if (cell.__v !== bv) { cell.__v = bv; cell.textContent = HEX2[bv]; }
+        setClass(cell, 'is-i', a === iAddr);
+      }
+    }
+  }
+
+  function setMonitorOpen(open, quiet) {
+    mon.open = !!open;
+    settings.monitorOpen = mon.open;
+    monBody.hidden = !mon.open;
+    monToggle.setAttribute('aria-expanded', mon.open ? 'true' : 'false');
+    monToggleLabel.textContent = mon.open ? 'Ocultar' : 'Mostrar';
+    if (mon.open) updateMonitor(true);
+    if (!quiet) saveSettings();
+  }
+
+  // ------------------------------------------------------------------ estante de cartuchos
+  var cartButtons = [];
+  function buildShelf() {
+    if (!demos.length) { shelfEmpty.hidden = false; return; }
+    demos.forEach(function (d, i) {
+      var b = make('button', 'cart');
+      b.type = 'button';
+      b.setAttribute('aria-pressed', 'false');
+      b.style.setProperty('--cart-color', CART_COLORS[i % CART_COLORS.length]);
+      var label = make('span', 'cart-label');
+      label.appendChild(make('span', 'cart-name', d.name));
+      if (d.description) label.appendChild(make('span', 'cart-desc', d.description));
+      if (d.controls) label.appendChild(make('span', 'cart-ctrl', 'Controles: ' + d.controls));
+      b.appendChild(label);
+      b.appendChild(make('span', 'cart-badge', 'En la ranura'));
+      b.title = 'Insertar «' + d.name + '»';
+      b.addEventListener('click', function () { loadDemo(d.id); });
+      cartButtons.push({ id: d.id, el: b });
+      shelfList.appendChild(b);
+    });
+  }
+  function updateShelfSelection() {
+    for (var i = 0; i < cartButtons.length; i++) {
+      cartButtons[i].el.setAttribute('aria-pressed', cartButtons[i].id === state.demoId ? 'true' : 'false');
+    }
+  }
+
+  // ------------------------------------------------------------------ ayuda y arrastre
+  function openHelp() {
+    releaseAllKeys();
+    if (helpOpen()) return;
+    if (typeof helpDialog.showModal === 'function') helpDialog.showModal();
+    else helpDialog.setAttribute('open', '');
+  }
+  function closeHelp() {
+    if (typeof helpDialog.close === 'function' && helpDialog.open) helpDialog.close();
+    else helpDialog.removeAttribute('open');
+  }
+  function buildHelpQuirks() {
+    var dl = $('help-quirks');
+    QUIRK_KEYS.forEach(function (k, i) {
+      var info = QUIRK_INFO[k];
+      var dt = make('dt', null, (i + 1) + '. ' + info.name);
+      dt.appendChild(make('code', null, info.ops));
+      dl.appendChild(dt);
+      dl.appendChild(make('dd', null, info.desc));
+    });
+    var dd = make('dd', null, 'Perfiles: COSMAC VIP = 1, 2, 5 y 6 activados; SUPER-CHIP = 3, 4 y 5; XO-CHIP = solo 2. Si la combinación no coincide con ninguno, el selector muestra «Personalizado».');
+    dl.appendChild(dd);
+  }
+
+  var dragDepth = 0;
+  function hasFiles(e) {
+    var types = e.dataTransfer && e.dataTransfer.types;
+    if (!types) return false;
+    for (var i = 0; i < types.length; i++) if (types[i] === 'Files') return true;
+    return false;
+  }
+  function showDrop(on) { dropEl.hidden = !on; if (!on) dragDepth = 0; }
+
+  // ------------------------------------------------------------------ bucle principal
+  var lastTime = -1, acc = 0;
+  function loop(now) {
+    window.requestAnimationFrame(loop);
+    if (lastTime < 0) lastTime = now;
+    var dt = now - lastTime;
+    lastTime = now;
+    if (dt < 0 || dt > 250) dt = FRAME_MS;   // la pestaña estuvo oculta: se descarta el atraso
+    if (isRunning()) {
+      acc += dt;
+      var ticks = 0;
+      while (acc >= FRAME_MS - FRAME_SLACK && ticks < MAX_CATCHUP) {
+        tick();
+        acc -= FRAME_MS;
+        ticks++;
+        if (!isRunning()) { acc = 0; break; }
+      }
+      if (acc >= FRAME_MS) acc = 0;           // no vale la pena ponerse al día: se descarta
+    } else {
+      acc = 0;
+    }
+    if (needsRender) { needsRender = false; render(); }
+    updateIndicators();
+    updateMonitor(false);
+  }
+
+  // ------------------------------------------------------------------ armado de la interfaz
+  function buildControls() {
+    IPF_PRESETS.forEach(function (n) {
+      var b = make('button', 'chip', String(n));
+      b.type = 'button';
+      b.setAttribute('aria-pressed', 'false');
+      b.setAttribute('aria-label', n + ' instrucciones por frame');
+      b.addEventListener('click', function () { setIpf(n); announce('Velocidad: ' + n + ' instrucciones por frame.'); });
+      ipfChips.appendChild(b);
+      chipButtons.push(b);
+    });
+    ipfRange.addEventListener('input', function () {
+      var v = setIpf(sliderToIpf(ipfRange.value), 'range');
+      ipfInput.value = String(v);
+    });
+    ipfInput.addEventListener('input', function () {
+      var raw = ipfInput.value;
+      if (raw === '' || !isFinite(Number(raw))) return;
+      setIpf(raw, 'typing');
+    });
+    ipfInput.addEventListener('change', function () { setIpf(ipfInput.value); });
+    ipfInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') { setIpf(ipfInput.value); ipfInput.blur(); } });
+
+    PALETTE_IDS.forEach(function (id) {
+      var o = make('option', null, PALETTES[id].name);
+      o.value = id;
+      paletteSel.appendChild(o);
+    });
+    paletteSel.addEventListener('change', function () { applyPalette(paletteSel.value); saveSettings(); });
+
+    function bindToggle(btn, key, after) {
+      btn.setAttribute('aria-pressed', settings[key] ? 'true' : 'false');
+      btn.addEventListener('click', function () {
+        settings[key] = !settings[key];
+        btn.setAttribute('aria-pressed', settings[key] ? 'true' : 'false');
+        if (after) after(settings[key]);
+        saveSettings();
+      });
+    }
+    bindToggle(tgScan, 'scanlines', function () { needsRender = true; });
+    bindToggle(tgPersist, 'persistence', function (on) { if (!on) updateLevels(false); });
+    bindToggle(tgMute, 'muted', function (on) { updateAudioHint(); announce(on ? 'Sonido silenciado.' : 'Sonido activado.'); });
+    volumeRange.value = String(Math.round(settings.volume * 100));
+    volumeRange.addEventListener('input', function () { setVolume(Number(volumeRange.value) / 100); });
+    volumeRange.addEventListener('change', saveSettings);
+
+    presetSel.addEventListener('change', function () {
+      if (presetSel.value !== 'custom') setPreset(presetSel.value);
+    });
+    QUIRK_KEYS.forEach(function (k, i) {
+      var info = QUIRK_INFO[k];
+      var col = make('div', 'dip-col');
+      var b = make('button', 'dip');
+      b.type = 'button';
+      b.setAttribute('role', 'switch');
+      b.setAttribute('aria-label', info.name + ' (' + info.ops + ')');
+      b.title = info.name + ': ' + info.desc;
+      b.addEventListener('click', function () {
+        var patch = {};
+        patch[k] = !cpu.quirks[k];
+        applyQuirks(patch);
+        showQuirkHint(k);
+      });
+      b.addEventListener('mouseenter', function () { showQuirkHint(k); });
+      b.addEventListener('focus', function () { showQuirkHint(k); });
+      b.addEventListener('mouseleave', function () { if (document.activeElement !== b) quirkHint.textContent = DEFAULT_QUIRK_HINT; });
+      b.addEventListener('blur', function () { quirkHint.textContent = DEFAULT_QUIRK_HINT; });
+      dipButtons[k] = b;
+      col.appendChild(b);
+      var n = make('span', 'dip-n', String(i + 1));
+      n.setAttribute('aria-hidden', 'true');
+      col.appendChild(n);
+      dipBank.appendChild(col);
+      dipLabels.appendChild(make('span', null, info.tag));
+    });
+    quirkHint.textContent = DEFAULT_QUIRK_HINT;
+
+    btnPause.addEventListener('click', togglePause);
+    btnStep.addEventListener('click', function () { stepOnce(); });
+    btnFrame.addEventListener('click', function () { frameOnce(); });
+    btnReset.addEventListener('click', function () { doReset(); });
+    $('btn-help').addEventListener('click', openHelp);
+    $('help-close').addEventListener('click', closeHelp);
+    helpDialog.addEventListener('click', function (e) { if (e.target === helpDialog) closeHelp(); });
+    monToggle.addEventListener('click', function () { setMonitorOpen(!mon.open); });
+
+    $('btn-load').addEventListener('click', function () { fileInput.value = ''; fileInput.click(); });
+    fileInput.addEventListener('change', function () {
+      if (fileInput.files && fileInput.files[0]) loadFile(fileInput.files[0]);
+    });
+  }
+
+  function bindGlobalEvents() {
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    ['pointerdown', 'pointerup', 'touchend', 'click'].forEach(function (type) {
+      window.addEventListener(type, ensureAudio, true);
+    });
+    window.addEventListener('blur', releaseAllKeys);
+    document.addEventListener('visibilitychange', function () {
+      releaseAllKeys();
+      if (document.hidden) setBeep(false);
+      lastTime = -1;
+      acc = 0;
+    });
+
+    window.addEventListener('dragenter', function (e) {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      dragDepth++;
+      showDrop(true);
+    });
+    window.addEventListener('dragover', function (e) {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      if (dropEl.hidden) showDrop(true);
+    });
+    window.addEventListener('dragleave', function (e) {
+      if (!hasFiles(e)) return;
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (dragDepth === 0) showDrop(false);
+    });
+    window.addEventListener('drop', function (e) {
+      e.preventDefault();
+      showDrop(false);
+      var files = e.dataTransfer && e.dataTransfer.files;
+      if (files && files.length) loadFile(files[0]);
+    });
+
+    if (typeof ResizeObserver === 'function') {
+      new ResizeObserver(function () { resizeScreen(); }).observe(crtEl);
+    }
+    window.addEventListener('resize', resizeScreen);
+    if (typeof IntersectionObserver === 'function') {
+      new IntersectionObserver(function (entries) {
+        mon.onScreen = entries[entries.length - 1].isIntersecting;
+        if (mon.onScreen) updateMonitor(true);
+      }).observe(monitorEl);
+    }
+  }
+
+  // ------------------------------------------------------------------ API de depuración
+  window.chip8 = {
+    cpu: cpu,
+    demos: demos,
+    loadDemo: function (id) { return loadDemo(id); },
+    loadRomBytes: function (bytes, name) { return loadRomBytes(bytes, name, null); },
+    pause: function () { setPaused(true); },
+    resume: function () { setPaused(false); },
+    isPaused: function () { return state.paused; },
+    step: function () { return stepOnce(); },
+    frame: function () { return frameOnce(); },
+    reset: function () { return doReset(); },
+    setIpf: function (n) { return setIpf(n); },
+    getIpf: function () { return settings.ipf; },
+    setPreset: function (id) { return setPreset(id); },
+    pressKey: function (k) { k &= 0xF; if (!apiHeld[k]) { apiHeld[k] = 1; keyDown(k); } },
+    releaseKey: function (k) { k &= 0xF; if (apiHeld[k]) { apiHeld[k] = 0; keyUp(k); } },
+    audioState: audioState
+  };
+
+  // ------------------------------------------------------------------ arranque
+  buildKeypad();
+  buildMonitor();
+  buildShelf();
+  buildHelpQuirks();
+  buildControls();
+  applyPalette(settings.palette);
+  refreshQuirkUI();
+  setIpf(settings.ipf);
+  setMonitorOpen(settings.monitorOpen, true);
+  bindGlobalEvents();
+  resizeScreen();
+  updateAudioHint();
+  updateTransport();
+
+  if (demos.length) {
+    loadDemo(demos[0].id, true);
+    announce('Cartucho «' + demos[0].name + '» en marcha. Tocá H para ver la ayuda.');
+  } else {
+    updateLevels(false);
+    updateSlot();
+    announce('Sin cartucho: cargá una ROM o arrastrala sobre la página.');
+  }
+  updateMonitor(true);
+  window.requestAnimationFrame(loop);
+})();
 </script>
 </body>
 </html>
