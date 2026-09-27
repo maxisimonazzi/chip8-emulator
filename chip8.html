@@ -438,6 +438,14 @@
   }
   .chip[aria-pressed="true"] { background: linear-gradient(180deg, #ee8d57, var(--accent-2)); color: #fff5ea; border-color: #86371a; box-shadow: 0 1px 0 #6f2c0f, inset 0 1px 2px rgba(0, 0, 0, .25); transform: translateY(1px); }
   .hint { margin: 9px 0 0; font-size: 12px; color: var(--ink-soft); }
+  /* Selector rápido de cartuchos incluidos, junto a la ranura */
+  .cart-picker { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin-top: 10px; }
+  .cart-picker[hidden] { display: none; }
+  .cart-picker .chips { margin-top: 0; }
+  .cart-picker-label { font-size: 12px; font-weight: 700; color: var(--ink-soft); }
+  .cart-more { font-size: 12px; font-weight: 700; color: var(--accent-2); text-underline-offset: 2px; }
+  .cart-controls { margin-top: 6px; }
+  .cart-controls strong { color: var(--ink); }
   .select {
     width: 100%; padding: 7px 10px; border-radius: 8px;
     border: 1px solid rgba(80, 60, 35, .45);
@@ -829,6 +837,12 @@
                 </button>
                 <input type="file" id="file-input" class="visually-hidden" tabindex="-1" aria-hidden="true">
               </div>
+              <div class="cart-picker" id="cart-picker" hidden>
+                <span class="cart-picker-label" id="cart-chips-label">Incluidos:</span>
+                <div class="chips" id="cart-chips" role="group" aria-labelledby="cart-chips-label"></div>
+                <a class="cart-more" href="#shelf-title">Detalles ↓</a>
+              </div>
+              <p class="hint cart-controls" id="cart-controls" hidden></p>
             </div>
             <div>
               <p class="section-print">Ejecución</p>
@@ -1725,6 +1739,7 @@ globalThis.CHIP8_DEMOS = [
   var paletteSel = $('palette'), tgScan = $('tg-scan'), tgPersist = $('tg-persist'), tgMute = $('tg-mute'), volumeRange = $('volume');
   var presetSel = $('preset'), dipBank = $('dip-bank'), dipLabels = $('dip-labels'), quirkHint = $('quirk-hint');
   var shelfList = $('shelf-list'), shelfEmpty = $('shelf-empty');
+  var cartPicker = $('cart-picker'), cartChips = $('cart-chips'), cartControls = $('cart-controls');
   var monitorEl = $('monitor'), monBody = $('mon-body'), monToggle = $('mon-toggle'), monToggleLabel = $('mon-toggle-label');
   var monBadge = $('mon-badge'), monError = $('mon-error');
   var monPc = $('mon-pc'), monI = $('mon-i'), monSp = $('mon-sp'), monDt = $('mon-dt'), monSt = $('mon-st'), monIpf = $('mon-ipf'), monInstr = $('mon-instr');
@@ -1988,6 +2003,14 @@ globalThis.CHIP8_DEMOS = [
     var color = null;
     for (var i = 0; i < demos.length; i++) if (demos[i].id === state.demoId) color = CART_COLORS[i % CART_COLORS.length];
     if (color) slotEl.style.setProperty('--slot-color', color); else slotEl.style.removeProperty('--slot-color');
+    // Controles del demo que está en la ranura (las ROMs externas no traen esa información).
+    var demo = state.romLoaded && state.demoId ? findDemo(state.demoId) : null;
+    cartControls.textContent = '';
+    if (demo && demo.controls) {
+      cartControls.appendChild(make('strong', null, 'Controles: '));
+      cartControls.appendChild(document.createTextNode(demo.controls));
+    }
+    cartControls.hidden = !(demo && demo.controls);
     slotEl.classList.remove('is-inserting');
     if (state.romLoaded) {
       slotEl.classList.add('is-inserting');
@@ -2598,7 +2621,17 @@ globalThis.CHIP8_DEMOS = [
       b.addEventListener('click', function () { loadDemo(d.id); });
       cartButtons.push({ id: d.id, el: b });
       shelfList.appendChild(b);
+
+      // El mismo cartucho como chip junto a la ranura, para cambiar de demo sin scrollear.
+      var chip = make('button', 'chip', d.name);
+      chip.type = 'button';
+      chip.setAttribute('aria-pressed', 'false');
+      chip.title = d.description + (d.controls ? ' Controles: ' + d.controls : '');
+      chip.addEventListener('click', function () { loadDemo(d.id); });
+      cartButtons.push({ id: d.id, el: chip });
+      cartChips.appendChild(chip);
     });
+    cartPicker.hidden = false;
   }
   function updateShelfSelection() {
     for (var i = 0; i < cartButtons.length; i++) {
