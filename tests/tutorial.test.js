@@ -389,6 +389,17 @@ describe('05-ritmo (etapa C)', () => {
       }
     }
   });
+
+  it('a 7 IPF el paso no entra en 3 cuadros: 15 píxeles por segundo con el VIP y 18 con los otros', () => {
+    const want = { vip: 15, schip: 18, xochip: 18 };
+    for (const preset of PRESETS) {
+      const cpu = run(machine('05-ritmo.asm', { preset }), 10, 7);
+      cpu.setKey(K_DER, true);
+      const x = cpu.V[4];
+      run(cpu, 60, 7);
+      assert.equal(cpu.V[4] - x, want[preset], preset);
+    }
+  });
 });
 
 describe('05-ritmo con RITMO EQU 2 (la advertencia de la etapa C)', () => {
@@ -523,6 +534,74 @@ describe('08-sonido (etapa F)', () => {
     assert.ok(st.includes(3) && st.includes(1), 'ST: ' + st);
     assert.equal(st[st.length - 1], 0);
   });
+
+  // Sección 5.7: con el VIP, el paso de la moneda dura unos 13 cuadros; sin la espera
+  // del vblank, 5 o 6 a 15 IPF y casi siempre 3 desde 30. Los pasos comunes, 3.
+  it('el paso en que se agarra una moneda dura lo que dice la sección 5.7', () => {
+    const { labels } = example('08-sonido.asm');
+    const afterReload = labels.bucle + 10; // bucle: LD V0, DT / SE / JP / LD V0, RITMO / LD DT, V0
+    function stepDurations(preset, ipf) {
+      const cpu = machine('08-sonido.asm', { preset, random: seeded(11) });
+      let frame = 0, start = -1, coin = false;
+      const normal = [], coins = [];
+      const step = cpu.step;
+      cpu.step = function () {
+        if (this.pc === labels.agarrar) coin = true;
+        if (this.pc === afterReload) {
+          if (start >= 0) (coin ? coins : normal).push(frame - start);
+          start = frame;
+          coin = false;
+        }
+        return step.call(this);
+      };
+      for (frame = 0; frame < 1800; frame++) {
+        if (frame > 40) holdOnly(cpu, botKey(cpu));
+        cpu.runFrame(ipf);
+      }
+      return { normal, coins };
+    }
+    const median = (xs) => xs.slice().sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+    const vip = stepDurations('vip', 15);
+    assert.ok(vip.coins.length >= 10, 'monedas: ' + vip.coins.length);
+    assert.equal(median(vip.coins), 13, 'VIP: ' + vip.coins);
+    assert.ok(Math.min(...vip.coins) >= 12, 'VIP: ' + vip.coins);
+    assert.equal(median(vip.normal), 3);
+    for (const preset of ['schip', 'xochip']) {
+      const at15 = stepDurations(preset, 15), at30 = stepDurations(preset, 30);
+      assert.ok([5, 6].includes(median(at15.coins)), preset + ' a 15: ' + at15.coins);
+      assert.equal(median(at30.coins), 3, preset + ' a 30: ' + at30.coins);
+      assert.equal(median(at15.normal), 3);
+    }
+  });
+});
+
+describe('ejercicio 7: sin el LD I, fantasma de mover', () => {
+  it('el primer movimiento desarma el fantasmita y suma un punto sin tocar la moneda', () => {
+    const { source } = example('08-sonido.asm');
+    const line = '        LD I, fantasma      ; las subrutinas cambian I: lo recargamos siempre\n';
+    assert.ok(source.includes('mover:\n' + line), 'mover tiene que empezar con LD I, fantasma');
+    const broken = assemble(source.replace('mover:\n' + line, 'mover:\n'));
+    for (const preset of PRESETS) {
+      const cpu = new Chip8({ quirks: QUIRK_PRESETS[preset].quirks, random: seeded(3) });
+      cpu.loadRom(broken.bytes);
+      run(cpu, 40);
+      const coin = [cpu.V[8], cpu.V[9]];
+      // La moneda está lejos del fantasmita (29, 17): no hay forma de tocarla en un paso.
+      assert.ok(Math.abs(coin[0] - 29) > 8 || Math.abs(coin[1] - 17) > 8, preset + ': moneda en ' + coin);
+      // La última LD I antes del bucle es la de nueva_moneda: I apunta a la moneda.
+      assert.equal(cpu.I, broken.labels.moneda, preset);
+      assert.equal(cpu.V[0xE], 0);
+      cpu.setKey(K_DER, true);
+      for (let f = 0; f < 20 && cpu.V[4] === 29; f++) cpu.runFrame(15);
+      cpu.setKey(K_DER, false);
+      run(cpu, 20);
+      assert.equal(cpu.V[4], 30, preset);
+      assert.equal(cpu.V[0xE], 1, preset + ': un punto regalado');
+      const clean = expectedScreen([{ x: 30, y: 17, rows: FANTASMA }]);
+      const ghostArea = (d) => { const out = []; for (let y = 17; y < 23; y++) for (let x = 29; x < 37; x++) out.push(d[y * 64 + x]); return out.join(''); };
+      assert.notEqual(ghostArea(cpu.display), ghostArea(clean), preset + ': el fantasmita tendría que verse desarmado');
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -656,6 +735,176 @@ describe('11-sin-fin: el programa al que le falta el final', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Parte 6: lo que el tutorial cuenta de roms/rebote.asm y roms/atrapa.asm
+// ---------------------------------------------------------------------------
+
+const ROMS = path.join(ROOT, 'roms');
+const romCache = {};
+function rom(name) {
+  if (!romCache[name]) {
+    const source = fs.readFileSync(path.join(ROMS, name), 'utf8');
+    romCache[name] = { source, ...assemble(source) };
+  }
+  return romCache[name];
+}
+
+// Dirección de la primera línea del listado, desde `from`, cuyo código (sin el
+// comentario) es exactamente `code`.
+function addrOf(listing, code, from = 0) {
+  const entry = listing.find((e) => e.addr >= from && e.bytes.length &&
+    e.text.replace(/;.*$/, '').replace(/^\s*[^\s:;,]+\s*:/, '').trim() === code);
+  assert.ok(entry, 'no encontré "' + code + '" en el listado');
+  return entry.addr;
+}
+
+// Rebote: dónde están los dos DRW del bucle.
+function reboteDraws() {
+  const { listing, labels } = rom('rebote.asm');
+  const nueva = addrOf(listing, 'DRW V5, V6, 8', labels.bucle);
+  const vieja = addrOf(listing, 'DRW V1, V2, 8', nueva);
+  return { bucle: labels.bucle, nueva, vieja };
+}
+
+function litCount(cpu, fromRow = 9) {
+  let n = 0;
+  for (let i = fromRow * 64; i < 64 * 32; i++) n += cpu.display[i];
+  return n;
+}
+
+function crop(display, x0, y0, w, h) {
+  const rows = [];
+  for (let y = y0; y < y0 + h; y++) {
+    let r = '';
+    for (let x = x0; x < x0 + w; x++) r += display[y * 64 + x] ? '#' : '.';
+    rows.push(r);
+  }
+  return rows;
+}
+
+describe('roms/rebote.asm, como lo cuenta la sección 6.1', () => {
+  it('con el VIP a 15 IPF, cada cuadro termina en un DRW: se alternan la silueta y la pelota', () => {
+    const { nueva, vieja } = reboteDraws();
+    const cpu = new Chip8();
+    cpu.loadRom(rom('rebote.asm').bytes);
+    run(cpu, 30);
+    const seen = [];
+    let prev = Array.from(cpu.V.slice(0, 9));
+    for (let f = 0; f < 20; f++) {
+      cpu.runFrame(15);
+      const now = Array.from(cpu.V.slice(0, 9));
+      const moved = [1, 2, 5, 6, 7, 8].every((r) => now[r] !== prev[r]);
+      prev = now;
+      seen.push([cpu.pc - 2, litCount(cpu), moved]);
+    }
+    for (let i = 1; i < seen.length; i++) assert.notEqual(seen[i][0], seen[i - 1][0], 'los cuadros alternan');
+    for (const [pc, lit, moved] of seen) {
+      assert.ok(pc === nueva || pc === vieja, 'cada cuadro termina justo después de un DRW: 0x' + pc.toString(16));
+      assert.equal(lit, pc === nueva ? 36 : 44);
+      // V1, V2 y V5..V8 cambian en el cuadro que termina con el DRW de la pelota nueva.
+      assert.equal(moved, pc === nueva);
+    }
+  });
+
+  it('la silueta aparece en la mitad de los cuadros con el VIP, en uno de cada cinco sin espera a 15 IPF y nunca desde 30', () => {
+    function fraction(preset, ipf) {
+      const cpu = new Chip8({ quirks: QUIRK_PRESETS[preset].quirks });
+      cpu.loadRom(rom('rebote.asm').bytes);
+      run(cpu, 60, ipf);
+      let sil = 0;
+      for (let f = 0; f < 600; f++) {
+        cpu.runFrame(ipf);
+        if (litCount(cpu) !== 44) sil++;
+      }
+      return sil / 600;
+    }
+    assert.ok(Math.abs(fraction('vip', 15) - 0.5) < 0.02);
+    for (const preset of ['schip', 'xochip']) {
+      const f15 = fraction(preset, 15);
+      assert.ok(f15 > 0.15 && f15 < 0.25, preset + ' a 15 IPF: ' + f15);
+      assert.equal(fraction(preset, 30), 0, preset + ' a 30 IPF');
+    }
+  });
+
+  it('30 pasos por segundo desde 15 IPF, y unos 19 con el VIP a 7 IPF', () => {
+    function stepsPerSecond(preset, ipf) {
+      const cpu = new Chip8({ quirks: QUIRK_PRESETS[preset].quirks });
+      cpu.loadRom(rom('rebote.asm').bytes);
+      run(cpu, 30, ipf);
+      let steps = 0;
+      for (let f = 0; f < 600; f++) {
+        const x = cpu.V[1];
+        cpu.runFrame(ipf);
+        if (cpu.V[1] !== x) steps++;
+      }
+      return steps / 10;
+    }
+    for (const preset of PRESETS) for (const ipf of [15, 30, 1000]) assert.equal(stepsPerSecond(preset, ipf), 30, preset + '/' + ipf);
+    const slow = stepsPerSecond('vip', 7);
+    assert.ok(Math.abs(slow - 19) <= 1, 'VIP a 7 IPF: ' + slow + ' pasos por segundo');
+  });
+
+  it('con Paso solo, enseguida queda dando vueltas en la espera, de 0x218 a 0x21C', () => {
+    const { bucle } = reboteDraws();
+    assert.equal(bucle, 0x218);
+    for (const frames of [30, 31, 100, 101]) {
+      const cpu = new Chip8();
+      cpu.loadRom(rom('rebote.asm').bytes);
+      run(cpu, frames);
+      for (let i = 0; i < 40; i++) cpu.step();
+      const regs = Array.from(cpu.V.slice(1, 9));
+      const pcs = new Set();
+      for (let i = 0; i < 30; i++) { cpu.step(); pcs.add(cpu.pc); }
+      assert.deepEqual([...pcs].sort(), [0x218, 0x21A, 0x21C], 'después de ' + frames + ' cuadros');
+      assert.deepEqual(Array.from(cpu.V.slice(1, 9)), regs, 'V1..V8 ya no cambian');
+      assert.ok(cpu.delayTimer > 0);
+      // Con uno o dos Frames corre el tiempo, y con Paso el programa sigue.
+      let frameCount = 0, moved = false;
+      while (!moved && frameCount < 2) {
+        cpu.runFrame(15);
+        frameCount++;
+        for (let i = 0; i < 40; i++) cpu.step();
+        moved = Array.from(cpu.V.slice(1, 9)).some((v, i) => v !== regs[i]);
+      }
+      assert.ok(moved, 'con uno o dos Frames en el medio, sigue (después de ' + frames + ' cuadros)');
+    }
+  });
+});
+
+// Atrapa: las cuentas de "que sea justo", sacadas de las constantes del archivo.
+function atrapaNumbers() {
+  const equ = (name) => {
+    const m = new RegExp('^' + name + '\\s+EQU\\s+(\\d+)', 'm').exec(rom('atrapa.asm').source);
+    assert.ok(m, 'falta ' + name + ' EQU en roms/atrapa.asm');
+    return Number(m[1]);
+  };
+  const rows = equ('BLOQUE_PISO') - equ('BLOQUE_Y0');
+  const vmax = equ('VEL_MAXIMA');
+  // El acumulador arranca en 0 con cada bloque: la fila k baja en el paso ceil(k * 256 / v).
+  const fall = Math.ceil(rows * 256 / vmax);
+  // La paleta (x par, de 0 a PALETA_MAX, 2 píxeles por paso) atrapa si
+  // bloque_x + 3 >= paleta_x y paleta_x + 5 >= bloque_x. Peor caso: arrancar en la otra punta.
+  const pmax = equ('PALETA_MAX');
+  let paddle = 0;
+  for (let bx = 0; bx <= 60; bx++) {
+    for (let start = 0; start <= pmax; start += 2) {
+      let best = Infinity;
+      for (let px = 0; px <= pmax; px += 2) {
+        if (bx + 3 >= px && px + 5 >= bx) best = Math.min(best, Math.abs(px - start) / 2);
+      }
+      paddle = Math.max(paddle, best);
+    }
+  }
+  return { rows, vmax, fall, paddle, y0: equ('BLOQUE_Y0'), v0: equ('VEL_INICIAL'), step: equ('VEL_AUMENTO') };
+}
+
+describe('roms/atrapa.asm, como lo cuenta la sección 6.2', () => {
+  it('con la velocidad máxima, cualquier bloque se puede atrapar', () => {
+    const { fall, paddle } = atrapaNumbers();
+    assert.ok(fall > paddle, fall + ' pasos de caída contra ' + paddle + ' de la paleta');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Parte 8: el mini emulador
 // ---------------------------------------------------------------------------
 
@@ -714,8 +963,11 @@ describe('docs/ejemplos/mini-emulador.js', () => {
 //   - Cualquier otro ```asm tiene que ensamblarse sin errores.
 //   - <!-- salida: CMD --> antes de un ```text: es exactamente lo que imprime CMD.
 //     <!-- salida (fragmento): CMD -->: sus líneas aparecen seguidas en la salida.
-//   - <!-- verificar: tabla-a-mano --> y <!-- verificar: tabla-errores -->:
-//     las filas de esas tablas se comprueban una por una.
+//   - <!-- verificar: tabla-a-mano -->, <!-- verificar: tabla-errores --> y
+//     <!-- verificar: tabla-cartuchos -->: las filas de esas tablas se comprueban
+//     una por una (la de cartuchos, contra las etiquetas @ de roms/*.asm).
+//   - <!-- verificar: rebote-xor --> antes de un ```text: las tres pelotas del
+//     primer paso de roms/rebote.asm (antes, entre los dos DRW y después).
 
 function readTutorial() {
   return fs.readFileSync(TUTORIAL_PATH, 'utf8');
@@ -1026,6 +1278,86 @@ describe('docs/TUTORIAL.md', () => {
     assert.ok(count >= 10);
   });
 
+  it('la tabla de cartuchos (1.2) tiene los de roms/*.asm, en orden y con sus controles tal cual', () => {
+    const roms = fs.readdirSync(ROMS).filter((f) => f.endsWith('.asm')).map((f) => {
+      const tags = {};
+      for (const line of rom(f).source.split(/\r?\n/)) {
+        if (!line.startsWith(';')) break;
+        const m = /^;+\s*@(\w+)\s+(.*?)\s*$/.exec(line);
+        if (m) tags[m[1]] = m[2];
+      }
+      return { file: f, name: tags.name, controls: tags.controls, order: Number(tags.order) };
+    }).sort((a, b) => a.order - b.order);
+    const lines = md.split('\n');
+    const start = lines.indexOf('<!-- verificar: tabla-cartuchos -->');
+    assert.ok(start >= 0);
+    const rows = [];
+    for (let i = start + 1; i < lines.length && lines[i].startsWith('|'); i++) {
+      const m = /^\| \*\*([^*]+)\*\* \| (.+?) \| (.+) \|$/.exec(lines[i]);
+      if (m) rows.push({ name: m[1], what: m[2], controls: m[3] });
+    }
+    assert.deepEqual(rows.map((r) => r.name), roms.map((r) => r.name), 'los cartuchos, en el orden de @order');
+    rows.forEach((r, i) => assert.equal(r.controls, roms[i].controls, r.name + ': la columna Controles es la línea @controls'));
+    // Autotest: la cantidad de comprobaciones es la de CALL prueba_... del programa.
+    const checks = (rom('autotest.asm').source.match(/^\s*CALL prueba_\w+/gm) || []).length;
+    const autotest = rows.find((r) => r.name === 'Autotest');
+    assert.match(autotest.what, new RegExp('\\b' + checks + ' comprobaciones'));
+  });
+
+  it('el dibujo del frame intermedio de Rebote (6.1) es el que sale de verdad', () => {
+    const b = blocks.find((x) => x.marker === 'verificar: rebote-xor');
+    assert.ok(b, 'falta el bloque <!-- verificar: rebote-xor -->');
+    assert.equal(b.lang, 'text');
+    const shown = [[], [], []];
+    for (const line of b.lines) {
+      const m = /^([.#]{9})\s+([.#]{9})\s+([.#]{9})$/.exec(line);
+      if (m) for (let k = 0; k < 3; k++) shown[k].push(m[k + 1]);
+    }
+    assert.equal(shown[0].length, 9);
+    // El primer paso del bucle: antes del DRW de la pelota nueva, entre los dos DRW y después.
+    const { nueva, vieja } = reboteDraws();
+    const cpu = new Chip8();
+    cpu.loadRom(rom('rebote.asm').bytes);
+    while (cpu.pc !== nueva) cpu.step();
+    const [ox, oy, nx, ny] = [cpu.V[1], cpu.V[2], cpu.V[5], cpu.V[6]];
+    const x0 = Math.min(ox, nx), y0 = Math.min(oy, ny);
+    const real = [crop(cpu.display, x0, y0, 9, 9)];
+    const before = litCount(cpu);
+    cpu.step();
+    real.push(crop(cpu.display, x0, y0, 9, 9));
+    const middle = litCount(cpu);
+    while (cpu.pc !== vieja) cpu.step();
+    cpu.step();
+    real.push(crop(cpu.display, x0, y0, 9, 9));
+    assert.deepEqual(shown, real);
+    assert.ok(md.includes('yendo de (' + ox + ', ' + oy + ') a (' + nx + ', ' + ny + ')'));
+    assert.ok(md.includes('de ' + middle + ' píxeles en vez de ' + before));
+  });
+
+  it('los números de Atrapa (6.2) son los del archivo', () => {
+    const n = atrapaNumbers();
+    assert.ok(md.includes('es un juego completo en ' + rom('atrapa.asm').bytes.length + ' bytes'));
+    assert.ok(md.includes('baja "' + n.v0 + '/256 de'));
+    assert.ok(md.includes('le suma ' + n.step + ' a V9'));
+    assert.ok(md.includes('aparece en y = ' + n.y0 + ' y baja ' + n.rows + ' filas'));
+    const ratio = (n.rows * 256 / n.vmax).toFixed(1).replace('.', ',');
+    assert.ok(md.includes(n.vmax + '/256 de píxel por paso'));
+    assert.ok(md.includes(n.rows + ' × 256 / ' + n.vmax + ' = ' + ratio + ', o sea **' + n.fall + ' pasos**'));
+    assert.ok(md.includes('como mucho **' + n.paddle + ' pasos**'));
+    assert.ok(md.includes('sobran ' + (n.fall - n.paddle) + ' pasos'));
+  });
+
+  it('con BXNN, el monitor y el ensamblador van y vuelven (4.7 y 7.3)', () => {
+    const jumping = { ...QUIRK_PRESETS.vip.quirks, jumping: true };
+    assert.equal(disassemble(0xB300, jumping), 'JP V3, 0x300');
+    assert.deepEqual(Array.from(assemble('JP V3, 0x300').bytes), [0xB3, 0x00]);
+    assert.ok(md.includes('`B300` aparece como `JP V3, 0x300`'));
+    const { bytes } = example('11-sin-fin.asm');
+    const word = (bytes[0x0C] << 8) | bytes[0x0D];
+    assert.equal(disassemble(word, QUIRK_PRESETS.schip.quirks), 'JP V4, 0x4FC');
+    assert.ok(md.includes('`JP V4, 0x4FC`'));
+  });
+
   it('cita bien el error y la cuenta de instrucciones de 11-sin-fin', () => {
     const cpu = machine('11-sin-fin.asm', { guard: false });
     let executed = 0;
@@ -1052,6 +1384,11 @@ describe('docs/TUTORIAL.md', () => {
       'Sin cartucho', 'Ejecutando', 'Esperando tecla', 'Pausado', "'Error'",
       'IPF_PRESETS = [7, 15, 30, 100, 500, 1000]', 'IPF_DEFAULT = 15', 'BEEP_HZ = 440',
       "osc.type = 'square'", 'MAX_CATCHUP = 4', 'DISASM_BEFORE = 7, DISASM_AFTER = 12',
+      'dt > 250', 'Fuera de rango',
+      // Modo de pantalla, selector de cartuchos y línea de estado (partes 1, 6 y 7).
+      'Modo de pantalla', 'Tubo CRT', 'Píxeles puros', 'Incluidos:', 'Detalles ↓', "'Controles: '",
+      "'En pausa.'", "'Reiniciado'", "' (en pausa).'", "'Paso: PC = 0x'",
+      '.disasm li.is-pc .d-mark::before { content: "\\25B6"', '@media (max-width: 760px)',
     ];
     for (const s of quoted) assert.ok(html.includes(s), 'chip8.html ya no contiene: ' + s);
     // El mapa del teclado del diagrama de la sección 1.4.
@@ -1065,44 +1402,39 @@ describe('docs/TUTORIAL.md', () => {
     assert.ok(md.includes('│ Z │ X │ C │ V │     │ A │ 0 │ B │ F │'));
   });
 
-  it('los enlaces internos y los enlaces al manual llevan a encabezados que existen', () => {
+  it('los enlaces internos y los enlaces a otros .md llevan a encabezados que existen', () => {
     const own = anchorsOf(md);
-    const manualPath = path.join(ROOT, 'docs', 'MANUAL.md');
-    const manual = fs.existsSync(manualPath) ? anchorsOf(fs.readFileSync(manualPath, 'utf8')) : null;
+    const others = {};
     let checked = 0;
     for (const link of linksOf(md)) {
       if (/^[a-z]+:/i.test(link)) continue; // externos
       const [file, anchor] = link.split('#');
-      if (file === '' && anchor) {
+      if (!anchor) continue;
+      if (file === '') {
         assert.ok(own.has(anchor), 'ancla inexistente en el tutorial: #' + anchor);
-        checked++;
-      } else if (file === 'MANUAL.md' && anchor) {
-        assert.ok(manual, 'falta docs/MANUAL.md');
-        assert.ok(manual.has(anchor), 'ancla inexistente en MANUAL.md: #' + anchor);
-        checked++;
+      } else {
+        const target = path.join(ROOT, 'docs', file);
+        assert.ok(file.endsWith('.md') && fs.existsSync(target), 'enlace roto: ' + link);
+        if (!others[file]) others[file] = anchorsOf(fs.readFileSync(target, 'utf8'));
+        assert.ok(others[file].has(anchor), 'ancla inexistente en ' + file + ': #' + anchor);
       }
+      checked++;
     }
     assert.ok(checked >= 30, 'enlaces revisados: ' + checked);
   });
 
-  // DESARROLLO.md y README.md los escriben otras partes del proyecto: si todavía
-  // no existen, el test correspondiente queda salteado (y no falla).
-  const PENDING = ['DESARROLLO.md', '../README.md'];
-  it('los enlaces a archivos del repositorio existen', () => {
-    for (const link of linksOf(readTutorial())) {
+  // Sin excepciones: si el tutorial enlaza un archivo que no existe, el test falla.
+  it('los enlaces a archivos del repositorio existen (el manual, DESARROLLO.md y el README incluidos)', () => {
+    const files = new Set();
+    for (const link of linksOf(md)) {
       if (/^[a-z]+:/i.test(link)) continue;
       const file = link.split('#')[0];
-      if (!file || PENDING.includes(file)) continue;
-      assert.ok(fs.existsSync(path.join(ROOT, 'docs', file)), 'enlace roto: ' + link);
+      if (!file) continue;
+      files.add(file);
+      assert.ok(fs.existsSync(path.join(ROOT, 'docs', file)), 'enlace roto: ' + link + ' (docs/' + file + ' no existe)');
+    }
+    for (const f of ['MANUAL.md', 'DESARROLLO.md', '../README.md', 'ejemplos/']) {
+      assert.ok(files.has(f), 'el tutorial tendría que enlazar ' + f);
     }
   });
-
-  for (const file of PENDING) {
-    const exists = fs.existsSync(path.join(ROOT, 'docs', file));
-    it('el enlace a ' + file + ' lleva a un archivo que existe',
-      { skip: exists ? false : file + ' todavía no está escrito' }, () => {
-        assert.ok(linksOf(readTutorial()).some((l) => l.split('#')[0] === file));
-        assert.ok(exists);
-      });
-  }
 });

@@ -52,7 +52,7 @@ leé [DESARROLLO.md](DESARROLLO.md). La portada del proyecto es el [README](../R
 ### Qué necesitás
 
 - **Un navegador** moderno (Chrome, Edge, Firefox o Safari). Con eso alcanza para las
-  partes 1, 2, 3, 6 y 7.
+  partes 1, 2, 6 y 7, y para cargar los `.ch8` ya ensamblados de las demás.
 - **Una terminal** (PowerShell en Windows, o la que uses en Linux o macOS) para crear
   el archivo de la parte 3.
 - **[Node.js](https://nodejs.org/)** para el ensamblador (partes 4 y 5) y para el
@@ -105,14 +105,21 @@ local, corré `node tools/serve.js` (o `npm run serve`) y entrá a
 
 Vas a ver una consolita beige con estas partes:
 
-- Arriba, la **pantalla** (un monitor de fósforo verde) y dos luces: **RUN** y
+- Arriba, la **pantalla** (un monitor de tubo, de fósforo verde) y dos luces: **RUN** y
   **SONIDO**. El botón **?** abre la ayuda.
-- Debajo de la pantalla, el **cartucho** (qué programa está cargado y cuánto ocupa) con
-  el botón **Cargar ROM**, y los botones de **ejecución**: Pausa, Paso, Frame y
-  Reiniciar.
-- A la derecha, el **keypad** hexadecimal de 16 teclas.
+- Debajo de la pantalla, el **cartucho**: qué programa está cargado y cuánto ocupa, el
+  botón **Cargar ROM** y, justo abajo, la fila **Incluidos:**, con un botón por cada
+  programa de demostración (sección 1.2).
+- Después, los botones de **ejecución** (Pausa, Paso, Frame y Reiniciar) y, debajo,
+  una **línea de estado** que te va contando lo que pasa: *En pausa.*, *Reiniciado
+  (en pausa).*, *Paso: PC = 0x20C.*
+- A la derecha, el **keypad** hexadecimal de 16 teclas. En una pantalla angosta (un
+  teléfono, o una ventana de menos de unos 760 píxeles de ancho) todo va en una sola
+  columna: el keypad queda pegado debajo de la pantalla, para que los dos entren
+  juntos, y el cartucho y los botones de ejecución bajan después.
 - El **panel de control**: velocidad, pantalla y sonido, y los interruptores de quirks.
-- Debajo de todo, el estante de **cartuchos incluidos** (los programas de demostración).
+- Debajo de la consola, el estante de **cartuchos incluidos**, con la descripción y los
+  controles de cada programa de demostración.
 - El **monitor** de depuración: a la derecha si tu pantalla es ancha, o debajo de la
   consola si es angosta.
 
@@ -121,16 +128,20 @@ correr.
 
 ### 1.2 Los cartuchos incluidos
 
-Para cambiar de programa, tocá cualquiera de los cartuchos del estante: se carga y
-arranca solo.
+Para cambiar de programa, tocá su nombre en la fila **Incluidos:**, debajo de la ranura
+del cartucho: se carga y arranca solo, y su botón queda marcado. Debajo aparece la
+línea **Controles:**, con las teclas que usa ese programa. El enlace **Detalles ↓** te
+lleva al estante *Cartuchos incluidos*, debajo de la consola, donde cada uno tiene su
+descripción y sus controles; tocar un cartucho del estante también lo carga.
 
-| Cartucho | Qué muestra | Controles |
+<!-- verificar: tabla-cartuchos -->
+| Cartucho | Qué muestra | Controles (lo que dice la línea *Controles:*) |
 |---|---|---|
-| **Rebote** | Una pelotita con cara que rebota por la pantalla y suena al tocar un borde. | Ninguno. |
-| **Teclado** | El keypad en pantalla: cada tecla se ilumina mientras la tenés apretada y la última aparece en grande. | Las 16 teclas, varias a la vez si querés. |
-| **Atrapa** | Un jueguito: mové la paleta y atrapá los bloques que caen. Tres errores y perdés. | Izquierda: A o Q. Derecha: D o E. Al terminar, cualquier tecla. |
-| **Autotest** | Un programa que se prueba a sí mismo: 19 comprobaciones de instrucciones, cada una con una tilde o una cruz. | Ninguno. No toques teclas mientras corre. |
-| **Fuente** | Los 16 dígitos hexadecimales que el intérprete guarda en memoria. | Ninguno. |
+| **Rebote** | Una pelotita con cara que rebota por la pantalla y suena al tocar un borde. | Ninguno: solo mirá. |
+| **Teclado** | El keypad en pantalla: cada tecla se ilumina mientras la tenés apretada y la última aparece en grande. | Todas las teclas: 1 2 3 4 / Q W E R / A S D F / Z X C V (teclado del COSMAC VIP: 1 2 3 C / 4 5 6 D / 7 8 9 E / A 0 B F). Podés apretar varias a la vez. |
+| **Atrapa** | Un jueguito: mové la paleta y atrapá los bloques que caen. Cada uno suma un punto y la caída se acelera, hasta un tope; si se te escapan tres, perdés. | Izquierda: A (tecla 7) o Q (tecla 4). Derecha: D (tecla 9) o E (tecla 6). Al terminar, cualquier tecla vuelve a empezar. |
+| **Autotest** | Un programa que se prueba a sí mismo: 19 comprobaciones de instrucciones, cada una con una tilde o una cruz, y al final una celda con la cantidad de fallas. | Ninguno. No toques ninguna tecla mientras corre (una de las pruebas verifica que no haya teclas apretadas). |
+| **Fuente** | Los 16 dígitos hexadecimales que el intérprete guarda en memoria. | Ninguno: es una imagen fija. |
 
 Los cinco están escritos en ensamblador y sus fuentes están en `roms/`. En la
 [parte 6](#6-leer-un-programa-real) vamos a leer dos de ellos.
@@ -146,7 +157,9 @@ los bytes tal cual van en la memoria. Hay dos formas de cargarlo:
 
 El programa se copia a la memoria a partir de la dirección `0x200`, la máquina se
 reinicia y arranca a correr. Puede ocupar hasta **3584 bytes** (de `0x200` a `0xFFF`);
-si es más grande, o si está vacío, la consola te avisa y no lo carga.
+si es más grande, o si está vacío, la consola te avisa y no lo carga. Con una ROM tuya
+no aparece la línea *Controles:*: esa información solo la traen los cartuchos
+incluidos.
 
 ### 1.4 El teclado
 
@@ -174,10 +187,14 @@ CHIP-8 usan esas cuatro para moverse, y el nuestro también.
 
 También podés tocar el **keypad de la pantalla** con el mouse o con los dedos (admite
 varias teclas a la vez). Cada tecla muestra, chiquita, cuál es su equivalente en tu
-teclado. Y si navegás con Tab, podés mantener apretada la tecla enfocada con Enter.
+teclado. Y si navegás con Tab, podés mantener apretada la tecla enfocada con Enter o con
+Espacio.
 
 Las teclas no le llegan a la máquina mientras escribís en un campo de texto (por
-ejemplo, el número de IPF) ni mientras está abierta la ayuda.
+ejemplo, el número de IPF) ni mientras está abierta la ayuda. En cualquier otro lugar sí
+le llegan, aunque haya un botón o un selector enfocado: por ejemplo, justo después de
+elegir un perfil en el selector **Perfil**, W, A, S, D y Retroceso siguen yendo a la
+consola.
 
 ### 1.5 La velocidad: instrucciones por frame
 
@@ -186,7 +203,8 @@ segundo ejecuta una cantidad de instrucciones (las **IPF**) y después baja los 
 En el panel **Velocidad** la elegís de tres maneras: con la barra (que es logarítmica,
 así los valores chicos son fáciles de elegir), escribiendo el número exacto o con los
 botones rápidos **7, 15, 30, 100, 500 y 1000**. Abajo te muestra cuántas instrucciones
-por segundo son.
+por segundo son. Si escribís un número fuera de 1 a 1000, te avisa (*Fuera de rango*) y
+usa el más cercano.
 
 - **15 IPF** (el valor por defecto, unas 900 instrucciones por segundo) se parece a la
   velocidad del COSMAC VIP.
@@ -218,8 +236,8 @@ que los pone todos juntos:
 | **XO-CHIP** | 2 |
 
 Si movés los interruptores a mano y la combinación no coincide con ningún perfil, el
-selector muestra **Personalizado**. Los cambios se aplican en el momento, sin reiniciar. Si pasás el mouse por un interruptor, debajo
-aparece qué hace.
+selector muestra **Personalizado**. Los cambios se aplican en el momento, sin reiniciar.
+Si pasás el mouse por un interruptor (o llegás a él con Tab), debajo aparece qué hace.
 
 ¿Cuándo cambiar el perfil? Si un juego se ve raro (sprites rotos, números que no
 cambian, saltos a cualquier lado), probá SUPER-CHIP o XO-CHIP: muchos juegos modernos se
@@ -230,20 +248,33 @@ El detalle de cada quirk está en el [manual, sección 11](MANUAL.md#11-quirks).
 
 ### 1.7 Pantalla y sonido
 
+- **Modo de pantalla**, con dos opciones:
+  - **Tubo CRT** (el que viene): imita un monitor de tubo. Los píxeles tienen un
+    resplandor, dejan una estela al apagarse (la persistencia del fósforo) y hay
+    scanlines, un oscurecimiento en los bordes y un reflejo en el vidrio.
+  - **Píxeles puros**: la pantalla de CHIP-8 tal cual, con píxeles cuadrados y nítidos,
+    exactamente dos colores y ningún efecto: ni estela, ni resplandor, ni scanlines. Es
+    la mejor forma de ver cada frame exactamente como quedó en la memoria de video; lo
+    vas a aprovechar en la [parte 6](#61-rebote-paso-a-paso).
 - **Paleta**: *Verde fósforo*, *Ámbar*, *Blanco* o *LCD*.
-- **Scanlines**: las líneas horizontales de los monitores viejos.
-- **Persistencia**: los píxeles se apagan de a poco, como el fósforo de un tubo. Además
-  de lindo, disimula el parpadeo típico de CHIP-8 (vas a ver de dónde sale en la
-  [etapa B](#52-etapa-b-moverlo-con-el-teclado)).
+- **Scanlines** (solo en Tubo CRT): las líneas horizontales de los monitores viejos.
+- **Persistencia** (solo en Tubo CRT): los píxeles se apagan de a poco, como el fósforo
+  de un tubo. Además de lindo, disimula el parpadeo típico de CHIP-8 (vas a ver de dónde
+  sale en la [etapa B](#52-etapa-b-moverlo-con-el-teclado)).
 - **Silencio** y **Volumen**.
+
+En *Píxeles puros*, los interruptores de Scanlines y Persistencia quedan deshabilitados,
+pero se acuerdan de cómo los dejaste para cuando vuelvas al tubo.
 
 El beep suena mientras el temporizador de sonido de la máquina vale más de 0, y
 mientras suena se prende la luz **SONIDO**. Los navegadores no dejan reproducir audio
 hasta que tocás la página: mientras debajo de la pantalla diga *Sonido: tocá la consola
 para activarlo*, hacé un clic o apretá una tecla y listo.
 
-Todos los ajustes (velocidad, quirks, pantalla y sonido) se guardan en tu navegador
-para la próxima vez.
+Todos los ajustes (velocidad, quirks, modo de pantalla, paleta y sonido) se guardan en
+tu navegador para la próxima vez. Eso incluye el perfil de quirks: si en algún
+experimento lo cambiás, después volvé a **COSMAC VIP**, que es el que supone este
+tutorial.
 
 ### 1.8 Controles de ejecución y atajos
 
@@ -252,13 +283,18 @@ para la próxima vez.
 | **Pausa / Continuar** | Espacio | Detiene la máquina o la vuelve a poner en marcha. |
 | **Paso** | N | Ejecuta **una sola instrucción**. Si estaba corriendo, primero la pausa. |
 | **Frame** | | Ejecuta **un frame**: hasta IPF instrucciones y un tic de los timers. También pausa. |
-| **Reiniciar** | Retroceso | Reinicia la máquina y vuelve a cargar el mismo programa. Si estaba en pausa, sigue en pausa. |
+| **Reiniciar** | Retroceso | Reinicia la máquina y vuelve a cargar el mismo programa. Si estaba en pausa, sigue en pausa; si estaba corriendo, arranca. Después de un error, vuelve a como estaba justo antes del error: si ibas con Paso o con Frame, queda en pausa; si corría, arranca de nuevo. |
 | **?** | H | Abre o cierra la ayuda. |
 | | Esc | Cierra la ayuda. |
 
 Un detalle importante para depurar: **Paso no hace correr el tiempo**. Los timers
 bajan una vez por frame, así que con Paso quedan congelados; con Frame, o
 con Continuar, vuelven a bajar.
+
+Y uno sobre el foco: los botones que tocás con el mouse no se quedan con el foco, así
+que Espacio siempre pausa. Si en cambio llegás a un botón o a un interruptor con Tab,
+Espacio y Enter lo activan (no pausan); las teclas del keypad, N, H y Retroceso siguen
+yendo a la consola.
 
 ### 1.9 El monitor
 
@@ -273,8 +309,9 @@ el botón **Ocultar** lo plegás.
   última actualización se resaltan: cuando avanzás con Paso, ves exactamente qué tocó
   cada instrucción.
 - **DESENSAMBLADO**: las instrucciones alrededor del PC (7 antes y 12 después), con su
-  dirección, sus bytes y su nombre. La del PC está marcada con un punto: es la que se
-  va a ejecutar **a continuación**.
+  dirección, sus bytes y su nombre. La del PC está resaltada y marcada con una flechita
+  (▶): es la que se va a ejecutar **a continuación**. Con el quirk `BXNN` prendido, las
+  instrucciones `BNNN` aparecen como `JP VX, NNN`, con el registro que de verdad se suma.
 - **PILA**: los 16 lugares de la pila; el tope (la última dirección guardada) está
   marcado.
 - **MEMORIA EN I**: 32 bytes alrededor de la dirección a la que apunta I (el de I,
@@ -293,7 +330,7 @@ dicen en qué anda la máquina:
 | **Ejecutando** | Verde | El programa | Corriendo normalmente. |
 | **Esperando tecla** | Verde, parpadea | Cartel *ESPERANDO TECLA* | El programa ejecutó `LD Vx, K` (`FX0A`) y está parado hasta que **apretes y sueltes** una tecla. |
 | **Pausado** | Ámbar | Cartel *PAUSA* | Lo pausaste vos, o usaste Paso o Frame. |
-| **Error** | Roja | Cartel *ERROR* con el mensaje | El programa hizo algo imposible: una instrucción que no existe, un `RET` sin `CALL` o demasiados `CALL` anidados. El mensaje dice qué instrucción y en qué dirección. Pausa, Paso y Frame quedan deshabilitados: tocá **Reiniciar**. |
+| **Error** | Roja | Cartel *ERROR* con el mensaje | El programa hizo algo imposible: una instrucción que no existe, un `RET` sin `CALL` o demasiados `CALL` anidados. El mensaje dice qué instrucción y en qué dirección. Pausa, Paso y Frame quedan deshabilitados: tocá **Reiniciar**, que vuelve a como estaba la máquina antes del error (en pausa o corriendo). |
 
 ---
 
@@ -486,7 +523,7 @@ quirk (sección [1.6](#16-quirks-y-perfiles)). La explicación completa de cada 
 | `8XYE` | `SHL VX, VY` | VX = VY desplazado un bit a la izquierda (con `SHIFT`, VX desplazado); VF = el bit que salió. |
 | `9XY0` | `SNE VX, VY` | Saltea la siguiente si VX ≠ VY. |
 | `ANNN` | `LD I, NNN` | I = NNN. |
-| `BNNN` | `JP V0, NNN` | Salta a NNN + V0 (con `BXNN`, a NNN + VX). |
+| `BNNN` | `JP V0, NNN` | Salta a NNN + V0 (con `BXNN`, a NNN + VX, donde X es el primer dígito de NNN). |
 | `CXNN` | `RND VX, NN` | VX = un número al azar AND NN. |
 | `DXYN` | `DRW VX, VY, N` | Dibuja un sprite de N filas en (VX, VY); VF = 1 si hubo choque. |
 | `EX9E` | `SKP VX` | Saltea la siguiente si la tecla VX está apretada. |
@@ -643,7 +680,8 @@ Cambiá bytes, volvé a crear el archivo y cargalo. Algunas ideas:
   `00E0 600A F029 613E 620D D125 120C`, solo entran las dos primeras columnas de la A.
   Con el perfil COSMAC VIP, las otras dos se recortan. Pasá al perfil XO-CHIP (que no
   recorta) y apretá **Retroceso**: las dos columnas que faltaban aparecen del otro lado,
-  en las columnas 0 y 1.
+  en las columnas 0 y 1. Después volvé al perfil COSMAC VIP: el perfil queda guardado y
+  el resto del tutorial supone ese.
 - **Dibujar dos veces**: agregá otro `D125` justo después del primero. La instrucción
   del salto ahora queda en `0x20E`, así que también hay que cambiarla por `120E`:
   `00E0 600A F029 611E 620D D125 D125 120E`. La A **no aparece**: el segundo dibujo, con
@@ -697,6 +735,14 @@ fin:    JP fin          ; 120C  saltar acá mismo, para siempre
 
 ### 4.2 Ensamblar desde la terminal
 
+Parado en la carpeta raíz del proyecto, escribí:
+
+```sh
+node tools/chip8asm.js docs/ejemplos/01-a-mano.asm
+```
+
+Y el ensamblador te contesta:
+
 <!-- salida: node tools/chip8asm.js docs/ejemplos/01-a-mano.asm -->
 ```text
 Ensamblado 01-a-mano.asm: 14 bytes -> docs/ejemplos/01-a-mano.ch8
@@ -705,9 +751,18 @@ Ensamblado 01-a-mano.asm: 14 bytes -> docs/ejemplos/01-a-mano.ch8
 Si no le decís otra cosa, el ensamblador escribe el `.ch8` al lado del `.asm`, con el
 mismo nombre. Con un segundo argumento elegís otro nombre:
 `node tools/chip8asm.js programa.asm salida.ch8`. (También hay un atajo de npm:
-`npm run asm -- programa.asm`.)
+`npm run asm -- programa.asm`.) Si te olvidás de cómo se usa, `--help` te lo recuerda:
 
-Comprobá que da exactamente lo mismo que tu archivo hecho a mano. En Windows:
+<!-- salida: node tools/chip8asm.js --help -->
+```text
+Uso: node tools/chip8asm.js entrada.asm [salida.ch8] [--listing]
+```
+
+Y si algo sale mal (un archivo que no existe, una opción que no conoce), te dice qué
+pasó y no escribe nada.
+
+Comprobá que el `.ch8` que generó el ensamblador es idéntico a tu archivo hecho a mano.
+En Windows:
 
 ```powershell
 fc.exe /b a-mano.ch8 docs/ejemplos/01-a-mano.ch8
@@ -721,6 +776,10 @@ docs/ejemplos/01-a-mano.ch8` no dice nada si los archivos son iguales.
 
 Con `--listing`, además, te muestra qué bytes generó cada línea y en qué dirección
 quedaron:
+
+```sh
+node tools/chip8asm.js docs/ejemplos/01-a-mano.asm --listing
+```
 
 <!-- salida: node tools/chip8asm.js docs/ejemplos/01-a-mano.asm --listing -->
 ```text
@@ -893,9 +952,10 @@ qué. Estos son los errores más comunes:
 | `JP 0x1000` | `Línea 1: dirección fuera de rango (0..0xFFF): "0x1000" = 4096` | La memoria llega hasta `0xFFF`. |
 | `JP fin` | `Línea 1: etiqueta o constante desconocida: "fin"` | La etiqueta no está definida (o está escrita con otras mayúsculas). |
 | `LD V1, V10` | `Línea 1: etiqueta o constante desconocida: "V10" (los registros van de V0 a VF)` | No existe V10: los registros son V0 a VF. |
+| `LD V 1, 5` | `Línea 1: el operando "V 1" tiene espacios adentro: se escribe "V1"` | Los nombres de registros van pegados: `V1`, `DT`, `ST`. |
 | `LD V1, 0x2G` | `Línea 1: número inválido: "0x2G"` | G no es un dígito hexadecimal. |
 | `SKP 5` | `Línea 1: operandos inválidos para SKP: "5" (formas válidas: SKP Vx)` | `SKP` recibe un **registro** que tiene el número de tecla: `LD V0, 5` y después `SKP V0`. |
-| `JP V1, 0x300` | `Línea 1: JP con registro solo admite V0 (JP V0, dirección)` | El salto con desplazamiento siempre suma V0. |
+| `JP V1, 0x300` | `Línea 1: JP V1 solo se puede usar con una dirección que empiece con 1 (0x100..0x1FF, la forma BXNN de SUPER-CHIP), y 0x300 no empieza con 1; JP V0 acepta cualquier dirección` | El salto con desplazamiento clásico es `JP V0, dirección`. Con otro registro es la forma `BXNN` de SUPER-CHIP, en la que el registro es el primer dígito de la dirección: `JP V3, 0x300` sí se ensambla (da `B300`). |
 | `CLS V1` | `Línea 1: CLS espera 0 operandos y recibió 1 (formas válidas: CLS)` | `CLS` no lleva operandos. |
 | `i: CLS` | `Línea 1: "i" es un nombre reservado y no puede usarse como etiqueta ni constante` | `I` es un registro. |
 
@@ -923,9 +983,11 @@ Para esos está el monitor, y la [parte 7](#7-depurar).
 
 El DESENSAMBLADO del monitor usa exactamente esta misma sintaxis, así que cualquier
 línea que veas ahí la podés copiar a un `.asm`. Las palabras que no son instrucciones
-válidas aparecen como `DW 0x....`, que también se puede ensamblar. Eso sí: el monitor
-no sabe qué es código y qué es un dibujo. Los bytes del fantasmita que vas a dibujar en
-la parte 5 (`78 FC ...`) los muestra como `ADD V8, 0xFC`.
+válidas aparecen como `DW 0x....`, que también se puede ensamblar. Con el quirk `BXNN`
+prendido, `B300` aparece como `JP V3, 0x300`, que el ensamblador también entiende (y
+vuelve a dar `B300`). Eso sí: el monitor no sabe qué es código y qué es un dibujo. Los
+bytes del fantasmita que vas a dibujar en la parte 5 (`78 FC ...`) los muestra como
+`ADD V8, 0xFC`.
 
 ---
 
@@ -941,6 +1003,10 @@ volvé a ensamblarlo, por ejemplo:
 ```sh
 node tools/chip8asm.js docs/ejemplos/04-mover.asm
 ```
+
+Antes de empezar, dejá la consola como viene de fábrica: perfil **COSMAC VIP** y
+**15 IPF**. Las explicaciones de tiempos de esta parte suponen eso; cuando alguna etapa
+te proponga probar otro perfil, después volvé a este.
 
 ### El plan antes de empezar
 
@@ -1083,15 +1149,17 @@ Cargalo y movelo. Vas a notar dos cosas.
 **Parpadea.** Entre el borrado y el nuevo dibujo, el fantasmita no está en la
 pantalla. Con el perfil COSMAC VIP, cada `DRW` espera al frame siguiente (el quirk
 `VBLANK`), así que durante un frame entero no se ve. Es el parpadeo típico de los juegos
-de CHIP-8; la opción **Persistencia** de la consola lo disimula. En la
-[parte 6](#61-rebote-paso-a-paso) vas a ver otra forma de reducirlo.
+de CHIP-8; la opción **Persistencia** del modo Tubo CRT lo disimula, y en *Píxeles
+puros* lo ves tal cual. En la [parte 6](#61-rebote-paso-a-paso) vas a ver otra forma
+de reducirlo, y en la [6.2](#62-lo-mejor-de-atrapa), una de eliminarlo.
 
 **La velocidad depende de la máquina.** Con el perfil COSMAC VIP avanza 30 píxeles por
 segundo, tanto a 15 como a 1000 IPF: cada paso tiene dos `DRW` y cada uno espera un
 frame, así que da un paso cada 2 frames. Pero pasá al perfil XO-CHIP (que no espera):
 a 15 IPF avanza 50 píxeles por segundo, y a 1000 IPF avanza más de 50 píxeles **en un
 solo frame**, casi el ancho de la pantalla. Y si lo llevás contra un borde, reaparece
-del otro lado. Las dos cosas las arreglamos en las próximas etapas.
+del otro lado. Cuando termines de probar, volvé al perfil COSMAC VIP. Las dos cosas las
+arreglamos en las próximas etapas.
 
 ### 5.3 Etapa C: el ritmo con el temporizador
 
@@ -1173,8 +1241,8 @@ Lo único nuevo son las cinco líneas del principio del bucle:
 - Cuando llega a 0, lo volvemos a cargar con `RITMO` (3) y hacemos un paso.
 
 DT baja 60 veces por segundo pase lo que pase, así que hay exactamente un paso cada 3
-frames: **20 píxeles por segundo** con cualquier perfil y cualquier velocidad. Los tests
-del proyecto lo comprueban con los tres perfiles y con 15, 30, 100 y 1000 IPF.
+frames: **20 píxeles por segundo** con cualquier perfil, desde 15 IPF para arriba. Los
+tests del proyecto lo comprueban con los tres perfiles y con 15, 30, 100 y 1000 IPF.
 
 Un detalle de diseño: el temporizador se recarga **al principio** del paso, no al
 final. Así el tiempo que tarda el paso mismo queda adentro de esos 3 frames, y el ritmo
@@ -1187,6 +1255,9 @@ IPF no entran todas en un frame. Justo entra en 3. Si probás con `RITMO EQU 2`,
 perfil COSMAC VIP va a 30 píxeles por segundo a 30 IPF o más, pero a 15 IPF el paso no
 entra en 2 frames, tarda 3, y baja a 20: la velocidad vuelve a depender de las IPF. Al
 diseñar para el VIP, contá los `DRW` de cada paso: cada uno puede costarte un frame.
+Y no te olvides de las instrucciones: a 7 IPF, el ajuste más lento de la consola, las
+de un paso ya no entran en 3 frames, y el fantasmita baja a 15 píxeles por segundo con
+el perfil COSMAC VIP y a 18 con los otros dos.
 
 ### 5.4 Etapa D: bordes, una moneda y choques
 
@@ -1877,8 +1948,8 @@ linea:
 
 ### 5.7 Código que anda en cualquier intérprete
 
-El Cazamonedas anda igual con los perfiles COSMAC VIP, SUPER-CHIP y XO-CHIP, y a
-cualquier velocidad (los tests lo juegan con los tres perfiles). No es casualidad:
+El Cazamonedas anda bien con los perfiles COSMAC VIP, SUPER-CHIP y XO-CHIP, desde
+15 IPF para arriba (los tests lo juegan con los tres perfiles). No es casualidad:
 sigue estas reglas.
 
 | Regla | Por qué | Quirk que esquiva |
@@ -1890,6 +1961,15 @@ sigue estas reglas.
 | Si desplazás, usá `SHR Vx` / `SHL Vx` (X = Y). | Unos desplazan VX y otros VY; si son el mismo registro, da igual. | `SHIFT` |
 | No uses `JP V0, NNN`. | Unos suman V0 y otros VX. | `BXNN` |
 | Que los sprites no se salgan de la pantalla. | Unos recortan lo que sobra y otros lo hacen aparecer del otro lado. | `CLIP` |
+
+"Anda bien" no quiere decir "anda idéntico". Con el perfil COSMAC VIP, el paso en que
+agarrás una moneda tiene por lo menos 12 `DRW`: los dos de `mover` y, en `agarrar`,
+sacar el fantasmita, borrar la moneda, borrar y volver a dibujar el puntaje (tres cada
+vez), dibujar otra vez el fantasmita y poner la moneda nueva. Cada uno cuesta un frame,
+así que a 15 IPF ese paso dura unos 13 frames en vez de 3, y el fantasmita se frena un
+quinto de segundo. Con SUPER-CHIP o XO-CHIP dura 5 o 6 frames a 15 IPF, y casi siempre
+3 desde 30. El juego es el mismo y se juega igual; solo cambia esa pausita. Es la regla
+de contar los `DRW`, en vivo.
 
 Los detalles de cada quirk, con ejemplos y una tabla comparativa, están en el
 [manual, sección 11](MANUAL.md#11-quirks).
@@ -1906,9 +1986,10 @@ Vamos a recorrer `rebote.asm` entero y los mejores momentos de `atrapa.asm`.
 
 `roms/rebote.asm` tiene la misma forma que nuestro Cazamonedas: un encabezado con
 comentarios, las constantes, la preparación, el bucle principal, las subrutinas y, al
-final, los dibujos. Las primeras líneas (`; @name Rebote`, `; @description ...`) son
-etiquetas que lee `tools/embed-roms.js` para mostrar el nombre y la descripción en el
-estante de cartuchos.
+final, los dibujos. Las primeras líneas (`; @name Rebote`, `; @description ...`,
+`; @controls ...` y `; @order 1`) son etiquetas que lee `tools/embed-roms.js`: el
+nombre, la descripción y los controles que muestra la consola en la fila *Incluidos:*,
+en la línea *Controles:* y en el estante, y el lugar que ocupa en la lista.
 
 Las constantes:
 
@@ -1982,18 +2063,49 @@ bucle:
 ```
 
 - **El ritmo**, con DT, igual que en nuestra etapa C, pero con `TICK EQU 2`: 30 pasos
-  por segundo.
+  por segundo, desde 15 IPF para arriba. (A 7 IPF las instrucciones de un paso no
+  entran en 2 frames y la pelota va más despacio: unos 19 pasos por segundo con el
+  COSMAC VIP.)
 - **Tres posiciones.** V1, V2 es la posición que se ve; V5, V6 la que se dibuja en este
   paso; V7, V8 la del paso siguiente. Calcular un paso por adelantado permite decidir
   el rebote **antes** de llegar al borde.
-- **Primero dibuja, después borra.** Nosotros borramos el fantasmita y después lo
-  dibujamos en el lugar nuevo, y en el medio no se ve nada. Rebote hace al revés:
-  dibuja la pelota en el lugar nuevo y recién después borra la vieja. Como las dos
-  posiciones están a un píxel en diagonal y se superponen casi enteras, en el frame
-  intermedio la pelota se ve casi completa: parpadea mucho menos.
 - **`SNE` + `CALL`**: `SNE V7, XMIN` saltea el `CALL rebota_x` si la próxima x **no**
   es el borde. O sea: "si la próxima x es el borde, rebotá". Es el mismo "if" de una
   línea que usamos con `SKNP`.
+
+**Primero dibuja, después borra.** Nosotros borramos el fantasmita y después lo
+dibujamos en el lugar nuevo, así que en el medio queda un frame en el que no está.
+Rebote hace al revés: dibuja la pelota en el lugar nuevo y recién después borra la
+vieja. Pero ojo con el XOR. Las dos posiciones están a un píxel en diagonal y comparten
+la mayoría de sus píxeles, y en esos el segundo dibujo **apaga** lo que había prendido
+el primero. Entre los dos `DRW` no se ven dos pelotas, ni una entera: se ve una silueta
+deformada, de 36 píxeles en vez de 44, sin cara. Este es el primer paso del programa,
+con la pelota yendo de (20, 14) a (21, 15):
+
+<!-- verificar: rebote-xor -->
+```text
+antes: la vieja    entre los dos DRW    después: la nueva
+..####...          ..####...            .........
+.######..          .##......            ...####..
+##.##.##.          ###..#...            ..######.
+########.          #..#..#.#            .##.##.##
+#.####.#.          ##....#.#            .########
+##....##.          #..###.##            .#.####.#
+.######..          ...######            .##....##
+..####...          ......##.            ..######.
+.........          ...####..            ...####..
+```
+
+Igual es mejor que un frame vacío: siempre queda algo prendido donde está la pelota.
+Cuánto se nota depende del perfil. Con el COSMAC VIP, cada `DRW` espera al frame
+siguiente, así que la silueta queda en pantalla uno de cada dos frames y la pelota
+"vibra" (la persistencia del modo Tubo CRT lo suaviza). Sin esa espera, los dos `DRW`
+casi siempre caen en el mismo frame: a 15 IPF la silueta aparece en uno de cada cinco,
+y desde 30 IPF no aparece nunca. La forma de no tener ningún frame intermedio es mover
+el sprite con un solo `DRW`, como hace Atrapa (lo vas a ver en la
+[sección 6.2](#62-lo-mejor-de-atrapa)); acá no alcanza, porque al moverse en diagonal
+la pelota barre un cuadrado de 9 × 9, y esa diferencia no entra en un sprite de 8
+píxeles de ancho.
 
 El rebote:
 
@@ -2047,12 +2159,23 @@ pelota:                         ; una pelotita con cara
         DB %00111100            ;   ..####..
 ```
 
-Para verlo funcionar por dentro, cargá *Rebote*, pausalo y avanzá con Paso: vas a ver
-V1 a V8 cambiar en el monitor mientras el PC recorre el bucle.
+Para verlo funcionar por dentro, cargá *Rebote*, pasá la pantalla a **Píxeles puros**
+(así cada frame se ve tal cual, sin estela), pausalo con Espacio y avanzá con **Frame**.
+Con el perfil COSMAC VIP cada `DRW` termina el frame, así que cada Frame te lleva de un
+`DRW` al siguiente: vas a ver alternarse la silueta y la pelota entera, como en el dibujo
+de arriba, y en el monitor, V1, V2 y V5 a V8 cambiando cada dos Frames.
+
+Con **Paso** solo, en cambio, no llegás lejos: después de unas pocas instrucciones
+entrás al bucle de espera (`LD V0, DT` / `SE V0, 0` / `JP bucle`, de `0x218` a `0x21C`)
+y, como Paso no hace correr el tiempo (sección [1.8](#18-controles-de-ejecución-y-atajos)),
+DT no llega nunca a 0 y das vueltas ahí para siempre. Para ir de a una instrucción,
+combiná los dos: avanzá con Paso y, cuando veas que el PC da vueltas entre `0x218` y
+`0x21C`, apretá Frame (una o dos veces, hasta que DT llegue a 0) para que corra el
+tiempo, y seguí con Paso.
 
 ### 6.2 Lo mejor de Atrapa
 
-`roms/atrapa.asm` es un juego completo en 366 bytes. Tiene cuatro ideas que vale la
+`roms/atrapa.asm` es un juego completo en 374 bytes. Tiene cinco ideas que vale la
 pena robar.
 
 **Mover un sprite con un solo `DRW`.** En lugar de borrar la paleta y volver a
@@ -2113,29 +2236,39 @@ píxel". CHIP-8 no tiene decimales, pero tiene acarreo:
 bloque:
         ADD VA, V9              ; acumulador += velocidad
         SE VF, 1                ; ¿se pasó de 255? entonces baja
-        JP paso
+        JP toca
         LD I, bloque_delta      ; apaga su fila de arriba y prende la de abajo
         DRW V5, V6, 5
         ADD V6, 1
-        SNE V6, BLOQUE_ARRIBA
-        CALL mira_si_atrapa
-        SNE V6, BLOQUE_PISO
+
+        ; --- ¿el bloque toca la paleta? ---
+toca:
+        LD V0, BLOQUE_ARRIBA - 1
+        SUB V0, V6              ; VF = 1 si el bloque todavía está arriba (y < 26)
+        SE VF, 0
+        JP paso
+        CALL mira_si_atrapa     ; si la atrapa, ya aparece el bloque siguiente
+        SNE V6, BLOQUE_PISO     ; no la atrapó y llegó al piso: se escapó
         JP se_escapo
         JP paso
 ```
 
 VA es un acumulador: en cada paso se le suma la velocidad (V9). Cuando la suma pasa de
 255, `ADD VA, V9` deja VF = 1 y el bloque baja un píxel. Con V9 = 96, eso pasa 96 de
-cada 256 pasos, y a medida que V9 crece, el bloque cae más rápido. (Ojo: esto anda con
-`ADD VX, VY`, que pone VF. `ADD VX, NN` no lo toca.)
+cada 256 pasos, y como cada punto le suma 4 a V9, el bloque cae cada vez más rápido.
+(Ojo: esto anda con `ADD VX, VY`, que pone VF. `ADD VX, NN` no lo toca.)
 
-**Comparar con restas.** Para saber si la paleta atajó el bloque hay que ver si se
-superponen en x. Como en nuestra `nueva_moneda`, se resta y se mira el préstamo:
+**Comparar con restas.** Como en nuestra `nueva_moneda`, CHIP-8 no tiene "si es mayor
+que": se resta y se mira el préstamo. En `toca`, `LD V0, BLOQUE_ARRIBA - 1` y
+`SUB V0, V6` calculan `25 − y` y dejan VF = 1 si no hubo préstamo, o sea si el bloque
+todavía está arriba (y < 26): entonces no hay nada que mirar y sigue el juego. Si ya
+está en la zona de la paleta (y = 26, 27 o 28), hay que ver si se superponen en x, con
+dos restas más:
 
 ```asm
 ; (fragmento de roms/atrapa.asm)
 ; ----------------------------------------------------------------------
-; El bloque llegó justo encima de la paleta: ¿se superponen en x?
+; El bloque toca la paleta (y = 26, 27 o 28): ¿se superponen en x?
 ; Se atrapa si  bloque_x + 3 >= paleta_x  y  paleta_x + 5 >= bloque_x.
 ; ----------------------------------------------------------------------
 mira_si_atrapa:
@@ -2150,6 +2283,32 @@ mira_si_atrapa:
         SE VF, 1
         RET
 ```
+
+Fijate que `toca` se mira en **todos** los pasos, no solo cuando el bloque baja: si la
+paleta llega de costado cuando el bloque ya está en la zona, también lo atrapa. Si se
+los ve tocándose, cuenta. Y solo se pierde una vida si el bloque llega al piso (y = 28)
+sin que lo hayas atrapado.
+
+**Un tope para que sea justo.** Si la velocidad creciera para siempre, en algún momento
+un bloque que aparece en una punta no daría tiempo a llegar con la paleta desde la otra.
+Por eso, al sumar un punto, la velocidad sube pero sin pasarse de `VEL_MAXIMA` (otra
+vez, una resta y el préstamo):
+
+```asm
+; (fragmento de roms/atrapa.asm)
+        ADD V9, VEL_AUMENTO     ; acelerar...
+        LD V0, VEL_MAXIMA
+        SUB V0, V9              ; VF = 1 si VEL_MAXIMA >= velocidad
+        SE VF, 1
+        LD V9, VEL_MAXIMA       ; ...sin pasarse del tope
+```
+
+La cuenta está en el encabezado del archivo. El bloque aparece en y = 7 y baja 21 filas
+hasta el piso; con la velocidad máxima, 160/256 de píxel por paso, eso le lleva
+21 × 256 / 160 = 33,6, o sea **34 pasos**. La paleta avanza 2 píxeles por paso y, para
+ir de una punta a la otra, necesita como mucho **28 pasos**. Así que cualquier bloque se
+puede atrapar, aparezca donde aparezca, y sobran 6 pasos para reaccionar. Diseñar un
+juego también es hacer estas cuentas.
 
 **Esperar una tecla para volver a empezar.** Al perder, muestra "FIN", espera un
 segundo con DT (para que una tecla que venías apretando no reinicie el juego sin
@@ -2367,7 +2526,19 @@ Presioná Reiniciar (Retroceso) para volver a empezar.
 ```
 
 El monitor muestra `PC = 0x050` y que se ejecutaron **1457 instrucciones** (el monitor
-lo escribe `1.457`). ¿Qué hace el PC en `0x050`, que es la fuente? Reiniciá y avanzá con Paso:
+lo escribe `1.457`). ¿Qué hace el PC en `0x050`, que es la fuente?
+
+Para verlo desde el principio hay que reiniciar y quedar en pausa. Como la máquina
+estaba corriendo cuando se detuvo, Reiniciar la pone a correr otra vez (sección
+[1.8](#18-controles-de-ejecución-y-atajos)), así que son tres teclas:
+
+1. **Retroceso**: reinicia y arranca.
+2. **Espacio**, enseguida: la pausa. Tenés un segundo y medio antes de que vuelva a
+   detenerse; si no llegaste, empezá de nuevo desde el paso 1.
+3. **Retroceso** otra vez: como ahora estaba en pausa, queda en pausa en `0x200`. La
+   línea de estado dice *Reiniciado (en pausa).*
+
+Ahora avanzá con Paso (N):
 
 1. Las 5 primeras instrucciones dibujan el fantasmita. El PC queda en `0x20A`... que
    es donde empieza el dibujo.
@@ -2387,7 +2558,8 @@ que no se termina), y los datos van donde la CPU nunca llega.
 
 Y un dato curioso: con el perfil **SUPER-CHIP** pasa otra cosa. Con el quirk `BXNN`, el
 `JP V0, 0x4FC` suma V4 (que vale 29) en lugar de V0, y salta a `0x519`, una dirección
-**impar**. La CPU recorre la memoria desalineada, termina ejecutando la fuente como
+**impar**. (Con ese perfil, el DESENSAMBLADO ya te lo avisa: muestra esos bytes como
+`JP V4, 0x4FC`.) La CPU recorre la memoria desalineada, termina ejecutando la fuente como
 código y, medio minuto después (a 15 IPF), se detiene con otro error: desbordamiento
 de pila. El mismo error de programación, dos síntomas distintos según el intérprete.
 
@@ -2640,9 +2812,13 @@ esperando una tecla y, con el quirk `VBLANK`, justo después de un `DRW`:
 ¿Y quién llama a `runFrame` 60 veces por segundo? En la consola, el bucle de la
 interfaz usa `requestAnimationFrame`, que el navegador llama en cada refresco del
 monitor (60 veces por segundo en la mayoría, más en algunos). En cada llamada mide
-cuánto tiempo pasó y ejecuta tantos frames de 1/60 de segundo como correspondan (como
-mucho 4 seguidos, para no trabarse si la pestaña estuvo en segundo plano). Así el
-programa corre a la misma velocidad en un monitor de 60 Hz que en uno de 144 Hz.
+cuánto tiempo pasó y ejecuta tantos frames de 1/60 de segundo como correspondan. Así el
+programa corre a la misma velocidad en un monitor de 60 Hz que en uno de 144 Hz. Si un
+refresco llega tarde, se pone al día, pero como mucho con 4 frames seguidos: si la
+computadora no da abasto, es mejor que el programa vaya un poco más lento a que la
+página se trabe tratando de alcanzarlo. Y si pasó mucho tiempo (más de un cuarto de
+segundo, por ejemplo porque la pestaña estuvo oculta), directamente descarta el atraso
+y sigue desde ahí.
 
 ### 8.6 El teclado
 
@@ -2778,9 +2954,16 @@ termina, mostrá el puntaje, esperá una tecla con `LD V0, K` y empezá de nuevo
 <details>
 <summary>Pista</summary>
 
-Con `RITMO` en 3, hay 20 pasos por segundo. Un registro libre (VA a VD no los usa
-nadie) que cuente pasos y otro que cuente segundos alcanzan. Para "empezar de nuevo", `JP inicio`: acordate de que
-`inicio` tiene que dejar todo como al principio (el puntaje en 0, la pantalla limpia).
+Con `RITMO` en 3, hay unos 20 pasos por segundo. Un registro libre (VA a VD no los usa
+nadie) que cuente pasos y otro que cuente segundos alcanzan. Para "empezar de nuevo",
+`JP inicio`: acordate de que `inicio` tiene que dejar todo como al principio (el puntaje
+en 0, la pantalla limpia).
+
+Cuando lo pruebes con el perfil COSMAC VIP, cronometralo: los 30 segundos te van a durar
+unos cuantos más. ¿Por qué? Releé el final de la
+[sección 5.7](#57-código-que-anda-en-cualquier-intérprete): el paso en que agarrás una
+moneda dura unos 13 frames, no 3, y tu contador de pasos no se entera. Para un reloj de
+juego alcanza; para uno exacto, habría que medir el tiempo sin depender de los pasos.
 
 </details>
 
@@ -2795,8 +2978,8 @@ Solo falta un contador de pasos.
 
 </details>
 
-**5. Récord.** Guardá el mejor puntaje de la sesión en memoria y mostralo arriba a la
-derecha.
+**5. Récord.** Partiendo del ejercicio 3 (para que haya varias partidas), guardá el
+mejor puntaje de la sesión en memoria y mostralo arriba a la derecha.
 
 <details>
 <summary>Pista</summary>
@@ -2820,14 +3003,16 @@ enemigo.
 </details>
 
 **7. Depurar a propósito.** En `08-sonido.asm`, borrá el `LD I, fantasma` del principio
-de `mover`. Antes de probarlo, pensá: ¿qué va a pasar después de agarrar la primera
-moneda? Después comprobalo en la consola y con el monitor.
+de `mover`. Antes de probarlo, pensá: ¿qué va a pasar la primera vez que muevas el
+fantasmita? Después comprobalo en la consola y con el monitor.
 
 <details>
 <summary>Pista</summary>
 
-¿Cuál es la última instrucción `LD I` que se ejecuta antes de volver al bucle después
-de agarrar una moneda? Está en `nueva_moneda`.
+¿Cuál es la última instrucción `LD I` que se ejecuta antes de entrar al bucle? Mirá qué
+hace `inicio` justo antes de `bucle`, y a qué apunta I cuando `mover` hace su primer
+`DRW`. Si acertaste, vas a ver un fantasmita desarmado y un punto que ganaste sin tocar
+ninguna moneda: ¿de dónde salió el VF = 1?
 
 </details>
 
