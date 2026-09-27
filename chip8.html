@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CHIP-8</title>
+<!-- Ícono embebido (sin pedidos a la red): la pantalla verde con un "8" de píxeles. -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23e0672a'/%3E%3Crect x='2' y='2' width='12' height='12' rx='1.5' fill='%23041009'/%3E%3Cpath fill='%237cff96' d='M6 4h4v1H6zM5 5h1v2H5zM10 5h1v2h-1zM6 7h4v1H6zM5 8h1v2H5zM10 8h1v2h-1zM6 10h4v1H6z'/%3E%3C/svg%3E">
 <style id="chip8-style">
   /* ---------- Tokens ---------- */
   :root {
@@ -298,7 +300,8 @@
     transition: transform .25s ease-out;
   }
   .cart-in-name { font: 800 16px/1.15 var(--font-brand); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .cart-in-size { font: 12px/1.2 var(--font-mono); color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* El tamaño puede ocupar dos renglones cuando la ranura es angosta (así no se corta «demo incluido»). */
+  .cart-in-size { font: 12px/1.2 var(--font-mono); color: var(--ink-soft); overflow-wrap: anywhere; }
   .slot.is-empty .cart-in { background: transparent; border-top-color: transparent; box-shadow: none; color: #b7ab98; }
   .slot.is-empty .cart-in-size { color: #8f8474; }
   .slot.is-inserting .cart-in { transform: translateY(-8px); }
@@ -390,11 +393,13 @@
   }
   .key--alpha::before { background: radial-gradient(ellipse at 50% 30%, rgba(255, 255, 255, .28), rgba(255, 255, 255, 0) 70%); }
   .key-hex { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); font: 800 clamp(20px, 5.4vw, 27px)/1 var(--font-mono); pointer-events: none; }
+  /* Recordatorio de la tecla de la PC: colores sólidos para que se lea (contraste de al menos 4.5:1). */
   .key-pc {
-    position: absolute; right: 6px; bottom: 7px;
+    position: absolute; right: 5px; bottom: 6px;
     padding: 1px 3px; border: 1px solid currentColor; border-radius: 3px;
-    font: 700 9px/1 var(--font-ui); opacity: .55; pointer-events: none;
+    font: 700 10px/1 var(--font-ui); color: #5a4636; pointer-events: none;
   }
+  .key--alpha .key-pc { color: #fffaf2; background: rgba(90, 30, 8, .45); border-color: rgba(255, 244, 230, .7); }
   .key.is-down {
     transform: translateY(4px);
     background: linear-gradient(180deg, #efe6d2 0%, #e2d6bc 100%);
@@ -428,6 +433,8 @@
     font: 700 15px/1.2 var(--font-mono); text-align: right;
     box-shadow: inset 0 2px 4px rgba(0, 0, 0, .6);
   }
+  .num[aria-invalid="true"] { border-color: #c8321c; color: #ff9c8a; box-shadow: inset 0 2px 4px rgba(0, 0, 0, .6), 0 0 0 2px rgba(200, 50, 28, .55); }
+  .hint.is-invalid { color: #a3321c; font-weight: 700; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
   .chip {
     padding: 4px 9px; border-radius: 999px;
@@ -641,7 +648,7 @@
     text-shadow: 0 0 6px rgba(120, 255, 160, .3);
   }
   .monitor h3 { margin: 12px 0 6px; font: 700 10.5px/1 var(--font-mono); letter-spacing: .18em; color: var(--term-dim); text-shadow: none; }
-  .monitor h3:first-child { margin-top: 0; }
+  .monitor-body > h3:first-child { margin-top: 0; }
   .mon-regs, .vgrid { display: grid; gap: 5px; }
   .mon-regs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .vgrid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -663,7 +670,7 @@
   .disasm li.is-pc { background: rgba(125, 255, 154, .17); color: #e2ffe9; }
   .disasm li.is-pc .d-mark::before { content: "\25B6"; font-size: 9px; }
   .disasm li.is-pc .d-addr, .disasm li.is-pc .d-op { color: #bff5cc; }
-  .stack li { display: flex; justify-content: space-between; padding: 0 5px; border-radius: 3px; color: #2f6b42; }
+  .stack li { display: flex; justify-content: space-between; padding: 0 5px; border-radius: 3px; color: #3f8f58; }
   .stack li.is-used { color: var(--term-fg); }
   .stack li.is-top { background: rgba(125, 255, 154, .17); }
   .stack li.is-top::after { content: "\25C0"; font-size: 9px; margin-left: 4px; align-self: center; }
@@ -691,8 +698,9 @@
   }
   .drop-card strong { display: block; font: italic 900 clamp(26px, 6vw, 40px)/1.1 var(--font-brand); color: #ffc38e; }
   .drop-card span { display: block; margin-top: 10px; color: #d7c3a5; }
+  /* Avisos arriba al centro: abajo tapaban el keypad, la línea de estado y el error del monitor. */
   .toasts {
-    position: fixed; left: 50%; bottom: 18px; z-index: 60;
+    position: fixed; left: 50%; top: 14px; z-index: 60;
     display: grid; gap: 8px; width: min(520px, calc(100vw - 32px));
     transform: translateX(-50%);
     pointer-events: none;
@@ -710,7 +718,7 @@
   .toast--error { border-left-color: #ff6b57; }
   .toast p { margin: 0; flex: 1; }
   .toast button { flex: none; width: 26px; height: 26px; border: 0; border-radius: 6px; background: rgba(255, 255, 255, .08); font-size: 16px; line-height: 1; }
-  @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
+  @keyframes toast-in { from { opacity: 0; transform: translateY(-8px); } }
 
   /* ---------- Ayuda ---------- */
   .help {
@@ -760,12 +768,21 @@
     .console { padding: 16px 14px 14px; border-radius: 22px 22px 26px 26px; }
     .stripe { margin: 12px -14px 0; }
     .vents { display: none; }
-    .deck { grid-template-columns: minmax(0, 1fr); }
+    /* Una columna: el keypad va pegado debajo de la pantalla (así en un teléfono se ven los dos
+       juntos) y la ranura y el transporte bajan después. */
+    .deck { grid-template-columns: minmax(0, 1fr); gap: 18px; margin-top: 14px; }
+    .deck-right { order: -1; }
+    .bezel { margin-top: 14px; }
     .panel { grid-template-columns: minmax(0, 1fr); padding: 10px; }
     .tagline { letter-spacing: .12em; }
   }
   @media (max-width: 480px) {
     .desk { padding-top: 16px; }
+    /* En el teléfono, pantalla y keypad entran juntos en ~640 px de alto. */
+    .tagline { display: none; }
+    .keypad { gap: 8px; }
+    .keypad-well { padding: 12px 12px 8px; }
+    .keypad-caption { margin-top: 8px; }
     .top-right { gap: 10px; }
     .leds { gap: 10px; }
     .tbtn-label { font-size: 10px; letter-spacing: .03em; }
@@ -887,7 +904,7 @@
             <label class="field-label" for="ipf-range">Instrucciones por frame</label>
             <div class="speed-row">
               <input type="range" id="ipf-range" min="0" max="1000" step="1" value="392" aria-describedby="ipf-rate">
-              <input type="number" class="num" id="ipf-input" min="1" max="1000" step="1" value="15" inputmode="numeric" aria-label="Instrucciones por frame (valor exacto)">
+              <input type="number" class="num" id="ipf-input" min="1" max="1000" step="1" value="15" inputmode="numeric" aria-label="Instrucciones por frame (valor exacto)" aria-describedby="ipf-rate">
             </div>
             <div class="chips" id="ipf-chips" role="group" aria-label="Velocidades predefinidas"></div>
             <p class="hint" id="ipf-rate">≈ 900 instrucciones por segundo · timers a 60 Hz</p>
@@ -932,7 +949,7 @@
               <span class="dip-on" aria-hidden="true">ON ▲</span>
             </div>
             <div class="dip-labels" id="dip-labels" aria-hidden="true"></div>
-            <p class="hint quirk-hint" id="quirk-hint" aria-live="polite"></p>
+            <p class="hint quirk-hint" id="quirk-hint"></p>
           </div>
         </section>
 
@@ -976,7 +993,7 @@
         </div>
         <h3>MEMORIA EN I</h3>
         <div class="memview" id="memview"></div>
-        <p class="mon-error" id="mon-error" role="alert" hidden></p>
+        <p class="mon-error" id="mon-error" hidden></p>
         <p class="mon-foot">Espacio: pausa · N: paso · Retroceso: reiniciar</p>
       </div>
     </aside>
@@ -1008,7 +1025,7 @@
         </figure>
       </div>
       <p class="visually-hidden">Correspondencia: 1 2 3 4 son 1 2 3 C; Q W E R son 4 5 6 D; A S D F son 7 8 9 E; Z X C V son A 0 B F.</p>
-      <p>También podés tocar el keypad de la consola con el mouse o con los dedos (admite varias teclas a la vez).</p>
+      <p>También podés tocar el keypad de la consola con el mouse o con los dedos (admite varias teclas a la vez), o llegar a una tecla con <kbd>Tab</kbd> y apretarla con <kbd>Enter</kbd> o <kbd>Espacio</kbd>.</p>
 
       <h3>Atajos</h3>
       <table class="shortcuts">
@@ -1020,6 +1037,7 @@
           <tr><th><kbd>Esc</kbd></th><td>Cerrar diálogos</td></tr>
         </tbody>
       </table>
+      <p>Los botones que tocás con el mouse no se quedan con el foco, así el teclado sigue manejando la consola. Si llegás a un control con <kbd>Tab</kbd>, <kbd>Espacio</kbd> y <kbd>Enter</kbd> lo activan (no pausan); las teclas del keypad, <kbd>N</kbd>, <kbd>H</kbd> y <kbd>Retroceso</kbd> siguen yendo a la consola.</p>
 
       <h3>Cartuchos</h3>
       <p>Tocá <strong>Cargar ROM</strong> y elegí un archivo <code>.ch8</code>, o arrastralo sobre cualquier parte de la página. El programa se copia a partir de la dirección <code>0x200</code> y puede ocupar hasta 3584 bytes. Los cartuchos incluidos están debajo de la consola: elegí uno y arranca solo.</p>
@@ -1174,6 +1192,8 @@
   };
 
   Chip8.prototype.loadRom = function (bytes) {
+    // Un ArrayBuffer no tiene .length: se lo mira como bytes para que el control de tamaño valga igual.
+    if (Object.prototype.toString.call(bytes) === '[object ArrayBuffer]') bytes = new Uint8Array(bytes);
     var length = bytes.length >>> 0;
     if (length > MAX_ROM_SIZE) {
       throw new RangeError('La ROM ocupa ' + length + ' bytes y el máximo es ' + MAX_ROM_SIZE +
@@ -1284,7 +1304,7 @@
     var n = opcode & 0xF;
     var nn = opcode & 0xFF;
     var nnn = opcode & 0xFFF;
-    var vx, vy, flag;
+    var vx, vy;
 
     switch (opcode >> 12) {
       case 0x0:
@@ -1440,8 +1460,13 @@
     return 'V' + r.toString(16).toUpperCase();
   }
 
-  // Desensambla un opcode con mnemónicos al estilo Cowgod.
-  function disassemble(opcode) {
+  /*
+   * Desensambla un opcode con mnemónicos al estilo Cowgod.
+   * `quirks` es opcional: con quirks.jumping activado, BNNN se muestra como
+   * "JP VX, 0xNNN" (salta a NNN + VX, con X = primer dígito de NNN). Sin quirks,
+   * el texto es el de siempre ("JP V0, 0xNNN").
+   */
+  function disassemble(opcode, quirks) {
     opcode &= 0xFFFF;
     var x = (opcode >> 8) & 0xF;
     var y = (opcode >> 4) & 0xF;
@@ -1477,7 +1502,7 @@
         }
       case 0x9: return n === 0 ? 'SNE ' + VX + ', ' + VY : invalid;
       case 0xA: return 'LD I, ' + hex(nnn, 3);
-      case 0xB: return 'JP V0, ' + hex(nnn, 3);
+      case 0xB: return 'JP ' + (quirks && quirks.jumping ? VX : 'V0') + ', ' + hex(nnn, 3);
       case 0xC: return 'RND ' + VX + ', ' + hex(nn, 2);
       case 0xD: return 'DRW ' + VX + ', ' + VY + ', ' + n;
       case 0xE:
@@ -1501,12 +1526,13 @@
   }
 
   // Desensambla `count` palabras consecutivas desde `start` (las direcciones dan la vuelta en 0xFFF).
-  function disassembleRange(memory, start, count) {
+  // `quirks` es opcional y se pasa tal cual a disassemble.
+  function disassembleRange(memory, start, count, quirks) {
     var out = [];
     for (var i = 0; i < count; i++) {
       var addr = (start + 2 * i) & 0xFFF;
       var opcode = (memory[addr] << 8) | memory[(addr + 1) & 0xFFF];
-      out.push({ addr: addr, opcode: opcode, text: disassemble(opcode) });
+      out.push({ addr: addr, opcode: opcode, text: disassemble(opcode, quirks) });
     }
     return out;
   }
@@ -1704,7 +1730,8 @@ globalThis.CHIP8_DEMOS = [
 
   var state = {
     romLoaded: false, romName: '', romSize: 0, demoId: null,
-    paused: false, errorShown: false, instr: 0
+    paused: false, errorShown: false, instr: 0,
+    pausedBeforeHalt: false   // si el usuario tenía la máquina en pausa (o iba de a un paso) justo antes del error
   };
 
   // ------------------------------------------------------------------ demos incluidos
@@ -1936,8 +1963,8 @@ globalThis.CHIP8_DEMOS = [
   function announce(msg) { statusEl.textContent = msg; }
 
   function toast(msg, kind) {
+    // El contenedor #toasts ya es una región aria-live: sin role=alert, así cada aviso se lee una sola vez.
     var t = make('div', 'toast toast--' + (kind || 'info'));
-    if (kind === 'error') t.setAttribute('role', 'alert');
     t.appendChild(make('p', null, msg));
     var close = make('button', null, '×');
     close.type = 'button';
@@ -1958,15 +1985,17 @@ globalThis.CHIP8_DEMOS = [
   }
   function hideCrtMessage() { crtMsg.hidden = true; }
 
+  // El error se ve en el CRT y en el monitor, y se anuncia una sola vez por la línea de estado
+  // (sin aviso flotante: tapaba el monitor y el estado, y los lectores de pantalla lo leían tres veces).
   function handleHalt() {
     if (state.errorShown || !cpu.halted) return;
     state.errorShown = true;
+    state.pausedBeforeHalt = state.paused;
     state.paused = true;
     var msg = cpu.error || 'La máquina se detuvo.';
     showCrtMessage('ERROR', msg, 'Presioná Reiniciar (Retroceso) para volver a empezar.');
     monError.textContent = msg;
     monError.hidden = false;
-    toast(msg, 'error');
     announce('Error: ' + msg);
     updateTransport();
     updateMonitor(true);
@@ -2109,7 +2138,7 @@ globalThis.CHIP8_DEMOS = [
     var ok = cpu.step();
     if (ok) state.instr++;
     syncDisplay(false);
-    if (cpu.halted) handleHalt();
+    if (cpu.halted) { handleHalt(); return ok; }   // handleHalt ya anunció el error: no se lo pisa
     announce(cpu.waitingForKey ? 'Paso: esperando una tecla (FX0A).' : 'Paso: PC = 0x' + hex(cpu.pc, 3) + '.');
     return ok;
   }
@@ -2120,7 +2149,7 @@ globalThis.CHIP8_DEMOS = [
     if (cpu.halted) return 0;
     var before = state.instr;
     tick();
-    announce('Frame: ' + (state.instr - before) + ' instrucciones.');
+    if (!cpu.halted) announce('Frame: ' + (state.instr - before) + ' instrucciones.');
     return state.instr - before;
   }
 
@@ -2130,7 +2159,9 @@ globalThis.CHIP8_DEMOS = [
     cpu.reset();
     resyncKeys();
     clearError();
-    if (wasError) state.paused = false;
+    // Después de un error se vuelve al estado de pausa que había justo antes: si ibas de a un
+    // paso, queda en pausa en 0x200 (para seguir con Paso); si corría, arranca de nuevo.
+    if (wasError) state.paused = state.pausedBeforeHalt;
     state.instr = 0;
     acc = 0;
     cpu.displayDirty = false;
@@ -2148,11 +2179,18 @@ globalThis.CHIP8_DEMOS = [
   var chipButtons = [];
   function setIpf(n, source) {
     var v = clampIpf(n);
+    // Mientras se escribe, un valor fuera de 1..1000 queda marcado (se usa el más cercano).
+    var raw = Number(n);
+    var outOfRange = source === 'typing' && (raw < IPF_MIN || raw > IPF_MAX);
     settings.ipf = v;
     if (source !== 'range') ipfRange.value = String(ipfToSlider(v));
+    ipfRange.setAttribute('aria-valuetext', v + (v === 1 ? ' instrucción' : ' instrucciones') + ' por frame');
     if (source !== 'typing') ipfInput.value = String(v);
+    ipfInput.setAttribute('aria-invalid', outOfRange ? 'true' : 'false');
     for (var i = 0; i < chipButtons.length; i++) chipButtons[i].setAttribute('aria-pressed', IPF_PRESETS[i] === v ? 'true' : 'false');
-    ipfRate.textContent = '≈ ' + formatInt(v * 60) + ' instrucciones por segundo · timers a 60 Hz';
+    ipfRate.classList.toggle('is-invalid', outOfRange);
+    ipfRate.textContent = (outOfRange ? 'Fuera de rango (' + IPF_MIN + ' a ' + formatInt(IPF_MAX) + '): se usa ' + v + ' · ' : '') +
+      '≈ ' + formatInt(v * 60) + ' instrucciones por segundo · timers a 60 Hz';
     saveSettings();
     return v;
   }
@@ -2193,8 +2231,13 @@ globalThis.CHIP8_DEMOS = [
   var heldCodes = {};
   var pointerKeys = {};
   var apiHeld = new Uint8Array(16);
-  var enterHeld = new Uint8Array(16);
+  var enterHeld = new Uint8Array(16);   // teclas del keypad apretadas con Enter/Espacio sobre la tecla enfocada
+  var enterAt = new Float64Array(16);
+  var timedReleases = [];               // sueltas programadas (toques sin puntero)
   var keycaps = [];
+  // Un toque sin puntero (Enter/Espacio breve, lector de pantalla) mantiene la tecla apretada al
+  // menos este tiempo: así el programa la ve y FX0A recibe el apretar + soltar.
+  var TAP_MS = 120;
 
   function keyDown(k) {
     if (holdCount[k]++ === 0) {
@@ -2209,7 +2252,17 @@ globalThis.CHIP8_DEMOS = [
       if (keycaps[k]) keycaps[k].classList.remove('is-down');
     }
   }
+  function releaseAfter(k, ms) {
+    var id = window.setTimeout(function () {
+      var i = timedReleases.indexOf(id);
+      if (i >= 0) timedReleases.splice(i, 1);
+      keyUp(k);
+    }, ms);
+    timedReleases.push(id);
+  }
   function releaseAllKeys() {
+    for (var t = 0; t < timedReleases.length; t++) window.clearTimeout(timedReleases[t]);
+    timedReleases = [];
     heldCodes = {};
     pointerKeys = {};
     apiHeld.fill(0);
@@ -2227,13 +2280,28 @@ globalThis.CHIP8_DEMOS = [
     for (var k = 0; k < 16; k++) if (holdCount[k]) cpu.setKey(k, true);
   }
 
+  // Campos de texto: ahí las teclas son para escribir y el emulador no se entera.
   function isTypingTarget(t) {
     if (!t || !t.tagName) return false;
     var tag = t.tagName;
-    if (tag === 'TEXTAREA' || tag === 'SELECT' || t.isContentEditable) return true;
+    if (tag === 'TEXTAREA' || t.isContentEditable) return true;
     if (tag !== 'INPUT') return false;
     var type = (t.type || 'text').toLowerCase();
     return type !== 'range' && type !== 'checkbox' && type !== 'radio' && type !== 'button' && type !== 'file';
+  }
+  // Controles que usan Espacio por su cuenta (botones, interruptores, selectores, enlaces):
+  // con uno de ellos enfocado desde el teclado, Espacio lo activa en vez de pausar.
+  var CONTROL_ROLES = { button: 1, switch: 1, radio: 1, checkbox: 1, link: 1, tab: 1, menuitem: 1, option: 1 };
+  function isControl(t) {
+    if (!t || !t.tagName) return false;
+    var tag = t.tagName;
+    if (tag === 'BUTTON' || tag === 'SELECT' || tag === 'SUMMARY') return true;
+    if (tag === 'A' && t.hasAttribute('href')) return true;
+    if (tag === 'INPUT') {
+      var type = (t.type || 'text').toLowerCase();
+      return type === 'checkbox' || type === 'radio' || type === 'button' || type === 'submit' || type === 'reset';
+    }
+    return hasOwn(CONTROL_ROLES, (t.getAttribute && t.getAttribute('role')) || '');
   }
   function helpOpen() { return !!(helpDialog && (helpDialog.open || helpDialog.hasAttribute('open'))); }
 
@@ -2245,6 +2313,8 @@ globalThis.CHIP8_DEMOS = [
       if (e.code === 'KeyH') { e.preventDefault(); closeHelp(); }
       return;
     }
+    // Las 16 teclas mapeadas, N, H y Retroceso van al emulador aunque haya un control enfocado
+    // (con un <select> enfocado, el preventDefault también evita que la letra cambie la opción).
     var k = KEY_BY_CODE[e.code];
     if (k !== undefined) {
       e.preventDefault();
@@ -2253,6 +2323,7 @@ globalThis.CHIP8_DEMOS = [
     }
     switch (e.code) {
       case 'Space':
+        if (isControl(e.target)) return;   // Espacio activa el botón o abre el selector enfocado
         e.preventDefault();
         if (!e.repeat) togglePause();
         break;
@@ -2281,8 +2352,27 @@ globalThis.CHIP8_DEMOS = [
       e.preventDefault();
       return;
     }
-    // Evita que Espacio active el botón enfocado además de pausar.
-    if (e.code === 'Space' && !isTypingTarget(e.target) && !helpOpen()) e.preventDefault();
+    // Espacio ya pausó en el keydown: que no haga nada más (sobre un control, se deja la activación nativa).
+    if (e.code === 'Space' && !isTypingTarget(e.target) && !isControl(e.target) && !helpOpen()) e.preventDefault();
+  }
+
+  // Modelo de foco: un clic con el mouse o con el dedo en un botón no le deja el foco, así el
+  // teclado sigue manejando el emulador (Espacio pausa, las letras son el keypad). Con el
+  // teclado (Tab) el foco se queda y Espacio/Enter activan el control como siempre.
+  function onPointerClick(e) {
+    if (!e.detail) return;   // detail 0: teclado o lector de pantalla
+    var t = e.target && e.target.closest ? e.target.closest('button, a[href], [role="switch"], [role="radio"]') : null;
+    if (t && t === document.activeElement) t.blur();
+  }
+  // Un <select> devuelve el foco a la página apenas cambia con el mouse. Si el cambio vino de
+  // una tecla sobre el selector (flechas, Inicio/Fin, letras), el foco se queda: navegación nativa.
+  function returnFocusAfterChange(sel) {
+    var byKey = false;
+    sel.addEventListener('keydown', function () {
+      byKey = true;
+      window.setTimeout(function () { byKey = false; }, 0);
+    });
+    sel.addEventListener('change', function () { if (!byKey) sel.blur(); });
   }
 
   function buildKeypad() {
@@ -2320,18 +2410,37 @@ globalThis.CHIP8_DEMOS = [
         // Con captura, pointerleave llega recién al soltar; sin captura, soltamos al salir.
         if (!b.hasPointerCapture || !b.hasPointerCapture(e.pointerId)) end(e);
       });
-      // Accesible por teclado: Enter sobre la tecla enfocada la mantiene apretada.
+      // Accesible por teclado: Enter o Espacio sobre la tecla enfocada la mantienen apretada
+      // (como mínimo TAP_MS, así un toque breve también llega al programa).
+      function isActivation(e) { return e.key === 'Enter' || e.key === ' ' || e.code === 'Space'; }
+      function releaseEnter() {
+        if (!enterHeld[k]) return;
+        enterHeld[k] = 0;
+        var left = TAP_MS - (performance.now() - enterAt[k]);
+        if (left > 0) releaseAfter(k, left); else keyUp(k);
+      }
       b.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          e.stopPropagation();
-          if (!enterHeld[k]) { enterHeld[k] = 1; keyDown(k); }
-        }
+        if (!isActivation(e) || e.ctrlKey || e.metaKey || e.altKey) return;
+        e.preventDefault();
+        e.stopPropagation();
+        ensureAudio(e);
+        if (!enterHeld[k]) { enterHeld[k] = 1; enterAt[k] = performance.now(); keyDown(k); }
       });
       b.addEventListener('keyup', function (e) {
-        if (e.key === 'Enter' && enterHeld[k]) { enterHeld[k] = 0; keyUp(k); }
+        if (!isActivation(e)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        releaseEnter();
       });
-      b.addEventListener('blur', function () { if (enterHeld[k]) { enterHeld[k] = 0; keyUp(k); } });
+      b.addEventListener('blur', releaseEnter);
+      // Activación sin puntero (lector de pantalla, control por voz, b.click()): un toque de TAP_MS.
+      // Los clics con puntero (detail > 0) ya se manejaron con pointerdown/pointerup.
+      b.addEventListener('click', function (e) {
+        if (e.detail !== 0 || enterHeld[k]) return;
+        ensureAudio(e);
+        keyDown(k);
+        releaseAfter(k, TAP_MS);
+      });
       keycaps[k] = b;
       pad.appendChild(b);
     });
@@ -2557,13 +2666,16 @@ globalThis.CHIP8_DEMOS = [
     }
 
     // Desensamblado centrado en el PC (misma paridad que el PC).
+    // Con el quirk jumping, BNNN se muestra como JP VX (el registro que de verdad se suma).
     var start = (cpu.pc - 2 * DISASM_BEFORE) & 0xFFF;
+    var jumping = cpu.quirks.jumping;
     for (var r = 0; r < DISASM_ROWS; r++) {
       var addr = (start + 2 * r) & 0xFFF;
       var op = (mem[addr] << 8) | mem[(addr + 1) & 0xFFF];
       var li = mon.rows[r];
       if (li.__a !== addr) { li.__a = addr; li.__addr.textContent = '0x' + hex(addr, 3); }
-      if (li.__o !== op) { li.__o = op; li.__op.textContent = hex(op, 4); li.__text.textContent = Core.disassemble(op); }
+      if (li.__o !== op) { li.__o = op; li.__op.textContent = hex(op, 4); li.__j = null; }
+      if (li.__j !== jumping) { li.__j = jumping; li.__text.textContent = Core.disassemble(op, cpu.quirks); }
     }
 
     // Pila: 16 niveles, el tope marcado.
@@ -2673,7 +2785,7 @@ globalThis.CHIP8_DEMOS = [
   function showDrop(on) { dropEl.hidden = !on; if (!on) dragDepth = 0; }
 
   // ------------------------------------------------------------------ bucle principal
-  var lastTime = -1, acc = 0;
+  var lastTime = -1, acc = 0, fadeAcc = 0;
   function loop(now) {
     window.requestAnimationFrame(loop);
     if (lastTime < 0) lastTime = now;
@@ -2692,6 +2804,19 @@ globalThis.CHIP8_DEMOS = [
       if (acc >= FRAME_MS) acc = 0;           // no vale la pena ponerse al día: se descarta
     } else {
       acc = 0;
+      // En pausa o detenida, la estela sigue apagándose a 60 Hz hasta mostrar el framebuffer exacto.
+      if (fading) {
+        fadeAcc += dt;
+        var fades = 0;
+        while (fading && fadeAcc >= FRAME_MS - FRAME_SLACK && fades < MAX_CATCHUP) {
+          syncDisplay(true);
+          fadeAcc -= FRAME_MS;
+          fades++;
+        }
+        if (fadeAcc >= FRAME_MS) fadeAcc = 0;
+      } else {
+        fadeAcc = 0;
+      }
     }
     if (needsRender) { needsRender = false; render(); }
     updateIndicators();
@@ -2727,6 +2852,7 @@ globalThis.CHIP8_DEMOS = [
       paletteSel.appendChild(o);
     });
     paletteSel.addEventListener('change', function () { applyPalette(paletteSel.value); saveSettings(); });
+    returnFocusAfterChange(paletteSel);
 
     function chooseScreenMode(mode, focus) {
       if (mode === settings.screenMode) return;
@@ -2766,6 +2892,7 @@ globalThis.CHIP8_DEMOS = [
     presetSel.addEventListener('change', function () {
       if (presetSel.value !== 'custom') setPreset(presetSel.value);
     });
+    returnFocusAfterChange(presetSel);
     QUIRK_KEYS.forEach(function (k, i) {
       var info = QUIRK_INFO[k];
       var col = make('div', 'dip-col');
@@ -2773,7 +2900,10 @@ globalThis.CHIP8_DEMOS = [
       b.type = 'button';
       b.setAttribute('role', 'switch');
       b.setAttribute('aria-label', info.name + ' (' + info.ops + ')');
+      b.setAttribute('aria-describedby', 'quirk-desc-' + k);
       b.title = info.name + ': ' + info.desc;
+      var desc = make('span', 'visually-hidden', info.desc);
+      desc.id = 'quirk-desc-' + k;
       b.addEventListener('click', function () {
         var patch = {};
         patch[k] = !cpu.quirks[k];
@@ -2786,6 +2916,7 @@ globalThis.CHIP8_DEMOS = [
       b.addEventListener('blur', function () { quirkHint.textContent = DEFAULT_QUIRK_HINT; });
       dipButtons[k] = b;
       col.appendChild(b);
+      col.appendChild(desc);
       var n = make('span', 'dip-n', String(i + 1));
       n.setAttribute('aria-hidden', 'true');
       col.appendChild(n);
@@ -2798,7 +2929,11 @@ globalThis.CHIP8_DEMOS = [
     btnStep.addEventListener('click', function () { stepOnce(); });
     btnFrame.addEventListener('click', function () { frameOnce(); });
     btnReset.addEventListener('click', function () { doReset(); });
-    $('btn-help').addEventListener('click', openHelp);
+    $('btn-help').addEventListener('click', function (e) {
+      // Con el mouse, sin foco en «?»: al cerrar la ayuda el foco vuelve a la página y no al botón.
+      if (e.detail > 0) this.blur();
+      openHelp();
+    });
     $('help-close').addEventListener('click', closeHelp);
     helpDialog.addEventListener('click', function (e) { if (e.target === helpDialog) closeHelp(); });
     monToggle.addEventListener('click', function () { setMonitorOpen(!mon.open); });
@@ -2812,6 +2947,7 @@ globalThis.CHIP8_DEMOS = [
   function bindGlobalEvents() {
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
+    document.addEventListener('click', onPointerClick);
     ['pointerdown', 'pointerup', 'touchend', 'click'].forEach(function (type) {
       window.addEventListener(type, ensureAudio, true);
     });

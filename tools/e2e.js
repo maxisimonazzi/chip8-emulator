@@ -806,19 +806,20 @@ scenario(5, 'Atajos: Espacio, N, Retroceso, H, Esc y el campo IPF', async (ctx, 
   const p2 = await paused();
   s.check(p1 === true && p2 === false, 'Espacio pausa y vuelve a continuar', `${p1} ${p2}`);
 
-  // Con el botón Pausa enfocado: un solo cambio por Espacio.
+  // Modelo de foco: un clic con el mouse no le deja el foco al botón, así Espacio sigue pausando
+  // (una sola vez por pulsación). Con el foco puesto desde el teclado, Espacio activa el control.
   await page.click('#btn-pause');
   await sleep(80);
   const q1 = await paused();
+  const focusId = await page.ev('document.activeElement && (document.activeElement.id || document.activeElement.tagName)');
   await page.press('Space');
   await sleep(120);
   const q2 = await paused();
   await page.press('Space');
   await sleep(120);
   const q3 = await paused();
-  const focusId = await page.ev('document.activeElement && document.activeElement.id');
-  s.check(q1 === true && q2 === false && q3 === true, `Espacio con el botón Pausa enfocado cambia una sola vez por pulsación (foco: #${focusId})`, `${q1} ${q2} ${q3}`);
-  // Con otro botón enfocado (Scanlines): Espacio no lo activa.
+  s.check(q1 === true && q2 === false && q3 === true && focusId !== 'btn-pause', `clic en Pausa con el mouse: el botón no queda enfocado (foco: ${focusId}) y Espacio cambia una sola vez por pulsación`, `${q1} ${q2} ${q3}`);
+  // Clic con el mouse en Scanlines: Espacio pausa/continúa y no toca el interruptor.
   await page.click('#tg-scan');
   await page.click('#tg-scan');
   const scan0 = await page.ev("document.getElementById('tg-scan').getAttribute('aria-pressed')");
@@ -826,7 +827,16 @@ scenario(5, 'Atajos: Espacio, N, Retroceso, H, Esc y el campo IPF', async (ctx, 
   await sleep(120);
   const scan1 = await page.ev("document.getElementById('tg-scan').getAttribute('aria-pressed')");
   const q4 = await paused();
-  s.check(scan0 === scan1 && q4 === false, 'Espacio con el interruptor Scanlines enfocado pausa/continúa y no toca el interruptor', `scan ${scan0}->${scan1}, pausa ${q4}`);
+  s.check(scan0 === scan1 && q4 === false, 'después de un clic en Scanlines, Espacio pausa/continúa y no toca el interruptor', `scan ${scan0}->${scan1}, pausa ${q4}`);
+  // Scanlines enfocado desde el teclado (como con Tab): Espacio lo activa y no pausa.
+  await page.ev("document.getElementById('tg-scan').focus()");
+  await page.press('Space');
+  await sleep(120);
+  const scan2 = await page.ev("document.getElementById('tg-scan').getAttribute('aria-pressed')");
+  const q5 = await paused();
+  s.check(scan2 !== scan1 && q5 === q4, 'con Scanlines enfocado desde el teclado, Espacio cambia el interruptor y no pausa', `scan ${scan1}->${scan2}, pausa ${q4}->${q5}`);
+  await page.press('Space'); // vuelve a dejarlo como estaba
+  await sleep(80);
   await page.click('.tagline');
 
   // N: una instrucción por pulsación.

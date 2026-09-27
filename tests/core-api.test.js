@@ -166,6 +166,34 @@ describe('loadRom', () => {
     assert.throws(() => cpu.loadRom(new Array(4000).fill(0)), RangeError);
   });
 
+  it('acepta un ArrayBuffer igual que un Uint8Array', () => {
+    const cpu = new Chip8();
+    cpu.loadRom(new Uint8Array([0xA2, 0x2A, 0x60, 0x0C]).buffer);
+    assert.deepEqual(Array.from(cpu.memory.slice(0x200, 0x205)), [0xA2, 0x2A, 0x60, 0x0C, 0x00]);
+    assert.equal(cpu.rom.length, 4);
+    cpu.step();
+    assert.equal(cpu.I, 0x22A);
+  });
+
+  it('un ArrayBuffer de 3584 bytes entra y uno de 3585 lanza RangeError en castellano', () => {
+    const cpu = new Chip8();
+    cpu.loadRom(new ArrayBuffer(MAX_ROM_SIZE));
+    assert.equal(cpu.rom.length, MAX_ROM_SIZE);
+    assert.throws(() => cpu.loadRom(new ArrayBuffer(MAX_ROM_SIZE + 1)), (err) => {
+      assert.ok(err instanceof RangeError);
+      assert.match(err.message, /^La ROM ocupa 3585 bytes y el máximo es 3584/);
+      return true;
+    });
+    assert.throws(() => cpu.loadRom(new ArrayBuffer(5000)), /La ROM ocupa 5000 bytes/);
+    // La ROM anterior sigue cargada.
+    assert.equal(cpu.rom.length, MAX_ROM_SIZE);
+  });
+
+  it('el RangeError por una ROM grande está en castellano', () => {
+    const cpu = new Chip8();
+    assert.throws(() => cpu.loadRom(new Uint8Array(3585)), /^RangeError: La ROM ocupa 3585 bytes y el máximo es 3584 \(de 0x200 a 0xFFF\)\.$/);
+  });
+
   it('guarda una copia: modificar el origen después no afecta', () => {
     const rom = new Uint8Array([0x60, 0x11]);
     const cpu = new Chip8();

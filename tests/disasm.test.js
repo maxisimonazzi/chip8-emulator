@@ -245,3 +245,52 @@ describe('disassembleRange', () => {
     assert.equal(font[0].opcode, 0xF090);
   });
 });
+
+describe('disassemble con quirks (argumento opcional)', () => {
+  it('sin quirks, BNNN sigue siendo "JP V0, 0xNNN"', () => {
+    assert.equal(disassemble(0xB2A0), 'JP V0, 0x2A0');
+    assert.equal(disassemble(0xB123, undefined), 'JP V0, 0x123');
+    assert.equal(disassemble(0xB123, {}), 'JP V0, 0x123');
+    assert.equal(disassemble(0xB123, { jumping: false }), 'JP V0, 0x123');
+  });
+
+  it('con jumping, BNNN se muestra como "JP VX, 0xNNN" (X = primer dígito de NNN)', () => {
+    const q = { jumping: true };
+    assert.equal(disassemble(0xB123, q), 'JP V1, 0x123');
+    assert.equal(disassemble(0xB2A0, q), 'JP V2, 0x2A0');
+    assert.equal(disassemble(0xB00F, q), 'JP V0, 0x00F');
+    assert.equal(disassemble(0xBEEF, q), 'JP VE, 0xEEF');
+    assert.equal(disassemble(0xBFFF, q), 'JP VF, 0xFFF');
+  });
+
+  it('el registro que muestra es el que usa step() con el quirk activado', () => {
+    for (const x of [0x1, 0x7, 0xA]) {
+      const cpu = new Chip8({ quirks: { jumping: true } });
+      const op = 0xB000 | (x << 8) | 0x23;
+      cpu.loadRom([op >> 8, op & 0xFF]);
+      cpu.V[x] = 0x10;
+      cpu.step();
+      assert.equal(cpu.pc, ((x << 8) | 0x23) + 0x10);
+      assert.equal(disassemble(op, cpu.quirks), 'JP V' + x.toString(16).toUpperCase() + ', 0x' + ((x << 8) | 0x23).toString(16).toUpperCase().padStart(3, '0'));
+    }
+  });
+
+  it('los demás quirks no cambian ningún texto', () => {
+    const others = { vfReset: true, memory: true, shifting: true, clipping: true, displayWait: true, jumping: false };
+    for (let op = 0; op <= 0xFFFF; op += 7) assert.equal(disassemble(op, others), disassemble(op));
+  });
+
+  it('jumping solo cambia la familia BNNN', () => {
+    for (let op = 0; op <= 0xFFFF; op += 3) {
+      if ((op >> 12) === 0xB) continue;
+      assert.equal(disassemble(op, { jumping: true }), disassemble(op));
+    }
+  });
+
+  it('disassembleRange pasa los quirks a cada palabra', () => {
+    const mem = new Uint8Array(4096);
+    mem.set([0xB1, 0x23, 0x61, 0x2A], 0x200);
+    assert.deepEqual(disassembleRange(mem, 0x200, 2).map((e) => e.text), ['JP V0, 0x123', 'LD V1, 0x2A']);
+    assert.deepEqual(disassembleRange(mem, 0x200, 2, { jumping: true }).map((e) => e.text), ['JP V1, 0x123', 'LD V1, 0x2A']);
+  });
+});
