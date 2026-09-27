@@ -86,7 +86,7 @@ lista completa está en [6.7](#67-los-escenarios-e2e)).
 
 | Requisito | Cómo se cumple | Cómo se verifica |
 |---|---|---|
-| Un solo archivo, sin dependencias ni red | Todo va en línea; el ícono de la pestaña es un SVG en una URL `data:` | E2E 1 (sin errores ni 404) y 23 (el servidor solo recibe `/chip8.html`) |
+| Un solo archivo, sin dependencias ni red | Todo va en línea; el ícono de la pestaña es un SVG en una URL `data:` | `tests/single-file.test.js` (sin `http(s)`, `@import` ni `src`/`href` externos; los cuatro bloques bien formados); E2E 1 (sin errores ni 404) y 23 (el servidor solo recibe `/chip8.html`) |
 | Funciona abierto desde el disco | Sin `fetch`, sin módulos ES, sin workers ([2.6](#26-compatibilidad-con-file)) | E2E 1 carga la página por `file://` y por HTTP |
 | Un programa roto no rompe el emulador | La máquina se detiene con un mensaje ([3.7](#37-errores)) | `tests/core-api.test.js` (unos 50 opcodes inválidos, pila); E2E 14 y 22 |
 | Se puede manejar solo con el teclado y con lector de pantalla | ARIA, modelo de foco, activación sin puntero ([4.14](#414-accesibilidad)) | E2E 5, 20 y 21 |
@@ -1148,11 +1148,12 @@ Antes de dar por terminado un cambio: `node --test` y, si tocaste la interfaz,
 | `tests/roms.test.js` | Los cartuchos: cada `.asm` ensambla idéntico a su `.ch8` y tiene sus etiquetas; `embed-roms --check` y el bloque incrustado; el propio `embed-roms.js` sobre un HTML temporal con CRLF; 600 frames por demo y perfil sin ejecutar datos; y el comportamiento de cada uno: el movimiento y las velocidades de Rebote; las 16 teclas de Teclado; en Atrapa, la paleta, que todo bloque se pueda atrapar y el reinicio con apretar y soltar; Autotest con VD = 19 y VE = 0 en cada perfil e IPF, y los núcleos saboteados que tiene que detectar; y la posición de cada glifo en Fuente. |
 | `tests/tutorial.test.js` | El tutorial y sus ejemplos ([6.6](#66-pruebas-de-la-documentación)). |
 | `tests/manual.test.js` | El manual y los enlaces del README ([6.6](#66-pruebas-de-la-documentación)). |
+| `tests/single-file.test.js` | El contrato del archivo único: los cuatro bloques, cada uno una vez, con la etiqueta de apertura exacta y en orden; ningún `</script` ni `</style` adentro; ninguna dirección `http(s)`, `@import`, ni `src`/`href`/`url()` que no sea `data:` o `#ancla`; y que los tres bloques de código compilen. |
 
 ### 6.3 Números actuales
 
 Medido el 27 de septiembre de 2026 con Node 22.11 (`node --test` desde la raíz):
-**793 pruebas en 135 grupos**, en unos 2,2 s.
+**797 pruebas en 136 grupos**, todas pasan y ninguna salteada, en unos 3 s.
 
 | Archivo | Pruebas |
 |---|---|
@@ -1167,7 +1168,8 @@ Medido el 27 de septiembre de 2026 con Node 22.11 (`node --test` desde la raíz)
 | `tests/quirks.test.js` | 30 |
 | `tests/manual.test.js` | 12 |
 | `tests/mutation-gaps.test.js` | 12 |
-| **Total** | **793** |
+| `tests/single-file.test.js` | 4 |
+| **Total** | **797** |
 
 Todas pasan cuando los cartuchos incrustados están al día. Las dos pruebas del grupo
 "chip8.html tiene las demos incrustadas" (`embed-roms --check` y la comparación de
@@ -1189,6 +1191,7 @@ Cómo fue creciendo la suite:
 | Integración | 726 | 725 pasan, 1 salteada (el enlace a este documento, que no existía) |
 | Después del mutation testing | 738 | 737 pasan, 1 salteada |
 | Después de las correcciones de la revisión | 793 | todas pasan con los cartuchos al día |
+| Integración final | 797 | todas pasan, ninguna salteada (se sumó `tests/single-file.test.js`) |
 
 ### 6.4 Pruebas de caja negra
 

@@ -22,8 +22,8 @@
 // Además se verifican los enlaces: cada #ancla del manual lleva a uno de sus
 // encabezados, los enlaces al tutorial llevan a encabezados que existen y los
 // enlaces a archivos (en el manual y en el README) apuntan a archivos que
-// existen. docs/DESARROLLO.md lo escribe otra parte del proyecto: mientras no
-// exista, el test de ese enlace queda salteado (y no falla).
+// existen. El manual tiene que enlazar docs/DESARROLLO.md, y ese archivo tiene
+// que existir.
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -37,7 +37,6 @@ const DOCS = path.join(ROOT, 'docs');
 const MANUAL_PATH = path.join(DOCS, 'MANUAL.md');
 const TUTORIAL_PATH = path.join(DOCS, 'TUTORIAL.md');
 const README_PATH = path.join(ROOT, 'README.md');
-const PENDING = ['DESARROLLO.md']; // archivos de docs/ que escribe otra parte del proyecto
 
 const FRAGMENT_RE = /^;\s*Fragmento\b/i;
 const UNKNOWN_LABEL_RE = /etiqueta o constante desconocida: "([^"]+)"/;
@@ -216,8 +215,6 @@ describe('docs/MANUAL.md', () => {
         assert.ok(own.has(anchor), 'ancla inexistente en el manual: #' + anchor);
       } else if (file === 'TUTORIAL.md') {
         if (anchor) assert.ok(tutorial.has(anchor), 'ancla inexistente en TUTORIAL.md: #' + anchor);
-      } else if (PENDING.includes(file)) {
-        continue; // lo verifica el test de abajo
       } else {
         assert.ok(fs.existsSync(path.join(DOCS, file)), 'enlace roto: ' + link);
         assert.ok(!anchor, 'enlace con ancla a un archivo que este test no revisa: ' + link);
@@ -234,14 +231,10 @@ describe('docs/MANUAL.md', () => {
     assert.deepEqual(listed, sections);
   });
 
-  for (const file of PENDING) {
-    const exists = fs.existsSync(path.join(DOCS, file));
-    it('el enlace a ' + file + ' lleva a un archivo que existe',
-      { skip: exists ? false : file + ' todavía no está escrito' }, () => {
-        assert.ok(linksOf(md).some((l) => l.split('#')[0] === file));
-        assert.ok(exists);
-      });
-  }
+  it('el enlace a DESARROLLO.md lleva a un archivo que existe', () => {
+    assert.ok(linksOf(md).some((l) => l.split('#')[0] === 'DESARROLLO.md'), 'el manual no enlaza DESARROLLO.md');
+    assert.ok(fs.existsSync(path.join(DOCS, 'DESARROLLO.md')), 'falta docs/DESARROLLO.md');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -252,7 +245,6 @@ describe('README.md', () => {
   const md = read(README_PATH);
   const manual = anchorsOf(read(MANUAL_PATH));
   const tutorial = anchorsOf(read(TUTORIAL_PATH));
-  const pendingPaths = PENDING.map((f) => 'docs/' + f);
 
   it('los enlaces llevan a archivos (y anclas) que existen', () => {
     const own = anchorsOf(md);
@@ -265,7 +257,6 @@ describe('README.md', () => {
         checked++;
         continue;
       }
-      if (pendingPaths.includes(file)) continue;
       assert.ok(fs.existsSync(path.join(ROOT, file)), 'enlace roto: ' + link);
       if (anchor && file === 'docs/MANUAL.md') assert.ok(manual.has(anchor), 'ancla inexistente en el manual: #' + anchor);
       if (anchor && file === 'docs/TUTORIAL.md') assert.ok(tutorial.has(anchor), 'ancla inexistente en el tutorial: #' + anchor);
@@ -284,7 +275,6 @@ describe('README.md', () => {
       .map((m) => m[1]);
     assert.ok(listed.length >= 10, 'rutas en la estructura: ' + listed.length);
     for (const p of listed) {
-      if (pendingPaths.includes(p)) continue;
       assert.ok(fs.existsSync(path.join(ROOT, p)), 'la estructura nombra algo que no existe: ' + p);
     }
     for (const tool of fs.readdirSync(path.join(ROOT, 'tools')).filter((f) => f.endsWith('.js'))) {

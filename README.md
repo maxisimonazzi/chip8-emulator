@@ -131,7 +131,8 @@ de Node). Desde la raíz del repositorio:
 node --test        # o: npm test
 ```
 
-Las pruebas cargan el núcleo del emulador directamente desde `chip8.html` (el bloque
+Son **797 pruebas** en 12 archivos (`tests/*.test.js`) y pasan todas, en unos 3
+segundos. Cargan el núcleo del emulador directamente desde `chip8.html` (el bloque
 `<script id="chip8-core">`) y cubren:
 
 - cada una de las 35 instrucciones, con sus casos borde y los flags de VF;
@@ -147,7 +148,9 @@ Las pruebas cargan el núcleo del emulador directamente desde `chip8.html` (el b
 - el tutorial: que sus ejemplos ensamblen, corran y coincidan con lo que dice el texto;
 - el manual y este README: que los ejemplos del manual ensamblen (los fragmentos, con
   las etiquetas que les faltan), que sus programas completos corran y que los enlaces
-  lleven a encabezados y archivos que existen.
+  lleven a encabezados y archivos que existen;
+- que `chip8.html` siga siendo un solo archivo: sin recursos externos y con sus cuatro
+  bloques bien formados (`tests/single-file.test.js`).
 
 ### En un navegador de verdad (E2E)
 
@@ -158,7 +161,7 @@ node tools/e2e.js --shots capturas    # guarda las capturas en esa carpeta
 ```
 
 `tools/e2e.js` abre Chrome (o Edge) sin ventana, carga `chip8.html` por HTTP y por
-`file://` y corre 17 escenarios con eventos reales (teclado, mouse, toques, arrastrar y
+`file://` y corre 24 escenarios con eventos reales (teclado, mouse, toques, arrastrar y
 soltar) y tiempo real: velocidad, keypad, atajos, carga de ROMs, cartuchos, quirks,
 sonido, monitor, errores, diseño adaptable y más. Imprime PASA o FALLA por escenario,
 guarda capturas y sale con código 1 si algo falló. Tampoco usa dependencias: le habla
@@ -207,6 +210,7 @@ tools/e2e.js                 Pruebas de punta a punta en Chrome o Edge sin venta
 tests/                       Pruebas con node:test (harness.js carga los bloques de chip8.html).
 tests/mutation-gaps.test.js  Casos que salieron del mutation testing del núcleo.
 tests/manual.test.js         Ejemplos y enlaces del manual, y enlaces de este README.
+tests/single-file.test.js    Que chip8.html no pida nada a la red y tenga sus cuatro bloques.
 docs/MANUAL.md               Manual de referencia de CHIP-8.
 docs/TUTORIAL.md             Tutorial.
 docs/ejemplos/               Programas del tutorial y un mini emulador didáctico.
