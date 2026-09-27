@@ -223,6 +223,12 @@
   }
   .crt[data-palette="lcd"] .crt-vignette { background: radial-gradient(ellipse 80% 75% at 50% 50%, transparent 60%, rgba(20, 40, 0, .35) 100%); }
   .crt[data-palette="lcd"] { box-shadow: inset 0 0 0 2px rgba(0, 0, 0, .55), inset 0 3px 14px rgba(0, 0, 0, .55), 0 0 0 3px #0c0b0a; }
+  /* Píxeles puros: sin resplandor, estela, viñeta ni reflejo; solo la grilla de 64×32 */
+  .crt[data-mode="puro"] { border-radius: 6px; box-shadow: inset 0 0 0 2px rgba(0, 0, 0, .7), 0 0 0 3px #0c0b0a; }
+  .crt[data-mode="puro"] #glow,
+  .crt[data-mode="puro"] .crt-vignette,
+  .crt[data-mode="puro"] .crt-glare { display: none; }
+  .crt[data-mode="puro"] .crt-tags { text-shadow: none; }
   .crt-tags {
     position: absolute; top: 5%; left: 3.5%; z-index: 5;
     display: flex; gap: 8px; flex-wrap: wrap;
@@ -454,6 +460,22 @@
   }
   .toggle[aria-pressed="true"] .toggle-sw { background: var(--accent); }
   .toggle[aria-pressed="true"] .toggle-sw::after { transform: translateX(16px); }
+  .toggle:disabled { opacity: .45; cursor: not-allowed; }
+
+  /* Selector de modo de pantalla (Tubo CRT / Píxeles puros) */
+  .segmented {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 3px;
+    border-radius: 10px; background: #8d7f69; box-shadow: inset 0 2px 3px rgba(0, 0, 0, .45);
+  }
+  .seg {
+    padding: 6px 8px; border: 0; border-radius: 7px;
+    background: transparent; color: #f7efdc;
+    font: 700 12px/1.2 var(--font-ui); letter-spacing: .02em;
+  }
+  .seg[aria-checked="true"] {
+    background: linear-gradient(180deg, #fbf7ec, #e3d8bf); color: var(--ink);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .35), inset 0 1px 0 rgba(255, 255, 255, .8);
+  }
 
   /* Rangos */
   input[type="range"] { -webkit-appearance: none; appearance: none; height: 22px; background: transparent; accent-color: var(--accent); }
@@ -859,6 +881,13 @@
           <div class="panel-group">
             <h2 class="section-print">Pantalla y sonido</h2>
             <div class="field" style="margin-top:0">
+              <span class="field-label" id="screen-mode-label">Modo de pantalla</span>
+              <div class="segmented" id="screen-mode" role="radiogroup" aria-labelledby="screen-mode-label">
+                <button class="seg" type="button" role="radio" data-mode="crt" aria-checked="true" title="Tubo de rayos catódicos: resplandor, estela del fósforo y scanlines">Tubo CRT</button>
+                <button class="seg" type="button" role="radio" data-mode="puro" aria-checked="false" title="Píxeles cuadrados y nítidos: sin estela, sin resplandor, sin scanlines">Píxeles puros</button>
+              </div>
+            </div>
+            <div class="field">
               <label for="palette">Paleta</label>
               <select class="select" id="palette"></select>
             </div>
@@ -993,7 +1022,8 @@
 
       <h3>Consejos</h3>
       <ul>
-        <li>Si un juego parpadea mucho, dejá prendida la <strong>persistencia</strong> (anti-parpadeo).</li>
+        <li>Si un juego parpadea mucho, dejá prendida la <strong>persistencia</strong> (anti-parpadeo) del modo <strong>Tubo CRT</strong>.</li>
+        <li>¿Preferís píxeles cuadrados y nítidos, sin estela ni resplandor? Elegí <strong>Píxeles puros</strong> en «Pantalla y sonido».</li>
         <li>Si un juego se comporta raro (sprites rotos, saltos a cualquier lado), probá los perfiles SUPER-CHIP o XO-CHIP: muchos juegos modernos se escribieron para esos intérpretes.</li>
         <li>El navegador no deja sonar nada hasta que tocás la página: con el primer clic o la primera tecla se habilita el beep.</li>
         <li>Si la máquina se detiene por un error, el monitor muestra el opcode y la dirección. Reiniciá con <kbd>Retroceso</kbd>.</li>
@@ -1577,6 +1607,8 @@ globalThis.CHIP8_DEMOS = [
     lcd: { name: 'LCD', bg: [155, 188, 15], on: [15, 56, 15] }
   };
   var PALETTE_IDS = ['fosforo', 'ambar', 'blanco', 'lcd'];
+  // Modo de pantalla: 'crt' = tubo (resplandor, persistencia, scanlines); 'puro' = píxeles nítidos sin efectos.
+  var SCREEN_MODES = ['crt', 'puro'];
 
   // Teclas físicas (KeyboardEvent.code) -> keypad hexadecimal del COSMAC VIP.
   var KEY_BY_CODE = {
@@ -1630,7 +1662,7 @@ globalThis.CHIP8_DEMOS = [
   // ------------------------------------------------------------------ ajustes guardados
   function loadSettings() {
     var s = {
-      ipf: IPF_DEFAULT, quirks: copyQuirks(Core.DEFAULT_QUIRKS), palette: 'fosforo',
+      ipf: IPF_DEFAULT, quirks: copyQuirks(Core.DEFAULT_QUIRKS), palette: 'fosforo', screenMode: 'crt',
       scanlines: true, persistence: true, muted: false, volume: 0.6, monitorOpen: true
     };
     var raw = null;
@@ -1641,6 +1673,7 @@ globalThis.CHIP8_DEMOS = [
       QUIRK_KEYS.forEach(function (k) { if (typeof raw.quirks[k] === 'boolean') s.quirks[k] = raw.quirks[k]; });
     }
     if (typeof raw.palette === 'string' && hasOwn(PALETTES, raw.palette)) s.palette = raw.palette;
+    if (SCREEN_MODES.indexOf(raw.screenMode) >= 0) s.screenMode = raw.screenMode;
     ['scanlines', 'persistence', 'muted', 'monitorOpen'].forEach(function (k) {
       if (typeof raw[k] === 'boolean') s[k] = raw[k];
     });
@@ -1688,6 +1721,7 @@ globalThis.CHIP8_DEMOS = [
   var btnPause = $('btn-pause'), pauseLabel = $('btn-pause-label'), btnStep = $('btn-step'), btnFrame = $('btn-frame'), btnReset = $('btn-reset');
   var statusEl = $('status');
   var ipfRange = $('ipf-range'), ipfInput = $('ipf-input'), ipfChips = $('ipf-chips'), ipfRate = $('ipf-rate');
+  var screenModeGroup = $('screen-mode');
   var paletteSel = $('palette'), tgScan = $('tg-scan'), tgPersist = $('tg-persist'), tgMute = $('tg-mute'), volumeRange = $('volume');
   var presetSel = $('preset'), dipBank = $('dip-bank'), dipLabels = $('dip-labels'), quirkHint = $('quirk-hint');
   var shelfList = $('shelf-list'), shelfEmpty = $('shelf-empty');
@@ -1776,10 +1810,13 @@ globalThis.CHIP8_DEMOS = [
     fading = any;
     needsRender = true;
   }
+  // Los efectos de tubo (persistencia, scanlines, resplandor) solo existen en modo CRT.
+  function crtMode() { return settings.screenMode === 'crt'; }
+
   function syncDisplay(allowDecay) {
     if (cpu.displayDirty || fading) {
       cpu.displayDirty = false;
-      updateLevels(allowDecay && settings.persistence);
+      updateLevels(allowDecay && settings.persistence && crtMode());
     }
   }
 
@@ -1789,7 +1826,7 @@ globalThis.CHIP8_DEMOS = [
     var cw = screenCanvas.width, ch = screenCanvas.height;
     screenCtx.imageSmoothingEnabled = false;
     screenCtx.drawImage(frameCanvas, 0, 0, cw, ch);
-    if (settings.scanlines && scanPattern) {
+    if (settings.scanlines && scanPattern && crtMode()) {
       screenCtx.fillStyle = scanPattern;
       screenCtx.fillRect(0, 0, cw, ch);
     }
@@ -1848,12 +1885,33 @@ globalThis.CHIP8_DEMOS = [
     var p = PALETTES[id];
     settings.palette = id;
     buildLut(p);
-    glowEnabled = id !== 'lcd';
+    glowEnabled = id !== 'lcd' && crtMode();
     crtEl.setAttribute('data-palette', id);
     crtEl.style.setProperty('--scr-bg', 'rgb(' + p.bg.join(',') + ')');
     crtEl.style.setProperty('--scr-fg', 'rgb(' + p.on.join(',') + ')');
     paletteSel.value = id;
     if (screenScale) scanPattern = buildScanPattern(screenScale);
+    needsRender = true;
+  }
+
+  function applyScreenMode(mode) {
+    if (SCREEN_MODES.indexOf(mode) < 0) mode = 'crt';
+    settings.screenMode = mode;
+    var crt = mode === 'crt';
+    crtEl.setAttribute('data-mode', mode);
+    glowEnabled = crt && settings.palette !== 'lcd';
+    var segs = screenModeGroup.querySelectorAll('.seg');
+    for (var i = 0; i < segs.length; i++) {
+      var on = segs[i].getAttribute('data-mode') === mode;
+      segs[i].setAttribute('aria-checked', on ? 'true' : 'false');
+      segs[i].tabIndex = on ? 0 : -1;
+    }
+    // Scanlines y persistencia conservan su preferencia, pero solo aplican al tubo.
+    tgScan.disabled = !crt;
+    tgPersist.disabled = !crt;
+    tgScan.title = crt ? 'Líneas de barrido alineadas con las filas de píxeles' : 'Solo en modo Tubo CRT';
+    tgPersist.title = crt ? 'Los píxeles se apagan de a poco, como el fósforo: disimula el parpadeo' : 'Solo en modo Tubo CRT';
+    if (!crt) updateLevels(false);   // borra la estela que hubiera en pantalla
     needsRender = true;
   }
 
@@ -2637,6 +2695,25 @@ globalThis.CHIP8_DEMOS = [
     });
     paletteSel.addEventListener('change', function () { applyPalette(paletteSel.value); saveSettings(); });
 
+    function chooseScreenMode(mode, focus) {
+      if (mode === settings.screenMode) return;
+      applyScreenMode(mode);
+      saveSettings();
+      announce(mode === 'crt' ? 'Pantalla en modo tubo CRT.' : 'Pantalla en píxeles puros, sin estela.');
+      if (focus) screenModeGroup.querySelector('.seg[data-mode="' + mode + '"]').focus();
+    }
+    screenModeGroup.addEventListener('click', function (e) {
+      var seg = e.target.closest ? e.target.closest('.seg') : null;
+      if (seg) chooseScreenMode(seg.getAttribute('data-mode'), false);
+    });
+    // Patrón radiogroup: las flechas cambian de opción.
+    screenModeGroup.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        chooseScreenMode(settings.screenMode === 'crt' ? 'puro' : 'crt', true);
+      }
+    });
+
     function bindToggle(btn, key, after) {
       btn.setAttribute('aria-pressed', settings[key] ? 'true' : 'false');
       btn.addEventListener('click', function () {
@@ -2764,6 +2841,8 @@ globalThis.CHIP8_DEMOS = [
     setIpf: function (n) { return setIpf(n); },
     getIpf: function () { return settings.ipf; },
     setPreset: function (id) { return setPreset(id); },
+    setScreenMode: function (mode) { applyScreenMode(mode); saveSettings(); return settings.screenMode; },
+    getScreenMode: function () { return settings.screenMode; },
     pressKey: function (k) { k &= 0xF; if (!apiHeld[k]) { apiHeld[k] = 1; keyDown(k); } },
     releaseKey: function (k) { k &= 0xF; if (apiHeld[k]) { apiHeld[k] = 0; keyUp(k); } },
     audioState: audioState
@@ -2776,6 +2855,7 @@ globalThis.CHIP8_DEMOS = [
   buildHelpQuirks();
   buildControls();
   applyPalette(settings.palette);
+  applyScreenMode(settings.screenMode);
   refreshQuirkUI();
   setIpf(settings.ipf);
   setMonitorOpen(settings.monitorOpen, true);
