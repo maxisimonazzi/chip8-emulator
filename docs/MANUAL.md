@@ -2222,8 +2222,9 @@ suites modernas, pero **no** agrega sus instrucciones nuevas (sección
 
 En el panel de quirks hay un selector de perfil (**COSMAC VIP**, **SUPER-CHIP**,
 **XO-CHIP** y **Personalizado**) y seis interruptores, uno por quirk. Elegir un perfil
-mueve los seis interruptores; tocar cualquiera de ellos pasa el perfil a
-"Personalizado". Los cambios se aplican en el momento, sin reiniciar, aunque si el
+mueve los seis interruptores; si después tocás alguno y la combinación ya no coincide
+con ningún perfil, el selector pasa solo a "Personalizado" (y si coincide con otro
+perfil, muestra ese). Los cambios se aplican en el momento, sin reiniciar, aunque si el
 programa ya calculó algo con la configuración anterior conviene reiniciarlo.
 
 Una guía rápida:
