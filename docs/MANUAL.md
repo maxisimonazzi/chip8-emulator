@@ -9,7 +9,8 @@ un programa o depurás uno ajeno.
 - Si querés aprender haciendo, empezá por el [tutorial](TUTORIAL.md).
 - Si te interesa cómo está construido este emulador (arquitectura, tests, decisiones),
   leé [DESARROLLO.md](DESARROLLO.md).
-- Para instalar, abrir y usar la consola, mirá el [README](../README.md).
+- Para instalar, abrir y usar la consola, mirá el [README](../README.md) y la
+  [parte 1 del tutorial](TUTORIAL.md#1-usar-el-emulador).
 
 ## Convenciones de este manual
 
@@ -21,13 +22,31 @@ un programa o depurás uno ajeno.
 - Cuando el hardware original y este emulador se comportan distinto, aparece un
   párrafo marcado **Diferencia con el VIP**. Todo lo que dice "este emulador" describe
   exactamente lo que hace el código y lo que verifican los tests del proyecto.
+- **"El monitor"** es el panel de depuración de la consola, el que se titula MONITOR:
+  registros, desensamblado alrededor del PC, pila y memoria. Cuando se habla del
+  sistema operativo en ROM del VIP, que también se llamaba así, se dice **"el programa
+  monitor del VIP"**.
 - Los mnemónicos son los de la referencia de Cowgod (`LD`, `DRW`, `SKP`, ...). Son los
-  mismos que acepta el ensamblador del proyecto (`tools/chip8asm.js`) y los que muestra
-  el desensamblador del panel de debug, así que todo ejemplo de este manual se puede
-  ensamblar tal cual.
+  mismos que acepta el ensamblador del proyecto (`tools/chip8asm.js`, con la sintaxis
+  que explica la [sección 4.4 del tutorial](TUTORIAL.md#44-la-sintaxis-completa)) y los
+  que muestra el desensamblador del monitor. Los ejemplos de este manual se ensamblan
+  tal cual, salvo los que empiezan con `; Fragmento`: son pedazos de un programa más
+  grande y usan etiquetas (subrutinas, destinos de salto, tablas) que están en otra
+  parte; el comentario del principio dice cuáles son, y para ensamblarlos tenés que
+  definirlas vos.
 - En los opcodes, `X` e `Y` son números de registro (un dígito hex), `N` es un dígito
   hex, `NN` un byte y `NNN` una dirección de 12 bits. La sección
   [9](#9-formato-de-las-instrucciones) lo explica en detalle.
+
+<!--
+Convención de los bloques de código asm de este manual (la verifica tests/manual.test.js):
+- Un bloque asm sin marca es un ejemplo que se ensambla tal cual con tools/chip8asm.js.
+- Un fragmento empieza con una línea de comentario "; Fragmento: ..." que nombra las
+  etiquetas que usa y no define. El test las agrega como etiquetas de relleno y exige que
+  así se ensamble; también exige que el fragmento use al menos una etiqueta que no define.
+- Un ejemplo que termina en el bucle "fin: JP fin" es un programa completo: el test lo
+  ejecuta con cada perfil y exige que llegue a ese bucle sin que la máquina se detenga.
+-->
 
 ## Índice
 
@@ -90,7 +109,7 @@ En su artículo de 1978 en la revista BYTE, Weisbecker cuenta que ya tenía en m
 tipo de programación interpretada cuando incluyó los múltiples contadores de programa
 en la arquitectura del 1802.
 
-La **RCA COSMAC VIP** (CDP18S711) fue una computadora de una sola placa que RCA vendió
+El **RCA COSMAC VIP** (CDP18S711) fue una computadora de una sola placa que RCA vendió
 como kit hacia 1977 (Wikipedia menciona un precio de US$275; algunas fuentes ubican su
 lanzamiento a fines de 1976). Según su manual de instrucciones, traía:
 
@@ -98,8 +117,8 @@ lanzamiento a fines de 1976). Según su manual de instrucciones, traía:
 |---|---|
 | CPU | RCA CDP1802, reloj de ≈1,76 MHz (cristal de 3,52 MHz dividido por 2); un ciclo de máquina ≈ 4,54 µs |
 | RAM | 2048 bytes en la placa, ampliable a 4096 en la misma placa (y más con módulos externos) |
-| ROM | 512 bytes con el sistema operativo (monitor), en la dirección 0x8000 |
-| Video | Chip CDP1861 ("Pixie"), salida para monitor o TV; sincronismo vertical de 60 Hz |
+| ROM | 512 bytes con el sistema operativo (el programa monitor), en la dirección 0x8000 |
+| Video | Chip CDP1861 ("Pixie"), salida para un monitor de video o un televisor; sincronismo vertical de 60 Hz |
 | Entrada | Teclado hexadecimal de 16 teclas (0–F) |
 | Sonido | Un generador de tono que suena mientras la línea Q del 1802 está en 1 |
 | Almacenamiento | Interfaz de cassette de 100 bytes por segundo |
@@ -134,7 +153,7 @@ resumen:
   números aleatorios, conversión a decimal, un timer y, sobre todo, una instrucción que
   dibuja un sprite y detecta colisiones.
 
-En 1977 la memoria era cara: una VIP básica tenía 2 KB en total. Un lenguaje que
+En 1977 la memoria era cara: un VIP básico tenía 2 KB en total. Un lenguaje que
 permitía escribir un juego completo en unos cientos de bytes, y que el hobbista podía
 entender y tipear en hexadecimal, era una solución muy práctica. El manual del VIP y el
 artículo de BYTE describen **31 instrucciones**; la sección
@@ -185,8 +204,9 @@ comportamiento de CHIP-48/SUPER-CHIP y no según el VIP, y eso generó mucha con
 **John Earnest** creó **Octo**, un entorno de desarrollo para CHIP-8 que corre en el
 navegador, con un ensamblador de alto nivel propio. Alrededor de 2014 definió
 **XO-CHIP**, una extensión que agrega más memoria direccionable, color mediante planos
-de bits y sonido programable (sección [13](#13-variantes-y-extensiones)). Desde
-entonces se organiza todos los años la **Octojam**, una game jam de CHIP-8.
+de bits y sonido programable (sección [13](#13-variantes-y-extensiones)). Entre 2014
+y 2023 organizó todos los años la **Octojam**, una game jam de CHIP-8 que se hacía en
+octubre; hubo diez ediciones y la de 2023 fue la última.
 
 Buena parte de lo que hoy se sabe con precisión sobre el comportamiento original viene
 de trabajo reciente de la comunidad: el análisis del intérprete del VIP publicado por
@@ -225,8 +245,9 @@ emuladores:
 | 1990 | CHIP-48 de Andreas Gustafsson para la HP-48 |
 | 1991 | SUPER-CHIP 1.0 y 1.1 de Erik Bryntse |
 | 1997 | *Chip-8 Technical Reference* de Cowgod (Thomas P. Greene) |
-| 2014 | Octo y XO-CHIP de John Earnest |
+| 2014 | Octo y XO-CHIP de John Earnest; primera Octojam |
 | 2020 | Laurence Scotford publica su análisis del intérprete original del VIP |
+| 2023 | Décima y última Octojam |
 
 ---
 
@@ -321,9 +342,9 @@ cada 1/60 s (un frame):
 ```
 
 En el código del núcleo esto es `Chip8.runFrame(ipf)`; `step()` ejecuta exactamente
-una instrucción y `tickTimers()` baja los timers. En la interfaz, el botón **Paso**
+una instrucción y `tickTimers()` baja los timers. En la consola, el botón **Paso**
 ejecuta una sola instrucción (sin tocar los timers) y el botón **Frame** ejecuta un
-frame completo.
+frame completo; los dos dejan la máquina en pausa, y el monitor muestra cómo quedó.
 
 ---
 
@@ -338,18 +359,18 @@ separación entre programa y datos), y todo se puede leer y escribir.
 En el VIP, el intérprete ocupaba los primeros 512 bytes de la RAM (`0x000`–`0x1FF`) y
 los programas debían empezar en `0x200`. Al final de la RAM, el intérprete reservaba
 espacio para la pila, sus variables y el buffer de pantalla. Según el análisis de
-Laurence Scotford, en una VIP de 2 KB el mapa era:
+Laurence Scotford, en un VIP de 2 KB el mapa era:
 
 | Direcciones (2 KB) | Tamaño | Uso |
 |---|---|---|
 | `0x000`–`0x1FF` | 512 B | Intérprete CHIP-8 |
 | `0x200`–`0x69F` | 1184 B | Programa (592 instrucciones) |
-| `0x6A0`–`0x6CF` | 48 B | Pila: 12 niveles de 2 bytes, crece hacia abajo |
+| `0x6A0`–`0x6CF` | 48 B | Pila del intérprete: direcciones de retorno y uso interno del 1802; alcanza para 12 niveles de `CALL`. Crece hacia abajo |
 | `0x6D0`–`0x6EF` | 32 B | Área de trabajo para armar sprites |
 | `0x6F0`–`0x6FF` | 16 B | Las variables V0–VF |
 | `0x700`–`0x7FF` | 256 B | Memoria de pantalla (64×32 bits) |
 
-En una VIP de 4 KB la estructura es la misma, corrida al final de la RAM: pila en
+En un VIP de 4 KB la estructura es la misma, corrida al final de la RAM: pila en
 `0xEA0`–`0xECF`, área de trabajo en `0xED0`–`0xEEF`, variables en `0xEF0`–`0xEFF` y
 pantalla en `0xF00`–`0xFFF`. El manual del VIP dice que "los últimos 352 bytes" de la
 RAM se usan para variables y refresco de pantalla (352 = `0x1000 − 0xEA0`) y ofrece al
@@ -383,15 +404,22 @@ ocupan memoria CHIP-8. Los 4 KB quedan así:
 - Al reiniciar (`reset()`), toda la memoria se pone en cero, se copia la fuente a
   `0x050`, se vuelve a copiar la última ROM cargada a `0x200` y el PC queda en `0x200`.
 - Una ROM puede ocupar **hasta 3584 bytes** (`0x200`–`0xFFF`). Si el archivo es más
-  grande, la carga se rechaza con un error.
+  grande (o está vacío), la consola rechaza la carga con un aviso, arriba de la página,
+  y deja en la ranura el cartucho que había.
+- La ROM llega con el botón **Cargar ROM**, arrastrando el archivo sobre la página o
+  eligiendo un cartucho incluido: con los botones de la fila **Incluidos:**, debajo de
+  la ranura, o desde el estante **Cartuchos incluidos**, debajo de la consola, que
+  además los describe. Con un cartucho incluido en la ranura, debajo aparecen sus
+  controles.
 - La zona `0x000`–`0x1FF` no está protegida: un programa puede escribirla (por
   ejemplo, pisar la fuente).
 
 > **Diferencia con el VIP.** En el VIP, un programa de 4 KB que escribiera en
 > `0xEA0`–`0xFFF` pisaba la pila, las variables o la pantalla; un programa podía, por
 > ejemplo, escribir la memoria de video directamente con `FX55`. En este emulador esas
-> direcciones son memoria común: escribirlas no cambia la pantalla ni los registros. Para que tu programa sea portable, no uses memoria por
-> encima de `0xE8F` y no dependas de dónde está la fuente.
+> direcciones son memoria común: escribirlas no cambia la pantalla ni los registros.
+> Para que tu programa sea portable, no uses memoria por encima de `0xE8F` y no
+> dependas de dónde está la fuente.
 
 ### 3.3 Instrucciones de 2 bytes, en orden big-endian
 
@@ -431,8 +459,8 @@ dirección de un `ANNN` para recorrer una tabla.
 parche: LD   V1, 0x00        ; al ejecutarse, NN ya vale lo que tenía V0
 ```
 
-El panel de debug de este emulador desensambla la memoria *actual*, así que si el
-programa se modifica a sí mismo vas a ver el código cambiado.
+El monitor de la consola desensambla la memoria *actual*, así que si el programa se
+modifica a sí mismo vas a ver el código cambiado.
 
 ### 3.6 Direcciones que dan la vuelta
 
@@ -460,8 +488,9 @@ sumar, comparar, pasar coordenadas a `DRW`, leer teclas, etc. Sus valores van de
 pensar en complemento a dos: sumar `0xFF` es lo mismo que restar 1.
 
 En el VIP los registros vivían en memoria (`0x6F0`–`0x6FF` en una máquina de 2 KB), lo
-que permitía inspeccionarlos desde el monitor. En este emulador son el arreglo
-`V: Uint8Array(16)`.
+que permitía inspeccionarlos con el programa monitor del VIP. En este emulador son el
+arreglo `V: Uint8Array(16)`, y el monitor de la consola los muestra en la grilla
+REGISTROS V0–VF.
 
 ### 4.2 VF, el registro de flags
 
@@ -490,8 +519,8 @@ suites de test modernas.
 
 `I` guarda una dirección de memoria. Lo usan las instrucciones que leen o escriben
 memoria: `DXYN` (lee el sprite), `FX33` (escribe BCD), `FX55`/`FX65` (guardan y cargan
-registros). Se carga con `ANNN` (una dirección de 12 bits), se incrementa con `FX1E` y
-lo apunta a un dígito de la fuente `FX29`.
+registros). Se carga con `ANNN` (una dirección de 12 bits), se incrementa con `FX1E`,
+y `FX29` lo apunta al glifo de un dígito de la fuente.
 
 En el VIP, `I` era el registro RA del 1802, de 16 bits. En este emulador `I` se guarda
 con 16 bits (`I & 0xFFFF`) y cada acceso a memoria usa `I & 0xFFF`, así que un `I`
@@ -523,10 +552,12 @@ programa no puede apilar datos propios: la pila solo sirve para CALL/RET.
 En este emulador la pila es `stack: Uint16Array(16)` y `sp` indica **cuántas**
 direcciones hay guardadas (de 0 a 16); la de arriba es `stack[sp - 1]`. Admite **16
 niveles** de anidamiento. Un `CALL` con la pila llena o un `RET` con la pila vacía
-detienen la máquina con un error (no corrompen memoria).
+detienen la máquina con un error (no corrompen memoria). El monitor muestra la pila en
+el recuadro PILA.
 
-> **Diferencia con el VIP.** El intérprete del VIP reservaba 48 bytes para la pila:
-> **12 niveles** de llamadas anidadas. SUPER-CHIP y la mayoría de los intérpretes
+> **Diferencia con el VIP.** El intérprete del VIP reservaba 48 bytes para la pila,
+> que también usaba para sus propias cuentas; alcanzaban para **12 niveles** de
+> llamadas anidadas. SUPER-CHIP y la mayoría de los intérpretes
 > modernos ofrecen 16. Un programa que use más de 12 niveles no va a funcionar bien en
 > un VIP real; si querés compatibilidad total, no anides más de 12 llamadas.
 
@@ -538,7 +569,7 @@ retardo) y **ST** (*sound timer*, timer de sonido). Los explica la sección sigu
 
 ### 4.7 El estado completo de la máquina en este emulador
 
-Para depurar (desde el panel de debug o desde la consola del navegador, con
+Para depurar (desde el monitor o desde la consola de JavaScript del navegador, con
 `window.chip8.cpu`) te sirve saber qué representa cada campo del objeto `Chip8`:
 
 | Campo | Tipo | Significado |
@@ -620,8 +651,9 @@ decide quien escribe el intérprete.
 > el beep siempre que ST sea mayor que 0, así que `ST = 1` produce un pitido muy corto
 > (1/60 s).
 
-En este emulador el beep es una **onda cuadrada generada con Web Audio**. La interfaz
-tiene un control para silenciarlo y otro de volumen. Los navegadores no permiten
+En este emulador el beep es una **onda cuadrada de 440 Hz generada con Web Audio**, y
+mientras suena se prende la luz SONIDO de la consola. En el grupo «Pantalla y sonido»
+hay un interruptor **Silencio** y un control de **Volumen**. Los navegadores no permiten
 reproducir sonido hasta que el usuario interactúa con la página, así que el beep se
 habilita con el primer clic o la primera tecla.
 
@@ -637,8 +669,9 @@ habilita con el primer clic o la primera tecla.
   **los timers siguen bajando**, igual que en el VIP (su rutina de interrupción seguía
   corriendo).
 - Con el emulador en **pausa** no se ejecutan frames, así que los timers quedan
-  congelados. El botón **Paso** ejecuta una instrucción sin tocarlos; el botón
-  **Frame** ejecuta un frame entero, que incluye un tic de los timers.
+  congelados y el beep se calla. El botón **Paso** ejecuta una instrucción sin
+  tocarlos; el botón **Frame** ejecuta un frame entero, que incluye un tic de los
+  timers.
 
 ---
 
@@ -662,8 +695,19 @@ hacia abajo.
 ```
 
 Los colores son una decisión de presentación: el VIP mostraba puntos blancos sobre
-fondo negro. Este emulador escala la imagen con píxeles nítidos y ofrece varias
-paletas (verde fósforo, ámbar, blanco y LCD), además de líneas de barrido opcionales.
+fondo negro. Este emulador escala la imagen por un número entero, así que cada píxel
+CHIP-8 es un cuadrado nítido del mismo tamaño que los demás, y en el grupo «Pantalla y
+sonido» ofrece cuatro paletas (verde fósforo, ámbar, blanco y LCD) y dos **modos de
+pantalla**:
+
+| Modo | Cómo se ve |
+|---|---|
+| **Tubo CRT** (por defecto) | Imita una pantalla de tubo: resplandor alrededor de los píxeles, estela del fósforo (la *persistencia* de [6.5](#65-el-parpadeo)), líneas de barrido (*scanlines*), viñeta y reflejo del vidrio. La persistencia y las scanlines tienen su propio interruptor. Con la paleta LCD no hay resplandor y, en lugar de scanlines, se ve la grilla de celdas de una pantalla de cristal líquido |
+| **Píxeles puros** | Píxeles cuadrados y nítidos, con exactamente dos colores (el fondo y el de los píxeles encendidos): sin estela, resplandor, scanlines, viñeta ni reflejo. Cada cuadro muestra exactamente lo que hay en la pantalla de la máquina |
+
+En **Píxeles puros** los interruptores Scanlines y Persistencia quedan deshabilitados,
+pero guardan lo que elegiste para cuando vuelvas al tubo. El modo es solo de
+presentación: no cambia nada de lo que ve el programa.
 
 ### 6.2 Sprites
 
@@ -762,11 +806,14 @@ consecuencia de cómo se dibuja:
   Cuantos más objetos se mueven, más se nota.
 
 Los programadores lo atenúan borrando y redibujando cada objeto lo más juntos posible
-y moviendo solo lo que cambia. Este emulador ofrece además una opción de
-**persistencia** (anti-parpadeo): los píxeles que se apagan se desvanecen de a poco,
-como el fósforo de un monitor, y el ojo deja de notar los cuadros en los que un sprite
-faltó. Es puramente visual: no cambia en nada el estado de la pantalla que ve el
-programa.
+y moviendo solo lo que cambia. Este emulador ofrece además, en el modo **Tubo CRT**,
+una opción de **persistencia** (anti-parpadeo, prendida por defecto): los píxeles que
+se apagan se desvanecen de a poco, como el fósforo de un tubo de rayos catódicos, y el
+ojo deja de notar los cuadros en los que un sprite faltó. La estela se termina de
+apagar aunque la máquina esté en pausa o detenida por un error, hasta que la imagen
+coincide con la pantalla real. Es puramente visual: no cambia en nada el estado de la
+pantalla que ve el programa. Si querés ver cada cuadro tal como es, con el parpadeo
+incluido, apagala o elegí el modo **Píxeles puros**.
 
 ### 6.6 Cómo lo mostraba el VIP
 
@@ -829,17 +876,27 @@ bloque 4×4 de la izquierda del teclado reproduce la forma del teclado del VIP:
 | Tecla de la PC | X | 1 | 2 | 3 | Q | W | E | A | S | D | Z | C | 4 | R | F | V |
 
 Con este mapeo, las "flechas" 2/4/6/8 quedan en **2, Q, E y S**. También podés usar el
-**teclado en pantalla**, haciendo clic (o tocando) sus teclas.
+**keypad en pantalla**: con el mouse o con los dedos (admite varias teclas a la vez), o
+llegando a una tecla con Tab y apretándola con Enter o Espacio, que la mantienen
+apretada hasta que los soltás (como mínimo 120 ms, para que el programa llegue a
+leerla). Si la activa un lector de pantalla o el control por voz, la tecla queda
+apretada 120 ms y se suelta sola.
 
-Los atajos de la interfaz no chocan con ninguna tecla del mapeo:
+Los atajos de la consola no chocan con ninguna tecla del mapeo:
 
 | Atajo | Acción |
 |---|---|
 | Espacio | Pausa / continuar |
-| N | Paso: ejecutar una sola instrucción |
+| N | Paso: ejecutar una sola instrucción (y dejar la máquina en pausa) |
 | Retroceso (Backspace) | Reiniciar la ROM |
-| H | Ayuda |
+| H (o el botón **?**) | Abrir o cerrar la ayuda |
 | Esc | Cerrar diálogos |
+
+Los botones, interruptores y enlaces que tocás con el mouse o con el dedo no se quedan
+con el foco, así que **Espacio** siempre pausa. Si llegás a un control con **Tab**, en
+cambio, Espacio y Enter lo activan (no pausan). Las teclas del keypad, N, H y Retroceso
+van a la consola aunque haya un control enfocado, incluso un selector; solo los campos
+donde se escribe, como el número de IPF, se quedan con las teclas.
 
 ### 7.3 Leer el teclado sin detenerse: EX9E y EXA1
 
@@ -881,6 +938,9 @@ Este emulador implementa la semántica de "apretar y soltar" del VIP:
    queda elegida. Si una tecla ya estaba apretada al empezar la espera, no cuenta hasta
    que la sueltes y la vuelvas a apretar.
 4. Cuando **esa** tecla se suelta, VX recibe su número y la ejecución continúa.
+
+Mientras espera, la consola muestra el cartel ESPERANDO TECLA sobre la pantalla, la luz
+RUN parpadea y el monitor dice «Esperando tecla».
 
 ```
  tiempo  ───────────────────────────────────────────────────────────────►
@@ -1082,10 +1142,16 @@ cualquier `FX??` fuera de los nueve de la tabla.
 
 En **este emulador**, un opcode inválido detiene la máquina: `halted` pasa a `true`, el
 PC queda apuntando **a la instrucción culpable** y `error` guarda un mensaje en
-castellano con el opcode y su dirección en hexadecimal, que la interfaz muestra. Para
-seguir hay que reiniciar. Lo mismo pasa con un `CALL` con la pila llena o un `RET` con
-la pila vacía. El desensamblador muestra estos opcodes como `DW 0x5121` (una palabra
-de datos), y el ensamblador acepta esa misma sintaxis.
+castellano con el opcode y su dirección en hexadecimal. La consola muestra ese mensaje
+sobre la pantalla y en el monitor, y lo anuncia una sola vez en la línea de estado
+(«Error: ...»). Lo mismo pasa con un `CALL` con la pila llena o un `RET` con la pila
+vacía. El desensamblador muestra estos opcodes como `DW 0x5121` (una palabra de datos),
+y el ensamblador acepta esa misma sintaxis.
+
+Para seguir hay que reiniciar (**Reiniciar** o Retroceso): la ROM vuelve a empezar en
+`0x200` y se respeta cómo venías ejecutándola justo antes del error. Si la máquina
+estaba corriendo, arranca sola; si estaba en pausa o la venías ejecutando de a un
+**Paso**, queda en pausa, lista para seguir de a una instrucción.
 
 > **Diferencia con el VIP.** El intérprete original no validaba los opcodes. Por
 > ejemplo, según el análisis de Scotford, todo el grupo `8XYN` se resuelve armando una
@@ -1290,6 +1356,8 @@ típica.
 > memoria vecina.
 
 ```asm
+; Fragmento: borrar_marcador, sumar_punto y dibujar_marcador son subrutinas
+; de tu programa (cada una termina con RET).
         CALL borrar_marcador
         CALL sumar_punto
         CALL dibujar_marcador
@@ -1308,9 +1376,10 @@ si V[X] = NN:  PC ← PC + 2
 ```
 
 CHIP-8 no tiene saltos condicionales: tiene **skips** condicionales. La forma de
-escribir un "si ... entonces saltar" es un skip seguido de un `JP`. Como el skip
-saltea la condición *contraria*, conviene leerlo como "si VX = NN, no hagas lo que
-sigue".
+escribir un "si ... entonces saltar" es un skip seguido de un `JP`. Como el skip se
+saltea la instrucción siguiente cuando su condición se cumple, un skip seguido de `JP`
+salta cuando la condición **no** se cumple: conviene leerlo como "si VX = NN, no hagas
+lo que sigue".
 
 ```asm
         LD   V0, 0
@@ -1355,6 +1424,7 @@ Igual que `3XNN`, pero compara dos registros. El último nibble tiene que ser 0:
 emulador `5XY1`–`5XYF` son opcodes inválidos.
 
 ```asm
+; Fragmento: seguir y gano son etiquetas de tu programa.
         SE   V0, V1         ; ¿el jugador está en la misma columna que la meta?
         JP   seguir
         JP   gano
@@ -1529,6 +1599,7 @@ lo dice exactamente así ("VF = 01 if VX g.e. VY"); la referencia de Cowgod escr
 Como VF queda en 1 exactamente cuando VX ≥ VY, `SUB` sirve para comparar:
 
 ```asm
+; Fragmento: es_menor es una etiqueta de tu programa.
 ; ¿V3 ≥ V4? (sin perder V3)
         LD   V5, V3
         SUB  V5, V4         ; VF = 1 si V3 ≥ V4
@@ -1611,6 +1682,7 @@ Multiplica por 2 (módulo 256). Mismo quirk y mismo consejo que `8XY6`: la forma
 `SHL VX` funciona igual en todos los intérpretes. No figuraba en el manual del VIP.
 
 ```asm
+; Fragmento: tabla es una etiqueta de tu programa (los datos de la tabla).
 ; Índice de una tabla de entradas de 2 bytes: desplazamiento = 2 × V0
         LD   V1, V0
         SHL  V1             ; V1 = 2 × V0
@@ -1634,6 +1706,7 @@ Igual que `4XNN`, pero con dos registros. El último nibble tiene que ser 0: en 
 emulador `9XY1`–`9XYF` son opcodes inválidos.
 
 ```asm
+; Fragmento: coinciden es una subrutina de tu programa.
         SNE  V0, V1         ; si son distintos, saltear el CALL
         CALL coinciden
 ```
@@ -1676,6 +1749,7 @@ El único salto calculado de CHIP-8. Sirve para **tablas de saltos**: según el 
 V0, el programa va a una u otra rutina.
 
 ```asm
+; Fragmento: opcion0, opcion1 y opcion2 son rutinas de tu programa.
 ; V0 = 0, 2 o 4 elige la rutina (cada entrada de la tabla es un JP de 2 bytes)
         JP   V0, tabla
 tabla:  JP   opcion0
@@ -1688,6 +1762,14 @@ tabla:  JP   opcion0
 `jumping` activo el salto usaría **V2** en lugar de V0. Si tu programa tiene que correr
 en los dos tipos de intérprete, evitá `BNNN` o asegurate de que ese registro tenga el
 mismo valor que V0.
+
+**En el monitor y en el ensamblador.** El desensamblador del monitor sigue el quirk:
+con `jumping` apagado muestra `B2A0` como `JP V0, 0x2A0`, y con `jumping` activo como
+`JP V2, 0x2A0`, que es lo que la instrucción va a hacer; si cambiás el interruptor, el
+desensamblado se actualiza en el momento. El ensamblador acepta las dos formas:
+`JP V0, dirección` con cualquier dirección, y `JP VX, dirección` solo si X es el primer
+dígito hexadecimal de la dirección (`JP V2, 0x2A0` genera `B2A0`; `JP V1, 0x2A0` es un
+error). Las dos producen el mismo opcode: lo que cambia es cómo lo ejecuta el intérprete.
 
 ---
 
@@ -1763,6 +1845,7 @@ La instrucción más importante de CHIP-8, explicada en detalle en la sección
   [12.4](#124-la-espera-del-vblank)).
 
 ```asm
+; Fragmento: choque es una subrutina de tu programa.
 ; Dibujar el dígito que está en V2 en la posición (V0, V1)
         LD   F, V2
         DRW  V0, V1, 5
@@ -1786,6 +1869,7 @@ Consulta el teclado sin esperar (sección [7.3](#73-leer-el-teclado-sin-deteners
 Solo cuenta el dígito hex bajo de VX.
 
 ```asm
+; Fragmento: no_dispara es una etiqueta y disparar una subrutina de tu programa.
         LD   V2, 5
         SKP  V2             ; si la tecla 5 está apretada, saltear el JP
         JP   no_dispara
@@ -1829,6 +1913,7 @@ Es la única forma de leer un timer (ST no se puede leer). Ver el ejemplo de esp
 la sección [5.2](#52-usar-dt-para-medir-el-tiempo).
 
 ```asm
+; Fragmento: todavia_no es una etiqueta de tu programa.
         LD   V0, DT
         SE   V0, 0
         JP   todavia_no
@@ -1855,6 +1940,7 @@ Detalle completo, diagrama y diferencias con el VIP en la sección
 [7.4](#74-esperar-una-tecla-fx0a).
 
 ```asm
+; Fragmento: juego es una etiqueta de tu programa.
 ; "Apretá una tecla para empezar"
         LD   V0, K          ; se queda acá hasta que aprietes y sueltes una tecla
         CLS
@@ -1924,6 +2010,7 @@ A diferencia de las sumas entre registros, **no toca VF**, ni siquiera si I pasa
 emulador sigue al VIP: VF no cambia.
 
 ```asm
+; Fragmento: tabla es una etiqueta de tu programa (los datos de la tabla).
 ; I = tabla + V0
         LD   I, tabla
         ADD  I, V0
@@ -2159,6 +2246,10 @@ V0.
 **Impacto.** Bajo: `BNNN` se usa poco. Cuando falla, el programa salta a un lugar
 equivocado y suele terminar en un opcode inválido.
 
+**En el monitor.** El desensamblado de `BNNN` sigue este quirk: con el quirk activo,
+`B2A0` aparece como `JP V2, 0x2A0` en lugar de `JP V0, 0x2A0` (ver la ficha de
+[BNNN](#bnnn--jp-v0-nnn)).
+
 ### 11.6 clipping: recortar o dar la vuelta
 
 **Qué controla.** Si está activo, los píxeles de un sprite que se salen por la derecha
@@ -2220,17 +2311,24 @@ suites modernas, pero **no** agrega sus instrucciones nuevas (sección
 
 ### 11.9 Cómo elegir la configuración en este emulador
 
-En el panel de quirks hay un selector de perfil (**COSMAC VIP**, **SUPER-CHIP**,
-**XO-CHIP** y **Personalizado**) y seis interruptores, uno por quirk. Elegir un perfil
-mueve los seis interruptores; si después tocás alguno y la combinación ya no coincide
-con ningún perfil, el selector pasa solo a "Personalizado" (y si coincide con otro
-perfil, muestra ese). Los cambios se aplican en el momento, sin reiniciar, aunque si el
-programa ya calculó algo con la configuración anterior conviene reiniciarlo.
+En el grupo **Quirks** del panel de control hay un selector **Perfil** (**COSMAC VIP**,
+**SUPER-CHIP**, **XO-CHIP** y **Personalizado**) y seis interruptores DIP, uno por
+quirk; al pasar el mouse por uno, o al llegar a él con Tab, aparece qué hace. Elegir un
+perfil mueve los seis interruptores; si después tocás alguno y la combinación ya no
+coincide con ningún perfil, el selector pasa solo a "Personalizado" (y si coincide con
+otro perfil, muestra ese). Los cambios se aplican en el momento, sin reiniciar, aunque
+si el programa ya calculó algo con la configuración anterior conviene reiniciarlo.
+
+**La consola recuerda la configuración.** Los quirks (y con ellos el perfil), las IPF,
+el modo de pantalla, la paleta y el sonido se guardan en este navegador y vuelven la
+próxima vez que abrís la página. Por eso "por defecto" quiere decir "la primera vez":
+si ayer elegiste SUPER-CHIP, hoy la consola arranca en SUPER-CHIP. Si un programa se
+comporta raro, antes que nada revisá que el perfil sea el que corresponde.
 
 Una guía rápida:
 
 - **Programas del VIP y CHIP-8 "clásico"** (los juegos del manual, los de los 70 y 80,
-  y los demos de este proyecto): perfil **COSMAC VIP**.
+  y los cartuchos incluidos en la consola): perfil **COSMAC VIP**.
 - **Programas de la HP-48** (los de los 90, muchas veces con extensión `.sc8`, o
   documentados como SCHIP): perfil **SUPER-CHIP**. Si usan el modo de alta resolución u
   otras instrucciones propias de SUPER-CHIP, no van a funcionar bien acá.
@@ -2244,6 +2342,7 @@ Si algo se ve mal, estos síntomas orientan:
 
 | Síntoma | Probá cambiar |
 |---|---|
+| Un programa que conocés anda distinto que la última vez, o todos andan raro | El perfil y las IPF: la consola recuerda los que usaste la vez anterior |
 | Gráficos desarmados, laberintos mal dibujados, cuentas absurdas | `shifting` y `memory` (perfil SUPER-CHIP) |
 | Basura en la pantalla, puntaje que no sube, datos corruptos | `memory` |
 | El programa salta a cualquier lado después de un `BNNN` y se detiene | `jumping` |
@@ -2300,8 +2399,13 @@ equivale a unas **600 a 900 instrucciones por segundo**.
 
 Este emulador ejecuta una cantidad fija de instrucciones en cada frame de 1/60 s:
 **IPF** (*instrucciones por frame*), configurable de **1 a 1000**, con **15 por
-defecto** (≈900 instrucciones por segundo, cerca del VIP). La interfaz muestra la
-velocidad aproximada en instrucciones por segundo.
+defecto** (≈900 instrucciones por segundo, cerca del VIP). En el grupo **Velocidad** se
+elige con el deslizador, con el campo numérico o con los botones de valores prefijados
+(7, 15, 30, 100, 500 y 1000), y debajo se ve la velocidad aproximada en instrucciones
+por segundo. Si escribís un valor fuera de rango, el campo se marca en rojo y el aviso
+dice qué valor se usa mientras tanto (1 o 1000, el más cercano). El monitor muestra las
+IPF actuales, y la consola las recuerda para la próxima vez (ver
+[11.9](#119-cómo-elegir-la-configuración-en-este-emulador)).
 
 ¿Por qué exponer IPF en lugar de fijar una velocidad "correcta"? Porque los programas de
 CHIP-8 se escribieron para máquinas muy distintas: el VIP, las calculadoras HP-48 y los
@@ -2449,7 +2553,7 @@ no.
 de la arquitectura COSMAC de Weisbecker.
 
 **1861 (RCA CDP1861, "Pixie").** El chip de video del VIP. Lee la memoria de pantalla
-por DMA y genera la señal para el monitor.
+por DMA y genera la señal de video para el monitor o el televisor.
 
 **BCD (decimal codificado en binario).** Representar un número con un dígito decimal
 por byte. `FX33` convierte un registro a BCD.
@@ -2494,12 +2598,21 @@ frame de 1/60 s.
 **Máquina virtual.** Una computadora definida por software: su "hardware" es un
 programa que la interpreta.
 
+**Monitor.** En este manual, el panel de depuración de la consola: estado (PC, I, SP,
+DT, ST, IPF), registros V0–VF, desensamblado alrededor del PC, pila y memoria en I. En
+el VIP, *el programa monitor* era el sistema operativo en ROM, con el que se leía y
+escribía la memoria desde el teclado hex y se grababan y leían cassettes.
+
 **Nibble.** Medio byte: 4 bits, un dígito hexadecimal.
 
 **Opcode.** El código numérico de una instrucción; en CHIP-8, una palabra de 16 bits.
 
 **PC (program counter).** El contador de programa: la dirección de la próxima
 instrucción.
+
+**Persistencia (de fósforo).** El brillo que le queda a un punto de un tubo de rayos
+catódicos después de apagarse. En el modo Tubo CRT de este emulador, un efecto visual
+opcional que disimula el parpadeo (sección [6.5](#65-el-parpadeo)).
 
 **Pila.** La estructura donde `CALL` guarda las direcciones de retorno y de donde `RET`
 las saca.
@@ -2583,6 +2696,9 @@ para combinar el sprite con la pantalla.
   [GitHub](https://github.com/ArkoSammy12/jchip)
 - John Earnest ("Internet Janitor"), respuesta sobre la velocidad del VIP en el foro de
   la Octojam 7. [itch.io](https://itch.io/post/1925542)
+- John Earnest, *End of Octojam* (el anuncio de que la décima Octojam, la de 2023, fue
+  la última). [beyondloom.com](https://beyondloom.com/blog/octojam.html) ·
+  [Octojam 10 en itch.io](https://itch.io/jam/octojam-10)
 
 ### Contexto histórico
 
@@ -2610,7 +2726,7 @@ Para no presentar como hecho lo que no lo es, estos puntos quedan con reservas:
 - **La fuente original del VIP.** Los bytes de la sección [8.4](#84-la-fuente-original-del-vip)
   salen de una transcripción del listado de la ROM del manual; no los contrastamos con
   un volcado binario.
-- **Los 16 bytes entre `0xE90` y `0xE9F`** en una VIP de 4 KB: el manual los deja fuera
+- **Los 16 bytes entre `0xE90` y `0xE9F`** en un VIP de 4 KB: el manual los deja fuera
   del área de programa sin explicar por qué.
 - **El comportamiento del VIP ante opcodes no documentados** que no sean los cuatro
   `8XYN` conocidos: no lo analizamos.
