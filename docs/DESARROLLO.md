@@ -71,7 +71,7 @@ lista completa está en [6.7](#67-los-escenarios-e2e)).
 | Fuente hexadecimal en memoria | `FONT` en `FONT_ADDR = 0x050`, copiada por `reset()`; `FX29` | `tests/core-api.test.js` (bytes exactos, en `0x050` también después de `reset`); `tests/display.test.js` (los 16 glifos); el cartucho Fuente |
 | Programas cargados en `0x200` | `PROGRAM_START`, `loadRom` (hasta 3584 bytes) | `tests/core-api.test.js` (3584 bytes entran, 3585 no; también con `ArrayBuffer`) |
 | Seis quirks, con los del COSMAC VIP por defecto | `QUIRK_PRESETS`, `DEFAULT_QUIRKS`, `setQuirks`; interruptores DIP y selector de perfil ([4.9](#49-quirks-y-velocidad)) | `tests/quirks.test.js`; E2E 9 y 10 |
-| Velocidad configurable en instrucciones por frame (IPF) | `runFrame(ipf)`; `setIpf` con deslizador logarítmico, campo numérico y botones (1 a 1000, 15 por defecto) | `tests/core-api.test.js` (`runFrame`); E2E 2 y 11 |
+| Velocidad configurable en instrucciones por frame (IPF) | `runFrame(ipf)`; `setIpf` con deslizador logarítmico, campo numérico y botones (1 a 10.000, 15 por defecto) | `tests/core-api.test.js` (`runFrame`); E2E 2 y 11 |
 | Cargar ROMs con un botón o arrastrándolas | `loadFile`, `loadRomBytes`, un `input type="file"` escondido y los eventos de arrastre ([4.7](#47-carga-de-roms)) | E2E 6 |
 | Teclado de la computadora mapeado y keypad en pantalla | `KEY_BY_CODE` (por `KeyboardEvent.code`), `onKeyDown`/`onKeyUp`, `buildKeypad` ([4.5](#45-teclado-keypad-y-foco)) | `tests/timers-keys.test.js` (`setKey`, `EX9E`/`EXA1`, `FX0A`); E2E 3, 4, 20 y 21 |
 | Pantalla retro, nítida y escalada | `resizeScreen` (escala entera con `devicePixelRatio`), `render`, efectos de tubo y los modos Tubo CRT / Píxeles puros ([4.3](#43-la-pantalla-de-cpudisplay-al-lienzo)) | E2E 15 (nitidez con escala 1,25 y 2), 18 y 24 |
@@ -504,7 +504,7 @@ Las constantes que conviene conocer:
 | `FRAME_MS`, `FRAME_SLACK` | 16,67 ms y el 10 % de eso | Duración de un tic de 60 Hz y tolerancia al jitter de `requestAnimationFrame`. |
 | `MAX_CATCHUP` | 4 | Tics de 60 Hz como máximo por cuadro de animación. |
 | `DECAY`, `FADE_FLOOR` | 150 y 12 | Persistencia: un píxel apagado conserva 150/256 de su brillo por tic; por debajo de 12 se apaga del todo. |
-| `IPF_MIN`, `IPF_MAX`, `IPF_DEFAULT`, `IPF_PRESETS` | 1, 1000, 15 y `[7, 15, 30, 100, 500, 1000]` | Velocidad. |
+| `IPF_MIN`, `IPF_MAX`, `IPF_DEFAULT`, `IPF_PRESETS` | 1, 10000, 15 y `[7, 15, 30, 100, 500, 1000, 5000, 10000]` | Velocidad. |
 | `DISASM_BEFORE`, `DISASM_AFTER` | 7 y 12 | Filas del desensamblado antes y después del PC. |
 | `BEEP_HZ`, `BEEP_LEVEL` | 440 y 0,22 | Frecuencia del pitido y ganancia máxima. |
 | `TAP_MS` | 120 | Duración mínima de un toque del keypad sin puntero. |
@@ -787,13 +787,16 @@ nada. Los perfiles:
 
 Qué hace cada quirk y de dónde sale: [sección 11 del manual](MANUAL.md#11-quirks).
 
-**Velocidad.** `setIpf(n, origen)` ajusta la velocidad entre 1 y 1000 y sincroniza tres
-controles: el deslizador (`#ipf-range`, de 0 a 1000 en escala logarítmica:
-IPF = 1000^(posición/1000), redondeado), el campo numérico (`#ipf-input`) y los botones
-7, 15, 30, 100, 500 y 1000. La línea `#ipf-rate` dice "≈ N instrucciones por segundo ·
-timers a 60 Hz". El deslizador lleva `aria-valuetext` ("15 instrucciones por frame").
-Mientras se escribe un valor fuera de rango, el campo queda con `aria-invalid="true"` y la
-línea dice "Fuera de rango (1 a 1.000): se usa N"; se corrige al confirmar.
+**Velocidad.** `setIpf(n, origen)` ajusta la velocidad entre 1 e `IPF_MAX` (10.000) y
+sincroniza tres controles: el deslizador (`#ipf-range`, de 0 a 1000 en escala
+logarítmica: IPF = IPF_MAX^(posición/1000), redondeado), el campo numérico
+(`#ipf-input`) y los botones 7, 15, 30, 100, 500, 1000, 5000 y 10000. La línea
+`#ipf-rate` dice "≈ N instrucciones por segundo · timers a 60 Hz". El deslizador lleva
+`aria-valuetext` ("15 instrucciones por frame"). Mientras se escribe un valor fuera de
+rango, el campo queda con `aria-invalid="true"` y la línea dice "Fuera de rango (1 a
+10.000): se usa N"; se corrige al confirmar. El tope se subió de 1000 a 10.000 a pedido
+del usuario, para ROMs de la Octojam que piden miles de IPF; el costo lo mide el
+escenario 2 del E2E (ver [6.7](#67-los-escenarios-e2e)).
 
 ### 4.10 Transporte, estados y errores
 
@@ -869,7 +872,7 @@ lo que no tenga el tipo esperado:
 
 | Campo | De fábrica | Validación |
 |---|---|---|
-| `ipf` | 15 | número, redondeado y limitado a 1–1000 |
+| `ipf` | 15 | número, redondeado y limitado a 1–10.000 |
 | `quirks` | los del VIP | objeto; cada una de las seis claves, solo si es booleana |
 | `palette` | `'fosforo'` | una clave de `PALETTES` |
 | `screenMode` | `'crt'` | `'crt'` o `'puro'` |
@@ -918,7 +921,7 @@ La interfaz expone `window.chip8` para depurar desde la consola del navegador y 
 | `loadDemo(id)`, `loadRomBytes(bytes, nombre)` | Cargan un cartucho o bytes; devuelven `true` o `false`. |
 | `pause()`, `resume()`, `isPaused()` | Pausa. `resume()` no hace nada con la máquina detenida; `isPaused()` es `true` también después de un error. |
 | `step()`, `frame()`, `reset()` | Como los botones: `step()` devuelve lo que devolvió `cpu.step()`, `frame()` la cantidad de instrucciones y `reset()` un booleano. |
-| `setIpf(n)`, `getIpf()` | Velocidad (se limita a 1–1000 y devuelve el valor aplicado). |
+| `setIpf(n)`, `getIpf()` | Velocidad (se limita a 1–10.000 y devuelve el valor aplicado). |
 | `setPreset('vip' \| 'schip' \| 'xochip')` | Perfil de quirks. |
 | `setScreenMode('crt' \| 'puro')`, `getScreenMode()` | Modo de pantalla. |
 | `pressKey(k)`, `releaseKey(k)` | Teclas, como una fuente más ([4.5](#45-teclado-keypad-y-foco)). |
@@ -1278,7 +1281,7 @@ La documentación también se prueba, para que no se aleje del código:
   (`runFrame` y `setKey` de `chip8.html`) y varios de `roms/rebote.asm` y
   `roms/atrapa.asm`; las salidas marcadas con `<!-- salida: CMD -->` se regeneran en una
   copia temporal y se comparan; los mensajes de error son los del ensamblador; los textos
-  y constantes de la interfaz que cita (`IPF_PRESETS = [7, 15, 30, 100, 500, 1000]`,
+  y constantes de la interfaz que cita (`IPF_PRESETS = [7, 15, 30, 100, 500, 1000, 5000, 10000]`,
   `BEEP_HZ = 440`, `MAX_CATCHUP = 4`, los nombres de los botones, el mapa del teclado...)
   están en `chip8.html`; y los enlaces, incluido el de este documento, llevan a archivos
   y anclas que existen.

@@ -603,6 +603,7 @@ const KEYS_EXPR = 'Array.from(window.chip8.cpu.keys)';
 const E2E = 'window.chip8.cpu.__e2e';
 // Cantidad de comprobaciones de roms/autotest.asm (la misma constante que tests/roms.test.js).
 const AUTOTEST_CHECKS = 19;
+const IPF_MAX = 10000;   // tope de instrucciones por frame de la interfaz (IPF_MAX en chip8-ui)
 
 async function counters(page) {
   return page.ev(`({ calls: ${E2E}.calls, instr: ${E2E}.instr, steps: ${E2E}.steps, resets: ${E2E}.resets, now: performance.now() })`);
@@ -724,6 +725,28 @@ scenario(2, 'Velocidad en tiempo real: 60 frames por segundo', async (ctx, s) =>
   const loop = await measureRate(page, 2000);
   s.info(`IPF 1000 con un bucle sin dibujo: ${loop.fps.toFixed(1)} frames/s, ${Math.round(loop.ips)} instrucciones/s`);
   s.check(loop.fps >= 50 && loop.fps <= 70 && loop.ips >= 1000 * loop.fps * 0.99, `IPF 1000 sin dibujo: ~60 frames/s y 1000 instrucciones por frame (${Math.round(loop.ips)}/s)`);
+  // El tope de la interfaz: 10000 IPF = 600.000 instrucciones/s, también a 60 frames/s.
+  await page.ev(`window.chip8.setIpf(${IPF_MAX})`);
+  await sleep(200);
+  const top = await measureRate(page, 2000);
+  s.info(`IPF ${IPF_MAX} con un bucle sin dibujo: ${top.fps.toFixed(1)} frames/s, ${Math.round(top.ips)} instrucciones/s`);
+  s.check(top.fps >= 50 && top.fps <= 70 && top.ips >= IPF_MAX * top.fps * 0.99, `IPF ${IPF_MAX} sin dibujo: ~60 frames/s y ${IPF_MAX} instrucciones por frame (${Math.round(top.ips)}/s)`);
+  // Costo de CPU del núcleo: 60 frames (1 s emulado) a 10000 IPF, sin dibujo y dibujando sin
+  // espera de vblank (perfil XO-CHIP: un DXYN cada 4 instrucciones, 150.000 dibujos por segundo).
+  const cost = await page.ev(`(() => {
+    const a = window.chip8, cpu = a.cpu;
+    a.pause();
+    const time = () => { const t0 = performance.now(); for (let i = 0; i < 60; i++) cpu.runFrame(${IPF_MAX}); return performance.now() - t0; };
+    const loopMs = time();
+    a.setPreset('xochip');
+    a.loadRomBytes([0xA0, 0x50, 0xD0, 0x15, 0x70, 0x01, 0x12, 0x02], 'dibujo');
+    a.pause();
+    const drawMs = time();
+    a.setPreset('vip');
+    return { loopMs, drawMs };
+  })()`);
+  s.info(`CPU del núcleo por segundo emulado a ${IPF_MAX} IPF: ${cost.loopMs.toFixed(1)} ms sin dibujo, ${cost.drawMs.toFixed(1)} ms dibujando sin vblank`);
+  s.check(cost.loopMs < 250 && cost.drawMs < 500, `a ${IPF_MAX} IPF el núcleo usa una fracción de la CPU (${cost.loopMs.toFixed(0)} y ${cost.drawMs.toFixed(0)} ms por segundo emulado)`);
   await page.ev('window.chip8.setIpf(15)');
   await clickCart(page, 'rebote');
   await sleep(300);
@@ -1133,18 +1156,18 @@ scenario(11, 'Controles de velocidad: deslizador, campo numérico y botones', as
   await page.clickAt(r.x + r.w * 0.5, r.cy);
   await sleep(80);
   const v1 = await view();
-  const expected = Math.round(Math.pow(1000, v1.range / 1000));
-  s.check(v1.ipf !== 15 && v1.ipf === Math.max(1, Math.min(1000, expected)) && v1.input === String(v1.ipf), `clic en la mitad del deslizador: IPF ${v1.ipf} (posición ${v1.range}), el campo muestra ${v1.input}`, JSON.stringify(v1));
+  const expected = Math.round(Math.pow(IPF_MAX, v1.range / 1000));
+  s.check(v1.ipf !== 15 && v1.ipf === Math.max(1, Math.min(IPF_MAX, expected)) && v1.input === String(v1.ipf), `clic en la mitad del deslizador: IPF ${v1.ipf} (posición ${v1.range}), el campo muestra ${v1.input}`, JSON.stringify(v1));
   await page.press('End');
   await sleep(50);
   const vEnd = await view();
   await page.press('Home');
   await sleep(50);
   const vHome = await view();
-  s.check(vEnd.ipf === 1000 && vHome.ipf === 1, `teclas Fin / Inicio sobre el deslizador: ${vEnd.ipf} / ${vHome.ipf}`);
+  s.check(vEnd.ipf === IPF_MAX && vHome.ipf === 1, `teclas Fin / Inicio sobre el deslizador: ${vEnd.ipf} / ${vHome.ipf}`);
   // Campo numérico.
   const f = await page.rect('#ipf-input');
-  for (const [txt, want] of [['250', 250], ['5000', 1000], ['0', 1]]) {
+  for (const [txt, want] of [['250', 250], ['5000', 5000], ['50000', IPF_MAX], ['0', 1]]) {
     await page.clickAt(f.cx, f.cy);
     await page.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: f.cx, y: f.cy, button: 'left', clickCount: 3 });
     await page.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: f.cx, y: f.cy, button: 'left', clickCount: 3 });

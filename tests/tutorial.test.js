@@ -1382,7 +1382,7 @@ describe('docs/TUTORIAL.md', () => {
       'Verde fósforo', 'Ámbar', 'Blanco', 'LCD', 'Scanlines', 'Persistencia', 'Silencio', 'Volumen',
       "'VF=0'", "'MEM'", "'SHIFT'", "'BXNN'", "'CLIP'", "'VBLANK'",
       'Sin cartucho', 'Ejecutando', 'Esperando tecla', 'Pausado', "'Error'",
-      'IPF_PRESETS = [7, 15, 30, 100, 500, 1000]', 'IPF_DEFAULT = 15', 'BEEP_HZ = 440',
+      'IPF_PRESETS = [7, 15, 30, 100, 500, 1000, 5000, 10000]', 'IPF_MAX = 10000', 'IPF_DEFAULT = 15', 'BEEP_HZ = 440',
       "osc.type = 'square'", 'MAX_CATCHUP = 4', 'DISASM_BEFORE = 7, DISASM_AFTER = 12',
       'dt > 250', 'Fuera de rango',
       // Modo de pantalla, selector de cartuchos y línea de estado (partes 1, 6 y 7).

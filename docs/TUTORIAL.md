@@ -202,13 +202,17 @@ CHIP-8 no tiene una velocidad fija. El emulador trabaja de a frames: en cada 1/6
 segundo ejecuta una cantidad de instrucciones (las **IPF**) y después baja los timers.
 En el panel **Velocidad** la elegís de tres maneras: con la barra (que es logarítmica,
 así los valores chicos son fáciles de elegir), escribiendo el número exacto o con los
-botones rápidos **7, 15, 30, 100, 500 y 1000**. Abajo te muestra cuántas instrucciones
-por segundo son. Si escribís un número fuera de 1 a 1000, te avisa (*Fuera de rango*) y
-usa el más cercano.
+botones rápidos **7, 15, 30, 100, 500, 1000, 5000 y 10000**. Abajo te muestra cuántas
+instrucciones por segundo son. Si escribís un número fuera de 1 a 10.000, te avisa
+(*Fuera de rango*) y usa el más cercano.
 
 - **15 IPF** (el valor por defecto, unas 900 instrucciones por segundo) se parece a la
   velocidad del COSMAC VIP.
-- Muchos juegos escritos en las últimas décadas esperan bastante más: de 30 a 1000.
+- Muchos juegos escritos en las últimas décadas esperan bastante más: de 30 a 1000, y
+  algunos de la Octojam, miles.
+- Si una ROM bajada de internet va muy lenta, antes de subir las IPF cambiá el perfil a
+  SUPER-CHIP o XO-CHIP: la espera de vblank del perfil COSMAC VIP deja dibujar un solo
+  sprite por frame (lo explica el [manual](MANUAL.md#122-instrucciones-por-frame-ipf)).
 - Los timers **siempre** bajan 60 veces por segundo, sin importar las IPF. Por eso un
   programa bien escrito mide el tiempo con los timers, no contando instrucciones (lo
   vas a hacer en la [etapa C](#53-etapa-c-el-ritmo-con-el-temporizador)).

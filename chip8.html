@@ -903,8 +903,8 @@
             <h2 class="section-print">Velocidad</h2>
             <label class="field-label" for="ipf-range">Instrucciones por frame</label>
             <div class="speed-row">
-              <input type="range" id="ipf-range" min="0" max="1000" step="1" value="392" aria-describedby="ipf-rate">
-              <input type="number" class="num" id="ipf-input" min="1" max="1000" step="1" value="15" inputmode="numeric" aria-label="Instrucciones por frame (valor exacto)" aria-describedby="ipf-rate">
+              <input type="range" id="ipf-range" min="0" max="1000" step="1" value="294" aria-describedby="ipf-rate">
+              <input type="number" class="num" id="ipf-input" min="1" max="10000" step="1" value="15" inputmode="numeric" aria-label="Instrucciones por frame (valor exacto)" aria-describedby="ipf-rate">
             </div>
             <div class="chips" id="ipf-chips" role="group" aria-label="Velocidades predefinidas"></div>
             <p class="hint" id="ipf-rate">≈ 900 instrucciones por segundo · timers a 60 Hz</p>
@@ -1043,7 +1043,8 @@
       <p>Tocá <strong>Cargar ROM</strong> y elegí un archivo <code>.ch8</code>, o arrastralo sobre cualquier parte de la página. El programa se copia a partir de la dirección <code>0x200</code> y puede ocupar hasta 3584 bytes. Los cartuchos incluidos se eligen con los botones de <strong>Incluidos:</strong>, debajo de la ranura, o desde el estante <strong>Cartuchos incluidos</strong>, debajo de la consola: tocá uno y arranca solo.</p>
 
       <h3>Velocidad</h3>
-      <p>El CHIP-8 no tiene una velocidad fija: acá elegís cuántas instrucciones se ejecutan en cada frame de 60 Hz (IPF). Con 15 IPF se parece a un COSMAC VIP; muchos juegos modernos piden entre 30 y 1000. Los timers de delay y de sonido bajan siempre a 60 Hz, sin importar la velocidad.</p>
+      <p>El CHIP-8 no tiene una velocidad fija: acá elegís cuántas instrucciones se ejecutan en cada frame de 60 Hz (IPF). Con 15 IPF se parece a un COSMAC VIP; muchos juegos modernos piden entre 30 y 1000, y algunos de la Octojam, miles (hasta 10.000). Los timers de delay y de sonido bajan siempre a 60 Hz, sin importar la velocidad.</p>
+      <p><strong>¿Una ROM bajada de internet va muy lenta?</strong> Casi siempre es la <strong>espera de vblank</strong> del perfil COSMAC VIP: permite un solo dibujo por frame, y los juegos modernos dibujan muchos. Probá primero el perfil <strong>SUPER-CHIP</strong> o <strong>XO-CHIP</strong> (apagan esa espera) y después subí las IPF (500, 1000 o más) hasta que se juegue bien.</p>
 
       <h3>Quirks</h3>
       <p>Los intérpretes históricos no se comportan igual en algunos detalles. Cada interruptor DIP activa uno de esos comportamientos; el perfil <strong>COSMAC VIP</strong> es el original y viene por defecto.</p>
@@ -1619,8 +1620,8 @@ globalThis.CHIP8_DEMOS = [
   var DECAY = 150;                    // persistencia: un píxel apagado conserva DECAY/256 de su brillo por frame
   var FADE_FLOOR = 12;
   var STORAGE_KEY = 'chip8-consola.ajustes';
-  var IPF_MIN = 1, IPF_MAX = 1000, IPF_DEFAULT = 15;
-  var IPF_PRESETS = [7, 15, 30, 100, 500, 1000];
+  var IPF_MIN = 1, IPF_MAX = 10000, IPF_DEFAULT = 15;
+  var IPF_PRESETS = [7, 15, 30, 100, 500, 1000, 5000, 10000];
   var DISASM_BEFORE = 7, DISASM_AFTER = 12, DISASM_ROWS = DISASM_BEFORE + 1 + DISASM_AFTER;
   var BEEP_HZ = 440, BEEP_LEVEL = 0.22;
 
@@ -2179,7 +2180,7 @@ globalThis.CHIP8_DEMOS = [
   var chipButtons = [];
   function setIpf(n, source) {
     var v = clampIpf(n);
-    // Mientras se escribe, un valor fuera de 1..1000 queda marcado (se usa el más cercano).
+    // Mientras se escribe, un valor fuera de 1..10000 queda marcado (se usa el más cercano).
     var raw = Number(n);
     var outOfRange = source === 'typing' && (raw < IPF_MIN || raw > IPF_MAX);
     settings.ipf = v;

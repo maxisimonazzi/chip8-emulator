@@ -2398,12 +2398,12 @@ equivale a unas **600 a 900 instrucciones por segundo**.
 ### 12.2 Instrucciones por frame (IPF)
 
 Este emulador ejecuta una cantidad fija de instrucciones en cada frame de 1/60 s:
-**IPF** (*instrucciones por frame*), configurable de **1 a 1000**, con **15 por
+**IPF** (*instrucciones por frame*), configurable de **1 a 10.000**, con **15 por
 defecto** (≈900 instrucciones por segundo, cerca del VIP). En el grupo **Velocidad** se
 elige con el deslizador, con el campo numérico o con los botones de valores prefijados
-(7, 15, 30, 100, 500 y 1000), y debajo se ve la velocidad aproximada en instrucciones
-por segundo. Si escribís un valor fuera de rango, el campo se marca en rojo y el aviso
-dice qué valor se usa mientras tanto (1 o 1000, el más cercano). El monitor muestra las
+(7, 15, 30, 100, 500, 1000, 5000 y 10000), y debajo se ve la velocidad aproximada en
+instrucciones por segundo. Si escribís un valor fuera de rango, el campo se marca en rojo
+y el aviso dice qué valor se usa mientras tanto (1 o 10.000, el más cercano). El monitor muestra las
 IPF actuales, y la consola las recuerda para la próxima vez (ver
 [11.9](#119-cómo-elegir-la-configuración-en-este-emulador)).
 
@@ -2427,6 +2427,25 @@ Valores de referencia (los `defaultTickrate` de la `chip-8-database`):
 Los timers bajan siempre a 60 Hz, sin importar el IPF. Un juego que regula su ritmo con
 DT (como en [5.2](#52-usar-dt-para-medir-el-tiempo)) no se acelera al subir el IPF;
 uno que no lo hace, sí.
+
+**¿Una ROM bajada de internet va muy lenta?** Casi nunca es por falta de potencia: el
+núcleo ejecuta 600.000 instrucciones por segundo (10.000 IPF) usando una fracción chica
+de la CPU (el escenario 2 de `tools/e2e.js` lo mide). Probá en este orden:
+
+1. **Cambiá el perfil a SUPER-CHIP o XO-CHIP.** El perfil COSMAC VIP (el de fábrica)
+   trae la espera de vblank (`displayWait`): como mucho un `DXYN` por frame, o sea 60
+   sprites por segundo ([12.4](#124-la-espera-del-vblank)). Los juegos modernos dibujan
+   decenas de sprites por frame y con esa espera se arrastran, aunque subas las IPF.
+2. **Subí las IPF**: 500 o 1000 para la mayoría de los juegos de SUPER-CHIP y de la
+   Octojam; algunos piden 5000 o más. Si el juego va demasiado rápido, bajalas: el
+   valor correcto es el que lo hace jugable.
+3. **Si se ve roto** (gráficos desarmados, saltos a cualquier lado), no es la
+   velocidad: son los quirks; mirá la tabla de síntomas de
+   [11.9](#119-cómo-elegir-la-configuración-en-este-emulador).
+
+Si la ROM usa la pantalla de 128×64 de SUPER-CHIP o las extensiones de XO-CHIP, no va
+a andar bien con ninguna velocidad: esas instrucciones no están implementadas
+([13](#13-variantes-y-extensiones)).
 
 ### 12.3 El frame de 60 Hz en este emulador
 

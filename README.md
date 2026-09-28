@@ -82,7 +82,9 @@ Espacio y Enter lo activan.
   (`displayWait`). Perfiles **COSMAC VIP** (por defecto), **SUPER-CHIP**, **XO-CHIP**
   y **Personalizado**.
 - Velocidad configurable en **instrucciones por frame** (IPF): 15 por defecto, de 1 a
-  1000. Los timers siempre van a 60 Hz, sea cual sea la velocidad.
+  10.000. Los timers siempre van a 60 Hz, sea cual sea la velocidad. ¿Una ROM bajada
+  de internet va lenta? Probá el perfil SUPER-CHIP o XO-CHIP y después subí las IPF
+  (ver [MANUAL.md §12.2](docs/MANUAL.md#122-instrucciones-por-frame-ipf)).
 - `FX0A` con la semántica del VIP (espera que se apriete **y se suelte** una tecla).
 - Los programas rotos no rompen el emulador: una instrucción inválida o un
   desbordamiento de pila detienen la máquina con un mensaje claro (opcode y dirección)
