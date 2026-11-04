@@ -1,0 +1,6 @@
+# Texto con fin de línea LF en el repositorio y en la copia de trabajo,
+# así una restauración deja los archivos exactamente como están.
+* text=auto eol=lf
+
+# Las ROMs son binarias: git no tiene que tocar sus bytes.
+*.ch8 binary
