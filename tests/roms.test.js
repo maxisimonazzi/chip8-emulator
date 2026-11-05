@@ -5,19 +5,23 @@
 // dependen de que chip8.html ya tenga las ROMs incrustadas. Los que revisan el
 // bloque <script id="chip8-roms"> (embed --check y loadDemos) solo pasan
 // después de correr "node tools/embed-roms.js".
+// Cada demo corre en la plataforma que dice su etiqueta @platform (sin ella,
+// CHIP-8); los perfiles de quirks se prueban siempre dentro de esa plataforma.
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
-const { ROOT, loadCore, loadDemos, hexToBytes, pixel, renderAscii, loadAssembler } = require('./harness');
+const { ROOT, loadCore, loadDemos, extractScript, hexToBytes, pixel, renderAscii, loadAssembler } = require('./harness');
 
 const core = loadCore();
-const { Chip8, QUIRK_PRESETS, FONT } = core;
+const { Chip8, QUIRK_PRESETS, FONT, BIG_FONT } = core;
 const { assemble } = loadAssembler();
 
 const ROMS_DIR = path.join(ROOT, 'roms');
-const DEMO_IDS = ['rebote', 'teclado', 'atrapa', 'autotest', 'fuente']; // en el orden de @order
+const DEMO_IDS = ['rebote', 'teclado', 'atrapa', 'autotest', 'fuente', 'planos']; // en el orden de @order
+const CHIP8_IDS = DEMO_IDS.slice(0, 5); // las de CHIP-8, sin etiqueta @platform
 const PRESETS = Object.keys(QUIRK_PRESETS);
 
 // ---------------------------------------------------------------------------
@@ -28,7 +32,8 @@ const cache = {};
 function rom(id) {
   if (!cache[id]) {
     const source = fs.readFileSync(path.join(ROMS_DIR, id + '.asm'), 'utf8');
-    const result = assemble(source);
+    const platform = tagsOf(source).platform || 'chip8';
+    const result = assemble(source, { xochip: platform === 'xochip' });
     // Direcciones donde empieza una instrucción (no datos), según el listado.
     const code = new Set();
     for (const entry of result.listing) {
@@ -36,7 +41,7 @@ function rom(id) {
       const word = text.split(/\s+/)[0].toUpperCase();
       if (entry.bytes.length === 2 && word !== 'DB' && word !== 'DW') code.add(entry.addr);
     }
-    cache[id] = { source, bytes: result.bytes, labels: result.labels, code };
+    cache[id] = { source, platform, bytes: result.bytes, labels: result.labels, code };
   }
   return cache[id];
 }
@@ -60,11 +65,12 @@ function seeded(seed) {
   };
 }
 
-// Crea la máquina con la demo cargada. Por defecto vigila que el programa
-// nunca ejecute bytes de datos (solo direcciones que son instrucciones).
-function demo(id, preset = 'vip', { random = seeded(1234), guard = true } = {}) {
+// Crea la máquina con la demo cargada, en la plataforma de su etiqueta
+// @platform. Por defecto vigila que el programa nunca ejecute bytes de datos
+// (solo direcciones que son instrucciones). quirks cambia algunos del perfil.
+function demo(id, preset = 'vip', { random = seeded(1234), guard = true, quirks = {} } = {}) {
   const r = rom(id);
-  const cpu = new Chip8({ quirks: { ...QUIRK_PRESETS[preset].quirks }, random });
+  const cpu = new Chip8({ platform: r.platform, quirks: { ...QUIRK_PRESETS[preset].quirks, ...quirks }, random });
   cpu.loadRom(r.bytes);
   if (guard) {
     const step = cpu.step;
@@ -116,7 +122,7 @@ function snapshot(cpu) {
 // ---------------------------------------------------------------------------
 
 describe('roms/*.asm y roms/*.ch8', () => {
-  it('están las cinco demos', () => {
+  it('están las seis demos', () => {
     const asm = fs.readdirSync(ROMS_DIR).filter((f) => f.endsWith('.asm')).map((f) => f.slice(0, -4)).sort();
     assert.deepEqual(asm, [...DEMO_IDS].sort());
   });
@@ -125,7 +131,8 @@ describe('roms/*.asm y roms/*.ch8', () => {
     it(id + '.asm ensambla idéntico a ' + id + '.ch8', () => {
       const ch8 = fs.readFileSync(path.join(ROMS_DIR, id + '.ch8'));
       assert.deepEqual(Array.from(rom(id).bytes), Array.from(ch8));
-      assert.ok(rom(id).bytes.length > 0 && rom(id).bytes.length <= 3584);
+      const max = rom(id).platform === 'xochip' ? 65024 : 3584;
+      assert.ok(rom(id).bytes.length > 0 && rom(id).bytes.length <= max);
     });
 
     it(id + '.asm tiene las etiquetas @name, @description, @controls y @order', () => {
@@ -134,6 +141,13 @@ describe('roms/*.asm y roms/*.ch8', () => {
       assert.equal(Number(tags.order), DEMO_IDS.indexOf(id) + 1);
     });
   }
+
+  it('solo Planos lleva @platform (xochip); las otras cinco son de CHIP-8', () => {
+    for (const id of DEMO_IDS) {
+      assert.equal(tagsOf(rom(id).source).platform, id === 'planos' ? 'xochip' : undefined, id);
+      assert.equal(rom(id).platform, id === 'planos' ? 'xochip' : 'chip8', id);
+    }
+  });
 });
 
 describe('chip8.html tiene las demos incrustadas (requiere correr tools/embed-roms.js)', () => {
@@ -152,6 +166,9 @@ describe('chip8.html tiene las demos incrustadas (requiere correr tools/embed-ro
       assert.equal(d.name, tags.name);
       assert.equal(d.description, tags.description);
       assert.equal(d.controls, tags.controls);
+      // platform solo está si la fuente tiene la etiqueta @platform
+      assert.equal(Object.hasOwn(d, 'platform'), tags.platform !== undefined, d.id + ': campo platform');
+      assert.equal(d.platform, tags.platform);
       assert.match(d.hex, /^[0-9A-F]+$/);
       assert.deepEqual(Array.from(hexToBytes(d.hex)), Array.from(rom(d.id).bytes));
     }
@@ -195,6 +212,125 @@ describe('tools/embed-roms.js', () => {
       delete globalThis.CHIP8_DEMOS;
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+// Corre una copia de embed-roms.js (con el ensamblador) en una carpeta temporal
+// con sus propios roms/*.asm: la herramienta busca roms/ al lado de tools/, así
+// que nada de esto toca el repositorio.
+function embedSandbox(files, fn) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'embed-platform-'));
+  try {
+    fs.mkdirSync(path.join(dir, 'tools'));
+    fs.mkdirSync(path.join(dir, 'roms'));
+    for (const f of ['embed-roms.js', 'chip8asm.js']) fs.copyFileSync(path.join(ROOT, 'tools', f), path.join(dir, 'tools', f));
+    for (const [name, text] of Object.entries(files)) fs.writeFileSync(path.join(dir, 'roms', name), text);
+    const html = path.join(dir, 'pagina.html');
+    fs.writeFileSync(html, '<script id="chip8-roms">\n</script>\n');
+    const run = (...args) => spawnSync(process.execPath, [path.join(dir, 'tools', 'embed-roms.js'), '--html', html, ...args],
+      { cwd: dir, encoding: 'utf8' });
+    const block = () => {
+      const text = fs.readFileSync(html, 'utf8');
+      const start = text.indexOf('<script id="chip8-roms">') + '<script id="chip8-roms">'.length;
+      return text.slice(start, text.indexOf('</script>', start));
+    };
+    return fn({ run, block, html });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+// Las entradas de un bloque chip8-roms, por id: el texto desde "  {" hasta "  }".
+function blockEntries(block) {
+  const out = {};
+  for (const m of block.replace(/\r\n/g, '\n').matchAll(/^ {2}\{\n {4}id: "([^"]+)",[\s\S]*?^ {2}\}/gm)) out[m[1]] = m[0];
+  return out;
+}
+
+// Evalúa un bloque chip8-roms aparte y devuelve CHIP8_DEMOS (copiado con JSON
+// para que sean objetos de este contexto).
+function evalBlock(block) {
+  const sandbox = {};
+  require('node:vm').runInNewContext(block, sandbox);
+  return JSON.parse(JSON.stringify(sandbox.CHIP8_DEMOS));
+}
+
+function demoSource(tags, body = 'fin: JP fin') {
+  return Object.entries(tags).map(([k, v]) => '; @' + k + (v === '' ? '' : ' ' + v)).join('\n') + '\n\n' + body + '\n';
+}
+
+describe('tools/embed-roms.js: la etiqueta @platform', () => {
+  it('las cinco demos de CHIP-8 generan exactamente las mismas entradas que ya tiene chip8.html', () => {
+    const files = {};
+    for (const id of DEMO_IDS) files[id + '.asm'] = rom(id).source;
+    embedSandbox(files, ({ run, block }) => {
+      const res = run();
+      assert.equal(res.status, 0, res.stderr);
+      const generated = block();
+      const current = extractScript('chip8-roms').code;
+      const normalize = (s) => s.replace(/\r\n/g, '\n');
+      // El encabezado del bloque es el mismo...
+      const head = (s) => normalize(s).split('\n').slice(0, 3).join('\n');
+      assert.equal(head(generated), head(current));
+      // ...y cada entrada de CHIP-8, letra por letra (sin campo platform).
+      const gen = blockEntries(generated), cur = blockEntries(current);
+      for (const id of CHIP8_IDS) {
+        assert.ok(cur[id], 'chip8.html no tiene la entrada ' + id);
+        assert.equal(gen[id], cur[id], id);
+        assert.doesNotMatch(gen[id], /platform/, id);
+      }
+      // Planos es la única con platform, justo antes de hex.
+      assert.match(gen.planos, /\n {4}controls: "[^"]*",\n {4}platform: "xochip",\n {4}hex: "[0-9A-F]+"\n/);
+      assert.deepEqual(Object.keys(gen), DEMO_IDS);
+      // Sin la fuente de Planos, el bloque generado es el de antes de que existiera.
+      const old = evalBlock(generated).filter((d) => CHIP8_IDS.includes(d.id));
+      assert.deepEqual(old.map((d) => Object.keys(d)), CHIP8_IDS.map(() => ['id', 'name', 'description', 'controls', 'hex']));
+    });
+  });
+
+  it('una etiqueta @platform inválida (o vacía) es un error en castellano y no escribe nada', () => {
+    const base = { name: 'Mala', description: 'Una demo.', controls: 'Ninguno.', order: '1' };
+    for (const [value, shown] of [['xo-chip', 'xo-chip'], ['XOCHIP', 'XOCHIP'], ['', '']]) {
+      embedSandbox({ 'mala.asm': demoSource({ ...base, platform: value }) }, ({ run, html }) => {
+        const before = fs.readFileSync(html, 'utf8');
+        for (const args of [[], ['--check']]) {
+          const res = run(...args);
+          assert.equal(res.status, 1, 'valor "' + value + '" ' + args.join(' '));
+          assert.equal(res.stderr.trim(),
+            'embed-roms: mala.asm: @platform tiene que ser chip8, schip o xochip (dice "' + shown + '")');
+        }
+        assert.equal(fs.readFileSync(html, 'utf8'), before);
+      });
+    }
+  });
+
+  it('chip8 y schip quedan anotadas; con xochip se ensambla para 64 KB (sin la etiqueta, no entra)', () => {
+    const base = { description: 'Una demo.', controls: 'Ninguno.' };
+    // 4000 bytes de datos: no entran en 0x200..0xFFF, y LD I, LONG llega más allá.
+    const grande = 'LD I, LONG datos\nfin: JP fin\nrelleno: DB ' + new Array(3990).fill('0').join(', ') + '\ndatos: DB 0xAA\n';
+    const files = {
+      'a.asm': demoSource({ name: 'A', ...base, order: '1' }),
+      'b.asm': demoSource({ name: 'B', ...base, order: '2', platform: 'schip' }),
+      'c.asm': demoSource({ name: 'C', ...base, order: '3', platform: 'chip8' }),
+      'd.asm': demoSource({ name: 'D', ...base, order: '4', platform: 'xochip' }, grande),
+    };
+    embedSandbox(files, ({ run, block }) => {
+      const res = run();
+      assert.equal(res.status, 0, res.stderr);
+      assert.match(res.stdout, /4\. d\s+3997 bytes {2}D \(xochip\)/);
+      const demos = evalBlock(block());
+      assert.deepEqual(demos.map((d) => [d.id, d.platform]), [['a', undefined], ['b', 'schip'], ['c', 'chip8'], ['d', 'xochip']]);
+      assert.equal(Object.hasOwn(demos[0], 'platform'), false);
+      const d = hexToBytes(demos[3].hex);
+      assert.equal(d.length, 3997);
+      assert.deepEqual(Array.from(d.slice(0, 4)), [0xF0, 0x00, 0x11, 0x9C]); // LD I, LONG 0x119C
+    });
+    const { platform, ...sinEtiqueta } = { name: 'D', ...base, order: '1', platform: 'xochip' };
+    embedSandbox({ 'd.asm': demoSource(sinEtiqueta, grande) }, ({ run }) => {
+      const res = run('--check');
+      assert.equal(res.status, 1);
+      assert.match(res.stderr, /^embed-roms: d\.asm: Línea \d+: el programa no entra en la memoria/);
+    });
   });
 });
 
@@ -793,3 +929,357 @@ function popcount(b) {
   for (; b; b >>= 1) n += b & 1;
   return n;
 }
+
+// ---------------------------------------------------------------------------
+// planos (XO-CHIP)
+// ---------------------------------------------------------------------------
+
+// Una constante "NOMBRE EQU n" de roms/planos.asm.
+function planosEqu(name) {
+  const m = new RegExp('^' + name + '\\s+EQU\\s+(\\d+)', 'm').exec(rom('planos').source);
+  assert.ok(m, 'falta ' + name + ' EQU en roms/planos.asm');
+  return Number(m[1]);
+}
+
+// n bytes (o palabras de 16 bits) de la ROM a partir de una etiqueta.
+function planosBytes(label, n) {
+  const r = rom('planos');
+  assert.ok(r.labels[label] !== undefined, 'falta la etiqueta ' + label);
+  const at = r.labels[label] - 0x200;
+  return Array.from(r.bytes.slice(at, at + n));
+}
+function planosWords(label, n) {
+  const b = planosBytes(label, 2 * n);
+  return Array.from({ length: n }, (_, i) => (b[2 * i] << 8) | b[2 * i + 1]);
+}
+
+const PLANOS_TITULO = { x: 2, y: 1, letras: 6 };   // "PLANOS": 6 letras de 8x10, cada 10 píxeles
+const PLANOS_DISCO = 14;                           // el disco mide 14x14 (plano 1)
+const PLANOS_ROMBO = 16;                           // el rombo, 16x16 (plano 2)
+const PLANOS_AREA_A = 12;                          // debajo del título: solo el disco en el plano 1
+
+// x de las tres posiciones del contador: la tabla "visto" son pares (dígito, x).
+function planosCounterX() {
+  const t = planosBytes('visto', 6);
+  return [t[1], t[3], t[5]];
+}
+
+// Caja de los píxeles del plano `plane` (1 o 2) desde la fila y0: { x, y, w, h } o null.
+function planeBox(cpu, plane, y0 = 0) {
+  let minX = 999, minY = 999, maxX = -1, maxY = -1;
+  for (let y = y0; y < cpu.displayHeight; y++) {
+    for (let x = 0; x < cpu.displayWidth; x++) {
+      if (pixel(cpu, x, y) & plane) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  return maxX < 0 ? null : { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
+}
+
+// Lo que muestra cada posición del contador en el plano 1: el dígito (0..9) de la
+// fuente grande, null si está vacía o -1 si hay otra cosa.
+function counterCells(cpu) {
+  const y0 = planosEqu('CONTADOR_Y');
+  return planosCounterX().map((x0) => {
+    const rows = [];
+    for (let r = 0; r < 10; r++) {
+      let bits = 0;
+      for (let c = 0; c < 8; c++) bits = (bits << 1) | (pixel(cpu, x0 + c, y0 + r) & 1);
+      rows.push(bits);
+    }
+    if (rows.every((b) => b === 0)) return null;
+    for (let d = 0; d < 10; d++) if (rows.every((b, i) => b === BIG_FONT[d * 10 + i])) return d;
+    return -1;
+  });
+}
+
+// La pantalla que tiene que verse al terminar un paso, armada acá con los datos de
+// la ROM: el título, las posiciones del contador, el disco en `a` (plano 1) y el
+// rombo en `b` (plano 2). Nada más.
+function planosReference(a, b, cells) {
+  const s = new Uint8Array(128 * 64);
+  const put = (x0, y0, rows, width, plane) => rows.forEach((bits, r) => {
+    for (let c = 0; c < width; c++) if (bits & (1 << (width - 1 - c))) s[(y0 + r) * 128 + x0 + c] ^= plane;
+  });
+  const letras = planosBytes('letras', 10 * PLANOS_TITULO.letras);
+  for (let i = 0; i < PLANOS_TITULO.letras; i++) {
+    put(PLANOS_TITULO.x + 10 * i, PLANOS_TITULO.y, letras.slice(10 * i, 10 * i + 10), 8, 1);
+  }
+  const xs = planosCounterX();
+  cells.forEach((d, k) => {
+    if (d !== null) put(xs[k], planosEqu('CONTADOR_Y'), Array.from(BIG_FONT.slice(10 * d, 10 * d + 10)), 8, 1);
+  });
+  put(a.x, a.y, planosWords('disco', 16), 16, 1);
+  put(b.x, b.y, planosWords('rombo', 16), 16, 2);
+  return s;
+}
+
+function hashScreen(cpu) {
+  let h = 2166136261;
+  for (const v of cpu.display) h = Math.imul(h ^ v, 16777619) >>> 0;
+  return h.toString(16);
+}
+
+// Corre planos `frames` cuadros y anota cómo queda todo al final de cada paso
+// (en los cuadros en que DT llega a 0: el paso ya terminó y el siguiente no
+// empezó). onFrame(cpu, cuadro) se llama antes de cada cuadro (para las teclas).
+function planosSteps(cpu, frames, ipf, onFrame) {
+  const out = [];
+  for (let f = 0; f < frames; f++) {
+    if (onFrame) onFrame(cpu, f);
+    run(cpu, 1, ipf);
+    if (cpu.delayTimer === 0) {
+      out.push({ frame: f, a: planeBox(cpu, 1, PLANOS_AREA_A), b: planeBox(cpu, 2), cells: counterCells(cpu), pitch: cpu.pitch, hash: hashScreen(cpu) });
+    }
+  }
+  return out;
+}
+
+// Paredes que tocó cada figura en ese paso (la posición ya movida está en una pared).
+function planosWalls(step) {
+  const walls = [];
+  if (step.a.x === planosEqu('A_XMIN')) walls.push('A_IZQ');
+  if (step.a.x === planosEqu('A_XMAX')) walls.push('A_DER');
+  if (step.a.y === planosEqu('A_YMIN')) walls.push('A_ARR');
+  if (step.a.y === planosEqu('A_YMAX')) walls.push('A_ABA');
+  if (step.b.x === planosEqu('B_XMIN')) walls.push('B_IZQ');
+  if (step.b.x === planosEqu('B_XMAX')) walls.push('B_DER');
+  if (step.b.y === planosEqu('B_YMIN')) walls.push('B_ARR');
+  if (step.b.y === planosEqu('B_YMAX')) walls.push('B_ABA');
+  return walls;
+}
+
+const digitsOf = (n) => [Math.floor(n / 100), Math.floor(n / 10) % 10, n % 10];
+
+describe('planos', () => {
+  const TICK = planosEqu('TICK');
+  const ARRANQUE = planosEqu('ARRANQUE');
+
+  it('es de XO-CHIP: en CHIP-8 y en SUPER-CHIP se detiene pidiendo esa plataforma', () => {
+    for (const platform of ['chip8', 'schip']) {
+      const cpu = new Chip8({ platform, quirks: { ...QUIRK_PRESETS.xochip.quirks } });
+      cpu.loadRom(rom('planos').bytes);
+      for (let f = 0; f < 10 && !cpu.halted; f++) cpu.runFrame(15);
+      assert.equal(cpu.halted, true, platform);
+      assert.equal(cpu.errorInfo.kind, 'platform', platform);
+      assert.equal(cpu.errorInfo.needs, 'xochip', platform);
+    }
+  });
+
+  it('pasa a 128x64 y arranca con el título, el contador en 000, el disco y el rombo', () => {
+    for (const preset of PRESETS) {
+      const cpu = run(demo('planos', preset), ARRANQUE);
+      assert.equal(cpu.hires, true);
+      assert.deepEqual([cpu.displayWidth, cpu.displayHeight], [128, 64]);
+      const a = planeBox(cpu, 1, PLANOS_AREA_A), b = planeBox(cpu, 2);
+      assert.deepEqual(a, { x: 20, y: 30, w: PLANOS_DISCO, h: PLANOS_DISCO }, preset);
+      assert.deepEqual(b, { x: 76, y: 20, w: PLANOS_ROMBO, h: PLANOS_ROMBO }, preset);
+      assert.deepEqual(counterCells(cpu), [0, 0, 0]);
+      assert.deepEqual(Array.from(cpu.display), Array.from(planosReference(a, b, [0, 0, 0])), preset + ':\n' + renderAscii(cpu));
+      assert.equal(cpu.delayTimer, 0, 'el primer paso empieza en el cuadro ARRANQUE');
+    }
+  });
+
+  it('al final de cada paso los planos están limpios: el scroll del plano 2 no toca el título, el contador ni el disco', () => {
+    for (const preset of PRESETS) {
+      const cpu = demo('planos', preset);
+      let checked = 0;
+      for (let f = 0; f < 3000; f++) {
+        run(cpu, 1, 15);
+        if (cpu.delayTimer !== 0) continue;
+        const where = preset + ', cuadro ' + f + ':\n' + renderAscii(cpu);
+        const a = planeBox(cpu, 1, PLANOS_AREA_A), b = planeBox(cpu, 2), cells = counterCells(cpu);
+        assert.ok(a && a.w === PLANOS_DISCO && a.h === PLANOS_DISCO, 'el disco entero, ' + where);
+        assert.ok(b && b.w === PLANOS_ROMBO && b.h === PLANOS_ROMBO, 'el rombo entero, ' + where);
+        assert.ok(cells.every((d) => d !== -1), 'un dígito o nada en cada posición del contador, ' + where);
+        // La pantalla entera es exactamente la de referencia: nada más, nada roto.
+        const want = planosReference(a, b, cells);
+        if (!cpu.display.every((v, i) => v === want[i])) assert.fail('pantalla distinta de la esperada, ' + where);
+        checked++;
+      }
+      assert.ok(checked > 500);
+    }
+  });
+
+  it('aparecen los cuatro valores: plano 1, plano 2 y los dos (también donde se cruzan el disco y el rombo)', () => {
+    const cpu = demo('planos', 'xochip');
+    const seen = new Set();
+    let crossings = 0;
+    for (let f = 0; f < 3600; f++) {
+      run(cpu, 1);
+      for (const v of cpu.display) seen.add(v);
+      let cross = false;
+      for (let i = PLANOS_AREA_A * 128; i < cpu.display.length && !cross; i++) cross = cpu.display[i] === 3;
+      if (cross) crossings++;
+    }
+    assert.deepEqual([...seen].sort(), [0, 1, 2, 3]);
+    assert.ok(crossings > 100, 'el disco y el rombo se cruzan en ' + crossings + ' cuadros');
+  });
+
+  it('se mueven 12 pasos por segundo: el disco 2 píxeles en diagonal y el rombo 4 de costado y 2 en vertical', () => {
+    assert.equal(TICK, 5);
+    const steps = planosSteps(demo('planos', 'xochip'), ARRANQUE + 600, 1000);
+    const moves = steps.slice(1).map((s, i) => [s.a.x - steps[i].a.x, s.a.y - steps[i].a.y, s.b.x - steps[i].b.x, s.b.y - steps[i].b.y]);
+    assert.equal(moves.length, 120, '120 pasos en 10 segundos');
+    assert.ok(steps.every((s, i) => i === 0 || s.frame - steps[i - 1].frame === TICK), 'un paso cada ' + TICK + ' cuadros');
+    for (const [ax, ay, bx, by] of moves) {
+      assert.ok(Math.abs(ax) === 2 && Math.abs(ay) === 2, 'disco: ' + ax + ', ' + ay);
+      assert.ok(Math.abs(bx) === 4 && Math.abs(by) === 2, 'rombo: ' + bx + ', ' + by);
+    }
+    // Rebotan: cambian de dirección y no se salen de sus límites.
+    assert.ok(new Set(moves.map((m) => m.join())).size >= 6, 'deberían ir en varias direcciones');
+    for (const s of steps) {
+      assert.ok(s.a.x >= planosEqu('A_XMIN') && s.a.x <= planosEqu('A_XMAX') && s.a.y >= planosEqu('A_YMIN') && s.a.y <= planosEqu('A_YMAX'));
+      assert.ok(s.b.x >= planosEqu('B_XMIN') && s.b.x <= planosEqu('B_XMAX') && s.b.y >= planosEqu('B_YMIN') && s.b.y <= planosEqu('B_YMAX'));
+    }
+  });
+
+  it('el contador, con la fuente grande, cuenta los rebotes (de 000 a 255 y vuelta a empezar)', () => {
+    // Unos 2700 pasos: más de 256 rebotes, así que también da la vuelta.
+    const steps = planosSteps(demo('planos', 'vip'), ARRANQUE + 2700 * TICK, 15);
+    let count = 0, last = -99, compared = 0, prompt = 0, wrapped = false;
+    const shown = new Set();
+    const bounced = steps.map((s) => planosWalls(s).length);
+    steps.forEach((s, i) => {
+      if (bounced[i]) {
+        if (count + bounced[i] > 255) wrapped = true;
+        count = (count + bounced[i]) & 0xFF;
+        last = i;
+      }
+      // Enseguida: en el paso siguiente al rebote se borran las unidades (o, si ya
+      // estaban borradas, aparece la nueva) y a más tardar en el otro ya está la
+      // nueva (si no hubo otro rebote en el medio).
+      if (i >= 2 && bounced[i - 2] && !bounced[i - 1] && !bounced[i]) {
+        assert.ok([null, count % 10].includes(steps[i - 1].cells[2]), 'cuadro ' + steps[i - 1].frame + ': unidades borradas');
+        assert.equal(s.cells[2], count % 10, 'cuadro ' + s.frame + ': unidades nuevas');
+        prompt++;
+      }
+      // Cambiar los tres dígitos lleva como mucho 9 pasos (borrar, dibujar y revisar cada uno).
+      if (i - last >= 9) {
+        assert.deepEqual(s.cells, digitsOf(count), 'cuadro ' + s.frame);
+        shown.add(s.cells.join(''));
+        compared++;
+      }
+    });
+    assert.ok(wrapped, 'debería pasar de 255 a 0 (contó ' + count + ')');
+    assert.ok(prompt > 200, prompt + ' rebotes con el cambio a la vista');
+    assert.ok(compared > 300 && shown.size > 80, compared + ' comparaciones, ' + shown.size + ' números distintos');
+  });
+
+  it('suena en cada rebote con el patrón de audio, una nota por pared, y el pitido se corta solo', () => {
+    const tone = {
+      A_IZQ: 'TONO_A_IZQ', A_DER: 'TONO_A_DER', A_ARR: 'TONO_A_ARR', A_ABA: 'TONO_A_ABA',
+      B_IZQ: 'TONO_B_IZQ', B_DER: 'TONO_B_DER', B_ARR: 'TONO_B_ARR', B_ABA: 'TONO_B_ABA',
+    };
+    const pitido = planosEqu('PITIDO');
+    for (const preset of PRESETS) {
+      const cpu = demo('planos', preset);
+      run(cpu, 5);
+      assert.equal(cpu.audioPatternSet, true, 'AUDIO carga el patrón al arrancar');
+      assert.deepEqual(Array.from(cpu.audioPattern), planosBytes('patron', 16));
+      let beepFrames = 0, beeps = 0, prevST = 0, maxST = 0;
+      const heard = new Set();
+      const steps = planosSteps(cpu, 3600, 15, (c) => {
+        if (c.soundTimer > 0) beepFrames++;
+        if (c.soundTimer > prevST) beeps++;
+        maxST = Math.max(maxST, c.soundTimer);
+        prevST = c.soundTimer;
+      });
+      for (const s of steps) {
+        const walls = planosWalls(s);
+        if (walls.length === 1) {
+          assert.equal(s.pitch, planosEqu(tone[walls[0]]), preset + ', cuadro ' + s.frame + ': ' + walls[0]);
+          heard.add(walls[0]);
+        }
+      }
+      assert.equal(heard.size, 8, preset + ': las ocho paredes (' + [...heard].join(' ') + ')');
+      assert.equal(new Set(Object.values(tone).map(planosEqu)).size, 7, 'siete notas distintas (do5 es de los dos)');
+      assert.ok(maxST <= pitido, 'cada pitido dura ' + pitido + ' cuadros como mucho');
+      assert.ok(beeps > 50, preset + ': ' + beeps + ' pitidos');
+      assert.ok(beepFrames < 3600 * 0.25, preset + ': suena ' + beepFrames + ' cuadros de 3600');
+      assert.equal(cpu.audioPatternSet, true);
+      assert.deepEqual(Array.from(cpu.audioPattern), planosBytes('patron', 16), 'el patrón no cambia');
+    }
+  });
+
+  // Lo que se compara entre corridas: en qué cuadro termina cada paso, dónde
+  // quedan el disco y el rombo, qué muestra el contador, la nota y la pantalla entera.
+  const trace = (steps) => steps.map((s) => [s.frame, s.a.x, s.a.y, s.b.x, s.b.y, s.cells.join(''), s.pitch, s.hash].join());
+  const assertSameStart = (reference, got, where) => {
+    assert.ok(got.length > 100, where);
+    assert.deepEqual(got, reference.slice(0, got.length), where);
+  };
+
+  it('va igual con los tres perfiles, de 15 a 10000 instrucciones por cuadro, con y sin espera de vblank', () => {
+    const reference = trace(planosSteps(demo('planos', 'xochip'), 1200, 1000));
+    for (const preset of PRESETS) {
+      for (const displayWait of [true, false]) {
+        for (const ipf of [15, 1000, 10000]) {
+          const frames = ipf === 10000 ? 600 : 1200;
+          const got = trace(planosSteps(demo('planos', preset, { quirks: { displayWait } }), frames, ipf));
+          assertSameStart(reference, got, preset + ', espera de vblank ' + displayWait + ', IPF ' + ipf);
+        }
+      }
+    }
+  });
+
+  it('como dice el encabezado: con espera de vblank alcanza con 14 instrucciones por cuadro y sin ella con 12', () => {
+    const reference = trace(planosSteps(demo('planos', 'xochip'), 1200, 1000)).join(';');
+    const same = (preset, ipf) => trace(planosSteps(demo('planos', preset), 1200, ipf)).join(';') === reference;
+    assert.ok(same('vip', 14), 'VIP a 14');
+    assert.ok(!same('vip', 13), 'VIP a 13 ya no entra');
+    for (const preset of ['schip', 'xochip']) {
+      assert.ok(same(preset, 12), preset + ' a 12');
+      assert.ok(!same(preset, 11), preset + ' a 11 ya no entra');
+    }
+    // Y aunque nunca pasa, un paso con cuatro rebotes (los dos en una esquina)
+    // también entra en sus TICK cuadros a 15 instrucciones por cuadro.
+    const espera = rom('planos').labels.espera;
+    for (const preset of PRESETS) {
+      const cpu = run(demo('planos', preset), ARRANQUE); // justo antes del primer paso
+      cpu.V.set([112, 48, 2, 2, 108, 46, 4, 2], 1);     // disco y rombo a un paso de una esquina
+      cpu.V[0xA] = 112;                                 // donde va la diferencia del disco
+      cpu.V[0xB] = 48;
+      let frames = 0;
+      do {
+        run(cpu, 1, 15);
+        frames++;
+      } while ((cpu.pc < espera || cpu.pc > espera + 4) && frames < 20);
+      assert.equal(cpu.V[0xC], 4, preset + ': cuatro rebotes en el mismo paso');
+      assert.ok(frames <= TICK, preset + ': el paso usó ' + frames + ' cuadros');
+    }
+  });
+
+  it('la W (tecla 5) frena el rombo; se lee en el primer cuadro del paso, así que da lo mismo el perfil y la velocidad', () => {
+    const tecla = planosEqu('TECLA_FRENO');
+    assert.equal(tecla, 5);
+    // Apretada en el primer cuadro de un paso (100, 600), a mitad de un paso (401, 463)
+    // y durante un solo cuadro (600).
+    const pressed = (f) => (f >= 100 && f < 220) || (f >= 401 && f < 463) || f === 600;
+    const keys = (c, f) => c.setKey(tecla, pressed(f));
+    const reference = planosSteps(demo('planos', 'xochip'), 900, 1000, keys);
+    for (const preset of PRESETS) {
+      for (const ipf of [15, 10000]) {
+        const frames = ipf === 10000 ? 700 : 900;
+        assertSameStart(trace(reference), trace(planosSteps(demo('planos', preset), frames, ipf, keys)), preset + ', IPF ' + ipf);
+      }
+    }
+    // Mientras está apretada, el rombo (y todo el plano 2) queda quieto y el disco sigue.
+    const during = reference.filter((s) => s.frame >= 99 && s.frame < 220);
+    assert.equal(during.length, 25);
+    assert.equal(new Set(during.map((s) => s.b.x + ',' + s.b.y)).size, 1, 'el rombo no se mueve');
+    during.slice(1).forEach((s, i) => assert.notDeepEqual([s.a.x, s.a.y], [during[i].a.x, during[i].a.y], 'el disco sí'));
+    const after = reference.filter((s) => s.frame >= 224 && s.frame < 300);
+    assert.equal(new Set(after.map((s) => s.b.x + ',' + s.b.y)).size, after.length, 'al soltarla vuelve a moverse');
+    // Apretada desde la mitad de un paso: cuenta desde el paso siguiente.
+    const at = (frame) => reference.find((s) => s.frame === frame).b;
+    assert.notDeepEqual(at(404), at(399), 'el paso que empezó en el cuadro 400 no la vio');
+    assert.deepEqual(at(464), at(404), 'del 405 al 460 queda quieto');
+    assert.notDeepEqual(at(469), at(464), 'el paso del 465 ya no la ve');
+    assert.deepEqual(at(604), at(599), 'un solo cuadro alcanza si es el primero del paso');
+  });
+});

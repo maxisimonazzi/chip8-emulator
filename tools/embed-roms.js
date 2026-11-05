@@ -17,6 +17,16 @@
  *   ; @order 1
  * Las demos se ordenan por @order (y después por id).
  *
+ * Una etiqueta optativa dice para qué plataforma es la demo:
+ *   ; @platform xochip
+ * Vale chip8, schip o xochip; sin la etiqueta, la demo es de CHIP-8. Con xochip
+ * se ensambla con la opción xochip de chip8asm.js (el programa puede llegar
+ * hasta 0xFFFF: 65024 bytes en lugar de 3584). La entrada incrustada lleva el
+ * campo platform SOLO si la fuente tiene la etiqueta (las demos sin etiqueta
+ * generan exactamente el mismo bloque que antes de que existiera), para que la
+ * consola pase a esa plataforma al cargar la demo. Otro valor (o la etiqueta sin
+ * valor) es un error.
+ *
  * Solo se reemplaza el contenido de <script id="chip8-roms"> ... </script>; el resto
  * del archivo queda idéntico byte por byte (se respeta el tipo de fin de línea).
  * Correrlo dos veces seguidas no cambia nada.
@@ -31,6 +41,8 @@ const OPEN_TAG = '<script id="chip8-roms">';
 const CLOSE_TAG = '</script>';
 const HEADER = '/* GENERADO por tools/embed-roms.js a partir de roms/*.asm — no editar a mano. */';
 const REQUIRED_TAGS = ['name', 'description', 'controls', 'order'];
+// Valores de @platform y el tamaño máximo del programa en cada una (desde 0x200).
+const PLATFORM_MAX_BYTES = { chip8: 3584, schip: 3584, xochip: 65024 };
 
 function fail(message) {
   console.error('embed-roms: ' + message);
@@ -60,15 +72,24 @@ function parseTags(source, file) {
     const trimmed = line.trim();
     if (trimmed === '') continue;
     if (!trimmed.startsWith(';')) break; // terminó el encabezado
-    const m = /^;+\s*@(\w+)\s+(.*?)\s*$/.exec(trimmed);
-    if (m) tags[m[1]] = m[2];
+    // "; @etiqueta valor" (una etiqueta sin valor queda vacía: es un error si es obligatoria)
+    const m = /^;+\s*@(\w+)(?:\s+(.*?))?\s*$/.exec(trimmed);
+    if (m) tags[m[1]] = m[2] || '';
   }
   for (const t of REQUIRED_TAGS) {
     if (!tags[t]) fail(file + ': falta la etiqueta "; @' + t + ' ..." en el encabezado');
   }
   const order = Number(tags.order);
   if (!Number.isFinite(order)) fail(file + ': @order debe ser un número');
-  return { name: tags.name, description: tags.description, controls: tags.controls, order };
+  const out = { name: tags.name, description: tags.description, controls: tags.controls, order };
+  // @platform es optativa: solo se anota si está (sin ella, la demo es de CHIP-8).
+  if (tags.platform !== undefined) {
+    if (!Object.hasOwn(PLATFORM_MAX_BYTES, tags.platform)) {
+      fail(file + ': @platform tiene que ser chip8, schip o xochip (dice "' + tags.platform + '")');
+    }
+    out.platform = tags.platform;
+  }
+  return out;
 }
 
 function toHex(bytes) {
@@ -91,14 +112,16 @@ function buildDemos() {
     if (!/^[a-z0-9_-]+$/.test(id)) fail(file + ': el nombre del archivo solo puede tener minúsculas, dígitos, "_" y "-"');
     const source = fs.readFileSync(path.join(ROMS_DIR, file), 'utf8');
     const tags = parseTags(source, file);
+    const platform = tags.platform || 'chip8';
     let result;
     try {
-      result = assemble(source);
+      result = assemble(source, { xochip: platform === 'xochip' });
     } catch (e) {
       fail(file + ': ' + e.message);
     }
+    const max = PLATFORM_MAX_BYTES[platform];
     if (result.bytes.length === 0) fail(file + ': el programa está vacío');
-    if (result.bytes.length > 3584) fail(file + ': el programa ocupa ' + result.bytes.length + ' bytes (máximo 3584)');
+    if (result.bytes.length > max) fail(file + ': el programa ocupa ' + result.bytes.length + ' bytes (máximo ' + max + ')');
     return { id, file, ...tags, bytes: result.bytes };
   });
   demos.sort((a, b) => a.order - b.order || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
@@ -113,6 +136,7 @@ function renderBlock(demos, eol) {
     lines.push('    name: ' + jsString(d.name) + ',');
     lines.push('    description: ' + jsString(d.description) + ',');
     lines.push('    controls: ' + jsString(d.controls) + ',');
+    if (d.platform !== undefined) lines.push('    platform: ' + jsString(d.platform) + ',');
     lines.push('    hex: ' + jsString(toHex(d.bytes)));
     lines.push('  }' + (i < demos.length - 1 ? ',' : ''));
   });
@@ -151,7 +175,7 @@ function main() {
   }
 
   const report = demos.map((d) => '  ' + String(d.order).padStart(2) + '. ' + d.id.padEnd(10) + ' ' +
-    String(d.bytes.length).padStart(5) + ' bytes  ' + d.name).join('\n');
+    String(d.bytes.length).padStart(5) + ' bytes  ' + d.name + (d.platform ? ' (' + d.platform + ')' : '')).join('\n');
 
   if (opts.check) {
     const problems = [];

@@ -142,6 +142,7 @@ descripción y sus controles; tocar un cartucho del estante también lo carga.
 | **Atrapa** | Un jueguito: mové la paleta y atrapá los bloques que caen. Cada uno suma un punto y la caída se acelera, hasta un tope; si se te escapan tres, perdés. | Izquierda: A (tecla 7) o Q (tecla 4). Derecha: D (tecla 9) o E (tecla 6). Al terminar, cualquier tecla vuelve a empezar. |
 | **Autotest** | Un programa que se prueba a sí mismo: 19 comprobaciones de instrucciones, cada una con una tilde o una cruz, y al final una celda con la cantidad de fallas. | Ninguno. No toques ninguna tecla mientras corre (una de las pruebas verifica que no haya teclas apretadas). |
 | **Fuente** | Los 16 dígitos hexadecimales que el intérprete guarda en memoria. | Ninguno: es una imagen fija. |
+| **Planos** | Lo nuevo de XO-CHIP en 128×64: un disco y un rombo rebotan en dos planos distintos y donde se cruzan aparece un cuarto color; el rombo se mueve corriendo su plano con scroll, un contador con la fuente grande cuenta los rebotes y cada pared suena con su nota. | W (tecla 5): mientras la tenés apretada, el rombo se queda quieto. |
 
 Los cinco están escritos en ensamblador y sus fuentes están en `roms/`. En la
 [parte 6](#6-leer-un-programa-real) vamos a leer dos de ellos.
