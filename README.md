@@ -209,6 +209,8 @@ tools/chip8asm.js            Ensamblador (módulo de Node, script de navegador y
 tools/embed-roms.js          Ensambla roms/*.asm y los embebe en chip8.html.
 tools/serve.js               Servidor estático mínimo en http://localhost:8008/.
 tools/e2e.js                 Pruebas de punta a punta en Chrome o Edge sin ventana.
+tools/archive.js             Tabla de autoconfiguración a partir del archivo de John Earnest (CC0).
+data/archive.json            Los programas del archivo: huella SHA-1, plataforma y opciones de Octo.
 tests/                       Pruebas con node:test (harness.js carga los bloques de chip8.html).
 tests/mutation-gaps.test.js  Casos que salieron del mutation testing del núcleo.
 tests/manual.test.js         Ejemplos y enlaces del manual, y enlaces de este README.
@@ -217,7 +219,7 @@ docs/MANUAL.md               Manual de referencia de CHIP-8.
 docs/TUTORIAL.md             Tutorial.
 docs/ejemplos/               Programas del tutorial y un mini emulador didáctico.
 docs/DESARROLLO.md           Documentación del desarrollo.
-package.json                 Scripts: test, asm, roms, serve, e2e. Sin dependencias.
+package.json                 Scripts: test, asm, roms, archive, serve, e2e. Sin dependencias.
 ```
 
 ## Limitaciones

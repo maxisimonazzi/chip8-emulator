@@ -1,0 +1,2765 @@
+{
+  "source": "https://github.com/JohnEarnest/chip8Archive",
+  "license": "CC0 1.0",
+  "commit": "761e3ffc63f43e6a849e80714122feff2afca208",
+  "fetched": "2026-11-04",
+  "programs": [
+    {
+      "id": "1dcell",
+      "title": "1D Cellular Automata",
+      "authors": [
+        "SharpenedSpoon"
+      ],
+      "event": "Octojam1",
+      "release": "2014-10-26",
+      "platform": "chip8",
+      "size": 150,
+      "sha1": "018442698067c95d67e27a94e6642c11f049f108",
+      "options": {
+        "tickrate": 1000,
+        "fillColor": "#00f80a",
+        "backgroundColor": "#274a17",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#142a12",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false
+      }
+    },
+    {
+      "id": "8ceattourny_d1",
+      "title": "8CE Attourny - Disc 1",
+      "authors": [
+        "SystemLogoff"
+      ],
+      "event": "Octojam3",
+      "release": "2016-10-30",
+      "platform": "chip8",
+      "size": 2480,
+      "sha1": "3ddf7b76b8f63d0089e00e3b518f78c213b74b1e",
+      "options": {
+        "tickrate": "7",
+        "fillColor": "#f1f1f1",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#0f0f0f",
+        "buzzColor": "#aaff55",
+        "quietColor": "#777777",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": false,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "8ceattourny_d2",
+      "title": "8CE Attourny - Disc 2",
+      "authors": [
+        "SystemLogoff"
+      ],
+      "event": "Octojam3",
+      "release": "2016-10-30",
+      "platform": "chip8",
+      "size": 2591,
+      "sha1": "82fd0d202a068bedfb869fc303fdeae0c814024f",
+      "options": {
+        "tickrate": "7",
+        "fillColor": "#f1f1f1",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#0f0f0f",
+        "buzzColor": "#aaff55",
+        "quietColor": "#777777",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": false,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "8ceattourny_d3",
+      "title": "8CE Attourny - Disc 3",
+      "authors": [
+        "SystemLogoff"
+      ],
+      "event": "Octojam3",
+      "release": "2016-10-30",
+      "platform": "chip8",
+      "size": 2285,
+      "sha1": "419a0110d41332457c15ae09fff62cbd7ad197fc",
+      "options": {
+        "tickrate": "7",
+        "fillColor": "#f1f1f1",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#0f0f0f",
+        "buzzColor": "#aaff55",
+        "quietColor": "#777777",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": false,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "anEveningToDieFor",
+      "title": "An Evening to Die For",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "Octojam6",
+      "release": "2019-10-22",
+      "platform": "xochip",
+      "size": 23207,
+      "sha1": "afd9fee7565c54970b6bd7758aa8aa7843dd2e86",
+      "options": {
+        "tickrate": 500,
+        "fillColor": "black",
+        "fillColor2": "red",
+        "blendColor": "red",
+        "backgroundColor": "white",
+        "buzzColor": "gray",
+        "quietColor": "#000000",
+        "shiftQuirks": 0,
+        "loadStoreQuirks": 0,
+        "vfOrderQuirks": 0,
+        "clipQuirks": 0,
+        "vBlankQuirks": 0,
+        "jumpQuirks": 0,
+        "screenRotation": 0,
+        "maxSize": 65024
+      }
+    },
+    {
+      "id": "applejak",
+      "title": "Applejak",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "Octojam7",
+      "release": "2020-10-07",
+      "platform": "schip",
+      "size": 3580,
+      "sha1": "bcbf36a68cf389e87dd54a9707cf35c4436dcb92",
+      "options": {
+        "tickrate": 100,
+        "fillColor": "#B00000",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#001000",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": 1,
+        "loadStoreQuirks": 1,
+        "vfOrderQuirks": false,
+        "clipQuirks": 1,
+        "vBlankQuirks": 0,
+        "jumpQuirks": 1,
+        "screenRotation": 0,
+        "maxSize": 3583,
+        "touchInputMode": "none",
+        "logicQuirks": 0
+      }
+    },
+    {
+      "id": "BadKaiJuJu",
+      "title": "Bad Kaiju Ju",
+      "authors": [
+        "MattBooth"
+      ],
+      "event": "Ludum Dare",
+      "release": "2015-08-24",
+      "platform": "chip8",
+      "size": 346,
+      "sha1": "0f479a10fec51d159866e5760069cd18bdfd293f",
+      "options": {
+        "tickrate": "7",
+        "fillColor": "#330033",
+        "backgroundColor": "#AAAAFF"
+      }
+    },
+    {
+      "id": "binding",
+      "title": "The Binding of COSMAC",
+      "authors": [
+        "buffi"
+      ],
+      "event": "Octojam3",
+      "release": "2016-10-21",
+      "platform": "schip",
+      "size": 3552,
+      "sha1": "e74f20f234753e0cc2f58e29dc02d6128a6a3d97",
+      "options": {
+        "tickrate": 1000,
+        "fillColor": "#FFCC00",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#996600",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": true,
+        "jumpQuirks": false,
+        "enableXO": false,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "blackrainbow",
+      "title": "Black Rainbow",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "Octojam3",
+      "release": "2016-11-01",
+      "platform": "schip",
+      "size": 3302,
+      "sha1": "e6af47843f0ecc3302027a3756dd7b389a15e437",
+      "options": {
+        "tickrate": 20,
+        "fillColor": "lightgray",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "gray",
+        "buzzColor": "white",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": false,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "br8kout",
+      "title": "Br8kout",
+      "authors": [
+        "SharpenedSpoon"
+      ],
+      "event": "Octojam1",
+      "release": "2014-09-01",
+      "platform": "chip8",
+      "size": 199,
+      "sha1": "31fc1c53cc610a9f4b9c5705c5a0f33fc028d123",
+      "options": {
+        "tickrate": 7,
+        "fillColor": "#ff84fe",
+        "backgroundColor": "#ca2553",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#f090e4",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false
+      }
+    },
+    {
+      "id": "bulb",
+      "title": "Bulb",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "Octojam7",
+      "release": "2020-10-15",
+      "platform": "schip",
+      "size": 3264,
+      "sha1": "b277c053b5b4ff9e40cd52cd4125a35ec22ccd0a",
+      "options": {
+        "tickrate": 100,
+        "fillColor": "#1E90FF",
+        "fillColor2": "#ABCC47",
+        "blendColor": "#00131A",
+        "backgroundColor": "#F9FFB3",
+        "buzzColor": "#F9FFB3",
+        "quietColor": "#000000",
+        "shiftQuirks": 1,
+        "loadStoreQuirks": 1,
+        "vfOrderQuirks": false,
+        "clipQuirks": 1,
+        "vBlankQuirks": 0,
+        "jumpQuirks": 1,
+        "screenRotation": 0,
+        "maxSize": 3583,
+        "touchInputMode": "none",
+        "logicQuirks": 0,
+        "fontStyle": "octo"
+      }
+    },
+    {
+      "id": "businessiscontagious",
+      "title": "Business Is Contagious",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "NokiaJam",
+      "release": "2020-02-05",
+      "platform": "xochip",
+      "size": 16707,
+      "sha1": "33ec2f3081bed56438dc207477f06cd77f3f07d9",
+      "options": {
+        "tickrate": 1000,
+        "fillColor": "#43523d",
+        "fillColor2": "#43523d",
+        "blendColor": "#43523d",
+        "backgroundColor": "#c7f0d8",
+        "buzzColor": "#43523d",
+        "quietColor": "#43523d",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "vBlankQuirks": false,
+        "jumpQuirks": false,
+        "screenRotation": 0,
+        "maxSize": "65024",
+        "touchInputMode": "gamepad",
+        "logicQuirks": false,
+        "displayScale": "6"
+      }
+    },
+    {
+      "id": "carbon8",
+      "title": "Carbon8",
+      "authors": [
+        "Chromatophore"
+      ],
+      "event": "Octojam5",
+      "release": "2018-11-01",
+      "platform": "chip8",
+      "size": 2297,
+      "sha1": "2e0f2268c9a3be0fbb839f918336f161815bb80a",
+      "options": {
+        "tickrate": "15",
+        "fillColor": "#FFCC00",
+        "backgroundColor": "#0000FF",
+        "buzzColor": "#FFFFFF",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": false,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "caveexplorer",
+      "title": "Cave Explorer",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "",
+      "release": "2014-06-22",
+      "platform": "chip8",
+      "size": 3299,
+      "sha1": "400dbd1aa2b79b9b8546bc615bfb735c1bd1d268",
+      "options": {
+        "tickrate": "20",
+        "backgroundColor": "#996600",
+        "fillColor": "#FFCC00",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000"
+      }
+    },
+    {
+      "id": "chickenScratch",
+      "title": "Chicken Scratch",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "Octojam7",
+      "release": "2020-10-28",
+      "platform": "xochip",
+      "size": 17024,
+      "sha1": "c606d52970b86edcca4e87e9f6fae4b1ccbbbb0f",
+      "options": {
+        "tickrate": 500,
+        "fillColor": "#7C4300",
+        "fillColor2": "#FD8100",
+        "blendColor": "#FD8100",
+        "backgroundColor": "#D5A08C",
+        "buzzColor": "#3C2300",
+        "quietColor": "#000000",
+        "shiftQuirks": 0,
+        "loadStoreQuirks": 0,
+        "vfOrderQuirks": false,
+        "clipQuirks": 0,
+        "vBlankQuirks": 0,
+        "jumpQuirks": 0,
+        "screenRotation": 0,
+        "maxSize": 65024,
+        "touchInputMode": "none",
+        "logicQuirks": 0,
+        "fontStyle": "octo"
+      }
+    },
+    {
+      "id": "chipcross",
+      "title": "Chipcross",
+      "authors": [
+        "buffi"
+      ],
+      "event": "Octojam5",
+      "release": "2018-10-15",
+      "platform": "schip",
+      "size": 800,
+      "sha1": "83300ff710acdd8417376b88adf40f68171f7ec7",
+      "options": {
+        "tickrate": 20,
+        "fillColor": "#FFCC00",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#996600",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": false,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "chipquarium",
+      "title": "Chipquarium",
+      "authors": [
+        "mattmik"
+      ],
+      "event": "Octojam3",
+      "release": "2016-10-31",
+      "platform": "chip8",
+      "size": 1748,
+      "sha1": "f4392681b1fa38d7ad0a7d7a59cecf247ac1457a",
+      "options": {
+        "tickrate": 15,
+        "fillColor": "#FFFFFF",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#0072ff",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#0000FF",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": true,
+        "vBlankQuirks": true,
+        "jumpQuirks": false,
+        "logicQuirks": true,
+        "screenRotation": 0,
+        "maxSize": 3215,
+        "touchInputMode": "none"
+      }
+    },
+    {
+      "id": "chipwar",
+      "title": "ChipWar",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "",
+      "release": "2014-06-06",
+      "platform": "chip8",
+      "size": 1777,
+      "sha1": "ab5cbf267d74c168e174041b9594ae856cbd671d",
+      "options": {
+        "tickrate": "15",
+        "backgroundColor": "#6699FF",
+        "fillColor": "#000066",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000"
+      }
+    },
+    {
+      "id": "civiliz8n",
+      "title": "Civiliz8n",
+      "authors": [
+        "tann"
+      ],
+      "event": "Octojam2",
+      "release": "2016-09-26",
+      "platform": "xochip",
+      "size": 5114,
+      "sha1": "76a770000b314659ac792e17724b783a464ab67e",
+      "options": {
+        "tickrate": "100",
+        "fillColor": "#754D27",
+        "fillColor2": "#738C3A",
+        "blendColor": "#E2CB8A",
+        "backgroundColor": "#141421",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": false,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "danm8ku",
+      "title": "Danm8ku",
+      "authors": [
+        "buffi"
+      ],
+      "event": "Octojam2",
+      "release": "2015-10-31",
+      "platform": "chip8",
+      "size": 1319,
+      "sha1": "ff6b8ac59bf281cd4b5ab6e161600b00f85a0265",
+      "options": {
+        "tickrate": 1000,
+        "fillColor": "#00FF00",
+        "fillColor2": "#FF0000",
+        "blendColor": "#FFFF00",
+        "backgroundColor": "#000000",
+        "buzzColor": "#999900",
+        "quietColor": "#333300",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "enableXO": true
+      }
+    },
+    {
+      "id": "dinorun",
+      "title": "Dino Run",
+      "authors": [
+        "Andrezinrc"
+      ],
+      "event": "",
+      "release": "2026-05-25",
+      "platform": "chip8",
+      "size": 520,
+      "sha1": "1a7a2138161b06e083722f978f8cbaaa1ad5344d",
+      "options": {
+        "tickrate": 15,
+        "backgroundColor": "#C7F0D8",
+        "fillColor": "#004020",
+        "fillColor2": "#004020",
+        "blendColor": "#000000",
+        "buzzColor": "#000000",
+        "quietColor": "#000000",
+        "shiftQuirks": 0,
+        "loadStoreQuirks": 0,
+        "vfOrderQuirks": false,
+        "clipQuirks": 1,
+        "vBlankQuirks": 1,
+        "jumpQuirks": 0,
+        "screenRotation": 0,
+        "maxSize": 3232,
+        "touchInputMode": "none",
+        "logicQuirks": 1,
+        "fontStyle": "octo"
+      }
+    },
+    {
+      "id": "dodge",
+      "title": "Dodge",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "Octojam8",
+      "release": "2021-10-01",
+      "platform": "schip",
+      "size": 56,
+      "sha1": "7fb69647e6b10e2b12f9357d5c1c177349028236",
+      "options": {
+        "tickrate": 1000,
+        "fillColor": "#FFCC00",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#996600",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "vBlankQuirks": false,
+        "jumpQuirks": false,
+        "screenRotation": 0,
+        "maxSize": 65024,
+        "touchInputMode": "swipe",
+        "logicQuirks": false,
+        "fontStyle": "octo",
+        "displayScale": "4"
+      }
+    },
+    {
+      "id": "down8",
+      "title": "down8",
+      "authors": [
+        "tinaun"
+      ],
+      "event": "Octojam2",
+      "release": "2015-10-28",
+      "platform": "chip8",
+      "size": 1610,
+      "sha1": "1368d7eae124661aacaf3411819ca9c113c0c10c",
+      "options": {
+        "tickrate": 15,
+        "fillColor": "#27130F",
+        "backgroundColor": "#3DBDFA",
+        "buzzColor": "#FF6600",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false
+      }
+    },
+    {
+      "id": "DVN8",
+      "title": "DVN8",
+      "authors": [
+        "SystemLogoff"
+      ],
+      "event": "Octojam4",
+      "release": "2017-10-30",
+      "platform": "schip",
+      "size": 3340,
+      "sha1": "627f01b20ce4d33f6df1aa88acb405a3a732bde0",
+      "options": {
+        "tickrate": "20",
+        "fillColor": "#1f1f1f",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#f0f0f0",
+        "buzzColor": "#aa2222",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": false,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "eaty",
+      "title": "Eaty The Alien",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "Octojam2",
+      "release": "2015-10-31",
+      "platform": "schip",
+      "size": 3431,
+      "sha1": "fcaa793332a83c93f4ed79f5ffbc8403c8b8aea0",
+      "options": {
+        "tickrate": "200",
+        "fillColor": "#443300",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#aa7700",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "enableXO": false
+      }
+    },
+    {
+      "id": "expedition",
+      "title": "Expedition.",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "NokiaJam",
+      "release": "2021-01-06",
+      "platform": "xochip",
+      "size": 31543,
+      "sha1": "77dc518e6779ccd862205cfeb0f3f7772caed60e",
+      "options": {
+        "tickrate": 1000,
+        "fillColor": "#43523d",
+        "fillColor2": "#43523d",
+        "blendColor": "#43523d",
+        "backgroundColor": "#c7f0d8",
+        "buzzColor": "#43523d",
+        "quietColor": "#43523d",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "vBlankQuirks": false,
+        "jumpQuirks": false,
+        "screenRotation": 0,
+        "maxSize": "65024",
+        "touchInputMode": "none",
+        "logicQuirks": false,
+        "fontStyle": "octo"
+      }
+    },
+    {
+      "id": "flightrunner",
+      "title": "Flight Runner",
+      "authors": [
+        "TodPunk"
+      ],
+      "event": "Octojam1",
+      "release": "2014-11-01",
+      "platform": "chip8",
+      "size": 295,
+      "sha1": "821751787374cc362f4c58759961f0aa7a2fd410",
+      "options": {
+        "tickrate": "15",
+        "fillColor": "#FFCC00",
+        "backgroundColor": "#0000FF",
+        "buzzColor": "#FFFFFF",
+        "quietColor": "#000000"
+      }
+    },
+    {
+      "id": "flutterby",
+      "title": "Flutter By",
+      "authors": [
+        "TomRintjema"
+      ],
+      "event": "Octojam6",
+      "release": "2019-10-08",
+      "platform": "xochip",
+      "size": 760,
+      "sha1": "a4a9351775b2a64bbd14e3980968db19c254a988",
+      "options": {
+        "tickrate": 7,
+        "fillColor": "#9BBC0F",
+        "fillColor2": "#8BAC0F",
+        "blendColor": "#306230",
+        "backgroundColor": "#0F380F",
+        "buzzColor": "#333333",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": true,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "fuse",
+      "title": "Fuse",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "Octojam3",
+      "release": "2016-10-27",
+      "platform": "chip8",
+      "size": 424,
+      "sha1": "0cd895dc3d489d0e40656218900a04310e95f560",
+      "options": {
+        "tickrate": "15",
+        "fillColor": "#306230",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#8BAC0F",
+        "buzzColor": "#333333",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": false,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "garlicscape",
+      "title": "Into The GarlicScape",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "Octojam7",
+      "release": "2020-08-01",
+      "platform": "xochip",
+      "size": 8947,
+      "sha1": "b693e60f161e69c98b0bb2bc1761cf434f8fbb0e",
+      "options": {
+        "tickrate": 1000,
+        "fillColor": "lightcyan",
+        "fillColor2": "aquamarine",
+        "blendColor": "aquamarine",
+        "backgroundColor": "#001000",
+        "buzzColor": "#333333",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "vBlankQuirks": false,
+        "jumpQuirks": false,
+        "screenRotation": 0,
+        "maxSize": 65024,
+        "touchInputMode": "none",
+        "logicQuirks": false,
+        "fontStyle": "octo"
+      }
+    },
+    {
+      "id": "ghostEscape",
+      "title": "Ghost Escape",
+      "authors": [
+        "TomRintjema"
+      ],
+      "event": "Octojam3",
+      "release": "2016-10-29",
+      "platform": "chip8",
+      "size": 135,
+      "sha1": "1e3be162480380b6276d0848e1c71576b4c041f2",
+      "options": {
+        "tickrate": 7,
+        "fillColor": "#FF00FF",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#00FFFF",
+        "buzzColor": "#990099",
+        "quietColor": "#330033",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": false,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "glitchGhost",
+      "title": "Glitch Ghost",
+      "authors": [
+        "JackieKircher"
+      ],
+      "event": "Octojam1",
+      "release": "2014-10-29",
+      "platform": "chip8",
+      "size": 2907,
+      "sha1": "2cdcb3c29a5f013a991db5909ca8e18e27b3c42b",
+      "options": {
+        "tickrate": 200,
+        "fillColor": "#FFFFFF",
+        "backgroundColor": "#555555",
+        "buzzColor": "#FFFFFF",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false
+      }
+    },
+    {
+      "id": "gradsim",
+      "title": "Grad School Simulator 2014",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "",
+      "release": "2014-09-15",
+      "platform": "schip",
+      "size": 1326,
+      "sha1": "9797a7eaf1e80ec19c085c60bb37991420f54678",
+      "options": {
+        "tickrate": "20",
+        "backgroundColor": "gray",
+        "fillColor": "black",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false
+      }
+    },
+    {
+      "id": "horseWorldOnline",
+      "title": "Horse World Online",
+      "authors": [
+        "TomRintjema"
+      ],
+      "event": "Octojam1",
+      "release": "2014-10-28",
+      "platform": "chip8",
+      "size": 732,
+      "sha1": "28ac3467fbb4544a3e3a1ec3cd27d9e819ac7323",
+      "options": {
+        "tickrate": 30,
+        "fillColor": "#783809",
+        "backgroundColor": "#a0cb6d",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false
+      }
+    },
+    {
+      "id": "horseyJump",
+      "title": "Horsey Jump",
+      "authors": [
+        "LarissaR"
+      ],
+      "event": "Octojam2",
+      "release": "2015-10-30",
+      "platform": "schip",
+      "size": 326,
+      "sha1": "df5ced9c20d00bf7be7d3361d76f27d0d577abfb",
+      "options": {
+        "tickrate": 20,
+        "fillColor": "#C3C3C3",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#006C00",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "enableXO": false
+      }
+    },
+    {
+      "id": "jub8-1",
+      "title": "jub8 Song 1",
+      "authors": [
+        "your name here"
+      ],
+      "event": "Octojam3",
+      "release": "2016-08-31",
+      "platform": "xochip",
+      "size": 56380,
+      "sha1": "ab36ced6e34affacd57b2874ede3f95b669a424c",
+      "options": {
+        "tickrate": "1000",
+        "fillColor": "#000000",
+        "fillColor2": "#FDFFD5",
+        "blendColor": "#BA5A1A",
+        "backgroundColor": "#353C41",
+        "buzzColor": "#353C41",
+        "quietColor": "#353C41",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": true,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "jub8-2",
+      "title": "jub8 Song 2",
+      "authors": [
+        "your name here"
+      ],
+      "event": "Octojam3",
+      "release": "2016-08-31",
+      "platform": "xochip",
+      "size": 65024,
+      "sha1": "12e053d66be67836deff1c07af93fe1d33a8eec5",
+      "options": {
+        "tickrate": "1000",
+        "fillColor": "#000000",
+        "fillColor2": "#FDFFD5",
+        "blendColor": "#BA5A1A",
+        "backgroundColor": "#353C41",
+        "buzzColor": "#353C41",
+        "quietColor": "#353C41",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": true,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "jub8-3",
+      "title": "jub8 Song 3",
+      "authors": [
+        "your name here"
+      ],
+      "event": "Octojam3",
+      "release": "2016-08-31",
+      "platform": "xochip",
+      "size": 58566,
+      "sha1": "9bf96e23963995c6d702ae21c9b8741cbb688f47",
+      "options": {
+        "tickrate": "1000",
+        "fillColor": "#000000",
+        "fillColor2": "#FDFFD5",
+        "blendColor": "#BA5A1A",
+        "backgroundColor": "#353C41",
+        "buzzColor": "#353C41",
+        "quietColor": "#353C41",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": true,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "jub8-4",
+      "title": "jub8 Song 4",
+      "authors": [
+        "your name here"
+      ],
+      "event": "Octojam3",
+      "release": "2016-08-31",
+      "platform": "xochip",
+      "size": 59904,
+      "sha1": "7e8d5a79cabeb9a791524ea7126867a539d825ee",
+      "options": {
+        "tickrate": "1000",
+        "fillColor": "#000000",
+        "fillColor2": "#FDFFD5",
+        "blendColor": "#BA5A1A",
+        "backgroundColor": "#353C41",
+        "buzzColor": "#353C41",
+        "quietColor": "#353C41",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": true,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "jub8-5",
+      "title": "jub8 Song 5",
+      "authors": [
+        "your name here"
+      ],
+      "event": "Octojam3",
+      "release": "2016-08-31",
+      "platform": "xochip",
+      "size": 62376,
+      "sha1": "b274ab30ed7678400dc2283431a45f7d98d9fced",
+      "options": {
+        "tickrate": "1000",
+        "fillColor": "#000000",
+        "fillColor2": "#FDFFD5",
+        "blendColor": "#BA5A1A",
+        "backgroundColor": "#353C41",
+        "buzzColor": "#353C41",
+        "quietColor": "#353C41",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": true,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "jub8-6",
+      "title": "jub8 Song 6",
+      "authors": [
+        "your name here"
+      ],
+      "event": "Octojam3",
+      "release": "2016-08-31",
+      "platform": "xochip",
+      "size": 59273,
+      "sha1": "3fd62ae2bfe2572ceb194f1d3d1bd5a01695b86c",
+      "options": {
+        "tickrate": "1000",
+        "fillColor": "#000000",
+        "fillColor2": "#FDFFD5",
+        "blendColor": "#BA5A1A",
+        "backgroundColor": "#353C41",
+        "buzzColor": "#353C41",
+        "quietColor": "#353C41",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": true,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "keshaWasBiird",
+      "title": "Kesha Was Biird",
+      "authors": [
+        "Kesha"
+      ],
+      "event": "Octojam3",
+      "release": "2016-10-31",
+      "platform": "xochip",
+      "size": 65000,
+      "sha1": "92a325c36ad2116a5256946b8bf711ed9befd319",
+      "options": {
+        "tickrate": 1000,
+        "fillColor": "#1a1c19",
+        "fillColor2": "#a0a29f",
+        "blendColor": "#5d5b5d",
+        "backgroundColor": "#fafdf9",
+        "buzzColor": "#222211",
+        "quietColor": "#212110",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": true,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "keshaWasBird",
+      "title": "Kesha Was Bird",
+      "authors": [
+        "Kesha"
+      ],
+      "event": "",
+      "release": "2016-01-21",
+      "platform": "xochip",
+      "size": 60000,
+      "sha1": "fbc7711ad068015b957e91d8714636b2ac90d9cb",
+      "options": {
+        "tickrate": 1000,
+        "fillColor": "#B8CD9E",
+        "fillColor2": "#ED656B",
+        "blendColor": "#55989E",
+        "backgroundColor": "#59755E",
+        "buzzColor": "#000",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "enableXO": true
+      }
+    },
+    {
+      "id": "keshaWasNiiinja",
+      "title": "Kesha Was Niiinja",
+      "authors": [
+        "Kesha"
+      ],
+      "event": "Octojam4",
+      "release": "2017-10-31",
+      "platform": "xochip",
+      "size": 39000,
+      "sha1": "4564a1bf149e5ab9777d33813a92cfd6ffc7a0bb",
+      "options": {
+        "tickrate": 1000,
+        "fillColor": "#b22d10",
+        "fillColor2": "#10b258",
+        "blendColor": "#ffffff",
+        "backgroundColor": "#283593",
+        "buzzColor": "#182583",
+        "quietColor": "#182583",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": true,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "knight",
+      "title": "Knight",
+      "authors": [
+        "simonpacis"
+      ],
+      "event": "Octojam3",
+      "release": "2016-10-07",
+      "platform": "schip",
+      "size": 2684,
+      "sha1": "fcecf90496dadd214486a7a769e3a07f2b8f4eab",
+      "options": {
+        "tickrate": "200",
+        "fillColor": "#FFCC00",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#996600",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": false,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "knumberknower",
+      "title": "Knumber Knower",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "Octojam10",
+      "release": "2023-10-28",
+      "platform": "chip8",
+      "size": 3220,
+      "sha1": "95f4af2d410c1acfd1b0657721a870a57c55b49b",
+      "options": {
+        "tickrate": 15,
+        "fillColor": "black",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "white",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": 0,
+        "loadStoreQuirks": 0,
+        "vfOrderQuirks": false,
+        "clipQuirks": 1,
+        "vBlankQuirks": 1,
+        "jumpQuirks": 0,
+        "screenRotation": 0,
+        "maxSize": 3232,
+        "touchInputMode": "none",
+        "logicQuirks": 1,
+        "fontStyle": "octo"
+      }
+    },
+    {
+      "id": "masquer8",
+      "title": "Masquer8",
+      "authors": [
+        "Chromatophore"
+      ],
+      "event": "Octojam2",
+      "release": "2015-10-30",
+      "platform": "chip8",
+      "size": 3166,
+      "sha1": "fb48e162c7f2e8853909acc5534b55fb55030f9f",
+      "options": {
+        "tickrate": "15",
+        "fillColor": "#FF6666",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#1a3674",
+        "buzzColor": "#3b6c83",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "enableXO": false
+      }
+    },
+    {
+      "id": "mastermind",
+      "title": "Mastermind",
+      "authors": [
+        "WilliamDonnelly"
+      ],
+      "event": "Octojam3",
+      "release": "2015-11-08",
+      "platform": "chip8",
+      "size": 2853,
+      "sha1": "898ef1505c874065697ffc6cba688367e143d82e",
+      "options": {
+        "tickrate": 20,
+        "fillColor": "#FCFCFC",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#005E20",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "enableXO": false
+      }
+    },
+    {
+      "id": "mato8",
+      "title": "Mato8",
+      "authors": [
+        "nortti"
+      ],
+      "event": "GAMES MADE QVIICK???",
+      "release": "2023-01-14",
+      "platform": "chip8",
+      "size": 373,
+      "sha1": "673f98c66168190aa5b1e5dda5d0d80da7826dd1",
+      "options": {}
+    },
+    {
+      "id": "mini-lights-out",
+      "title": "Mini Lights Out",
+      "authors": [
+        "tobiasvl"
+      ],
+      "event": "Octojam6",
+      "release": "2019-10-04",
+      "platform": "chip8",
+      "size": 563,
+      "sha1": "a3f0eae99964b873eb1adbd3e8bcb90d15f762c3",
+      "options": {
+        "tickrate": "7",
+        "touchInputMode": "seg16"
+      }
+    },
+    {
+      "id": "mondrian",
+      "title": "Mondri8",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "",
+      "release": "2014-09-25",
+      "platform": "schip",
+      "size": 117,
+      "sha1": "63e787fc3e78e5fb3a394cf1bc654ad9633d8907",
+      "options": {
+        "tickrate": "100",
+        "backgroundColor": "#996600",
+        "fillColor": "#FFCC00",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false
+      }
+    },
+    {
+      "id": "mrworm",
+      "title": "Mr Worm",
+      "authors": [
+        "rmmh"
+      ],
+      "event": "",
+      "release": "2014-08-10",
+      "platform": "schip",
+      "size": 507,
+      "sha1": "08cff17fa88aaecb11dd439e2f9780f77831de02",
+      "options": {
+        "tickrate": "20",
+        "backgroundColor": "#640",
+        "fillColor": "#A5A",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false
+      }
+    },
+    {
+      "id": "nokiatemplate",
+      "title": "Nokia 3310 Template",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "NokiaJam",
+      "release": "2020-01-20",
+      "platform": "schip",
+      "size": 290,
+      "sha1": "61931487c694c5bc6978ae22c0a36aca5a647e24",
+      "options": {
+        "tickrate": 30,
+        "fillColor": "#c7f0d8",
+        "fillColor2": "#c7f0d8",
+        "blendColor": "#c7f0d8",
+        "backgroundColor": "#43523d",
+        "buzzColor": "#43523d",
+        "quietColor": "#43523d",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "vBlankQuirks": false,
+        "jumpQuirks": false,
+        "screenRotation": 0,
+        "maxSize": "65024",
+        "logicQuirks": false,
+        "displayScale": "6"
+      }
+    },
+    {
+      "id": "octoachip8story",
+      "title": "Octo: a Chip 8 Story",
+      "authors": [
+        "SystemLogoff"
+      ],
+      "event": "Octojam1",
+      "release": "2015-10-29",
+      "platform": "chip8",
+      "size": 3581,
+      "sha1": "39970ccfd3a3f00180d53464d4fd7862193eaf0f",
+      "options": {
+        "tickrate": "7",
+        "backgroundColor": "#111111",
+        "fillColor": "#EEEEEE",
+        "buzzColor": "FFFF00",
+        "quietColor": "#222222",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false
+      }
+    },
+    {
+      "id": "octogon",
+      "title": "Super Octogon",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "Octojam8",
+      "release": "2021-10-30",
+      "platform": "schip",
+      "size": 3581,
+      "sha1": "bb1e786cb921f51d0540cca9a216c0b72bceb443",
+      "options": {
+        "tickrate": 200,
+        "fillColor": "hotpink",
+        "fillColor2": "#333333",
+        "blendColor": "#FFFFFF",
+        "backgroundColor": "#000000",
+        "buzzColor": "#111111",
+        "quietColor": "#000000",
+        "shiftQuirks": 1,
+        "loadStoreQuirks": 1,
+        "vfOrderQuirks": false,
+        "clipQuirks": 1,
+        "vBlankQuirks": 0,
+        "jumpQuirks": 1,
+        "screenRotation": 0,
+        "maxSize": 3583,
+        "touchInputMode": "swipe",
+        "logicQuirks": 0,
+        "fontStyle": "fish",
+        "displayScale": "4"
+      }
+    },
+    {
+      "id": "octojam10title",
+      "title": "Octojam 10 Title",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "Octojam10",
+      "release": "2023-10-01",
+      "platform": "chip8",
+      "size": 1890,
+      "sha1": "1dda7d92450c8eee2753a9350a1a0d524b1019b4",
+      "options": {
+        "tickrate": 7,
+        "fillColor": "#FFAA00",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#662200",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "vBlankQuirks": false,
+        "jumpQuirks": false,
+        "screenRotation": 0,
+        "maxSize": 3584,
+        "touchInputMode": "none",
+        "logicQuirks": false,
+        "fontStyle": "octo"
+      }
+    },
+    {
+      "id": "octojam1title",
+      "title": "Octojam 1 Title",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "Octojam1",
+      "release": "2014-09-29",
+      "platform": "chip8",
+      "size": 426,
+      "sha1": "f26993a4afd5cda2fea19935773fd3db54866623",
+      "options": {
+        "tickrate": "7",
+        "fillColor": "#FFAA00",
+        "backgroundColor": "#AA4400",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false
+      }
+    },
+    {
+      "id": "octojam2title",
+      "title": "Octojam 2 Title",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "Octojam2",
+      "release": "2015-09-21",
+      "platform": "chip8",
+      "size": 1240,
+      "sha1": "11c68038d64a09be549a6c1e50724808914d8991",
+      "options": {
+        "tickrate": "7",
+        "fillColor": "#FFAA00",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#AA4400",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "enableXO": false
+      }
+    },
+    {
+      "id": "octojam3title",
+      "title": "Octojam 3 Title",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "Octojam3",
+      "release": "2016-09-25",
+      "platform": "chip8",
+      "size": 402,
+      "sha1": "493c76b9d9252e1d349d408d341daff5267f35fa",
+      "options": {
+        "tickrate": "7",
+        "fillColor": "#FFAA00",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#AA4400",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": false,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "octojam4title",
+      "title": "Octojam 4 Title",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "Octojam4",
+      "release": "2017-09-23",
+      "platform": "chip8",
+      "size": 472,
+      "sha1": "9f55f7abc8f2bc4b59a01515f1d887a6568a8ab4",
+      "options": {
+        "tickrate": "30",
+        "fillColor": "#FFAA00",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#AA4400",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": false,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "octojam5title",
+      "title": "Octojam 5 Title",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "Octojam5",
+      "release": "2018-09-24",
+      "platform": "chip8",
+      "size": 192,
+      "sha1": "d6d8efef811350e7fba6197024c4973b360749b8",
+      "options": {
+        "tickrate": 7,
+        "fillColor": "navy",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "hotpink",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": false,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "octojam6title",
+      "title": "Octojam 6 Title",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "Octojam6",
+      "release": "2019-09-07",
+      "platform": "chip8",
+      "size": 1316,
+      "sha1": "18aef6d2d3b560681038d0dda2273d780dc1daa5",
+      "options": {
+        "tickrate": 7,
+        "fillColor": "#330033",
+        "fillColor2": "#00FFFF",
+        "blendColor": "#FFFFFF",
+        "backgroundColor": "#AAAAFF",
+        "buzzColor": "#990099",
+        "quietColor": "#330033",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "octojam7title",
+      "title": "Octojam 7 Title",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "Octojam7",
+      "release": "2020-08-07",
+      "platform": "chip8",
+      "size": 1784,
+      "sha1": "9a9c341571ace516c9789b1eb92590833af13239",
+      "options": {
+        "tickrate": 30,
+        "fillColor": "#ff8c1f",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#662200",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "vBlankQuirks": false,
+        "jumpQuirks": false,
+        "logicQuirks": false,
+        "screenRotation": 0,
+        "maxSize": 65024,
+        "touchInputMode": "none",
+        "fontStyle": "octo"
+      }
+    },
+    {
+      "id": "octojam8title",
+      "title": "Octojam 8 Title",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "Octojam8",
+      "release": "2021-10-01",
+      "platform": "chip8",
+      "size": 444,
+      "sha1": "959ed7d6b61e667bb59d1b497401258463f88454",
+      "options": {
+        "tickrate": 7,
+        "fillColor": "#FFAA00",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#AA4400",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "vBlankQuirks": false,
+        "jumpQuirks": false,
+        "logicQuirks": false,
+        "screenRotation": 0,
+        "maxSize": 65024,
+        "touchInputMode": "none",
+        "fontStyle": "fish"
+      }
+    },
+    {
+      "id": "octojam9title",
+      "title": "Octojam 9 Title",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "Octojam9",
+      "release": "2022-10-01",
+      "platform": "chip8",
+      "size": 690,
+      "sha1": "5a6366decb08df66da8bd685b497ccce0884c307",
+      "options": {
+        "tickrate": 15,
+        "fillColor": "#FFCC00",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#996600",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "vBlankQuirks": true,
+        "jumpQuirks": false,
+        "logicQuirks": false,
+        "screenRotation": 0,
+        "maxSize": 3584,
+        "touchInputMode": "none",
+        "fontStyle": "octo"
+      }
+    },
+    {
+      "id": "octoma",
+      "title": "Octoma",
+      "authors": [
+        "Cratmang"
+      ],
+      "event": "Octojam8",
+      "release": "2021-10-25",
+      "platform": "xochip",
+      "size": 9201,
+      "sha1": "80feda2028aa31788d3d1d9e062d77d2fd9308cc",
+      "options": {
+        "tickrate": 10000,
+        "fillColor": "#FF00FF",
+        "fillColor2": "#00FFFF",
+        "blendColor": "#FFFFFF",
+        "backgroundColor": "#000000",
+        "buzzColor": "#000000",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "vBlankQuirks": false,
+        "jumpQuirks": false,
+        "screenRotation": 0,
+        "maxSize": 65024,
+        "touchInputMode": "none",
+        "logicQuirks": false,
+        "fontStyle": "fish"
+      }
+    },
+    {
+      "id": "octopaint",
+      "title": "Octo paint",
+      "authors": [
+        "your name here"
+      ],
+      "event": "",
+      "release": "2016-06-12",
+      "platform": "xochip",
+      "size": 236,
+      "sha1": "33abb5f1ba7db3166636911c6cfa81a5ce5b861c",
+      "options": {
+        "tickrate": "30",
+        "fillColor": "#FFCC00",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#996600",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "enableXO": true
+      }
+    },
+    {
+      "id": "OctoPartyMix",
+      "title": "Octo Party Mix!",
+      "authors": [
+        "Cratmang"
+      ],
+      "event": "Octojam7",
+      "release": "2020-10-29",
+      "platform": "xochip",
+      "size": 3790,
+      "sha1": "d52c2f85f56c963ff5e48a096afc61d3c8a71c11",
+      "options": {
+        "tickrate": 1000,
+        "fillColor": "#55ff55",
+        "fillColor2": "#ff7700",
+        "blendColor": "#ffffff",
+        "backgroundColor": "#000000",
+        "buzzColor": "#000000",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "vBlankQuirks": false,
+        "jumpQuirks": false,
+        "screenRotation": 0,
+        "maxSize": 65024,
+        "touchInputMode": "swipe",
+        "logicQuirks": false,
+        "fontStyle": "octo"
+      }
+    },
+    {
+      "id": "octopeg",
+      "title": "Octopeg",
+      "authors": [
+        "Chromatophore"
+      ],
+      "event": "Octojam2",
+      "release": "2015-10-29",
+      "platform": "schip",
+      "size": 3512,
+      "sha1": "7a4a89870f2ab23c28024dd1c3dd52cf1af1ad00",
+      "options": {
+        "tickrate": "200",
+        "fillColor": "#acd5ff",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#113152",
+        "buzzColor": "#264c74",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "enableXO": false
+      }
+    },
+    {
+      "id": "octorancher",
+      "title": "Octo Rancher",
+      "authors": [
+        "SystemLogoff"
+      ],
+      "event": "Octojam5",
+      "release": "2018-10-30",
+      "platform": "chip8",
+      "size": 3284,
+      "sha1": "8263bac7d98d94097171f0a5dc6f210f77543080",
+      "options": {
+        "tickrate": "7",
+        "fillColor": "#f1f1f1",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#0f0f0f",
+        "buzzColor": "#aaff55",
+        "quietColor": "#777777",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": false,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "octovore",
+      "title": "Octovore",
+      "authors": [
+        "JackieKircher"
+      ],
+      "event": "Octojam2",
+      "release": "2015-11-02",
+      "platform": "schip",
+      "size": 3549,
+      "sha1": "74936ffb0db233c722f5a39932d75240b6437a72",
+      "options": {
+        "tickrate": 120,
+        "fillColor": "#5B1B96",
+        "fillColor2": "#E03B22",
+        "blendColor": "#68E022",
+        "backgroundColor": "#8BDCE8",
+        "buzzColor": "#68E022",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "enableXO": true
+      }
+    },
+    {
+      "id": "ordinaryidlegarden",
+      "title": "Ordinary Idle Garden",
+      "authors": [
+        "Cratmang"
+      ],
+      "event": "NokiaJam",
+      "release": "2021-02-05",
+      "platform": "xochip",
+      "size": 4713,
+      "sha1": "f9d0bdf4a80d5570a9af9fd13769e528dff411df",
+      "options": {
+        "tickrate": 200,
+        "fillColor": "#43523d",
+        "fillColor2": "#43523d",
+        "blendColor": "#43523d",
+        "backgroundColor": "#c7f0d8",
+        "buzzColor": "#43523d",
+        "quietColor": "#43523d",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "vBlankQuirks": false,
+        "jumpQuirks": false,
+        "screenRotation": 0,
+        "maxSize": 65024,
+        "touchInputMode": "none",
+        "logicQuirks": false,
+        "fontStyle": "fish"
+      }
+    },
+    {
+      "id": "outlaw",
+      "title": "Outlaw",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "",
+      "release": "2014-07-17",
+      "platform": "chip8",
+      "size": 512,
+      "sha1": "a9d3c975a5e733646a04f6e61deebcd0ad50f700",
+      "options": {
+        "tickrate": "15",
+        "backgroundColor": "#664400",
+        "fillColor": "#AA4400",
+        "buzzColor": "coral",
+        "quietColor": "#000000"
+      }
+    },
+    {
+      "id": "petdog",
+      "title": "Pet Dog",
+      "authors": [
+        "SystemLogoff"
+      ],
+      "event": "Octojam2",
+      "release": "2015-10-31",
+      "platform": "chip8",
+      "size": 1869,
+      "sha1": "3be683d1ac0b27ae47a09984e420853fff0b7e0d",
+      "options": {
+        "tickrate": "7",
+        "fillColor": "#fafafa",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#0c0c0c",
+        "buzzColor": "#fafafa",
+        "quietColor": "1a1a1a",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "enableXO": false
+      }
+    },
+    {
+      "id": "piper",
+      "title": "Piper",
+      "authors": [
+        "Aeris",
+        "JordanMecom",
+        "LillianWang"
+      ],
+      "event": "GlobalGameJam2017",
+      "release": "2017-01-23",
+      "platform": "chip8",
+      "size": 1588,
+      "sha1": "7da3eba52a8d8025ddf14ee40d28f151585529a0",
+      "options": {
+        "tickrate": "200",
+        "fillColor": "#FFCC00",
+        "backgroundColor": "#0000FF",
+        "buzzColor": "#FFFFFF",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": false,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "pumpkindressup",
+      "title": "Pumpkin \"Dreess\" Up",
+      "authors": [
+        "SystemLogoff"
+      ],
+      "event": "Octojam1",
+      "release": "2015-11-01",
+      "platform": "chip8",
+      "size": 1374,
+      "sha1": "b2abb5312f0ad28421c1190a65a73d98d4ebf401",
+      "options": {
+        "tickrate": "7",
+        "backgroundColor": "#FFA500",
+        "fillColor": "#111122",
+        "buzzColor": "FFFF00",
+        "quietColor": "#222222",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false
+      }
+    },
+    {
+      "id": "redOctober",
+      "title": "Red October V",
+      "authors": [
+        "Kesha"
+      ],
+      "event": "Octojam5",
+      "release": "2018-10-31",
+      "platform": "xochip",
+      "size": 65000,
+      "sha1": "e14350d3b19443e5ad2848172bef9719a8680b01",
+      "options": {
+        "tickrate": 10000,
+        "fillColor": "#000000",
+        "fillColor2": "#ffff00",
+        "blendColor": "#808000",
+        "backgroundColor": "#b22d10",
+        "buzzColor": "#400000",
+        "quietColor": "#400000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": true,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "rockto",
+      "title": "Rockto",
+      "authors": [
+        "SupSuper"
+      ],
+      "event": "Octojam1",
+      "release": "2014-11-01",
+      "platform": "schip",
+      "size": 1594,
+      "sha1": "b76fbca2ec089c7e77f4a2f754db37854b99debc",
+      "options": {
+        "tickrate": "15",
+        "fillColor": "#CCCCCC",
+        "backgroundColor": "#333333",
+        "buzzColor": "#FFFFFF",
+        "quietColor": "#000000"
+      }
+    },
+    {
+      "id": "RPS",
+      "title": "RPS",
+      "authors": [
+        "SystemLogoff"
+      ],
+      "event": "Octojam1",
+      "release": "2015-10-25",
+      "platform": "chip8",
+      "size": 2017,
+      "sha1": "a6f3ac2d89cdc1d7b22013301863bad6a4fb7318",
+      "options": {
+        "tickrate": "7",
+        "backgroundColor": "#AA9999",
+        "fillColor": "#220000",
+        "buzzColor": "FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false
+      }
+    },
+    {
+      "id": "sens8tion",
+      "title": "Sens8tion",
+      "authors": [
+        "Chromatophore"
+      ],
+      "event": "Octojam3",
+      "release": "2016-11-01",
+      "platform": "schip",
+      "size": 3575,
+      "sha1": "58f7ce407aedf456dc8992342f4a6f9f0647383b",
+      "options": {
+        "tickrate": "20",
+        "fillColor": "#1a3279",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#bad9b6",
+        "buzzColor": "#fff6d6",
+        "quietColor": "#000000",
+        "shiftQuirks": true,
+        "loadStoreQuirks": true,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": true,
+        "enableXO": false,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "sk8",
+      "title": "SK8 H8 1988",
+      "authors": [
+        "Willfor"
+      ],
+      "event": "Octojam2",
+      "release": "2015-10-28",
+      "platform": "xochip",
+      "size": 3413,
+      "sha1": "1b6dcf8c02ea0b89a4f04ce28e7c39a5e7a513d6",
+      "options": {
+        "tickrate": 20,
+        "fillColor": "#7B0201",
+        "fillColor2": "#F2FAF7",
+        "blendColor": "#E7ED3E",
+        "backgroundColor": "#D4D4D4",
+        "buzzColor": "#990099",
+        "quietColor": "#330033",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "enableXO": true
+      }
+    },
+    {
+      "id": "skyward",
+      "title": "Skyward",
+      "authors": [
+        "tann",
+        "JackieKircher"
+      ],
+      "event": "Octojam3",
+      "release": "2016-11-01",
+      "platform": "xochip",
+      "size": 55226,
+      "sha1": "8ebf74e790e58a8d5a7beff598bb32ed7eeeabf7",
+      "options": {
+        "tickrate": "1000",
+        "fillColor": "#4B636F",
+        "fillColor2": "#AF2D3D",
+        "blendColor": "#AF2D3D",
+        "backgroundColor": "#121212",
+        "buzzColor": "#000000",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": true,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": false,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "slipperyslope",
+      "title": "Slippery Slope",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "Octojam5",
+      "release": "2018-10-31",
+      "platform": "chip8",
+      "size": 2482,
+      "sha1": "9d834860f455aec7e95fb886984497e5be501610",
+      "options": {
+        "tickrate": 30,
+        "fillColor": "navy",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "powderblue",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": false,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "snake",
+      "title": "Snake",
+      "authors": [
+        "TimoTriisa"
+      ],
+      "event": "Octojam1",
+      "release": "2014-10-11",
+      "platform": "schip",
+      "size": 1438,
+      "sha1": "06a6692c92eb8077329b6d4e59d55479d60574a8",
+      "options": {
+        "tickrate": 15,
+        "fillColor": "#84a174",
+        "backgroundColor": "#30283e",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false
+      }
+    },
+    {
+      "id": "snek",
+      "title": "Snek",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "Octojam8",
+      "release": "2021-10-01",
+      "platform": "chip8",
+      "size": 65,
+      "sha1": "bb5740042385cae10724b051208bb95e5341f56d",
+      "options": {
+        "tickrate": 1000,
+        "fillColor": "#FFCC00",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#996600",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "vBlankQuirks": false,
+        "jumpQuirks": false,
+        "screenRotation": 0,
+        "maxSize": 65024,
+        "touchInputMode": "swipe",
+        "logicQuirks": false,
+        "fontStyle": "octo",
+        "displayScale": "4"
+      }
+    },
+    {
+      "id": "spacejam",
+      "title": "Spacejam!",
+      "authors": [
+        "WilliamDonnelly"
+      ],
+      "event": "Octojam2",
+      "release": "2015-10-30",
+      "platform": "chip8",
+      "size": 1490,
+      "sha1": "9f9a4affbf7afd70bb594fb321e16579318c0164",
+      "options": {
+        "tickrate": 100,
+        "fillColor": "#fcfcfc",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#111111",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "enableXO": false
+      }
+    },
+    {
+      "id": "spaceracer",
+      "title": "Space Racer",
+      "authors": [
+        "WilliamDonnelly"
+      ],
+      "event": "Octojam4",
+      "release": "2017-10-30",
+      "platform": "chip8",
+      "size": 2270,
+      "sha1": "659cb966e976fcbcae76f6a8a07c65be4d18aae8",
+      "options": {
+        "tickrate": 20,
+        "fillColor": "#FCFCFC",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#111111",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": false,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "spockpaperscissors",
+      "title": "Spock Paper Scissors",
+      "authors": [
+        "fontz"
+      ],
+      "event": "Octojam7",
+      "release": "2020-11-01",
+      "platform": "chip8",
+      "size": 1348,
+      "sha1": "b66f55f83eb264d2b73c0b4ac81ea5044bf73138",
+      "options": {
+        "tickrate": 15,
+        "fillColor": "#B4B4B4",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#323232",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "vBlankQuirks": false,
+        "jumpQuirks": false,
+        "logicQuirks": false,
+        "screenRotation": 0,
+        "maxSize": 3584,
+        "touchInputMode": "none",
+        "fontStyle": "octo"
+      }
+    },
+    {
+      "id": "squad",
+      "title": "Squad",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "Octojam7",
+      "release": "2020-10-25",
+      "platform": "schip",
+      "size": 2577,
+      "sha1": "abfce04ddd0f72838dd887f3db3106066fd675b3",
+      "options": {
+        "tickrate": 500,
+        "fillColor": "#FFAF00",
+        "fillColor2": "#FD8100",
+        "blendColor": "#FD8100",
+        "backgroundColor": "#663300",
+        "buzzColor": "#F9FFB3",
+        "quietColor": "#000000",
+        "shiftQuirks": 1,
+        "loadStoreQuirks": 1,
+        "vfOrderQuirks": false,
+        "clipQuirks": 1,
+        "vBlankQuirks": 0,
+        "jumpQuirks": 1,
+        "screenRotation": 0,
+        "maxSize": 3583,
+        "touchInputMode": "none",
+        "logicQuirks": 0,
+        "fontStyle": "octo"
+      }
+    },
+    {
+      "id": "sub8",
+      "title": "Sub-Terr8nia",
+      "authors": [
+        "your name here"
+      ],
+      "event": "Octojam4",
+      "release": "2017-08-31",
+      "platform": "schip",
+      "size": 3579,
+      "sha1": "64536d549c986e9edf25de9fa89db60d2ade85c0",
+      "options": {
+        "tickrate": "60",
+        "fillColor": "#ffffff",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#000000",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#111111",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": false,
+        "screenRotation": 270
+      }
+    },
+    {
+      "id": "superneatboy",
+      "title": "Super NeatBoy",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "Octojam7",
+      "release": "2020-08-01",
+      "platform": "xochip",
+      "size": 10084,
+      "sha1": "440c5fbe9f5f840e76c308738fb0d37772d66674",
+      "options": {
+        "tickrate": 1000,
+        "fillColor": "lavender",
+        "fillColor2": "deeppink",
+        "blendColor": "deeppink",
+        "backgroundColor": "#100010",
+        "buzzColor": "black",
+        "quietColor": "black",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": true,
+        "vBlankQuirks": false,
+        "jumpQuirks": false,
+        "screenRotation": 0,
+        "maxSize": "65024",
+        "touchInputMode": "none",
+        "logicQuirks": false,
+        "fontStyle": "octo"
+      }
+    },
+    {
+      "id": "superOctoTrackXO",
+      "title": "Super Octo Track XO",
+      "authors": [
+        "TomRintjema"
+      ],
+      "event": "Octojam2",
+      "release": "2015-10-15",
+      "platform": "xochip",
+      "size": 2535,
+      "sha1": "a98ed56f88f11156871d871d9200fc4bb45190a4",
+      "options": {
+        "tickrate": 100,
+        "fillColor": "#FF00FF",
+        "fillColor2": "#00FFFF",
+        "blendColor": "#FFFFFF",
+        "backgroundColor": "#000000",
+        "buzzColor": "#990099",
+        "quietColor": "#330033",
+        "shiftQuirks": false,
+        "loadStoreQuirks": true,
+        "vfOrderQuirks": false,
+        "enableXO": true
+      }
+    },
+    {
+      "id": "superpong",
+      "title": "Super Pong",
+      "authors": [
+        "offstatic"
+      ],
+      "event": "Octojam8",
+      "release": "2021-10-15",
+      "platform": "chip8",
+      "size": 595,
+      "sha1": "2c761f70a44e521ee848834cfdd2bd1646157d29",
+      "options": {
+        "tickrate": 30,
+        "fillColor": "#43523d",
+        "fillColor2": "#ff6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#c7f0d8",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "vBlankQuirks": false,
+        "jumpQuirks": false,
+        "logicQuirks": false,
+        "screenRotation": 0,
+        "maxSize": 3584,
+        "touchInputMode": "none",
+        "fontStyle": "octo"
+      }
+    },
+    {
+      "id": "supersquare",
+      "title": "Super Square",
+      "authors": [
+        "tann"
+      ],
+      "event": "Octojam1",
+      "release": "2014-11-04",
+      "platform": "schip",
+      "size": 1569,
+      "sha1": "9f7cf6fe0025878c26b317160c57edd06b3361ba",
+      "options": {
+        "tickrate": "500",
+        "fillColor": "#FFFFFF",
+        "backgroundColor": "#552200",
+        "buzzColor": "#FFFFFF",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": false,
+        "screenRotation": 0
+      }
+    },
+    {
+      "id": "sweetcopter",
+      "title": "Sw8 Copter",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "",
+      "release": "2014-09-02",
+      "platform": "schip",
+      "size": 409,
+      "sha1": "531c44e8204d8ab8c078bad36e34067baddfccdb",
+      "options": {
+        "tickrate": "100",
+        "backgroundColor": "#117799",
+        "fillColor": "white",
+        "buzzColor": "#1166DD",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false
+      }
+    },
+    {
+      "id": "t8nks",
+      "title": "T8NKS",
+      "authors": [
+        "your name here"
+      ],
+      "event": "Octojam2",
+      "release": "2015-08-31",
+      "platform": "xochip",
+      "size": 33005,
+      "sha1": "8b2fc2e08830b8a9e604d11c9b319e2cc0a581b3",
+      "options": {
+        "tickrate": "1000",
+        "fillColor": "#554422",
+        "fillColor2": "#456543",
+        "blendColor": "#EEEEFF",
+        "backgroundColor": "#87CEEB",
+        "buzzColor": "#FFFFFF",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "enableXO": true
+      }
+    },
+    {
+      "id": "tank",
+      "title": "Tank!",
+      "authors": [
+        "Rectus"
+      ],
+      "event": "Octojam5",
+      "release": "2018-10-31",
+      "platform": "chip8",
+      "size": 1993,
+      "sha1": "3f9ef8dec999574a188ec3b9615cff9888283c85",
+      "options": {
+        "tickrate": "200"
+      }
+    },
+    {
+      "id": "tick",
+      "title": "Tick",
+      "authors": [
+        "StanislavDidus"
+      ],
+      "event": "",
+      "release": "2026-08-11",
+      "platform": "chip8",
+      "size": 826,
+      "sha1": "3d81c0462c722c2d8a79f6e1b571e9aa21d36b1f",
+      "options": {
+        "tickrate": 12,
+        "backgroundColor": "#1E1E1E",
+        "fillColor": "#7BFF00",
+        "fillColor2": "#000000",
+        "blendColor": "#000000",
+        "buzzColor": "#000000",
+        "quietColor": "#000000",
+        "shiftQuirks": 0,
+        "loadStoreQuirks": 0,
+        "vfOrderQuirks": false,
+        "clipQuirks": 0,
+        "vBlankQuirks": 0,
+        "jumpQuirks": 0,
+        "screenRotation": 0,
+        "maxSize": 3232,
+        "touchInputMode": "none",
+        "logicQuirks": 1,
+        "fontStyle": "octo"
+      }
+    },
+    {
+      "id": "tombstontipp",
+      "title": "TOMB STON TIPP",
+      "authors": [
+        "TomRintjema"
+      ],
+      "event": "Octojam5",
+      "release": "2018-10-12",
+      "platform": "chip8",
+      "size": 492,
+      "sha1": "6e7cb52ec99e10f934b76eaf3fddeb8f2e2e14e1",
+      "options": {
+        "tickrate": 7,
+        "fillColor": "#FFFFFF",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#000000",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": false,
+        "jumpQuirks": false,
+        "enableXO": false,
+        "screenRotation": 0,
+        "touchInputMode": "seg16"
+      }
+    },
+    {
+      "id": "trucksimul8or",
+      "title": "Truck Simul8or",
+      "authors": [
+        "buffi"
+      ],
+      "event": "",
+      "release": "2015-07-28",
+      "platform": "xochip",
+      "size": 2404,
+      "sha1": "19279f8cfbb58a925a80b52e690ad71ee0907134",
+      "options": {
+        "tickrate": 1000,
+        "fillColor": "#FFCC00",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "#996600",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "enableXO": true
+      }
+    },
+    {
+      "id": "turnover77",
+      "title": "Turnover '77",
+      "authors": [
+        "your name here"
+      ],
+      "event": "Octojam1",
+      "release": "2014-08-31",
+      "platform": "schip",
+      "size": 2144,
+      "sha1": "d03f27f85a1cf68465e0853cc0c4abee4a94a4e5",
+      "options": {
+        "tickrate": "200",
+        "fillColor": "#FFe900",
+        "backgroundColor": "#ED7f37",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false
+      }
+    },
+    {
+      "id": "ultimatetictactoe",
+      "title": "Ultimate Tic-tac-toe",
+      "authors": [
+        "your name here"
+      ],
+      "event": "Octojam1",
+      "release": "2014-09-01",
+      "platform": "schip",
+      "size": 1596,
+      "sha1": "12572c9e957cace53076d1656ea1b12cd0f331af",
+      "options": {
+        "tickrate": "7",
+        "fillColor": "#553300",
+        "backgroundColor": "#FFFFFF",
+        "buzzColor": "#FFAA00",
+        "quietColor": "#FFFFFF",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false
+      }
+    },
+    {
+      "id": "wdl",
+      "title": "WDL",
+      "authors": [
+        "JohnEarnest"
+      ],
+      "event": "Octojam9",
+      "release": "2022-10-10",
+      "platform": "chip8",
+      "size": 2905,
+      "sha1": "a8d6e9b1976c99ddc0c4818828a6d3cb3ae6f348",
+      "options": {
+        "tickrate": 15,
+        "fillColor": "gray",
+        "fillColor2": "#FF6600",
+        "blendColor": "#662200",
+        "backgroundColor": "lightgray",
+        "buzzColor": "red",
+        "quietColor": "#000000",
+        "shiftQuirks": false,
+        "loadStoreQuirks": false,
+        "vfOrderQuirks": false,
+        "clipQuirks": true,
+        "vBlankQuirks": true,
+        "jumpQuirks": false,
+        "screenRotation": 0,
+        "maxSize": 3215,
+        "touchInputMode": "swipe",
+        "logicQuirks": true,
+        "fontStyle": "octo"
+      }
+    },
+    {
+      "id": "wonkypong",
+      "title": "Wonky Pong",
+      "authors": [
+        "TomRintjema"
+      ],
+      "event": "Octojam4",
+      "release": "2018-11-01",
+      "platform": "xochip",
+      "size": 538,
+      "sha1": "518c1d40f5d768ee49d2b7951d998588ef8238ba",
+      "options": {
+        "tickrate": "100",
+        "backgroundColor": "#FFFFFF",
+        "fillColor": "#000000",
+        "buzzColor": "#666666",
+        "quietColor": "#000000"
+      }
+    }
+  ]
+}

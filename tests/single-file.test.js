@@ -1,6 +1,6 @@
 'use strict';
-// El contrato del archivo único: chip8.html no pide nada a la red y tiene sus cuatro
-// bloques con las etiquetas exactas que usan harness.js y embed-roms.js.
+// El contrato del archivo único: chip8.html no pide nada a la red y tiene sus cinco
+// bloques con las etiquetas exactas que usan harness.js, embed-roms.js y archive.js.
 // Las direcciones data: están permitidas (el ícono de la pestaña es un SVG en data:).
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
@@ -12,11 +12,12 @@ const BLOCKS = [
   ['style', 'chip8-style'],
   ['script', 'chip8-core'],
   ['script', 'chip8-roms'],
+  ['script', 'chip8-archive'],
   ['script', 'chip8-ui'],
 ];
 
 describe('chip8.html es un solo archivo sin dependencias', () => {
-  it('tiene los cuatro bloques, cada uno una sola vez, con la etiqueta de apertura exacta y en orden', () => {
+  it('tiene los cinco bloques, cada uno una sola vez, con la etiqueta de apertura exacta y en orden', () => {
     let last = -1;
     for (const [tag, id] of BLOCKS) {
       const open = '<' + tag + ' id="' + id + '">';
@@ -26,7 +27,7 @@ describe('chip8.html es un solo archivo sin dependencias', () => {
       assert.ok(at > last, open + ' está fuera de orden');
       last = at;
     }
-    assert.equal((html.match(/<script\b/gi) || []).length, 3, 'hay <script> de más');
+    assert.equal((html.match(/<script\b/gi) || []).length, 4, 'hay <script> de más');
     assert.equal((html.match(/<style\b/gi) || []).length, 1, 'hay <style> de más');
   });
 
@@ -53,8 +54,8 @@ describe('chip8.html es un solo archivo sin dependencias', () => {
     }
   });
 
-  it('el núcleo, los cartuchos y la interfaz son JavaScript válido', () => {
-    for (const id of ['chip8-core', 'chip8-roms', 'chip8-ui']) {
+  it('el núcleo, los cartuchos, la tabla del archivo y la interfaz son JavaScript válido', () => {
+    for (const id of ['chip8-core', 'chip8-roms', 'chip8-archive', 'chip8-ui']) {
       const { code } = extractScript(id, html);
       assert.doesNotThrow(() => new vm.Script(code, { filename: id }), id + ' no compila');
     }
