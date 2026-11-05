@@ -1067,21 +1067,49 @@
 </main>
 <script id="chip8-core">
 /*
- * Núcleo del emulador CHIP-8.
+ * Núcleo del emulador: CHIP-8, SUPER-CHIP y XO-CHIP.
  * Código puro: no toca el DOM ni la consola, así corre igual en el navegador y en
  * Node (los tests lo extraen de este archivo y lo evalúan tal cual).
  * Expone un único global: globalThis.Chip8Core.
+ *
+ * Plataformas (opción `platform` del constructor; para cambiarla, setPlatform):
+ *   chip8   CHIP-8 del COSMAC VIP: 4 KB de memoria y pantalla de 64×32. Es la de
+ *           siempre y la que se usa si no se elige otra: todo se comporta
+ *           exactamente como antes de que existieran las otras dos.
+ *   schip   SUPER-CHIP 1.1 con la semántica de Octo: alta resolución de 128×64
+ *           (00FE/00FF), desplazamientos de pantalla (00CN, 00FB, 00FC), sprites de
+ *           16×16 (DXY0) en las dos resoluciones, fuente grande (FX30), 16 banderas
+ *           persistentes (FX75/FX85) y fin del programa (00FD). Memoria de 4 KB.
+ *   xochip  XO-CHIP (la extensión de Octo): todo lo de SUPER-CHIP más 64 KB de
+ *           memoria (pc e I de 16 bits), I := long NNNN (F000 NNNN: una instrucción
+ *           de 4 bytes que los saltos condicionales saltean entera), rangos de
+ *           registros (5XY2/5XY3), dos planos de dibujo (FN01), desplazamiento hacia
+ *           arriba (00DN) y audio por patrón de 128 bits con tono (F002, FX3A).
+ * La pantalla es un Uint8Array de displayWidth × displayHeight (fila por fila):
+ * cada píxel es una máscara de planos (bit 0 = plano 1, bit 1 = plano 2), así que
+ * vale de 0 a 3 en XO-CHIP y solo 0 o 1 en las otras. El arreglo se reemplaza al
+ * cambiar de resolución: hay que leer cpu.display cada vez, no guardarlo.
+ *
+ * Diagnóstico de plataforma: una instrucción de una plataforma más grande no se
+ * ejecuta. Las de pantalla (00CN, 00DN, 00FB..00FF y DXY0) se ignoran, como
+ * siempre en CHIP-8, y la primera deja un aviso en `hint`; las demás detienen la
+ * máquina con un error que nombra la plataforma necesaria (errorInfo.kind ===
+ * 'platform').
  */
 (function () {
   'use strict';
 
   var FONT_ADDR = 0x050;
+  var BIG_FONT_ADDR = 0x0A0; // justo después de la fuente chica (0x050-0x09F)
   var PROGRAM_START = 0x200;
   var MEMORY_SIZE = 4096;
   var MAX_ROM_SIZE = MEMORY_SIZE - PROGRAM_START; // 3584 bytes
-  var DISPLAY_WIDTH = 64;
+  var DISPLAY_WIDTH = 64;  // baja resolución
   var DISPLAY_HEIGHT = 32;
+  var HIRES_WIDTH = 128;   // alta resolución (SUPER-CHIP y XO-CHIP)
+  var HIRES_HEIGHT = 64;
   var STACK_SIZE = 16;
+  var FLAG_COUNT = 16;     // banderas persistentes de FX75/FX85
 
   // Fuente hexadecimal estándar: 16 glifos de 4x5 píxeles (5 bytes cada uno; los
   // 4 bits altos de cada byte son los píxeles).
@@ -1103,6 +1131,57 @@
     0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
     0xF0, 0x80, 0xF0, 0x80, 0x80  // F
   ]);
+
+  // Fuente grande (FX30): 16 glifos de 8x10 píxeles, 10 bytes cada uno. Los dígitos
+  // 0-9 son los de SUPER-CHIP 1.1 y A-F los de Octo. Solo se carga en memoria en
+  // SUPER-CHIP y XO-CHIP.
+  var BIG_FONT = new Uint8Array([
+    0x3C, 0x7E, 0xE7, 0xC3, 0xC3, 0xC3, 0xC3, 0xE7, 0x7E, 0x3C, // 0
+    0x18, 0x38, 0x58, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x3C, // 1
+    0x3E, 0x7F, 0xC3, 0x06, 0x0C, 0x18, 0x30, 0x60, 0xFF, 0xFF, // 2
+    0x3C, 0x7E, 0xC3, 0x03, 0x0E, 0x0E, 0x03, 0xC3, 0x7E, 0x3C, // 3
+    0x06, 0x0E, 0x1E, 0x36, 0x66, 0xC6, 0xFF, 0xFF, 0x06, 0x06, // 4
+    0xFF, 0xFF, 0xC0, 0xC0, 0xFC, 0xFE, 0x03, 0xC3, 0x7E, 0x3C, // 5
+    0x3E, 0x7C, 0xE0, 0xC0, 0xFC, 0xFE, 0xC3, 0xC3, 0x7E, 0x3C, // 6
+    0xFF, 0xFF, 0x03, 0x06, 0x0C, 0x18, 0x30, 0x60, 0x60, 0x60, // 7
+    0x3C, 0x7E, 0xC3, 0xC3, 0x7E, 0x7E, 0xC3, 0xC3, 0x7E, 0x3C, // 8
+    0x3C, 0x7E, 0xC3, 0xC3, 0x7F, 0x3F, 0x03, 0x03, 0x3E, 0x7C, // 9
+    0x7E, 0xFF, 0xC3, 0xC3, 0xC3, 0xFF, 0xFF, 0xC3, 0xC3, 0xC3, // A
+    0xFC, 0xFC, 0xC3, 0xC3, 0xFC, 0xFC, 0xC3, 0xC3, 0xFC, 0xFC, // B
+    0x3C, 0xFF, 0xC3, 0xC0, 0xC0, 0xC0, 0xC0, 0xC3, 0xFF, 0x3C, // C
+    0xFC, 0xFE, 0xC3, 0xC3, 0xC3, 0xC3, 0xC3, 0xC3, 0xFE, 0xFC, // D
+    0xFF, 0xFF, 0xC0, 0xC0, 0xFF, 0xFF, 0xC0, 0xC0, 0xFF, 0xFF, // E
+    0xFF, 0xFF, 0xC0, 0xC0, 0xFF, 0xFF, 0xC0, 0xC0, 0xC0, 0xC0  // F
+  ]);
+
+  /*
+   * Plataformas. Internamente cada una tiene un nivel (su posición en PLATFORMS:
+   * 0 = chip8, 1 = schip, 2 = xochip) y cada plataforma incluye las anteriores.
+   */
+  var PLATFORMS = Object.freeze(['chip8', 'schip', 'xochip']);
+
+  function freezePlatform(label, memorySize) {
+    return Object.freeze({ label: label, memorySize: memorySize, maxRomSize: memorySize - PROGRAM_START });
+  }
+
+  var PLATFORM_INFO = Object.freeze({
+    chip8: freezePlatform('CHIP-8', MEMORY_SIZE),
+    schip: freezePlatform('SUPER-CHIP', MEMORY_SIZE),
+    xochip: freezePlatform('XO-CHIP', 65536)
+  });
+
+  // La plataforma que va con cada perfil de quirks (QUIRK_PRESETS).
+  var PRESET_PLATFORM = Object.freeze({ vip: 'chip8', schip: 'schip', xochip: 'xochip' });
+
+  function platformLevel(platform) {
+    for (var i = 0; i < PLATFORMS.length; i++) if (PLATFORMS[i] === platform) return i;
+    return -1;
+  }
+
+  function unknownPlatform(platform) {
+    var shown = typeof platform === 'string' ? '"' + platform + '"' : String(platform);
+    return new RangeError('Plataforma desconocida: ' + shown + ' (tiene que ser chip8, schip o xochip).');
+  }
 
   /*
    * Quirks: comportamientos en los que difieren las implementaciones históricas.
@@ -1143,9 +1222,93 @@
     return Math.floor(Math.random() * 256);
   }
 
+  /*
+   * Instrucciones de SUPER-CHIP y XO-CHIP: la plataforma mínima que las tiene (needs
+   * y su nivel) y qué hacen (name, para los avisos y los errores).
+   */
+  function extended(needs, name) {
+    return Object.freeze({ needs: needs, level: platformLevel(needs), name: name });
+  }
+
+  var EXT = {
+    scrollDown: extended('schip', 'desplazar la pantalla hacia abajo'),
+    scrollUp: extended('xochip', 'desplazar la pantalla hacia arriba'),
+    scrollRight: extended('schip', 'desplazar la pantalla a la derecha'),
+    scrollLeft: extended('schip', 'desplazar la pantalla a la izquierda'),
+    exit: extended('schip', 'terminar el programa'),
+    lowRes: extended('schip', 'pasar a baja resolución (64×32)'),
+    highRes: extended('schip', 'pasar a alta resolución (128×64)'),
+    sprite16: extended('schip', 'dibujar un sprite de 16×16'),
+    bigFont: extended('schip', 'fuente grande'),
+    saveFlags: extended('schip', 'guardar registros en las banderas'),
+    loadFlags: extended('schip', 'leer registros de las banderas'),
+    saveRange: extended('xochip', 'guardar un rango de registros'),
+    loadRange: extended('xochip', 'leer un rango de registros'),
+    longI: extended('xochip', 'cargar I con una dirección de 16 bits'),
+    plane: extended('xochip', 'elegir el plano de dibujo'),
+    audio: extended('xochip', 'cargar el patrón de audio'),
+    pitch: extended('xochip', 'cambiar el tono del audio')
+  };
+
+  // Entrada de EXT para un opcode de 16 bits, o null si es de CHIP-8 o no existe en
+  // ninguna plataforma (por ejemplo FX02 con X != 0 o FN01 con N > 3).
+  function extendedEntry(opcode) {
+    switch (opcode >> 12) {
+      case 0x0:
+        if ((opcode & 0xFFF0) === 0x00C0) return EXT.scrollDown;
+        if ((opcode & 0xFFF0) === 0x00D0) return EXT.scrollUp;
+        switch (opcode) {
+          case 0x00FB: return EXT.scrollRight;
+          case 0x00FC: return EXT.scrollLeft;
+          case 0x00FD: return EXT.exit;
+          case 0x00FE: return EXT.lowRes;
+          case 0x00FF: return EXT.highRes;
+        }
+        return null;
+      case 0x5:
+        if ((opcode & 0xF) === 0x2) return EXT.saveRange;
+        if ((opcode & 0xF) === 0x3) return EXT.loadRange;
+        return null;
+      case 0xD:
+        return (opcode & 0xF) === 0 ? EXT.sprite16 : null;
+      case 0xF:
+        switch (opcode & 0xFF) {
+          case 0x00: return opcode === 0xF000 ? EXT.longI : null;
+          case 0x01: return opcode <= 0xF301 ? EXT.plane : null; // PLANE 0..3
+          case 0x02: return opcode === 0xF002 ? EXT.audio : null;
+          case 0x30: return EXT.bigFont;
+          case 0x3A: return EXT.pitch;
+          case 0x75: return EXT.saveFlags;
+          case 0x85: return EXT.loadFlags;
+        }
+        return null;
+    }
+    return null;
+  }
+
+  // { needs, name } de una instrucción de SUPER-CHIP o XO-CHIP; null para las de
+  // CHIP-8 y para las palabras que no son instrucciones en ninguna plataforma.
+  function extendedInfo(opcode) {
+    var entry = extendedEntry(opcode & 0xFFFF);
+    return entry === null ? null : { needs: entry.needs, name: entry.name };
+  }
+
+  function romTooBigMessage(length, level) {
+    if (level === 2) {
+      return 'La ROM ocupa ' + length + ' bytes y el máximo es ' + PLATFORM_INFO.xochip.maxRomSize + ' (de 0x200 a 0xFFFF).';
+    }
+    var message = 'La ROM ocupa ' + length + ' bytes y el máximo es ' + MAX_ROM_SIZE + ' (de 0x200 a 0xFFF).';
+    if (length <= PLATFORM_INFO.xochip.maxRomSize) message += ' Con la plataforma XO-CHIP (64 KB) entra.';
+    return message;
+  }
+
   function Chip8(options) {
     options = options || {};
-    this.memory = new Uint8Array(MEMORY_SIZE);
+    var platform = options.platform == null ? 'chip8' : options.platform;
+    var level = platformLevel(platform);
+    if (level < 0) throw unknownPlatform(platform);
+    this.platform = platform; // solo lectura: para cambiarla, setPlatform
+    this.memory = new Uint8Array(PLATFORM_INFO[platform].memorySize);
     this.V = new Uint8Array(16);
     this.I = 0;
     this.pc = PROGRAM_START;
@@ -1154,26 +1317,43 @@
     this.delayTimer = 0;
     this.soundTimer = 0;
     this.display = new Uint8Array(DISPLAY_WIDTH * DISPLAY_HEIGHT);
+    this.displayWidth = DISPLAY_WIDTH;
+    this.displayHeight = DISPLAY_HEIGHT;
+    this.hires = false;
+    this.planes = 1;        // planos elegidos con FN01 (máscara 0..3; siempre 1 fuera de XO-CHIP)
     this.keys = new Uint8Array(16);
     this.quirks = copyQuirks(DEFAULT_QUIRKS);
     if (options.quirks) this.setQuirks(options.quirks);
     this.random = typeof options.random === 'function' ? options.random : defaultRandom;
+    this.flags = new Uint8Array(FLAG_COUNT); // persistentes: reset y loadRom no las borran
+    this.audioPattern = new Uint8Array(16);  // 128 muestras de 1 bit, el bit más alto primero
+    this.audioPatternSet = false;            // F002 se ejecutó desde el último reset
+    this.pitch = 64;
+    this.audioDirty = true;                  // cambió el patrón o el tono, o hubo un reset (la interfaz lo apaga)
     this.waitingForKey = false;
     this.halted = false;
+    this.exited = false;    // la máquina se detuvo por 00FD (fin del programa, sin error)
     this.error = null;
+    this.errorInfo = null;  // { kind, opcode, addr, needs?, name? } junto con error
+    this.hint = null;       // primera instrucción de otra plataforma que se ignoró
     this.displayDirty = true;
     this.rom = new Uint8Array(0);
-    // Estado interno de FX0A y de displayWait.
-    this._waitReg = 0;      // registro X que recibe la tecla
-    this._waitKey = -1;     // tecla presionada durante la espera (-1 = ninguna todavía)
+    // Estado interno.
+    this._level = level;    // nivel de la plataforma (0, 1 o 2)
+    this._mask = this.memory.length - 1; // máscara de las direcciones: 0xFFF (4 KB) o 0xFFFF (64 KB)
+    this._waitReg = 0;      // FX0A: registro X que recibe la tecla
+    this._waitKey = -1;     // FX0A: tecla presionada durante la espera (-1 = ninguna todavía)
     this._drew = false;     // la última instrucción ejecutada fue un DXYN
+    this._hinted = false;   // ya se dejó un aviso en hint desde el último reset
     this.reset();
   }
 
   Chip8.prototype.reset = function () {
-    this.memory.fill(0);
-    this.memory.set(FONT, FONT_ADDR);
-    this.memory.set(this.rom, PROGRAM_START);
+    var memory = this.memory;
+    memory.fill(0);
+    memory.set(FONT, FONT_ADDR);
+    if (this._level > 0) memory.set(BIG_FONT, BIG_FONT_ADDR);
+    memory.set(this.rom, PROGRAM_START);
     this.V.fill(0);
     this.I = 0;
     this.pc = PROGRAM_START;
@@ -1181,26 +1361,55 @@
     this.sp = 0;
     this.delayTimer = 0;
     this.soundTimer = 0;
-    this.display.fill(0);
+    this._setResolution(false);
+    this.planes = 1;
     this.keys.fill(0);
+    this.audioPattern.fill(0);
+    this.audioPatternSet = false;
+    this.pitch = 64;
+    this.audioDirty = true;
     this.waitingForKey = false;
     this.halted = false;
+    this.exited = false;
     this.error = null;
+    this.errorInfo = null;
+    this.hint = null;
     this.displayDirty = true;
     this._waitReg = 0;
     this._waitKey = -1;
     this._drew = false;
+    this._hinted = false;
   };
 
   Chip8.prototype.loadRom = function (bytes) {
     // Un ArrayBuffer no tiene .length: se lo mira como bytes para que el control de tamaño valga igual.
     if (Object.prototype.toString.call(bytes) === '[object ArrayBuffer]') bytes = new Uint8Array(bytes);
     var length = bytes.length >>> 0;
-    if (length > MAX_ROM_SIZE) {
-      throw new RangeError('La ROM ocupa ' + length + ' bytes y el máximo es ' + MAX_ROM_SIZE +
-        ' (de 0x200 a 0xFFF).');
+    if (length > PLATFORM_INFO[PLATFORMS[this._level]].maxRomSize) {
+      throw new RangeError(romTooBigMessage(length, this._level));
     }
     this.rom = new Uint8Array(bytes); // copia (los números se truncan a 8 bits)
+    this.reset();
+  };
+
+  /*
+   * Cambia de plataforma y reinicia la máquina con la misma ROM (las banderas se
+   * conservan). Si la ROM cargada no entra en la memoria de la nueva plataforma,
+   * lanza un RangeError y no cambia nada.
+   */
+  Chip8.prototype.setPlatform = function (platform) {
+    var level = platformLevel(platform);
+    if (level < 0) throw unknownPlatform(platform);
+    if (level === this._level) return;
+    var info = PLATFORM_INFO[platform];
+    if (this.rom.length > info.maxRomSize) {
+      throw new RangeError('La ROM cargada ocupa ' + this.rom.length + ' bytes y con la plataforma ' + info.label +
+        ' el máximo es ' + info.maxRomSize + ': no se cambió la plataforma.');
+    }
+    this.platform = platform;
+    this._level = level;
+    if (this.memory.length !== info.memorySize) this.memory = new Uint8Array(info.memorySize);
+    this._mask = info.memorySize - 1;
     this.reset();
   };
 
@@ -1238,18 +1447,128 @@
     }
   };
 
-  // Detiene la máquina con un mensaje; pc vuelve a apuntar a la instrucción culpable.
-  Chip8.prototype._fail = function (opcode, message) {
-    this.pc = (this.pc - 2) & 0xFFF;
+  /*
+   * Detiene la máquina con un mensaje; pc vuelve a apuntar a la instrucción culpable.
+   * kind va a errorInfo ('invalid', 'platform', 'stackOverflow' o 'stackUnderflow');
+   * con entry (de EXT) se agregan needs y name; suffix va después de la dirección.
+   */
+  Chip8.prototype._fail = function (opcode, message, kind, entry, suffix) {
+    this.pc = (this.pc - 2) & this._mask;
     this.halted = true;
-    this.error = message + ' (opcode ' + hex(opcode, 4) + ' en la dirección ' + hex(this.pc, 3) + ').';
+    this.error = message + ' (opcode ' + hex(opcode, 4) + ' en la dirección ' + hex(this.pc, this._level === 2 ? 4 : 3) + ').' +
+      (suffix || '');
+    this.errorInfo = entry ?
+      { kind: kind, opcode: opcode, addr: this.pc, needs: entry.needs, name: entry.name } :
+      { kind: kind, opcode: opcode, addr: this.pc };
     return false;
   };
 
   Chip8.prototype._invalid = function (opcode) {
-    return this._fail(opcode, 'Instrucción inválida o desconocida');
+    return this._fail(opcode, 'Instrucción inválida o desconocida', 'invalid');
   };
 
+  // Instrucción de una plataforma más grande que no se puede ignorar: detiene la máquina.
+  Chip8.prototype._unsupported = function (opcode) {
+    var entry = extendedEntry(opcode);
+    var memory = this.memory, mask = this._mask, pc = this.pc;
+    var operand = (memory[pc] << 8) | memory[(pc + 1) & mask]; // el de F000 NNNN
+    var needed = PLATFORM_INFO[entry.needs].label;
+    return this._fail(opcode,
+      'Instrucción inválida en ' + PLATFORM_INFO[PLATFORMS[this._level]].label + ': «' +
+        disassemble(opcode, this.quirks, entry.needs, operand) + '» (' + entry.name + ') es de ' + needed,
+      'platform', entry, ' Elegí la plataforma ' + needed + '.');
+  };
+
+  // Instrucción de pantalla de una plataforma más grande: se ignora, como siempre en
+  // CHIP-8, y la primera desde el último reset queda en hint.
+  Chip8.prototype._ignore = function (opcode) {
+    if (this._hinted) return;
+    this._hinted = true;
+    var entry = extendedEntry(opcode);
+    this.hint = { opcode: opcode, addr: (this.pc - 2) & this._mask, needs: entry.needs, name: entry.name };
+  };
+
+  // Salto condicional en XO-CHIP: si la instrucción siguiente es F000 NNNN, la saltea
+  // entera (4 bytes). Devuelve el pc nuevo. (En las otras plataformas step suma 2.)
+  // Recibe la máscara aunque podría leerla: con this._mask en las dos ramas del salto,
+  // step compila a un código más rápido (medido).
+  Chip8.prototype._skipXO = function (mask) {
+    var pc = this.pc, memory = this.memory;
+    return (pc + (memory[pc] === 0xF0 && memory[(pc + 1) & mask] === 0x00 ? 4 : 2)) & mask;
+  };
+
+  // Cambia la resolución y borra la pantalla entera (todos los planos). El arreglo se
+  // reemplaza solo si cambia el tamaño; si no, se limpia en el lugar.
+  Chip8.prototype._setResolution = function (hires) {
+    var width = hires ? HIRES_WIDTH : DISPLAY_WIDTH;
+    var height = hires ? HIRES_HEIGHT : DISPLAY_HEIGHT;
+    if (this.display.length !== width * height) this.display = new Uint8Array(width * height);
+    else this.display.fill(0);
+    this.hires = hires;
+    this.displayWidth = width;
+    this.displayHeight = height;
+    this.displayDirty = true;
+  };
+
+  // Planos sobre los que actúan el dibujo, el borrado y los desplazamientos.
+  Chip8.prototype._planeMask = function () {
+    return this._level === 2 ? this.planes & 3 : 1;
+  };
+
+  // 00E0 en XO-CHIP: borra solo los planos elegidos.
+  Chip8.prototype._clearPlanes = function () {
+    var display = this.display, planes = this.planes & 3;
+    if (planes === 3) {
+      display.fill(0);
+    } else if (planes !== 0) {
+      var keep = ~planes & 3;
+      for (var i = 0; i < display.length; i++) display[i] &= keep;
+    }
+  };
+
+  // Desplaza los planos elegidos `rows` filas (positivo = hacia abajo); lo que queda
+  // libre se llena con 0 en esos planos y los otros planos no se tocan.
+  Chip8.prototype._scrollRows = function (rows) {
+    var display = this.display, total = display.length, offset = rows * this.displayWidth;
+    var planes = this._planeMask(), keep = ~planes & 3;
+    var i, src;
+    if (offset > 0) {
+      for (i = total - 1; i >= 0; i--) {
+        src = i >= offset ? display[i - offset] : 0;
+        display[i] = (display[i] & keep) | (src & planes);
+      }
+    } else {
+      offset = -offset;
+      for (i = 0; i < total; i++) {
+        src = i + offset < total ? display[i + offset] : 0;
+        display[i] = (display[i] & keep) | (src & planes);
+      }
+    }
+    this.displayDirty = true;
+  };
+
+  // Desplaza los planos elegidos `cols` columnas (positivo = a la derecha) en cada fila.
+  Chip8.prototype._scrollColumns = function (cols) {
+    var display = this.display, width = this.displayWidth, height = this.displayHeight;
+    var planes = this._planeMask(), keep = ~planes & 3;
+    for (var row = 0; row < height; row++) {
+      var base = row * width, col, src;
+      if (cols > 0) {
+        for (col = width - 1; col >= 0; col--) {
+          src = col >= cols ? display[base + col - cols] : 0;
+          display[base + col] = (display[base + col] & keep) | (src & planes);
+        }
+      } else {
+        for (col = 0; col < width; col++) {
+          src = col - cols < width ? display[base + col - cols] : 0;
+          display[base + col] = (display[base + col] & keep) | (src & planes);
+        }
+      }
+    }
+    this.displayDirty = true;
+  };
+
+  // DXYN en CHIP-8: siempre 64x32, un solo plano, 8xN.
   Chip8.prototype._draw = function (vx, vy, n) {
     var V = this.V, memory = this.memory, display = this.display;
     var x0 = vx % DISPLAY_WIDTH;
@@ -1286,18 +1605,161 @@
   };
 
   /*
+   * DXYN en SUPER-CHIP y XO-CHIP (como en Octo): vale en las dos resoluciones y con
+   * N = 0 dibuja un sprite de 16x16 (2 bytes por fila, el bit más alto del primero
+   * es el píxel de la izquierda). Cada plano elegido usa su propio bloque de datos:
+   * el plano 1 desde I y el plano 2 a continuación (desde I si es el único elegido).
+   * VF = 1 si algún píxel encendido se apagó, en cualquiera de los planos.
+   */
+  Chip8.prototype._drawExt = function (vx, vy, n) {
+    var memory = this.memory, display = this.display, mask = this._mask;
+    var width = this.displayWidth, height = this.displayHeight;
+    var x0 = vx % width;
+    var y0 = vy % height;
+    var clip = this.quirks.clipping;
+    var planes = this._planeMask();
+    var wide = n === 0;
+    var rows = wide ? 16 : n, cols = wide ? 16 : 8, left = wide ? 0x8000 : 0x80;
+    var addr = this.I, collision = 0;
+    for (var plane = 1; plane <= 2; plane++) {
+      if ((planes & plane) === 0) continue;
+      for (var row = 0; row < rows; row++) {
+        var y = y0 + row;
+        if (y >= height) {
+          if (clip) break;
+          y -= height;
+        }
+        var bits = wide ?
+          (memory[(addr + 2 * row) & mask] << 8) | memory[(addr + 2 * row + 1) & mask] :
+          memory[(addr + row) & mask];
+        if (bits === 0) continue;
+        var base = y * width;
+        for (var col = 0; col < cols; col++) {
+          if ((bits & (left >> col)) === 0) continue;
+          var x = x0 + col;
+          if (x >= width) {
+            if (clip) break;
+            x -= width;
+          }
+          var idx = base + x, value = display[idx];
+          if (value & plane) collision = 1;
+          display[idx] = value ^ plane;
+        }
+      }
+      addr += wide ? 32 : n;
+    }
+    this.V[0xF] = collision;
+    this.displayDirty = true;
+  };
+
+  /*
+   * 00CN, 00DN y 00FB..00FF: control de pantalla de SUPER-CHIP y XO-CHIP. En una
+   * plataforma que no la tiene la instrucción es un 0NNN más: se ignora y deja aviso.
+   * Los demás 00NN (00E1..00FA salvo 00EE) son SYS: no hacen nada.
+   */
+  Chip8.prototype._op00 = function (opcode) {
+    var entry = extendedEntry(opcode);
+    if (entry === null) return;
+    if (this._level < entry.level) {
+      this._ignore(opcode);
+      return;
+    }
+    var n = opcode & 0xF;
+    switch (entry) {
+      case EXT.scrollDown: if (n) this._scrollRows(n); break;
+      case EXT.scrollUp: if (n) this._scrollRows(-n); break;
+      case EXT.scrollRight: this._scrollColumns(4); break;
+      case EXT.scrollLeft: this._scrollColumns(-4); break;
+      case EXT.lowRes: this._setResolution(false); break;
+      case EXT.highRes: this._setResolution(true); break;
+      default: // EXT.exit: fin del programa; pc queda en el 00FD
+        this.pc = (this.pc - 2) & this._mask;
+        this.halted = true;
+        this.exited = true;
+        this.error = null;
+        this.errorInfo = null;
+    }
+  };
+
+  // 5XY2 (SAVE VX, VY) y 5XY3 (LOAD VX, VY) de XO-CHIP; los demás 5XYN (N != 0) no existen.
+  // Recorren los registros de X a Y (hacia abajo si X > Y) y no cambian I.
+  Chip8.prototype._op5 = function (opcode, x, y, n) {
+    if (n !== 0x2 && n !== 0x3) return this._invalid(opcode);
+    if (this._level < 2) return this._unsupported(opcode);
+    var V = this.V, memory = this.memory, mask = this._mask, I = this.I;
+    var dir = x <= y ? 1 : -1, count = (x <= y ? y - x : x - y) + 1;
+    for (var k = 0; k < count; k++) {
+      if (n === 0x2) memory[(I + k) & mask] = V[x + k * dir];
+      else V[x + k * dir] = memory[(I + k) & mask];
+    }
+    return true;
+  };
+
+  // FX.. de SUPER-CHIP y XO-CHIP (los de CHIP-8 están en step) y los que no existen.
+  Chip8.prototype._opF = function (opcode, x, nn) {
+    var entry = extendedEntry(opcode);
+    if (entry === null) return this._invalid(opcode);
+    if (this._level < entry.level) return this._unsupported(opcode);
+    var V = this.V, memory = this.memory, mask = this._mask, i, value, changed;
+    switch (nn) {
+      case 0x00: // F000 NNNN: I := NNNN, la palabra que sigue
+        this.I = (memory[this.pc] << 8) | memory[(this.pc + 1) & mask];
+        this.pc = (this.pc + 2) & mask;
+        break;
+      case 0x01: this.planes = x; break;
+      case 0x02:
+        // audioDirty avisa a la interfaz que el sonido cambió: el patrón es otro o es el
+        // primero desde el reset (deja de sonar el beep de siempre).
+        changed = !this.audioPatternSet;
+        for (i = 0; i < 16; i++) {
+          value = memory[(this.I + i) & mask];
+          if (this.audioPattern[i] !== value) {
+            this.audioPattern[i] = value;
+            changed = true;
+          }
+        }
+        this.audioPatternSet = true;
+        if (changed) this.audioDirty = true;
+        break;
+      case 0x30: this.I = BIG_FONT_ADDR + (V[x] & 0xF) * 10; break;
+      case 0x3A:
+        if (this.pitch !== V[x]) {
+          this.pitch = V[x];
+          this.audioDirty = true;
+        }
+        break;
+      case 0x75: for (i = 0; i <= x; i++) this.flags[i] = V[i]; break;
+      default: // 0x85
+        for (i = 0; i <= x; i++) V[i] = this.flags[i];
+    }
+    return true;
+  };
+
+  /*
    * Ejecuta exactamente una instrucción. No toca los timers.
    * Devuelve true si ejecutó algo; false si la máquina está detenida, esperando una
    * tecla (FX0A) o si la instrucción era inválida (en ese caso queda halted).
    * Regla general: cuando una instrucción escribe VX y VF, VF se escribe al final,
    * así con X = F el registro queda con la bandera.
+   * Las instrucciones de SUPER-CHIP y XO-CHIP se resuelven fuera de este switch
+   * (_op00, _op5, _opF, _drawExt, _skipXO), así el camino de CHIP-8 sigue igual de
+   * corto y rápido: la lectura del opcode usa máscaras constantes en cada rama y
+   * adentro del switch la máscara se lee de this._mask donde hace falta (mantenerla
+   * en una variable durante todo el switch lo hacía más lento).
    */
   Chip8.prototype.step = function () {
     if (this.halted || this.waitingForKey) return false;
     var memory = this.memory, V = this.V;
-    var pc = this.pc & 0xFFF;
-    var opcode = (memory[pc] << 8) | memory[(pc + 1) & 0xFFF];
-    this.pc = (pc + 2) & 0xFFF;
+    var pc, opcode;
+    if (this._mask === 0xFFF) { // 4 KB: CHIP-8 y SUPER-CHIP
+      pc = this.pc & 0xFFF;
+      opcode = (memory[pc] << 8) | memory[(pc + 1) & 0xFFF];
+      this.pc = (pc + 2) & 0xFFF;
+    } else { // 64 KB: XO-CHIP
+      pc = this.pc & 0xFFFF;
+      opcode = (memory[pc] << 8) | memory[(pc + 1) & 0xFFFF];
+      this.pc = (pc + 2) & 0xFFFF;
+    }
     this._drew = false;
 
     var x = (opcode >> 8) & 0xF;
@@ -1310,11 +1772,14 @@
     switch (opcode >> 12) {
       case 0x0:
         if (opcode === 0x00E0) {
-          this.display.fill(0);
+          if (this._level === 2) this._clearPlanes();
+          else this.display.fill(0);
           this.displayDirty = true;
         } else if (opcode === 0x00EE) {
-          if (this.sp <= 0) return this._fail(opcode, 'Subdesbordamiento de pila (stack underflow): RET sin dirección de retorno, la pila está vacía');
-          this.pc = this.stack[--this.sp] & 0xFFF;
+          if (this.sp <= 0) return this._fail(opcode, 'Subdesbordamiento de pila (stack underflow): RET sin dirección de retorno, la pila está vacía', 'stackUnderflow');
+          this.pc = this.stack[--this.sp] & this._mask;
+        } else if (opcode >= 0x00C0 && opcode <= 0x00FF) {
+          this._op00(opcode);
         }
         // 0NNN (SYS): rutina en código máquina del 1802; se ignora.
         break;
@@ -1322,19 +1787,19 @@
         this.pc = nnn;
         break;
       case 0x2:
-        if (this.sp >= STACK_SIZE) return this._fail(opcode, 'Desbordamiento de pila (stack overflow): CALL con los ' + STACK_SIZE + ' niveles de la pila ocupados');
+        if (this.sp >= STACK_SIZE) return this._fail(opcode, 'Desbordamiento de pila (stack overflow): CALL con los ' + STACK_SIZE + ' niveles de la pila ocupados', 'stackOverflow');
         this.stack[this.sp++] = this.pc;
         this.pc = nnn;
         break;
       case 0x3:
-        if (V[x] === nn) this.pc = (this.pc + 2) & 0xFFF;
+        if (V[x] === nn) this.pc = this._level === 2 ? this._skipXO(this._mask) : (this.pc + 2) & this._mask;
         break;
       case 0x4:
-        if (V[x] !== nn) this.pc = (this.pc + 2) & 0xFFF;
+        if (V[x] !== nn) this.pc = this._level === 2 ? this._skipXO(this._mask) : (this.pc + 2) & this._mask;
         break;
       case 0x5:
-        if (n !== 0) return this._invalid(opcode);
-        if (V[x] === V[y]) this.pc = (this.pc + 2) & 0xFFF;
+        if (n !== 0) return this._op5(opcode, x, y, n);
+        if (V[x] === V[y]) this.pc = this._level === 2 ? this._skipXO(this._mask) : (this.pc + 2) & this._mask;
         break;
       case 0x6:
         V[x] = nn;
@@ -1380,27 +1845,33 @@
         break;
       case 0x9:
         if (n !== 0) return this._invalid(opcode);
-        if (V[x] !== V[y]) this.pc = (this.pc + 2) & 0xFFF;
+        if (V[x] !== V[y]) this.pc = this._level === 2 ? this._skipXO(this._mask) : (this.pc + 2) & this._mask;
         break;
       case 0xA:
         this.I = nnn;
         break;
       case 0xB:
         // Original: salta a NNN + V0. Con jumping (SUPER-CHIP, "BXNN"): NNN + VX.
-        this.pc = (nnn + V[this.quirks.jumping ? x : 0]) & 0xFFF;
+        this.pc = (nnn + V[this.quirks.jumping ? x : 0]) & this._mask;
         break;
       case 0xC:
         V[x] = this.random() & nn;
         break;
       case 0xD:
-        this._draw(V[x], V[y], n);
+        if (this._level === 0) {
+          // CHIP-8: DXY0 no dibuja nada y deja VF = 0, como siempre (avisa que es de SUPER-CHIP).
+          if (n === 0) this._ignore(opcode);
+          this._draw(V[x], V[y], n);
+        } else {
+          this._drawExt(V[x], V[y], n);
+        }
         this._drew = true;
         break;
       case 0xE:
         if (nn === 0x9E) {
-          if (this.keys[V[x] & 0xF]) this.pc = (this.pc + 2) & 0xFFF;
+          if (this.keys[V[x] & 0xF]) this.pc = this._level === 2 ? this._skipXO(this._mask) : (this.pc + 2) & this._mask;
         } else if (nn === 0xA1) {
-          if (!this.keys[V[x] & 0xF]) this.pc = (this.pc + 2) & 0xFFF;
+          if (!this.keys[V[x] & 0xF]) this.pc = this._level === 2 ? this._skipXO(this._mask) : (this.pc + 2) & this._mask;
         } else {
           return this._invalid(opcode);
         }
@@ -1420,20 +1891,20 @@
           case 0x29: this.I = FONT_ADDR + (V[x] & 0xF) * 5; break;
           case 0x33:
             vx = V[x];
-            memory[this.I & 0xFFF] = (vx / 100) | 0;
-            memory[(this.I + 1) & 0xFFF] = ((vx / 10) | 0) % 10;
-            memory[(this.I + 2) & 0xFFF] = vx % 10;
+            memory[this.I & this._mask] = (vx / 100) | 0;
+            memory[(this.I + 1) & this._mask] = ((vx / 10) | 0) % 10;
+            memory[(this.I + 2) & this._mask] = vx % 10;
             break;
           case 0x55:
-            for (var i = 0; i <= x; i++) memory[(this.I + i) & 0xFFF] = V[i];
+            for (var i = 0; i <= x; i++) memory[(this.I + i) & this._mask] = V[i];
             if (this.quirks.memory) this.I = (this.I + x + 1) & 0xFFFF;
             break;
           case 0x65:
-            for (var j = 0; j <= x; j++) V[j] = memory[(this.I + j) & 0xFFF];
+            for (var j = 0; j <= x; j++) V[j] = memory[(this.I + j) & this._mask];
             if (this.quirks.memory) this.I = (this.I + x + 1) & 0xFFFF;
             break;
           default:
-            return this._invalid(opcode);
+            return this._opF(opcode, x, nn);
         }
         break;
     }
@@ -1461,14 +1932,51 @@
     return 'V' + r.toString(16).toUpperCase();
   }
 
+  // Texto de una instrucción de SUPER-CHIP o XO-CHIP que existe en la plataforma pedida.
+  function extendedText(entry, opcode, nextWord) {
+    var x = (opcode >> 8) & 0xF;
+    switch (entry) {
+      case EXT.scrollDown: return 'SCD ' + (opcode & 0xF);
+      case EXT.scrollUp: return 'SCU ' + (opcode & 0xF);
+      case EXT.scrollRight: return 'SCR';
+      case EXT.scrollLeft: return 'SCL';
+      case EXT.exit: return 'EXIT';
+      case EXT.lowRes: return 'LOW';
+      case EXT.highRes: return 'HIGH';
+      case EXT.sprite16: return 'DRW ' + reg(x) + ', ' + reg((opcode >> 4) & 0xF) + ', 0';
+      case EXT.bigFont: return 'LD HF, ' + reg(x);
+      case EXT.saveFlags: return 'LD R, ' + reg(x);
+      case EXT.loadFlags: return 'LD ' + reg(x) + ', R';
+      case EXT.saveRange: return 'SAVE ' + reg(x) + ', ' + reg((opcode >> 4) & 0xF);
+      case EXT.loadRange: return 'LOAD ' + reg(x) + ', ' + reg((opcode >> 4) & 0xF);
+      // Sin la palabra siguiente no se puede escribir la instrucción entera: queda como
+      // DW, así todo texto de 2 bytes se puede volver a ensamblar.
+      case EXT.longI: return nextWord == null ? 'DW ' + hex(opcode, 4) : 'LD I, LONG ' + hex(nextWord & 0xFFFF, 4);
+      case EXT.plane: return 'PLANE ' + x;
+      case EXT.audio: return 'AUDIO';
+      default: return 'PITCH ' + reg(x); // EXT.pitch
+    }
+  }
+
   /*
    * Desensambla un opcode con mnemónicos al estilo Cowgod.
    * `quirks` es opcional: con quirks.jumping activado, BNNN se muestra como
    * "JP VX, 0xNNN" (salta a NNN + VX, con X = primer dígito de NNN). Sin quirks,
    * el texto es el de siempre ("JP V0, 0xNNN").
+   * `platform` (por defecto 'chip8') suma los mnemónicos de SUPER-CHIP ('schip') o
+   * de XO-CHIP ('xochip'); un opcode que no existe en esa plataforma se muestra
+   * como en CHIP-8 (SYS o DW). `nextWord` es la palabra que sigue, para F000 NNNN
+   * en XO-CHIP ("LD I, LONG 0xNNNN"; sin ella, "DW 0xF000"). FN01 solo es
+   * "PLANE N" con N de 0 a 3: F401..FF01 son DW en todas las plataformas.
    */
-  function disassemble(opcode, quirks) {
+  function disassemble(opcode, quirks, platform, nextWord) {
     opcode &= 0xFFFF;
+    var level = platform == null ? 0 : platformLevel(platform);
+    if (level < 0) throw unknownPlatform(platform);
+    if (level > 0) {
+      var entry = extendedEntry(opcode);
+      if (entry !== null && entry.level <= level) return extendedText(entry, opcode, nextWord);
+    }
     var x = (opcode >> 8) & 0xF;
     var y = (opcode >> 4) & 0xF;
     var n = opcode & 0xF;
@@ -1526,16 +2034,93 @@
     }
   }
 
-  // Desensambla `count` palabras consecutivas desde `start` (las direcciones dan la vuelta en 0xFFF).
-  // `quirks` es opcional y se pasa tal cual a disassemble.
-  function disassembleRange(memory, start, count, quirks) {
+  /*
+   * Desensambla `count` instrucciones consecutivas desde `start`. Cada entrada es
+   * { addr, opcode, text, size }: size es 2, o 4 para F000 NNNN en XO-CHIP (esa
+   * entrada trae además long = NNNN y la siguiente empieza después). Las direcciones
+   * dan la vuelta en 0xFFF, o en 0xFFFF en XO-CHIP. `quirks` y `platform` son
+   * opcionales y se pasan tal cual a disassemble.
+   */
+  function disassembleRange(memory, start, count, quirks, platform) {
+    var level = platform == null ? 0 : platformLevel(platform);
+    if (level < 0) throw unknownPlatform(platform);
+    var mask = PLATFORM_INFO[PLATFORMS[level]].memorySize - 1;
     var out = [];
+    var addr = start & mask;
     for (var i = 0; i < count; i++) {
-      var addr = (start + 2 * i) & 0xFFF;
-      var opcode = (memory[addr] << 8) | memory[(addr + 1) & 0xFFF];
-      out.push({ addr: addr, opcode: opcode, text: disassemble(opcode, quirks) });
+      var opcode = (memory[addr] << 8) | memory[(addr + 1) & mask];
+      if (level === 2 && opcode === 0xF000) {
+        var operand = (memory[(addr + 2) & mask] << 8) | memory[(addr + 3) & mask];
+        out.push({ addr: addr, opcode: opcode, text: disassemble(opcode, quirks, platform, operand), size: 4, long: operand });
+        addr = (addr + 4) & mask;
+      } else {
+        out.push({ addr: addr, opcode: opcode, text: disassemble(opcode, quirks, platform), size: 2 });
+        addr = (addr + 2) & mask;
+      }
     }
     return out;
+  }
+
+  function hex32(value) {
+    var s = (value >>> 0).toString(16);
+    while (s.length < 8) s = '0' + s;
+    return s;
+  }
+
+  /*
+   * SHA-1 de una ROM, en hexadecimal con minúsculas (40 caracteres): la huella con
+   * que se reconocen las ROMs conocidas. JavaScript puro y sincrónico, así funciona
+   * igual en Node y en el navegador, también abriendo chip8.html desde el disco
+   * (file://), donde crypto.subtle no está disponible.
+   * Acepta un Uint8Array, una lista de números (se truncan a 8 bits, como en
+   * loadRom) o un ArrayBuffer.
+   */
+  function sha1(bytes) {
+    if (typeof bytes === 'string') throw new TypeError('sha1 espera bytes (un Uint8Array o una lista de números), no un texto.');
+    if (Object.prototype.toString.call(bytes) === '[object ArrayBuffer]') bytes = new Uint8Array(bytes);
+    var length = bytes.length >>> 0;
+    var blocks = ((length + 8) >>> 6) + 1; // bloques de 64 bytes, contando el relleno
+    var words = new Int32Array(blocks * 16);
+    var i, t;
+    for (i = 0; i < length; i++) words[i >>> 2] |= (bytes[i] & 0xFF) << (24 - (i & 3) * 8);
+    words[length >>> 2] |= 0x80 << (24 - (length & 3) * 8);
+    words[blocks * 16 - 2] = Math.floor(length / 0x20000000); // largo en bits: parte alta
+    words[blocks * 16 - 1] = length << 3;                     // y parte baja
+    var w = new Int32Array(80);
+    var h0 = 0x67452301, h1 = 0xEFCDAB89 | 0, h2 = 0x98BADCFE | 0, h3 = 0x10325476, h4 = 0xC3D2E1F0 | 0;
+    for (var block = 0; block < words.length; block += 16) {
+      for (t = 0; t < 16; t++) w[t] = words[block + t];
+      for (t = 16; t < 80; t++) {
+        var s = w[t - 3] ^ w[t - 8] ^ w[t - 14] ^ w[t - 16];
+        w[t] = (s << 1) | (s >>> 31);
+      }
+      var a = h0, b = h1, c = h2, d = h3, e = h4;
+      for (t = 0; t < 80; t++) {
+        var f;
+        if (t < 20) f = ((b & c) | (~b & d)) + 0x5A827999;
+        else if (t < 40) f = (b ^ c ^ d) + 0x6ED9EBA1;
+        else if (t < 60) f = ((b & c) | (b & d) | (c & d)) + 0x8F1BBCDC;
+        else f = (b ^ c ^ d) + 0xCA62C1D6;
+        var temp = (((a << 5) | (a >>> 27)) + f + e + w[t]) | 0;
+        e = d;
+        d = c;
+        c = (b << 30) | (b >>> 2);
+        b = a;
+        a = temp;
+      }
+      h0 = (h0 + a) | 0;
+      h1 = (h1 + b) | 0;
+      h2 = (h2 + c) | 0;
+      h3 = (h3 + d) | 0;
+      h4 = (h4 + e) | 0;
+    }
+    return hex32(h0) + hex32(h1) + hex32(h2) + hex32(h3) + hex32(h4);
+  }
+
+  // Velocidad de reproducción del patrón de audio de XO-CHIP, en Hz (bits por
+  // segundo), para un valor de pitch: 4000 * 2^((pitch - 64) / 48).
+  function patternRate(pitch) {
+    return 4000 * Math.pow(2, (pitch - 64) / 48);
   }
 
   globalThis.Chip8Core = {
@@ -1550,8 +2135,19 @@
     DISPLAY_WIDTH: DISPLAY_WIDTH,
     DISPLAY_HEIGHT: DISPLAY_HEIGHT,
     STACK_SIZE: STACK_SIZE,
+    PLATFORMS: PLATFORMS,
+    PLATFORM_INFO: PLATFORM_INFO,
+    PRESET_PLATFORM: PRESET_PLATFORM,
+    HIRES_WIDTH: HIRES_WIDTH,
+    HIRES_HEIGHT: HIRES_HEIGHT,
+    BIG_FONT: BIG_FONT,
+    BIG_FONT_ADDR: BIG_FONT_ADDR,
+    FLAG_COUNT: FLAG_COUNT,
     disassemble: disassemble,
-    disassembleRange: disassembleRange
+    disassembleRange: disassembleRange,
+    extendedInfo: extendedInfo,
+    sha1: sha1,
+    patternRate: patternRate
   };
 })();
 </script>

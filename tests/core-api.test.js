@@ -191,7 +191,8 @@ describe('loadRom', () => {
 
   it('el RangeError por una ROM grande está en castellano', () => {
     const cpu = new Chip8();
-    assert.throws(() => cpu.loadRom(new Uint8Array(3585)), /^RangeError: La ROM ocupa 3585 bytes y el máximo es 3584 \(de 0x200 a 0xFFF\)\.$/);
+    // Si la ROM entra en los 64 KB de XO-CHIP, el mensaje lo sugiere.
+    assert.throws(() => cpu.loadRom(new Uint8Array(3585)), /^RangeError: La ROM ocupa 3585 bytes y el máximo es 3584 \(de 0x200 a 0xFFF\)\. Con la plataforma XO-CHIP \(64 KB\) entra\.$/);
   });
 
   it('guarda una copia: modificar el origen después no afecta', () => {

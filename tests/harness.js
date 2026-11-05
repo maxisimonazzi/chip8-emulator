@@ -89,16 +89,29 @@ function runSteps(cpu, n) {
   return cpu;
 }
 
-function pixel(cpu, x, y) {
-  return cpu.display[y * 64 + x];
+// Ancho y alto de la pantalla en la resolución actual (64x32 si el objeto no los
+// dice, por ejemplo un { display } armado a mano).
+function screenSize(cpu) {
+  return [cpu.displayWidth || 64, cpu.displayHeight || 32];
 }
 
-// Dibuja la pantalla como texto (útil para depurar y para mensajes de error).
+// Valor del píxel (x, y): máscara de planos, 0..3 (solo 0 o 1 fuera de XO-CHIP).
+function pixel(cpu, x, y) {
+  return cpu.display[y * (cpu.displayWidth || 64) + x];
+}
+
+// Dibuja la pantalla como texto (útil para depurar y para mensajes de error), en la
+// resolución actual: off (.) apagado, on (#) plano 1, + plano 2 y @ los dos planos.
 function renderAscii(cpu, on = '#', off = '.') {
+  const [width, height] = screenSize(cpu);
+  const chars = [off, on, '+', '@'];
   const rows = [];
-  for (let y = 0; y < 32; y++) {
+  for (let y = 0; y < height; y++) {
     let row = '';
-    for (let x = 0; x < 64; x++) row += cpu.display[y * 64 + x] ? on : off;
+    for (let x = 0; x < width; x++) {
+      const v = cpu.display[y * width + x];
+      row += v ? chars[v] || on : off;
+    }
     rows.push(row);
   }
   return rows.join('\n');
