@@ -432,7 +432,7 @@ describe('línea de comandos', () => {
 
   describe('los problemas se explican en castellano, sin stack trace, y salen con código 1', () => {
     const TOOL = path.join(ROOT, 'tools', 'chip8asm.js');
-    const USAGE = 'Uso: node tools/chip8asm.js entrada.asm [salida.ch8] [--listing]';
+    const USAGE = 'Uso: node tools/chip8asm.js entrada.asm [salida.ch8] [--listing] [--xo]';
     let dir, src;
     const cli = (...args) => spawnSync(process.execPath, [TOOL, ...args], { cwd: dir, encoding: 'utf8' });
     // Ningún mensaje de Node en inglés: ni "at ...", ni "node:fs", ni "Error:".

@@ -6,16 +6,20 @@
  *   - Desde Node como módulo:   const { assemble } = require('./tools/chip8asm.js');
  *   - Desde un <script> en el navegador: define globalThis.Chip8Asm = { assemble }.
  *   - Como programa de línea de comandos:
- *       node tools/chip8asm.js entrada.asm [salida.ch8] [--listing]
+ *       node tools/chip8asm.js entrada.asm [salida.ch8] [--listing] [--xo]
  *     Si no indicás la salida, se usa el mismo nombre con extensión .ch8.
  *     Con --listing además imprime el listado (dirección, bytes y línea fuente).
+ *     Con --xo ensambla para XO-CHIP: el programa puede llegar hasta la
+ *     dirección 0xFFFF (sin --xo, hasta 0xFFF; ver "XO-CHIP: 64 KB" más abajo).
  *     Con --help (o -h) muestra el uso. Ante cualquier problema (archivo que no
  *     se puede leer o escribir, error en la fuente, opción desconocida, archivos
  *     de más) explica qué pasó en una línea y sale con código 1.
  *
  * API
- *   assemble(fuente, { origin = 0x200 } = {})
+ *   assemble(fuente, { origin = 0x200, xochip = false } = {})
  *     -> { bytes: Uint8Array, labels: { nombre: dirección }, listing: [...] }
+ *   origin es la dirección donde empieza el programa: 0..0xFFF, o 0..0xFFFF con
+ *   xochip. xochip: true es lo mismo que --xo.
  *   listing tiene una entrada por línea de la fuente:
  *     { line: número de línea (desde 1), addr: dirección donde empieza,
  *       bytes: [bytes que generó], text: la línea original }
@@ -48,16 +52,18 @@
  *   "fin" son dos etiquetas distintas).
  *
  *   Nombres reservados (no sirven como etiqueta ni constante, en ninguna
- *   combinación de mayúsculas): V0..VF, I, DT, ST, K, F, B, las instrucciones
- *   y las directivas.
+ *   combinación de mayúsculas): V0..VF, I, DT, ST, K, F, B, HF, R, LONG, las
+ *   instrucciones (también las de SUPER-CHIP y XO-CHIP) y las directivas.
+ *   Un nombre que solo empieza igual sí vale: "low_x", "saved" o "R2".
  *
  *   El ensamblador hace dos pasadas, así que podés usar una etiqueta antes de
  *   definirla (referencias hacia adelante).
  *
  * INSTRUCCIONES (las mismas que muestra el desensamblador del emulador)
  *   Vx, Vy = registros V0..VF    nn = byte    nnn = dirección (0..0xFFF)
- *   n = nibble (0..15)
+ *   n = nibble (0..15)           nnnn = dirección de 16 bits (0..0xFFFF)
  *
+ * CHIP-8
  *   CLS                00E0   borra la pantalla
  *   RET                00EE   vuelve de una subrutina
  *   SYS nnn            0nnn   rutina de máquina (el emulador la ignora)
@@ -99,13 +105,49 @@
  *   LD [I], Vx         Fx55   guarda V0..Vx en memoria a partir de I
  *   LD Vx, [I]         Fx65   carga V0..Vx desde memoria a partir de I
  *
- *   Todo lo que produce el desensamblador se puede volver a ensamblar, incluso
- *   "DW 0x5121" (así muestra las palabras que no son instrucciones válidas) y
- *   "JP V3, 0x3A0" (así muestra BNNN con el quirk de saltos de SUPER-CHIP).
+ * SUPER-CHIP
+ *   SCD n              00Cn   baja la imagen n píxeles
+ *   SCR                00FB   corre la imagen 4 píxeles a la derecha
+ *   SCL                00FC   corre la imagen 4 píxeles a la izquierda
+ *   EXIT               00FD   termina el programa
+ *   LOW                00FE   pasa a baja resolución (64 x 32)
+ *   HIGH               00FF   pasa a alta resolución (128 x 64)
+ *   LD HF, Vx          Fx30   I = dirección del dígito Vx de la fuente grande
+ *   LD R, Vx           Fx75   guarda V0..Vx en las banderas RPL
+ *   LD Vx, R           Fx85   carga V0..Vx desde las banderas RPL
  *
- *   Los registros y los nombres especiales (DT, ST, ...) se escriben sin
+ * XO-CHIP
+ *   SCU n              00Dn   sube la imagen n píxeles
+ *   SAVE Vx, Vy        5xy2   guarda Vx..Vy en memoria a partir de I (I no cambia)
+ *   LOAD Vx, Vy        5xy3   carga Vx..Vy desde memoria a partir de I (I no cambia)
+ *   LD I, LONG nnnn    F000 nnnn
+ *                             I = nnnn: la única instrucción de 4 bytes (la
+ *                             palabra F000 y después nnnn)
+ *   PLANE n            Fn01   elige los planos donde se dibuja (n = 0..3)
+ *   AUDIO              F002   carga el patrón de sonido (16 bytes) desde I
+ *   PITCH Vx           Fx3A   tono del sonido = Vx
+ *
+ *   El ensamblador no sabe para qué máquina es el programa: acepta todas las
+ *   instrucciones en cualquier fuente, y es el emulador (según la plataforma
+ *   elegida) el que las ejecuta o no. "SYS 0x0FF" sigue valiendo y da lo
+ *   mismo que HIGH.
+ *
+ *   Todo lo que produce el desensamblador se puede volver a ensamblar, en
+ *   cualquier plataforma, incluso "DW 0x5121" (así muestra las palabras que no
+ *   son instrucciones válidas) y "JP V3, 0x3A0" (así muestra BNNN con el quirk
+ *   de saltos de SUPER-CHIP).
+ *
+ *   Los registros y los nombres especiales (DT, ST, HF, ...) se escriben sin
  *   espacios adentro: "V 1" o "D T" son un error. Solo [I] admite espacios
- *   entre los corchetes ("[ I ]").
+ *   entre los corchetes ("[ I ]"). LONG va separado del valor por al menos un
+ *   espacio: "LONG 0x1234", "LONG datos + 2".
+ *
+ * XO-CHIP: 64 KB (opción --xo, o { xochip: true } en la API)
+ *   Sin la opción, el programa tiene que terminar antes de 0x1000, como en
+ *   CHIP-8 y SUPER-CHIP. Con la opción puede llegar hasta 0xFFFF. En los dos
+ *   casos las direcciones de 12 bits (SYS, JP, CALL, LD I y JP V0) van de 0 a
+ *   0xFFF: lo que quede más arriba solo se alcanza con LD I, LONG, que acepta
+ *   de 0 a 0xFFFF con o sin la opción (es solo un operando).
  *
  * EJEMPLO
  *       LD V0, 10          ; x
@@ -134,15 +176,21 @@
 
   const DIRECTIVES = ['EQU', 'DB', 'DW'];
   const MNEMONICS = ['CLS', 'RET', 'SYS', 'JP', 'CALL', 'SE', 'SNE', 'LD', 'ADD', 'OR', 'AND',
-    'XOR', 'SUB', 'SUBN', 'SHR', 'SHL', 'RND', 'DRW', 'SKP', 'SKNP'];
-  const SPECIALS = ['I', 'DT', 'ST', 'K', 'F', 'B'];
+    'XOR', 'SUB', 'SUBN', 'SHR', 'SHL', 'RND', 'DRW', 'SKP', 'SKNP',
+    'SCD', 'SCR', 'SCL', 'EXIT', 'LOW', 'HIGH',           // SUPER-CHIP
+    'SCU', 'SAVE', 'LOAD', 'PLANE', 'AUDIO', 'PITCH'];    // XO-CHIP
+  // Operandos que se escriben tal cual. HF (la fuente grande) y R (las banderas
+  // RPL) son de SUPER-CHIP.
+  const SPECIALS = ['I', 'DT', 'ST', 'K', 'F', 'B', 'HF', 'R'];
+  // La palabra que va delante del valor en "LD I, LONG nnnn" (XO-CHIP).
+  const LONG = 'LONG';
 
   const NAME_RE = /^[A-Za-z_.][A-Za-z0-9_.]*$/;
 
   function isReservedName(name) {
     const up = name.toUpperCase();
     return /^V[0-9A-F]$/.test(up) || SPECIALS.includes(up) || MNEMONICS.includes(up) ||
-      DIRECTIVES.includes(up) || up === '[I]';
+      DIRECTIVES.includes(up) || up === '[I]' || up === LONG;
   }
 
   // Quita el comentario (todo desde ";").
@@ -223,13 +271,22 @@
   // Operandos
   // ------------------------------------------------------------------
 
-  // Clasifica un operando: registro, nombre especial o expresión.
+  // Clasifica un operando: registro, nombre especial, LONG valor o expresión.
   function classify(text, lineNo) {
     const up = text.trim().toUpperCase();
     const m = /^V([0-9A-F])$/.exec(up);
     if (m) return { kind: 'reg', reg: parseInt(m[1], 16), text };
     if (/^\[\s*I\s*\]$/.test(up)) return { kind: '[I]', text };
     if (SPECIALS.includes(up)) return { kind: up, text };
+    // "LONG valor": la palabra LONG, uno o más espacios y una expresión. `expr`
+    // es el texto del valor solo, para los mensajes de rango.
+    const long = /^LONG(?:\s+(.*))?$/i.exec(text.trim());
+    if (long) {
+      if (long[1] === undefined) {
+        throw AsmError(lineNo, 'falta la dirección después de LONG (por ejemplo: LD I, LONG 0x1234)');
+      }
+      return { kind: LONG, terms: parseExpression(long[1], lineNo), text, expr: long[1] };
+    }
     // "V 1", "D T": un registro o nombre especial con espacios adentro.
     const joined = up.replace(/\s+/g, '');
     if (joined !== up && (/^V[0-9A-F]$/.test(joined) || SPECIALS.includes(joined))) {
@@ -240,11 +297,17 @@
   }
 
   // Tabla de codificación: para cada mnemónico, las combinaciones de operandos
-  // aceptadas. 'R' = registro, 'N' = expresión; el resto son literales.
-  // Cada entrada: [patrón, función(ops, val) -> opcode]
-  // val(op, tipo) evalúa una expresión y controla el rango ('byte', 'addr', 'nibble').
+  // aceptadas. R = registro, N = expresión, LONG = "LONG valor"; el resto son
+  // literales.
+  // Cada entrada: [patrón, función(ops, val) -> opcode, tamaño en bytes (2 si falta)].
+  // Una instrucción de 4 bytes devuelve [palabra, palabra] en vez de un opcode.
+  // val(op, tipo) evalúa una expresión y controla el rango ('byte', 'addr',
+  // 'nibble', ...: ver checked()).
   const R = 'reg';
   const N = 'expr';
+  // La palabra R de "LD R, Vx" y "LD Vx, R" (las banderas RPL de SUPER-CHIP).
+  // No confundir con la R de arriba, que quiere decir "un registro V0..VF".
+  const FLAGS = 'R';
   const TABLE = {
     CLS: [[[], () => 0x00E0]],
     RET: [[[], () => 0x00EE]],
@@ -278,7 +341,7 @@
     LD: [
       [[R, N], (o, v) => 0x6000 | (o[0].reg << 8) | v(o[1], 'byte')],
       [[R, R], (o) => 0x8000 | (o[0].reg << 8) | (o[1].reg << 4)],
-      [['I', N], (o, v) => 0xA000 | v(o[1], 'addr')],
+      [['I', N], (o, v) => 0xA000 | v(o[1], 'iaddr')],
       [[R, 'DT'], (o) => 0xF007 | (o[0].reg << 8)],
       [[R, 'K'], (o) => 0xF00A | (o[0].reg << 8)],
       [['DT', R], (o) => 0xF015 | (o[1].reg << 8)],
@@ -287,6 +350,12 @@
       [['B', R], (o) => 0xF033 | (o[1].reg << 8)],
       [['[I]', R], (o) => 0xF055 | (o[1].reg << 8)],
       [[R, '[I]'], (o) => 0xF065 | (o[0].reg << 8)],
+      // SUPER-CHIP
+      [['HF', R], (o) => 0xF030 | (o[1].reg << 8)],
+      [[FLAGS, R], (o) => 0xF075 | (o[1].reg << 8)],
+      [[R, FLAGS], (o) => 0xF085 | (o[0].reg << 8)],
+      // XO-CHIP: F000 seguida de la dirección de 16 bits.
+      [['I', LONG], (o, v) => [0xF000, v(o[1], 'long')], 4],
     ],
     ADD: [
       [[R, N], (o, v) => 0x7000 | (o[0].reg << 8) | v(o[1], 'byte')],
@@ -310,20 +379,35 @@
     DRW: [[[R, R, N], (o, v) => 0xD000 | (o[0].reg << 8) | (o[1].reg << 4) | v(o[2], 'nibble')]],
     SKP: [[[R], (o) => 0xE09E | (o[0].reg << 8)]],
     SKNP: [[[R], (o) => 0xE0A1 | (o[0].reg << 8)]],
+    // SUPER-CHIP (LD HF, LD R y LD Vx, R están con LD)
+    SCD: [[[N], (o, v) => 0x00C0 | v(o[0], 'nibble')]],
+    SCR: [[[], () => 0x00FB]],
+    SCL: [[[], () => 0x00FC]],
+    EXIT: [[[], () => 0x00FD]],
+    LOW: [[[], () => 0x00FE]],
+    HIGH: [[[], () => 0x00FF]],
+    // XO-CHIP (LD I, LONG está con LD)
+    SCU: [[[N], (o, v) => 0x00D0 | v(o[0], 'nibble')]],
+    SAVE: [[[R, R], (o) => 0x5002 | (o[0].reg << 8) | (o[1].reg << 4)]],
+    LOAD: [[[R, R], (o) => 0x5003 | (o[0].reg << 8) | (o[1].reg << 4)]],
+    PLANE: [[[N], (o, v) => 0xF001 | (v(o[0], 'plane') << 8)]],
+    AUDIO: [[[], () => 0xF002]],
+    PITCH: [[[R], (o) => 0xF03A | (o[0].reg << 8)]],
   };
 
   function describePattern(mnemonic, pattern) {
-    const names = pattern.map((p) => (p === R ? 'Vx' : p === N ? 'valor' : p));
+    const names = pattern.map((p) => (p === R ? 'Vx' : p === N ? 'valor' : p === LONG ? 'LONG valor' : p));
     return (mnemonic + ' ' + names.join(', ')).trim();
   }
 
   // Busca el patrón que coincide con los operandos, o lanza un error explicativo.
+  // Devuelve { encode, size }.
   function matchPattern(mnemonic, ops, lineNo) {
     const options = TABLE[mnemonic];
     for (const entry of options) {
       const pattern = entry[0];
       if (pattern.length !== ops.length) continue;
-      if (pattern.every((p, i) => ops[i].kind === p)) return entry[1];
+      if (pattern.every((p, i) => ops[i].kind === p)) return { encode: entry[1], size: entry[2] || 2 };
     }
     const counts = Array.from(new Set(options.map((e) => e[0].length))).sort();
     const forms = options.map((e) => describePattern(mnemonic, e[0])).join(' | ');
@@ -344,9 +428,12 @@
 
   function assemble(source, options) {
     const origin = options && options.origin !== undefined ? options.origin : 0x200;
+    // Con xochip el programa puede ocupar la memoria de XO-CHIP (64 KB).
+    const xochip = Boolean(options && options.xochip);
+    const memoryEnd = xochip ? 0x10000 : 0x1000; // la primera dirección que ya no existe
     if (typeof source !== 'string') throw new TypeError('assemble() espera el código fuente como texto');
-    if (!Number.isInteger(origin) || origin < 0 || origin > 0xFFF) {
-      throw new RangeError('origin debe ser una dirección entre 0x000 y 0xFFF');
+    if (!Number.isInteger(origin) || origin < 0 || origin >= memoryEnd) {
+      throw new RangeError('origin debe ser una dirección entre 0x000 y ' + hex(memoryEnd - 1, 3));
     }
 
     const lines = source.split(/\r\n|\r|\n/);
@@ -407,17 +494,21 @@
         item.size = ops.length * (up === 'DB' ? 1 : 2);
       } else if (TABLE[up]) {
         const ops = splitOperands(operandText, lineNo).map((o) => classify(o, lineNo));
+        const match = matchPattern(up, ops, lineNo);
         item.kind = 'ins';
-        item.encode = matchPattern(up, ops, lineNo);
+        item.encode = match.encode;
         item.ops = ops;
-        item.size = 2;
+        item.size = match.size;
       } else if (/^[^\s:]+:/.test(word)) {
         throw AsmError(lineNo, 'etiqueta inválida: "' + word + '"');
       } else {
         throw AsmError(lineNo, 'instrucción desconocida: "' + word + '"');
       }
-      if (addr + item.size > 0x1000) {
-        throw AsmError(lineNo, 'el programa no entra en la memoria (se pasa de la dirección 0xFFF)');
+      if (addr + item.size > memoryEnd) {
+        throw AsmError(lineNo, xochip
+          ? 'el programa no entra en la memoria de XO-CHIP (se pasa de la dirección 0xFFFF)'
+          : 'el programa no entra en la memoria (se pasa de la dirección 0xFFF; si es para XO-CHIP, ' +
+            'que llega hasta 0xFFFF, ensamblá con --xo o con la opción xochip)');
       }
       addr += item.size;
     });
@@ -462,12 +553,28 @@
         if (value < -128 || value > 255) throw AsmError(lineNo, 'valor fuera de rango para un byte (-128..255): ' + shown);
         return value & 0xFF;
       }
-      if (type === 'addr') {
-        if (value < 0 || value > 0xFFF) throw AsmError(lineNo, 'dirección fuera de rango (0..0xFFF): ' + shown);
+      // 'iaddr' es la dirección de LD I: el mismo rango, y si el valor entra en
+      // 16 bits el mensaje sugiere LD I, LONG.
+      if (type === 'addr' || type === 'iaddr') {
+        if (value < 0 || value > 0xFFF) {
+          const hint = type === 'iaddr' && value > 0xFFF && value <= 0xFFFF
+            ? '; para cargar en I una dirección de 16 bits usá LD I, LONG (XO-CHIP)' : '';
+          throw AsmError(lineNo, 'dirección fuera de rango (0..0xFFF): ' + shown + hint);
+        }
+        return value;
+      }
+      if (type === 'long') {
+        if (value < 0 || value > 0xFFFF) {
+          throw AsmError(lineNo, 'dirección fuera de rango para LD I, LONG (0..0xFFFF): ' + shown);
+        }
         return value;
       }
       if (type === 'nibble') {
         if (value < 0 || value > 15) throw AsmError(lineNo, 'valor fuera de rango para un nibble (0..15): ' + shown);
+        return value;
+      }
+      if (type === 'plane') {
+        if (value < 0 || value > 3) throw AsmError(lineNo, 'valor fuera de rango para PLANE (0..3): ' + shown);
         return value;
       }
       if (type === 'word') {
@@ -486,9 +593,12 @@
     for (const item of items) {
       const out = [];
       if (item.kind === 'ins') {
-        const val = (op, type) => checked(evalTerms(op.terms, item.line), type, item.line, op.text.trim());
-        const opcode = item.encode(item.ops, val, item.line);
-        out.push((opcode >> 8) & 0xFF, opcode & 0xFF);
+        const val = (op, type) => checked(evalTerms(op.terms, item.line), type, item.line,
+          (op.expr !== undefined ? op.expr : op.text).trim());
+        // Un opcode, o una lista de palabras en las instrucciones de 4 bytes.
+        for (const word of [].concat(item.encode(item.ops, val, item.line))) {
+          out.push((word >> 8) & 0xFF, word & 0xFF);
+        }
       } else if (item.kind === 'DB') {
         for (const terms of item.exprs) {
           out.push(checked(evalTerms(terms, item.line), 'byte', item.line, termsText(terms)));
@@ -518,13 +628,16 @@
 
   // Da formato al listado para mostrarlo en la terminal.
   function formatListing(listing) {
+    // Si algún byte queda más allá de 0xFFF (XO-CHIP), todas las direcciones
+    // llevan 4 dígitos, para que las columnas sigan alineadas.
+    const digits = listing.some((e) => e.bytes.length > 0 && e.addr + e.bytes.length - 1 > 0xFFF) ? 4 : 3;
     const rows = [];
     for (const entry of listing) {
       const chunks = [];
       for (let i = 0; i < entry.bytes.length; i += 4) chunks.push(entry.bytes.slice(i, i + 4));
       if (chunks.length === 0) chunks.push([]);
       chunks.forEach((chunk, i) => {
-        const a = entry.bytes.length ? hex(entry.addr + i * 4, 3) : '     ';
+        const a = entry.bytes.length ? hex(entry.addr + i * 4, digits) : ' '.repeat(digits + 2);
         const b = chunk.map((x) => x.toString(16).toUpperCase().padStart(2, '0')).join(' ').padEnd(12);
         const lineNo = String(entry.line).padStart(4);
         rows.push(lineNo + '  ' + a + '  ' + b + (i === 0 ? entry.text : ''));
@@ -547,7 +660,7 @@
   if (typeof require !== 'undefined' && typeof module !== 'undefined' && require.main === module) {
     const fs = require('fs');
     const path = require('path');
-    const USAGE = 'Uso: node tools/chip8asm.js entrada.asm [salida.ch8] [--listing]';
+    const USAGE = 'Uso: node tools/chip8asm.js entrada.asm [salida.ch8] [--listing] [--xo]';
     // Muestra el problema y el uso, y termina con código 1.
     const fail = (message) => {
       console.error('chip8asm: ' + message + '\n' + USAGE);
@@ -571,9 +684,11 @@
       process.exit(0);
     }
     let wantListing = false;
+    let xochip = false;
     const files = [];
     for (const a of args) {
       if (a === '--listing') wantListing = true;
+      else if (a === '--xo') xochip = true;
       else if (a.startsWith('-') && a !== '-') fail('opción desconocida: ' + a);
       else files.push(a);
     }
@@ -590,7 +705,7 @@
     }
     let result;
     try {
-      result = assemble(source);
+      result = assemble(source, { xochip });
     } catch (e) {
       console.error(path.basename(input) + ': ' + e.message);
       process.exit(1);

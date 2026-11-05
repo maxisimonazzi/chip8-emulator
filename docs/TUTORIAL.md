@@ -759,7 +759,7 @@ mismo nombre. Con un segundo argumento elegís otro nombre:
 
 <!-- salida: node tools/chip8asm.js --help -->
 ```text
-Uso: node tools/chip8asm.js entrada.asm [salida.ch8] [--listing]
+Uso: node tools/chip8asm.js entrada.asm [salida.ch8] [--listing] [--xo]
 ```
 
 Y si algo sale mal (un archivo que no existe, una opción que no conoce), te dice qué
