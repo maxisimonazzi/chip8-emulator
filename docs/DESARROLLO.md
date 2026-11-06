@@ -715,7 +715,7 @@ Las constantes que conviene conocer:
 | `DISASM_BEFORE`, `DISASM_AFTER` | 7 y 12 | Filas del desensamblado antes y después del PC. |
 | `BEEP_HZ`, `BEEP_LEVEL` | 440 y 0,22 | Frecuencia del pitido y ganancia máxima. |
 | `TAP_MS` | 120 | Duración mínima de un toque del keypad sin puntero. |
-| `STORAGE_KEY`, `ROMS_KEY`, `LIBRARY_KEY` | `'chip8-consola.ajustes'`, `'chip8-consola.cartuchos'` y `'chip8-consola.biblioteca'` | Las tres claves de `localStorage` ([4.19](#419-ajustes-guardados)). |
+| `STORAGE_KEY`, `ROMS_KEY`, `LIBRARY_KEY`, `STATES_KEY` | `'chip8-consola.ajustes'`, `'chip8-consola.cartuchos'`, `'chip8-consola.biblioteca'` y `'chip8-consola.estados'` | Las cuatro claves de `localStorage` ([4.19](#419-ajustes-guardados)). |
 | `ROMS_MAX`, `ROM_SAVE_MS`, `FLAGS_CHECK_MS` | 500, 400 ms y 1000 ms | ROMs con ajustes recordados como mucho; pausa antes de guardarlos; cada cuánto se miran las banderas RPL. |
 | `LIBRARY_MAX_ITEMS`, `LIBRARY_MAX_CHARS`, `LIBRARY_PICKS` | 60, 2 500 000 y 5 | Límites de la biblioteca y cuántos van en «Tuyos:». |
 | `TURBO_FACTOR` | 4 | Ticks emulados por tick real con el avance rápido. |
@@ -1386,6 +1386,7 @@ La consola usa tres claves de `localStorage`, todas leídas y escritas dentro de
 | `'chip8-consola.ajustes'` | `settings`: tus últimas elecciones (la tabla de abajo). |
 | `'chip8-consola.cartuchos'` | Los ajustes recordados y las banderas de cada ROM ([4.9](#49-ajustes-por-cartucho)). |
 | `'chip8-consola.biblioteca'` | Tus cartuchos ([4.10](#410-tus-cartuchos-la-biblioteca)). |
+| `'chip8-consola.estados'` | Los estados guardados de cada ROM: `{ version: 1, roms: { [sha1]: { name, slots: { rapido, "1"…"4": { date, text } } } } }`, con `text` = `Chip8Core.encodeState(cpu.saveState())`. |
 
 `settings` se guarda entero cada vez que cambia algo. Al arrancar, `loadSettings()` valida
 cada campo por separado y descarta lo que no tenga el tipo esperado:
@@ -1477,6 +1478,11 @@ La interfaz expone `window.chip8` para depurar desde la consola del navegador y 
 | `gamepadState()` | `{ supported, active, connected, start, keys, up, down, left, right, a, b }`. |
 | `setCurvature(on)`, `getCurvature()` | La curvatura (no se prende si el navegador no puede). |
 | `setPowerOn(on)`, `getPowerOn()` | El encendido animado. |
+| `saveSlot(ranura)`, `loadSlot(ranura)`, `deleteSlot(ranura)` | Guardan, cargan o borran un estado de la ROM de la ranura (`'rapido'` o de 1 a 4); devuelven `true` o `false`. |
+| `listSlots()` | Las cinco ranuras de la ROM de la ranura (`{ slot, name, empty, date, when, size, platform, damaged }`), o `null` sin cartucho. |
+| `setRewind(on)`, `getRewind()` | El interruptor «Rebobinado». |
+| `setRewinding(on)`, `isRewinding()` | Rebobinar como si se mantuviera B. |
+| `rewindInfo()` | `{ seconds, entries, bytes }` del buffer de rebobinado. |
 
 Las funciones que cambian ajustes cuentan como un cambio de la persona: quedan en
 `settings` y, con «Ajustes por cartucho», en los de la ROM de la ranura. Un truco: en la
@@ -2025,6 +2031,16 @@ primeros son de la primera ronda; del 25 al 40, de la segunda:
 | 38 | Flechas y «Controles»: el mapa de Octo, el del VIP y uno personalizado (con el mouse); los controles con foco se quedan con sus flechas; el mapa de cada cartucho se recuerda al recargar. |
 | 39 | Curvatura (apagarla deja el tubo idéntico, píxel por píxel) y encendido animado (al cargar; no con `prefers-reduced-motion` ni con el interruptor apagado). |
 | 40 | Diseño con la biblioteca llena y «Controles» personalizados a la vista, a 1440, 768 y 360 px. |
+| 41 | I guarda y U restaura la máquina exacta (pc, registros, pila, timers, pantalla, memoria, quirks); en pausa queda en pausa con ese frame en el lienzo y en el monitor. |
+| 42 | Ranuras 1 a 3 con el mouse: miniaturas idénticas píxel por píxel, fechas, «Cargar» en pausa, «Borrar» y «Deshacer», y la paleta Ámbar las repinta. |
+| 43 | Los estados sobreviven a una recarga ("hace 5 min", "ayer 18:20"), U anda después de recargar y otra ROM ve sus ranuras vacías. |
+| 44 | Un estado de XO-CHIP cargado en CHIP-8 cambia la plataforma sin tocar tus ajustes; un estado detenido trae su error y un estado después de EXIT, «FIN DEL PROGRAMA». |
+| 45 | Mantener B (y el botón ⏪, con mouse y con toques) vuelve por los mismos frames de la primera pasada, sin sonido y sin correr la máquina; al soltar, sigue igual; T+B va cuatro veces más rápido. |
+| 46 | En pausa, un toque de B vuelve un frame exacto; mantenerla sigue volviendo; después de un error vuelve un frame y queda en pausa. |
+| 47 | Con «Rebobinado» apagado, B y ⏪ no hacen nada y no se guardan fotos; el ajuste sobrevive a una recarga. |
+| 48 | Almacenamiento roto (todo en memoria), lleno (el aviso correcto y el estado en memoria), un estado dañado y la ranura vacía. |
+| 49 | Diseño con el grupo «Estados» a la vista, a 1440, 768 y 360 px. |
+| 50 | XO-CHIP a 1000 IPF con Planos y con una ROM que reescribe la memoria en cada frame: 60 fps tomando fotos y al rebobinar. |
 
 `node tools/e2e.js --help` imprime esta misma lista (sale del comentario del principio del
 archivo).

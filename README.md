@@ -65,6 +65,9 @@ teclas a la vez), llegar a una tecla con **Tab** y apretarla con **Enter** o
 | T (mantenida) | Avance rápido: la máquina corre 4 veces más rápido, timers incluidos |
 | P | Pantalla completa (para salir, P o Esc) |
 | G | Guardar una captura de la pantalla en PNG |
+| I | Guardar el estado en la ranura rápida |
+| U | Cargar la ranura rápida |
+| B (mantenida) | Rebobinar: la máquina vuelve hacia atrás en el tiempo |
 | ↑ ↓ ← → | Las teclas del keypad que elijas en **Controles** (de fábrica, 5, 8, 7 y 9) |
 | Esc | Cerrar diálogos |
 
@@ -277,7 +280,7 @@ node tools/e2e.js --shots capturas    # guarda las capturas en esa carpeta
 ```
 
 `tools/e2e.js` abre Chrome (o Edge) sin ventana, carga `chip8.html` por HTTP y por
-`file://` y corre 40 escenarios con eventos reales (teclado, mouse, toques, arrastrar y
+`file://` y corre 50 escenarios con eventos reales (teclado, mouse, toques, arrastrar y
 soltar) y tiempo real: velocidad, keypad, atajos, carga de ROMs, cartuchos, quirks,
 sonido, monitor, errores, diseño adaptable, plataformas, diagnósticos, colores, ajustes
 por cartucho, banderas, biblioteca, avance rápido, captura, pantalla completa, joystick,

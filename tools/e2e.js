@@ -95,6 +95,25 @@
  *   39 curvatura (apagarla deja el tubo idéntico, píxel por píxel) y encendido animado (al cargar; no
  *      con prefers-reduced-motion ni con el interruptor apagado)
  *   40 diseño con la biblioteca llena y «Controles» personalizados a la vista: 1440, 768 y 360 px
+ *   41 estados: I guarda en la ranura rápida y U vuelve exactamente a ese momento (pc, registros, pantalla,
+ *      memoria); en pausa sigue en pausa con ese frame en la pantalla y el monitor, corriendo sigue corriendo
+ *   42 ranuras 1 a 4 con el mouse: Guardar, la pantallita (el display del estado con la paleta, escala entera,
+ *      también al cambiar de paleta), la fecha, Cargar en pausa, y Borrar con «Deshacer»
+ *   43 los estados sobreviven a una recarga y son de su cartucho (otra ROM no los ve): «hace 5 min», «ayer
+ *      18:20», U después de recargar y el formato de localStorage['chip8-consola.estados']
+ *   44 un estado de XO-CHIP cargado con la plataforma en CHIP-8 pasa a XO-CHIP (selector, placa, monitor y
+ *      pantalla de cuatro colores) sin tocar tus ajustes ni los del cartucho; un estado guardado con la máquina
+ *      detenida (error de plataforma) o terminada (00FD) vuelve con su mensaje, su botón y su LED
+ *   45 rebobinado con B sostenida, con el botón ⏪ (mouse y dedo) y con B y T: vuelve a frames exactos ya
+ *      vistos, al doble (u ocho veces) de la velocidad, sin sonido y con «⏪»; al soltar, sigue igual que antes
+ *   46 rebobinado en pausa: un toque de B vuelve un frame (Frame avanza uno), sostenida sigue, Espacio sobre
+ *      el botón ⏪ enfocado también rebobina, y queda en pausa; detenida por un error, vuelve a antes del
+ *      error y queda en pausa (con Frame se llega otra vez al error)
+ *   47 el interruptor «Rebobinado» apagado: B y ⏪ no hacen nada, sin fotos; se recuerda al recargar
+ *   48 estados sin almacenamiento (en memoria, un aviso), sin lugar (QuotaExceededError real: el aviso de qué
+ *      borrar y sigue andando), dañados («DAÑADO» y el error al cargar) y sin cartucho (la explicación)
+ *   49 diseño con «Estados» a la vista: 1440, 768 y 360 px (pantallitas con escala entera, botones enteros)
+ *   50 rebobinado a 60 fps con XO-CHIP a 1000 IPF: Planos y una ROM que reescribe la memoria de 64 KB
  */
 
 const { spawn, spawnSync } = require('node:child_process');
@@ -3256,6 +3275,861 @@ scenario(40, 'Diseño con la biblioteca llena y «Controles» a la vista: 1440, 
   }
   s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
 });
+
+// ---------------------------------------------------------------- ayudas de los escenarios 41 en adelante (estados y rebobinado)
+const STATES_KEY = 'chip8-consola.estados';
+
+// Un contador de frames: VA:VB (16 bits) sube uno por frame. Con la espera de vblank del perfil COSMAC VIP (el
+// de fábrica) cada frame termina en su único DRW, así que hay exactamente una suma por frame y VA:VB identifica
+// el frame. La pantalla muestra el dígito hexadecimal de VB; con sound, el timer de sonido no se apaga nunca.
+function romContador(sound = false) {
+  return asm(`
+bucle:  CLS
+        LD F, VB
+        LD V0, 28
+        LD V1, 13
+        ${sound ? 'LD V2, 4' : 'LD V2, 0'}
+        ${sound ? 'LD ST, V2' : 'ADD V2, 0'}
+        DRW V0, V1, 5
+        ADD VB, 1
+        SE VB, 0
+        JP bucle
+        ADD VA, 1
+        JP bucle`);
+}
+
+// La huella de la máquina en la página (window.__fp): el frame del contador (VA:VB), registros, pila, timers y
+// un hash de la pantalla y de la memoria. instrumentPrints guarda la de cada runFrame en cpu.__prints.
+const PRINT_FN = `(c) => {
+  const fnv = (a) => { let h = 2166136261; for (let i = 0; i < a.length; i++) h = Math.imul(h ^ a[i], 16777619); return h >>> 0; };
+  return { id: (c.V[10] << 8) | c.V[11], pc: c.pc, I: c.I, sp: c.sp, V: Array.from(c.V).join(','), stack: Array.from(c.stack).join(','),
+    dt: c.delayTimer, st: c.soundTimer, disp: fnv(c.display), mem: fnv(c.memory), res: c.displayWidth + 'x' + c.displayHeight,
+    platform: c.platform, halted: c.halted, wait: c.waitingForKey };
+}`;
+async function instrumentPrints(page) {
+  await page.ev(`(() => {
+    window.__fp = ${PRINT_FN};
+    const c = window.chip8.cpu;
+    if (c.__prints) return true;
+    const P = c.__prints = [], rf = c.runFrame;
+    c.runFrame = function (n) { const r = rf.call(this, n); P.push(window.__fp(this)); if (P.length > 8000) P.splice(0, 2000); return r; };
+    return true;
+  })()`);
+}
+const machinePrint = (page) => page.ev('window.__fp(window.chip8.cpu)');
+// La máquina de ahora comparada con la primera huella grabada del mismo frame, la de la primera vez que la
+// máquina pasó por ahí (diff: los campos distintos).
+function printMatch(page) {
+  return page.ev(`(() => {
+    const now = window.__fp(window.chip8.cpu), P = window.chip8.cpu.__prints;
+    for (let i = 0; i < P.length; i++) {
+      if (P[i].id === now.id) return { now, found: true, diff: Object.keys(now).filter((k) => now[k] !== P[i][k]) };
+    }
+    return { now, found: false, diff: [] };
+  })()`);
+}
+// Las huellas grabadas desde mark (después de soltar el rebobinado) comparadas con las del mismo frame la
+// primera vez.
+function replayCheck(page, mark) {
+  return page.ev(`(() => {
+    const P = window.chip8.cpu.__prints, mark = ${mark};
+    let same = 0, diff = 0, missing = 0, first = '';
+    for (let i = mark; i < P.length; i++) {
+      let j = 0;
+      while (j < mark && P[j].id !== P[i].id) j++;
+      if (j === mark) { missing++; continue; }
+      const k = Object.keys(P[i]).filter((x) => P[i][x] !== P[j][x]);
+      if (k.length) { diff++; if (!first) first = 'frame ' + P[i].id + ': ' + k.join(','); } else same++;
+    }
+    return { n: P.length - mark, same, diff, missing, first };
+  })()`);
+}
+
+const slotSel = (slot, act) => `#save-slots .save-slot[data-slot="${slot}"] [data-act="${act}"]`;
+// Lo que muestra cada ranura de «Estados».
+function slotsView(page) {
+  return page.ev(`Array.from(document.querySelectorAll('#save-slots .save-slot')).map((s) => ({
+    slot: s.dataset.slot, name: s.querySelector('.save-name').textContent, when: s.querySelector('.save-when').textContent,
+    title: s.querySelector('.save-when').title, blank: s.querySelector('.save-blank').hidden ? '' : s.querySelector('.save-blank').textContent,
+    canvas: !s.querySelector('canvas').hidden, load: !s.querySelector('[data-act="load"]').disabled,
+    del: !s.querySelector('[data-act="delete"]').disabled, empty: s.classList.contains('is-empty') }))`);
+}
+// La máquina comparada con el estado guardado en una ranura (leído de localStorage y decodificado en la página).
+function sameAsSlotExpr(slot) {
+  return `(() => {
+    const c = window.chip8.cpu, sha = window.chip8.romInfo().sha1, store = JSON.parse(localStorage.getItem('${STATES_KEY}'));
+    const st = Chip8Core.decodeState(store.roms[sha].slots[${JSON.stringify(String(slot))}].text);
+    const eq = (a, b) => a.length === b.length && Array.prototype.every.call(a, (v, i) => v === b[i]);
+    const diff = [];
+    for (const k of ['platform', 'pc', 'I', 'sp', 'delayTimer', 'soundTimer', 'hires', 'displayWidth', 'displayHeight', 'planes', 'halted', 'waitingForKey', 'pitch']) if (c[k] !== st[k]) diff.push(k);
+    for (const k of ['V', 'stack', 'display', 'memory', 'flags', 'audioPattern']) if (!eq(c[k], st[k])) diff.push(k);
+    for (const k of Object.keys(st.quirks)) if (c.quirks[k] !== st.quirks[k]) diff.push('quirks.' + k);
+    return { diff, pc: st.pc, vb: st.V[11], cpuVb: c.V[11], platform: st.platform };
+  })()`;
+}
+// La pantallita de una ranura: el display de su estado guardado con los colores de la paleta, y su escala.
+function thumbExpr(slot, colors) {
+  return `(() => {
+    const el = document.querySelector('#save-slots .save-slot[data-slot="${slot}"]'), cv = el.querySelector('canvas');
+    const sha = window.chip8.romInfo().sha1, store = JSON.parse(localStorage.getItem('${STATES_KEY}'));
+    const st = Chip8Core.decodeState(store.roms[sha].slots['${slot}'].text);
+    const pal = ${JSON.stringify(colors)}.map((x) => parseInt(x.slice(1), 16));
+    const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+    let wrong = 0;
+    for (let i = 0; i < st.display.length; i++) { const got = (d[4 * i] << 16) | (d[4 * i + 1] << 8) | d[4 * i + 2]; if (got !== pal[st.display[i] & 3]) wrong++; }
+    const scale = parseFloat(cv.style.width) * devicePixelRatio / cv.width;
+    const box = cv.getBoundingClientRect(), scr = cv.parentNode.getBoundingClientRect();
+    return { size: cv.width + '×' + cv.height, res: st.displayWidth + '×' + st.displayHeight, wrong, lit: st.display.filter((v) => v).length,
+      scale: Math.round(scale * 1000) / 1000, integer: Math.abs(scale - Math.round(scale)) < 1e-6, pixelated: getComputedStyle(cv).imageRendering,
+      visible: !cv.hidden && box.width > 0, inside: box.left >= scr.left - 0.5 && box.right <= scr.right + 0.5 && box.top >= scr.top - 0.5 && box.bottom <= scr.bottom + 0.5 };
+  })()`;
+}
+const statusText = (page) => page.ev("document.getElementById('status').textContent");
+
+// 41 -------------------------------------------------------------------------------
+scenario(41, 'Estados: I guarda en la ranura rápida y U vuelve exactamente a ese momento, en pausa (sigue en pausa) o corriendo (sigue corriendo)', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  await loadWithButton(page, writeFixture(ctx, 'contador.ch8', romContador()), 'contador.ch8');
+  await page.click('.seg[data-mode="puro"]');   // Píxeles puros: el lienzo se compara con cpu.display, píxel por píxel
+  await page.click('.tagline');
+  await sleep(1000);
+  // I (tecla real): guarda en la ranura rápida, sin apretar ninguna tecla del CHIP-8.
+  await page.keyDown('KeyI');
+  const kI = await page.ev(KEYS_EXPR);
+  await page.keyUp('KeyI');
+  await sleep(120);
+  const a = await page.ev(`({ status: document.getElementById('status').textContent, tag: document.getElementById('tag-state').hidden ? null : document.getElementById('tag-state').textContent, list: window.chip8.listSlots() })`);
+  const sha = (await page.ev('window.chip8.romInfo()')).sha1;
+  const store = await stored(page, STATES_KEY);
+  const q = store && store.roms && store.roms[sha] && store.roms[sha].slots.rapido;
+  s.check(noKeys(kI) && a.status === 'Estado guardado en la ranura rápida.' && a.tag === 'GUARDADO' && a.list[0].slot === 'rapido' && !a.list[0].empty && a.list[0].when === 'recién' && a.list.slice(1).every((x) => x.empty),
+    `I guarda en la ranura rápida: «${a.status}», «GUARDADO» en la pantalla y la ranura dice «${a.list[0].when}» (ninguna tecla del CHIP-8)`, JSON.stringify({ kI, a }));
+  s.check(store && store.version === 1 && q && typeof q.text === 'string' && q.text.length > 100 && q.text.length < 6000 && Math.abs(q.date - Date.now()) < 10000,
+    `queda en localStorage['${STATES_KEY}'], con su fecha y la máquina en texto (${q ? q.text.length : 0} caracteres)`, JSON.stringify(store).slice(0, 300));
+  // Sigue corriendo: la máquina se aleja del estado guardado.
+  await sleep(1500);
+  const far = await page.ev(sameAsSlotExpr('rapido'));
+  s.check(far.diff.length > 0 && far.cpuVb !== far.vb, `1,5 s después la máquina ya es otra (VB ${far.vb} -> ${far.cpuVb})`, JSON.stringify(far));
+  // En pausa, U vuelve al momento guardado y sigue en pausa, con ese frame en la pantalla y en el monitor.
+  await page.press('Space');
+  await sleep(100);
+  await page.press('KeyU');
+  await sleep(150);
+  const b = await page.ev(sameAsSlotExpr('rapido'));
+  const v = await page.ev(`({ paused: window.chip8.isPaused(), tag: !document.getElementById('tag-pause').hidden, status: document.getElementById('status').textContent,
+    loaded: document.getElementById('tag-state').hidden ? null : document.getElementById('tag-state').textContent, monPc: document.getElementById('mon-pc').textContent,
+    monVB: document.querySelectorAll('#vgrid .vcell span')[11].textContent })`);
+  const screen = await page.ev(canvasVsDisplayExpr(FOSFORO));
+  s.check(b.diff.length === 0, `en pausa, U deja la máquina exactamente como se guardó: pc, I, pila, registros, timers, pantalla, memoria y quirks (VB = ${b.vb})`, JSON.stringify(b));
+  s.check(v.paused && v.tag && v.status === 'Estado de la ranura rápida cargado (guardado recién).' && v.loaded === 'CARGADO',
+    `sigue en pausa (PAUSA en la pantalla), anuncia «${v.status}» y muestra «CARGADO»`, JSON.stringify(v));
+  s.check(v.monPc === hx(b.pc) && v.monVB === b.vb.toString(16).toUpperCase().padStart(2, '0') && screen.wrong === 0,
+    `el monitor (PC ${v.monPc}, VB ${v.monVB}) y la pantalla (${screen.size.join('×')}, ${screen.wrong} píxeles distintos de cpu.display) muestran el estado cargado`, JSON.stringify({ v, screen }));
+  await page.ev('window.scrollTo(0, 0)');
+  await page.shot('41-estado-cargado-en-pausa');
+  // Corriendo: U vuelve a ese momento y la máquina sigue corriendo desde ahí.
+  await page.press('Space');
+  await sleep(1000);
+  const c0 = await counters(page);
+  await page.keyDown('KeyU');
+  const right = await page.ev(`({ vb: window.chip8.cpu.V[11], paused: window.chip8.isPaused() })`);
+  await page.keyUp('KeyU');
+  await sleep(500);
+  const c1 = await counters(page);
+  const later = await page.ev(`({ vb: window.chip8.cpu.V[11], paused: window.chip8.isPaused() })`);
+  const near = (right.vb - b.vb + 256) % 256, ran = (later.vb - b.vb + 256) % 256;
+  s.check(!right.paused && near <= 3 && !later.paused && c1.calls - c0.calls > 20 && ran >= 20,
+    `corriendo, U vuelve al estado guardado (VB ${b.vb} -> ${right.vb}) y la máquina sigue desde ahí: medio segundo después va por VB ${later.vb}`, JSON.stringify({ right, later, frames: c1.calls - c0.calls }));
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 42 -------------------------------------------------------------------------------
+scenario(42, 'Estados con el mouse: las ranuras 1 a 4 guardan, muestran su pantalla (paleta y escala entera) y su fecha, cargan, y Borrar trae «Deshacer»', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  await loadWithButton(page, writeFixture(ctx, 'contador.ch8', romContador()), 'contador.ch8');
+  const v0 = await slotsView(page);
+  s.check(v0.length === 5 && v0[0].name === 'Rápido' && v0.slice(1).every((x, i) => x.name === 'Ranura ' + (i + 1)) &&
+    v0.every((x) => x.empty && x.blank === 'VACÍA' && x.when === 'Nada guardado' && !x.load && !x.del && !x.canvas),
+  'un cartucho nuevo tiene sus cinco ranuras vacías (Rápido y Ranura 1 a 4): «VACÍA», «Nada guardado», Cargar y Borrar deshabilitados', JSON.stringify(v0));
+  for (const slot of [1, 2, 3]) {
+    await sleep(350);
+    await clickHit(page, slotSel(slot, 'save'));
+  }
+  await sleep(150);
+  const v1 = await slotsView(page);
+  const sha = (await page.ev('window.chip8.romInfo()')).sha1;
+  const st1 = await stored(page, STATES_KEY);
+  const texts = [1, 2, 3].map((n) => st1.roms[sha].slots[String(n)].text);
+  const focus1 = await page.ev('document.activeElement === document.body');
+  s.check(v1.slice(1, 4).every((x) => !x.empty && x.canvas && x.when === 'recién' && x.load && x.del && /^Guardado el \d+ de \w+ de \d{4} a las \d\d:\d\d$/.test(x.title)) &&
+    v1[4].empty && !v1[4].load && v1[0].empty && new Set(texts).size === 3 && focus1,
+  `Guardar (clic) en las ranuras 1, 2 y 3: cada una muestra su pantalla y «recién» (título «${v1[1].title}»), Cargar y Borrar se habilitan; la 4 y la rápida siguen vacías; tres estados distintos y el botón no se queda con el foco`, JSON.stringify(v1));
+  const th = [];
+  for (const slot of [1, 2, 3]) th.push(await page.ev(thumbExpr(slot, FOSFORO)));
+  s.check(th.every((t) => t.wrong === 0 && t.lit > 0 && t.size === '64×32' && t.integer && t.scale === 2 && t.pixelated === 'pixelated' && t.visible && t.inside),
+    `cada pantallita es el display de su estado con los colores de Verde fósforo, píxel por píxel, a escala entera (×${th[0].scale}, image-rendering: ${th[0].pixelated})`, JSON.stringify(th));
+  // Cargar la ranura 2, en pausa: vuelve a ese estado y sigue en pausa.
+  await clickHit(page, '#btn-pause');
+  await sleep(100);
+  await clickHit(page, slotSel(2, 'load'));
+  await sleep(150);
+  const l2 = await page.ev(sameAsSlotExpr(2));
+  const p2 = await page.ev(`({ paused: window.chip8.isPaused(), status: document.getElementById('status').textContent })`);
+  s.check(l2.diff.length === 0 && p2.paused && p2.status === 'Estado de la ranura 2 cargado (guardado recién).',
+    `Cargar (clic) en la ranura 2 vuelve exactamente a ese estado y sigue en pausa: «${p2.status}»`, JSON.stringify({ l2, p2 }));
+  // Borrar la ranura 1: el aviso trae «Deshacer».
+  await clickHit(page, slotSel(1, 'delete'));
+  await sleep(150);
+  const v2 = await slotsView(page);
+  const t2 = await toastsInfo(page);
+  const st2 = await stored(page, STATES_KEY);
+  s.check(v2[1].empty && v2[1].blank === 'VACÍA' && !v2[1].load && !v2[1].del && !('1' in st2.roms[sha].slots) && !v2[2].empty &&
+    t2.some((x) => x.text === 'Borraste el estado de la ranura 1 de «contador.ch8».' && x.action === 'Deshacer'),
+  'Borrar (clic) vacía la ranura 1 (también en localStorage) y el aviso trae «Deshacer»', JSON.stringify({ v2: v2[1], t2 }));
+  await page.ev("document.getElementById('states-group').scrollIntoView({ block: 'center' })");
+  await page.shot('42-estados-borrar');
+  await clickToastAction(page, 'Deshacer');
+  await sleep(150);
+  const v3 = await slotsView(page);
+  const st3 = await stored(page, STATES_KEY);
+  const s3 = await statusText(page);
+  s.check(!v3[1].empty && v3[1].canvas && v3[1].load && st3.roms[sha].slots['1'] && st3.roms[sha].slots['1'].text === texts[0] && s3 === 'El estado de la ranura 1 de «contador.ch8» volvió.',
+    `«Deshacer» devuelve el mismo estado a la ranura 1, con su pantallita: «${s3}»`, JSON.stringify({ v3: v3[1], s3 }));
+  // Otra paleta (con el mouse): las pantallitas se pintan con sus colores.
+  await chooseWithMouse(page, '#palette', 'ambar');
+  await sleep(150);
+  const th2 = [];
+  for (const slot of [1, 2, 3]) th2.push(await page.ev(thumbExpr(slot, AMBAR)));
+  s.check(th2.every((t) => t.wrong === 0), 'con la paleta Ámbar, las tres pantallitas usan sus colores (píxel por píxel)', JSON.stringify(th2));
+  await page.ev("document.getElementById('states-group').scrollIntoView({ block: 'center' })");
+  await page.shot('42-estados-ambar');
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 43 -------------------------------------------------------------------------------
+scenario(43, 'Estados por cartucho: sobreviven a una recarga, dicen cuándo se guardaron («hace 5 min», «ayer 18:20») y otra ROM no los ve', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  const A = writeFixture(ctx, 'alfa.ch8', romContador()), B = writeFixture(ctx, 'beta.ch8', romDigitos(4, 2));
+  await loadWithButton(page, A, 'alfa.ch8');
+  await page.click('.tagline');
+  await sleep(600);
+  await page.press('KeyI');
+  await sleep(400);
+  await clickHit(page, slotSel(1, 'save'));
+  await sleep(100);
+  const shaA = (await page.ev('window.chip8.romInfo()')).sha1;
+  // Las fechas, como si se hubieran guardado hace 5 minutos y ayer a las 18:20.
+  await page.ev(`(() => {
+    const s = JSON.parse(localStorage.getItem('${STATES_KEY}')), r = s.roms['${shaA}'], y = new Date();
+    y.setDate(y.getDate() - 1);
+    y.setHours(18, 20, 0, 0);
+    r.slots.rapido.date = Date.now() - 5 * 60000 - 15000;
+    r.slots['1'].date = y.getTime();
+    localStorage.setItem('${STATES_KEY}', JSON.stringify(s));
+    return true;
+  })()`);
+  await page.reload();
+  await page.instrument();
+  const d0 = await slotsView(page);   // arranca el demo incluido: sus ranuras están vacías
+  await page.click('#lib-chips .chip:nth-child(1)');   // alfa, desde «Tuyos:»
+  await page.waitFor(`document.getElementById('cart-name').textContent === 'alfa'`, { timeout: 3000, desc: 'alfa desde «Tuyos:»' });
+  const d1 = await slotsView(page);
+  s.check(d0.every((x) => x.empty) && !d1[0].empty && d1[0].when === 'hace 5 min' && !d1[1].empty && d1[1].when === 'ayer 18:20' && /a las 18:20$/.test(d1[1].title) &&
+    d1[2].empty && d1[0].canvas && d1[1].canvas,
+  `después de recargar, alfa (desde «Tuyos:») tiene sus dos estados: Rápido «${d1[0].when}» y Ranura 1 «${d1[1].when}»; el demo del arranque, ninguno`, JSON.stringify({ d0, d1 }));
+  await page.click('.tagline');
+  await page.press('Space');
+  await sleep(80);
+  await page.press('KeyU');
+  await sleep(120);
+  const u = await page.ev(sameAsSlotExpr('rapido'));
+  const us = await statusText(page);
+  s.check(u.diff.length === 0 && us === 'Estado de la ranura rápida cargado (guardado hace 5 min).', `U carga el estado rápido guardado antes de recargar: «${us}»`, JSON.stringify(u));
+  await page.ev("document.getElementById('states-group').scrollIntoView({ block: 'center' })");
+  await page.shot('43-estados-de-alfa');
+  // Otra ROM no los ve.
+  await loadWithButton(page, B, 'beta.ch8');
+  const d2 = await slotsView(page);
+  const list2 = await page.ev('window.chip8.listSlots()');
+  const st2 = await stored(page, STATES_KEY);
+  s.check(d2.every((x) => x.empty) && list2.length === 5 && list2.every((x) => x.empty) && Object.keys(st2.roms).join() === shaA,
+    'con beta en la ranura las cinco ranuras están vacías; los estados de alfa siguen guardados a su nombre', JSON.stringify({ d2, roms: Object.keys(st2.roms) }));
+  await page.click('.tagline');
+  await page.press('KeyU');
+  await sleep(100);
+  const bu = await statusText(page);
+  s.check(bu === 'La ranura rápida está vacía: guardá con I.' && (await page.ev("document.getElementById('cart-name').textContent")) === 'beta.ch8',
+    `U con beta no carga el estado de alfa: «${bu}»`);
+  // El formato guardado.
+  const fmt = await page.ev(`(() => {
+    const s = JSON.parse(localStorage.getItem('${STATES_KEY}')), r = s.roms['${shaA}'], st = Chip8Core.decodeState(r.slots['1'].text);
+    return { version: s.version, keys: Object.keys(s).sort().join(), name: r.name, slots: Object.keys(r.slots).sort().join(), entry: Object.keys(r.slots['1']).sort().join(),
+      platform: st.platform, format: JSON.parse(r.slots['1'].text).format };
+  })()`);
+  s.check(fmt.version === 1 && fmt.keys === 'roms,version' && fmt.slots === '1,rapido' && fmt.entry === 'date,text' && fmt.platform === 'chip8' && fmt.format === 'chip8-state' && /^alfa/.test(fmt.name),
+    `formato: { version: 1, roms: { [sha1]: { name: «${fmt.name}», slots: { ${fmt.slots.split(',').reverse().join(', ')}: { date, text } } } } }, y text es un estado de Chip8Core.encodeState`, JSON.stringify(fmt));
+  // De vuelta a alfa: ahí están.
+  await page.click('#lib-chips .chip:nth-child(2)');
+  await page.waitFor(`document.getElementById('cart-name').textContent === 'alfa'`, { timeout: 3000, desc: 'alfa otra vez' });
+  const d3 = await slotsView(page);
+  s.check(!d3[0].empty && !d3[1].empty && d3[2].empty, 'al volver a alfa, sus dos estados siguen ahí', JSON.stringify(d3));
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 44 -------------------------------------------------------------------------------
+scenario(44, 'Un estado de XO-CHIP cargado con la plataforma en CHIP-8 pasa la consola a XO-CHIP (selector, placa, monitor y pantalla) sin tocar tus ajustes; un estado detenido o terminado vuelve con su mensaje', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  await loadWithButton(page, writeFixture(ctx, 'cuatro.ch8', romCuatroColores(CUADRO)), 'cuatro.ch8');
+  const pick = await chooseWithMouse(page, '#preset', 'xochip');   // en CHIP-8 la ROM se detiene: es de XO-CHIP
+  await waitSelfJump(page);
+  await page.click('.seg[data-mode="puro"]');
+  await clickHit(page, slotSel(2, 'save'));
+  await sleep(100);
+  const sha = (await page.ev('window.chip8.romInfo()')).sha1;
+  const saved = await page.ev(`(() => { const s = JSON.parse(localStorage.getItem('${STATES_KEY}')), st = Chip8Core.decodeState(s.roms['${sha}'].slots['2'].text); return { platform: st.platform, res: st.displayWidth + '×' + st.displayHeight, mem: st.memory.length }; })()`);
+  s.check(pick === 'xochip' && saved.platform === 'xochip' && saved.res === '128×64' && saved.mem === 65536, `con el perfil XO-CHIP (elegido con el mouse), la ranura 2 guarda un estado de XO-CHIP en 128×64 (${JSON.stringify(saved)})`);
+  // Plataforma CHIP-8 con el selector: la ROM vuelve a empezar y se detiene (PLANE es de XO-CHIP).
+  const back = await chooseWithMouse(page, '#platform', 'chip8');
+  await sleep(300);
+  const c8 = await consoleView(page);
+  s.check(back === 'chip8' && c8.platform === 'chip8' && c8.halted && c8.mem === 4096, 'con el selector en CHIP-8 la ROM vuelve a empezar y se detiene: PLANE es de XO-CHIP', JSON.stringify(c8));
+  await clickHit(page, slotSel(3, 'save'));   // la máquina detenida, con su error, también se guarda
+  await sleep(100);
+  await clickHit(page, slotSel(2, 'load'));
+  await sleep(200);
+  const v = await consoleView(page);
+  const same = await page.ev(sameAsSlotExpr(2));
+  const scr = await page.ev(canvasVsDisplayExpr(FOSFORO));
+  const vals = await page.ev(DISPLAY_VALUES);
+  const msg = await page.ev(`({ crt: !document.getElementById('crt-msg').hidden, mon: !document.getElementById('mon-error').hidden, wide: document.getElementById('monitor').classList.contains('is-wide'), monPc: document.getElementById('mon-pc').textContent })`);
+  s.check(v.platform === 'xochip' && v.platSel === 'xochip' && v.preset === 'xochip' && v.mem === 65536 && v.res === '128×64' && /^XO-CHIP · 128×64/.test(v.mode) &&
+    v.plate === 'MODELO XO-CHIP · 64 KB RAM · 128×64' && v.video === 'Video 128 × 64' && !v.halted && msg.wide && msg.monPc === hx(same.pc, 4),
+  `Cargar (clic) en la ranura 2 pasa la consola a XO-CHIP: selector «${v.platSel}», placa «${v.plate}», MÁQUINA «${v.mode}», «${v.video}» y direcciones de 4 dígitos (${msg.monPc})`, JSON.stringify({ v, msg }));
+  s.check(same.diff.length === 0 && scr.wrong === 0 && sameList(vals, [0, 1, 2, 3]) && !msg.crt && !msg.mon,
+    `la máquina es exactamente la guardada, el error de CHIP-8 se va y la pantalla (Píxeles puros) muestra los cuatro colores, cada píxel en su lugar (${scr.wrong} distintos)`, JSON.stringify({ same, scr, vals, msg }));
+  await sleep(600);   // los ajustes del cartucho se guardan juntos, después de una pausa
+  const st = await stored(page, 'chip8-consola.ajustes');
+  const roms = await stored(page, 'chip8-consola.cartuchos');
+  s.check(st.platform === 'chip8' && roms.roms[sha] && roms.roms[sha].platform === 'chip8',
+    `cargar un estado no cuenta como un cambio tuyo: tu plataforma y la recordada para el cartucho siguen en CHIP-8 (${st.platform}, ${roms.roms[sha] && roms.roms[sha].platform})`, JSON.stringify({ st: st.platform, rom: roms.roms[sha] }));
+  await page.ev('window.scrollTo(0, 0)');
+  await page.shot('44-estado-xochip-cargado');
+  // La ranura 3 tiene la máquina detenida en CHIP-8: al cargarla vuelven la plataforma y el error, con su botón.
+  const halt = () => page.ev(`({ crt: !document.getElementById('crt-msg').hidden, title: document.getElementById('crt-msg-title').textContent, fix: document.getElementById('crt-msg-fix').hidden ? null : document.getElementById('crt-msg-fix').textContent,
+    mon: !document.getElementById('mon-error').hidden, led: document.getElementById('led-run').className, paused: window.chip8.isPaused(), halted: window.chip8.cpu.halted, exited: window.chip8.cpu.exited,
+    platform: window.chip8.cpu.platform, status: document.getElementById('status').textContent })`);
+  await clickHit(page, slotSel(3, 'load'));
+  await sleep(150);
+  const h3 = await halt();
+  const same3 = await page.ev(sameAsSlotExpr(3));
+  s.check(h3.crt && h3.title === 'ERROR' && h3.fix === 'Cambiar a XO-CHIP y reiniciar' && h3.mon && h3.led === 'led is-red' && h3.halted && h3.paused && h3.platform === 'chip8' && same3.diff.length === 0 &&
+    h3.status === 'Estado de la ranura 3 cargado (guardado recién). La máquina estaba detenida por un error: reiniciá para seguir.',
+  `la ranura 3 (guardada con la máquina detenida en CHIP-8) vuelve a CHIP-8 con su error en el CRT y en el monitor, el botón «${h3.fix}» y el LED rojo: «${h3.status}»`, JSON.stringify(h3));
+  // Un programa que termina con EXIT (00FD): el estado guardado al final muestra «FIN DEL PROGRAMA» al cargarlo.
+  await loadWithButton(page, writeFixture(ctx, 'fin.ch8', asm(`
+        LD V0, 90
+        LD DT, V0
+espera: LD V0, DT
+        SE V0, 0
+        JP espera
+        EXIT`)), 'fin.ch8');
+  await chooseWithMouse(page, '#preset', 'schip');   // EXIT es de SUPER-CHIP
+  await page.waitFor('window.chip8.cpu.exited', { timeout: 3000, desc: 'el programa terminó con EXIT' });
+  await clickHit(page, slotSel(1, 'save'));
+  await page.click('.tagline');
+  await page.press('Backspace');   // vuelve a empezar: espera 90 frames (1,5 s) antes de terminar
+  await sleep(100);
+  const running = await halt();
+  await clickHit(page, slotSel(1, 'load'));
+  await sleep(150);
+  const h1 = await halt();
+  s.check(!running.crt && !running.halted && h1.crt && h1.title === 'FIN DEL PROGRAMA' && h1.fix === null && h1.led === 'led is-amber' && h1.exited && h1.paused &&
+    h1.status === 'Estado de la ranura 1 cargado (guardado recién). El programa había terminado: reiniciá para volver a empezar.',
+  `con la ROM corriendo otra vez, cargar el estado guardado al terminar muestra «FIN DEL PROGRAMA» y el LED ámbar: «${h1.status}»`, JSON.stringify({ running, h1 }));
+  await page.ev('window.scrollTo(0, 0)');
+  await page.shot('44-estado-fin-del-programa');
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 45 -------------------------------------------------------------------------------
+scenario(45, 'Rebobinado: con B sostenida (y con el botón ⏪, con el mouse y con un dedo) la máquina vuelve atrás frame a frame, al doble de velocidad (con T, ocho veces); al soltar sigue desde ahí', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  await loadWithButton(page, writeFixture(ctx, 'contador-beep.ch8', romContador(true)), 'contador-beep.ch8');
+  await instrumentPrints(page);
+  await page.click('.tagline');
+  await sleep(6000);   // 6 s de historia
+  const i0 = await page.ev(`({ info: window.chip8.rewindInfo(), line: document.getElementById('rewind-info').textContent, beeping: window.chip8.audioState().beeping })`);
+  s.check(i0.info.entries >= 300 && i0.info.seconds >= 5 && i0.info.bytes > 0 && i0.line === `Podés volver hasta ${Math.floor(i0.info.entries / 60)} s.` && i0.beeping,
+    `después de 6 s corriendo hay ${i0.info.entries} fotos (${i0.info.seconds} s, ${Math.round(i0.info.bytes / 1024)} KB) y «Estados» dice «${i0.line}»`, JSON.stringify(i0));
+  // B sostenida ~1 s (el teclado la repite).
+  const p0 = await machinePrint(page);
+  const t0 = await page.ev('performance.now()');
+  await page.keyDown('KeyB');
+  await sleep(300);
+  const during = await page.ev(`({ tag: !document.getElementById('tag-rewind').hidden, active: window.chip8.isRewinding(), btn: document.getElementById('btn-rewind').getAttribute('aria-pressed'),
+    beeping: window.chip8.audioState().beeping, st: window.chip8.cpu.soundTimer, led: document.getElementById('led-snd').className, keys: ${KEYS_EXPR},
+    monPc: document.getElementById('mon-pc').textContent, pc: window.chip8.cpu.pc, monVB: document.querySelectorAll('#vgrid .vcell span')[11].textContent, vb: window.chip8.cpu.V[11] })`);
+  const c0 = await counters(page);   // con B ya apretada: desde acá no tiene que correr ningún frame
+  for (let i = 0; i < 10; i++) { await sleep(50); await page.keyDown('KeyB', { repeat: true }); }
+  await sleep(150);
+  await page.ev('window.scrollTo(0, 0)');
+  await page.shot('45-rebobinando');
+  const c1 = await counters(page);
+  await page.keyUp('KeyB');
+  const t1 = await page.ev('performance.now()');
+  const m1 = await printMatch(page);
+  const mark = await page.ev('window.chip8.cpu.__prints.length');
+  const secs = (t1 - t0) / 1000, back1 = p0.id - m1.now.id;
+  s.info(`B sostenida ${secs.toFixed(2)} s: volvió ${back1} frames (${(back1 / secs).toFixed(0)} por segundo; en tiempo real serían 60)`);
+  s.check(during.tag && during.active && during.btn === 'true' && noKeys(during.keys), 'mientras se mantiene B: «⏪» en la pantalla, el botón del bisel apretado y ninguna tecla del CHIP-8', JSON.stringify(during));
+  s.check(!during.beeping && during.st > 0 && during.led === 'led', `el sonido se calla mientras rebobina, aunque el timer de sonido del estado esté andando (ST = ${during.st})`, JSON.stringify(during));
+  s.check(during.monPc === hx(during.pc) && during.monVB === during.vb.toString(16).toUpperCase().padStart(2, '0'), `el monitor sigue a la máquina rebobinada (PC ${during.monPc}, VB ${during.monVB})`, JSON.stringify(during));
+  s.check(c1.calls === c0.calls, `mientras rebobina la máquina no corre (${c1.calls - c0.calls} llamadas a runFrame)`);
+  s.check(m1.found && m1.diff.length === 0, `al soltar, la máquina es exactamente la del frame ${m1.now.id}, grabada al pasar por ahí: pc, registros, pila, timers, pantalla y memoria`, JSON.stringify(m1));
+  s.check(back1 >= secs * 120 * 0.75 && back1 <= secs * 120 * 1.1 + 4, `vuelve al doble de velocidad: ${back1} frames en ${secs.toFixed(2)} s (≈ ${Math.round(secs * 120)})`);
+  // Al soltar sigue desde ahí: los frames que vienen son los mismos que la primera vez.
+  await sleep(800);
+  const r1 = await replayCheck(page, mark);
+  const after = await page.ev(`({ tag: !document.getElementById('tag-rewind').hidden, active: window.chip8.isRewinding(), btn: document.getElementById('btn-rewind').getAttribute('aria-pressed'), beeping: window.chip8.audioState().beeping, status: document.getElementById('status').textContent })`);
+  s.check(r1.n >= 40 && r1.same === r1.n && !after.tag && !after.active && after.btn === 'false' && after.beeping,
+    `al soltar B la máquina sigue desde ahí: ${r1.same} de ${r1.n} frames idénticos a los de la primera vez; «⏪» se va y vuelve el sonido`, JSON.stringify({ r1, after }));
+  s.check(/^Rebobinado: volviste \d+(,\d)? s atrás\.$/.test(after.status), `y lo anuncia: «${after.status}»`);
+  // El botón ⏪ del bisel, mantenido con el mouse.
+  const rb = await page.rect('#btn-rewind');
+  const pb = await machinePrint(page);
+  const tb0 = await page.ev('performance.now()');
+  await page.mouse('mouseMoved', rb.cx, rb.cy);
+  await page.mouse('mousePressed', rb.cx, rb.cy);
+  await sleep(500);
+  const md = await page.ev(`({ active: window.chip8.isRewinding(), tag: !document.getElementById('tag-rewind').hidden, btn: document.getElementById('btn-rewind').getAttribute('aria-pressed') })`);
+  await page.mouse('mouseReleased', rb.cx, rb.cy);
+  const tb1 = await page.ev('performance.now()');
+  const mb = await printMatch(page);
+  const markB = await page.ev('window.chip8.cpu.__prints.length');
+  const backB = pb.id - mb.now.id, secsB = (tb1 - tb0) / 1000;
+  await sleep(500);
+  const rB = await replayCheck(page, markB);
+  const fB = await page.ev(`({ focus: document.activeElement === document.getElementById('btn-rewind'), active: window.chip8.isRewinding() })`);
+  s.check(md.active && md.tag && md.btn === 'true' && mb.diff.length === 0 && backB >= secsB * 120 * 0.7 && backB <= secsB * 120 * 1.1 + 4 && !fB.active && !fB.focus && rB.n >= 20 && rB.same === rB.n,
+    `el botón ⏪ mantenido con el mouse ${secsB.toFixed(2)} s vuelve ${backB} frames, exactos; al soltarlo sigue (${rB.same}/${rB.n} frames iguales) y no se queda con el foco`, JSON.stringify({ md, mb, backB, rB, fB }));
+  // Con un dedo.
+  await page.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+  const tp = { x: rb.cx, y: rb.cy, id: 7, radiusX: 4, radiusY: 4, force: 1 };
+  const pt = await machinePrint(page);
+  await page.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [tp] });
+  await sleep(400);
+  const td = await page.ev('window.chip8.isRewinding()');
+  await page.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [tp] });
+  await sleep(80);
+  const mt = await printMatch(page);
+  const tu = await page.ev('window.chip8.isRewinding()');
+  await page.send('Emulation.setTouchEmulationEnabled', { enabled: false });
+  s.check(td && !tu && mt.diff.length === 0 && pt.id - mt.now.id >= 30, `con un dedo sobre ⏪ también rebobina (${pt.id - mt.now.id} frames) y al levantarlo sigue`, JSON.stringify({ td, tu, mt }));
+  // B y T a la vez: ocho frames por tick.
+  await sleep(2500);
+  const p8 = await machinePrint(page);
+  const t80 = await page.ev('performance.now()');
+  await page.keyDown('KeyB');
+  await page.keyDown('KeyT');
+  await sleep(450);
+  const fast = await page.ev(`({ turbo: !document.getElementById('tag-turbo').hidden, back: !document.getElementById('tag-rewind').hidden })`);
+  await page.keyUp('KeyT');
+  await page.keyUp('KeyB');
+  const t81 = await page.ev('performance.now()');
+  const m8 = await printMatch(page);
+  const back8 = p8.id - m8.now.id, secs8 = (t81 - t80) / 1000;
+  s.info(`B y T ${secs8.toFixed(2)} s: volvió ${back8} frames (${(back8 / secs8).toFixed(0)} por segundo)`);
+  s.check(fast.turbo && fast.back && m8.diff.length === 0 && back8 / secs8 >= 480 * 0.7 && back8 / secs8 <= 480 * 1.15 + 20,
+    `con T también apretada vuelve ocho frames por tick: ${back8} en ${secs8.toFixed(2)} s, con «×4» y «⏪» en la pantalla`, JSON.stringify({ fast, back8, secs8 }));
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+}, 120000);
+
+// 46 -------------------------------------------------------------------------------
+scenario(46, 'Rebobinado en pausa: un toque de B vuelve exactamente un frame (Frame avanza uno), sostenida sigue volviendo (también Espacio sobre el botón ⏪) y queda en pausa; después de un error, vuelve a antes y queda en pausa', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  await loadWithButton(page, writeFixture(ctx, 'contador.ch8', romContador()), 'contador.ch8');
+  await instrumentPrints(page);
+  await page.click('.tagline');
+  await sleep(3000);
+  await page.press('Space');
+  await sleep(150);
+  const p0 = await machinePrint(page);
+  const pausedView = () => page.ev(`({ paused: window.chip8.isPaused(), tag: !document.getElementById('tag-pause').hidden, rw: !document.getElementById('tag-rewind').hidden, status: document.getElementById('status').textContent })`);
+  await page.press('KeyB', 40);
+  await sleep(120);
+  const m1 = await printMatch(page);
+  const v1 = await pausedView();
+  s.check(m1.now.id === p0.id - 1 && m1.found && m1.diff.length === 0 && v1.paused && v1.tag && !v1.rw,
+    `en pausa, un toque de B vuelve exactamente un frame (${p0.id} -> ${m1.now.id}) y la máquina sigue en pausa`, JSON.stringify({ m1, v1 }));
+  s.check(v1.status === `Rebobinado: volviste 1 frame atrás (en pausa, PC = ${hx(m1.now.pc)}).`, `y lo anuncia: «${v1.status}»`);
+  await page.press('KeyB', 40);
+  await sleep(120);
+  const m2 = await printMatch(page);
+  s.check(m2.now.id === p0.id - 2 && m2.diff.length === 0, `otro toque, otro frame (${m2.now.id})`, JSON.stringify(m2));
+  await clickHit(page, '#btn-frame');
+  await sleep(120);
+  const m3 = await printMatch(page);
+  await page.click('.tagline');
+  await page.press('KeyB', 40);
+  await sleep(120);
+  const m4 = await printMatch(page);
+  s.check(m3.now.id === p0.id - 1 && m3.diff.length === 0 && m4.now.id === p0.id - 2 && m4.diff.length === 0,
+    `Frame (clic) avanza al mismo frame de antes (${m3.now.id}) y B lo deshace (${m4.now.id})`, JSON.stringify({ m3, m4 }));
+  // Sostenida 1 s: después de una espera corta sigue volviendo, de a dos frames por tick.
+  await page.keyDown('KeyB');
+  await sleep(1000);
+  await page.keyUp('KeyB');
+  await sleep(120);
+  const m5 = await printMatch(page);
+  const v5 = await pausedView();
+  const back5 = m4.now.id - m5.now.id;
+  s.check(back5 >= 55 && back5 <= 100 && m5.diff.length === 0 && v5.paused && v5.tag && !v5.rw,
+    `sostenida 1 s en pausa vuelve ${back5} frames (uno y, después de la espera, dos por tick), exactos, y queda en pausa`, JSON.stringify({ back5, m5, v5 }));
+  // Con el botón ⏪ enfocado desde el teclado, Espacio sostenido rebobina (y no despausa).
+  await page.ev("document.getElementById('btn-rewind').focus()");
+  await page.keyDown('Space');
+  await sleep(150);
+  const sd = await page.ev(`({ active: window.chip8.isRewinding(), paused: window.chip8.isPaused(), btn: document.getElementById('btn-rewind').getAttribute('aria-pressed') })`);
+  await page.keyUp('Space');
+  await sleep(100);
+  const mS = await printMatch(page);
+  const su = await page.ev(`({ active: window.chip8.isRewinding(), paused: window.chip8.isPaused() })`);
+  await page.ev("document.getElementById('btn-rewind').blur()");
+  s.check(sd.active && sd.paused && sd.btn === 'true' && !su.active && su.paused && mS.now.id === m5.now.id - 1 && mS.diff.length === 0,
+    `con el botón ⏪ enfocado desde el teclado, Espacio sostenido rebobina (un frame: ${m5.now.id} -> ${mS.now.id}) y no saca la pausa`, JSON.stringify({ sd, su, mS }));
+  await page.ev('window.scrollTo(0, 0)');
+  await page.shot('46-rebobinado-en-pausa');
+  // Espacio: sigue desde ahí, con los mismos frames que la primera vez.
+  const mark = await page.ev('window.chip8.cpu.__prints.length');
+  await page.press('Space');
+  await sleep(700);
+  const r = await replayCheck(page, mark);
+  s.check(r.n >= 30 && r.same === r.n && !(await page.ev('window.chip8.isPaused()')), `al continuar, la máquina sigue desde ese frame: ${r.same} de ${r.n} frames idénticos a los de la primera vez`, JSON.stringify(r));
+  // Después de un error (opcode 5121 al cabo de 1 s): un toque de B vuelve a antes y deja la máquina en pausa,
+  // sin volver a chocar con el error; con Frame se llega otra vez al error.
+  await loadWithButton(page, writeFixture(ctx, 'error.ch8', [0x60, 0x3C, 0xF0, 0x15, 0xF0, 0x07, 0x30, 0x00, 0x12, 0x04, 0x51, 0x21]), 'error.ch8');
+  await page.waitFor('window.chip8.cpu.halted', { timeout: 4000, desc: 'la ROM llegó a su opcode inválido' });
+  await page.click('.tagline');
+  await page.press('KeyB', 40);
+  await sleep(400);   // si corriera, en este tiempo volvería a chocar con el error
+  const errView = () => page.ev(`({ halted: window.chip8.cpu.halted, paused: window.chip8.isPaused(), msg: !document.getElementById('crt-msg').hidden,
+    monErr: !document.getElementById('mon-error').hidden, pc: window.chip8.cpu.pc, status: document.getElementById('status').textContent, led: document.getElementById('led-run').className })`);
+  const e1 = await errView();
+  s.check(!e1.halted && e1.paused && !e1.msg && !e1.monErr && e1.led === 'led is-amber' && e1.status === `Rebobinado: volviste 1 frame atrás (en pausa, PC = ${hx(e1.pc)}).`,
+    `detenida por un error, un toque de B vuelve al frame de antes, saca el mensaje y queda en pausa (LED ámbar): «${e1.status}»`, JSON.stringify(e1));
+  let frames = 0;
+  while (!(await page.ev('window.chip8.cpu.halted')) && frames < 5) {
+    await clickHit(page, '#btn-frame');
+    frames++;
+    await sleep(60);
+  }
+  const e2 = await errView();
+  s.check(frames === 1 && e2.halted && e2.msg && e2.monErr, `y con Frame (${frames} clic) se llega otra vez al error, que se vuelve a mostrar`, JSON.stringify({ frames, e2 }));
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 47 -------------------------------------------------------------------------------
+scenario(47, 'Rebobinado apagado con el interruptor de «Estados»: B y el botón ⏪ no hacen nada y no se guardan fotos; se recuerda al recargar y prenderlo lo vuelve a activar', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  await loadWithButton(page, writeFixture(ctx, 'contador.ch8', romContador()), 'contador.ch8');
+  await sleep(1300);
+  const view = () => page.ev(`({ pressed: document.getElementById('tg-rewind').getAttribute('aria-pressed'), line: document.getElementById('rewind-info').textContent,
+    entries: window.chip8.rewindInfo().entries, disabled: document.getElementById('btn-rewind').disabled, get: window.chip8.getRewind(),
+    stored: (() => { try { return JSON.parse(localStorage.getItem('chip8-consola.ajustes')).rewind; } catch (e) { return null; } })(), status: document.getElementById('status').textContent })`);
+  const on0 = await view();
+  s.check(on0.pressed === 'true' && on0.get && on0.entries > 40 && on0.line === `Podés volver hasta ${Math.floor(on0.entries / 60)} s.` && !on0.disabled,
+    `de fábrica está prendido: ${on0.entries} fotos y «${on0.line}»`, JSON.stringify(on0));
+  await clickHit(page, '#tg-rewind');
+  await sleep(150);
+  const off = await view();
+  s.check(off.pressed === 'false' && !off.get && off.stored === false && off.entries === 0 && off.disabled && off.line === 'Apagado: la consola no guarda los últimos segundos.' &&
+    off.status === 'Rebobinado apagado: la consola ya no guarda los últimos segundos.',
+  `un clic lo apaga: sin fotos, el botón ⏪ deshabilitado, «${off.line}», y queda guardado`, JSON.stringify(off));
+  await page.click('.tagline');
+  const c0 = await counters(page);
+  await page.keyDown('KeyB');
+  await sleep(500);
+  const d = await page.ev(`({ active: window.chip8.isRewinding(), tag: !document.getElementById('tag-rewind').hidden, status: document.getElementById('status').textContent, entries: window.chip8.rewindInfo().entries })`);
+  await page.keyUp('KeyB');
+  const c1 = await counters(page);
+  s.check(!d.active && !d.tag && d.entries === 0 && c1.calls - c0.calls > 20 && d.status === 'El rebobinado está apagado: prendelo en «Estados».',
+    `apagado, B no rebobina (la máquina sigue: ${c1.calls - c0.calls} frames) y avisa «${d.status}»`, JSON.stringify(d));
+  const rb = await page.rect('#btn-rewind');
+  await page.mouse('mouseMoved', rb.cx, rb.cy);
+  await page.mouse('mousePressed', rb.cx, rb.cy);
+  await sleep(300);
+  const dm = await page.ev(`({ active: window.chip8.isRewinding(), tag: !document.getElementById('tag-rewind').hidden })`);
+  await page.mouse('mouseReleased', rb.cx, rb.cy);
+  s.check(!dm.active && !dm.tag, 'el botón ⏪ deshabilitado no hace nada', JSON.stringify(dm));
+  await page.ev("document.getElementById('states-group').scrollIntoView({ block: 'center' })");
+  await page.shot('47-rebobinado-apagado');
+  await page.reload();
+  await page.instrument();
+  await sleep(800);
+  const r = await view();
+  s.check(r.pressed === 'false' && !r.get && r.entries === 0 && r.disabled, 'después de recargar sigue apagado y sin fotos', JSON.stringify(r));
+  await clickHit(page, '#tg-rewind');
+  await sleep(1600);
+  const on = await view();
+  s.check(on.pressed === 'true' && on.get && on.stored === true && on.entries > 60 && on.line === `Podés volver hasta ${Math.floor(on.entries / 60)} s.` && !on.disabled &&
+    on.status === 'Rebobinado prendido: mantené B para volver atrás en el tiempo.',
+  `otro clic lo prende: vuelve a guardar fotos (${on.entries}) y «${on.line}»`, JSON.stringify(on));
+  await page.click('.tagline');
+  await page.keyDown('KeyB');
+  await sleep(200);
+  const again = await page.ev('window.chip8.isRewinding()');
+  await page.keyUp('KeyB');
+  s.check(again, 'y B vuelve a rebobinar');
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 48 -------------------------------------------------------------------------------
+scenario(48, 'Estados sin almacenamiento, sin lugar o dañados: el aviso justo y la consola sigue andando; sin cartucho, «Estados» explica de quién son', async (ctx, s) => {
+  // localStorage que tira una excepción en cada acceso: los estados viven en memoria.
+  const broken = `Object.defineProperty(window, 'localStorage', { configurable: true, get() { throw new DOMException('Acceso al almacenamiento denegado (e2e)', 'SecurityError'); } });`;
+  const p1 = await Page.open(ctx, { initScripts: [broken] });
+  s.page = p1;
+  await p1.goto(ctx.base + 'chip8.html');
+  await p1.instrument();
+  await loadWithButton(p1, writeFixture(ctx, 'contador.ch8', romContador()), 'contador.ch8');
+  await instrumentPrints(p1);
+  await p1.click('.tagline');
+  await sleep(500);
+  await p1.press('Space');
+  await sleep(80);
+  await p1.press('KeyI');
+  await sleep(150);
+  const ref1 = await machinePrint(p1);
+  await clickHit(p1, slotSel(3, 'save'));
+  await sleep(150);
+  const NO_STORAGE = 'Este navegador no deja guardar datos: los estados duran hasta que cierres la página.';
+  const t1 = await toastsInfo(p1);
+  const h1 = await p1.ev(`({ hint: document.getElementById('states-hint').textContent, list: window.chip8.listSlots() })`);
+  s.check(t1.filter((x) => x.text === NO_STORAGE && x.kind === 'info').length === 1 && !h1.list[0].empty && !h1.list[3].empty && / Este navegador no deja guardar datos: duran hasta que cierres la página\.$/.test(h1.hint),
+    `sin almacenamiento: I y Guardar guardan en memoria, el aviso «${NO_STORAGE}» aparece una sola vez y «Estados» lo dice`, JSON.stringify({ t1, h1 }));
+  await p1.press('Space');
+  await sleep(700);
+  await p1.press('Space');
+  await sleep(80);
+  await p1.press('KeyU');
+  await sleep(120);
+  const now1 = await machinePrint(p1);
+  const diff1 = Object.keys(ref1).filter((k) => ref1[k] !== now1[k]);
+  s.check(diff1.length === 0 && (await statusText(p1)) === 'Estado de la ranura rápida cargado (guardado recién).', 'y U vuelve a ese estado, exacto', JSON.stringify(diff1));
+  s.check(p1.errors.length === 0, 'sin almacenamiento no hay excepciones ni errores de consola', p1.errors.join(' | '));
+  await p1.ev("document.getElementById('states-group').scrollIntoView({ block: 'center' })");
+  await p1.shot('48-estados-sin-almacenamiento');
+  await p1.close();
+
+  // localStorage lleno de verdad (QuotaExceededError).
+  const p2 = await freshApp(ctx, s);
+  await loadWithButton(p2, writeFixture(ctx, 'contador.ch8', romContador()), 'contador.ch8');
+  await instrumentPrints(p2);
+  const sha = (await p2.ev('window.chip8.romInfo()')).sha1;
+  const filled = await p2.ev(`(() => {
+    let n = 0, total = 0;
+    for (let size = 1 << 20; size >= 16; size >>= 1) {
+      const chunk = 'x'.repeat(size);
+      for (;;) {
+        try { localStorage.setItem('relleno-' + n, chunk); n++; total += size; }
+        catch (e) { if (e.name !== 'QuotaExceededError') return { error: e.name }; break; }
+      }
+    }
+    return { n, total };
+  })()`);
+  s.info(`localStorage lleno con ${filled.n} claves de relleno (${Math.round(filled.total / 1024)} K caracteres)`);
+  await p2.click('.tagline');
+  await p2.press('Space');
+  await sleep(80);
+  await clickHit(p2, slotSel(2, 'save'));
+  await sleep(150);
+  const ref2 = await machinePrint(p2);
+  const FULL = 'No hay más lugar en este navegador: el estado queda solo hasta que cierres la página. Para hacer lugar, borrá estados viejos o cartuchos de «Tus cartuchos».';
+  const t2 = await toastsInfo(p2);
+  const v2 = await p2.ev(`({ hint: document.getElementById('states-hint').textContent, list: window.chip8.listSlots(), stored: localStorage.getItem('${STATES_KEY}') })`);
+  s.check(!filled.error && t2.some((x) => x.text === FULL && x.kind === 'error') && v2.stored === null && !v2.list[2].empty && /no entró en el navegador/.test(v2.hint),
+    `sin lugar: el aviso de error «${FULL.slice(0, 60)}…», la ranura 2 tiene el estado (en memoria) y «Estados» dice que no entró`, JSON.stringify({ filled, t2, v2: { hint: v2.hint, slot: v2.list[2] } }));
+  await p2.press('Space');
+  await sleep(600);
+  await p2.press('Space');
+  await sleep(80);
+  await clickHit(p2, slotSel(2, 'load'));
+  await sleep(120);
+  const now2 = await machinePrint(p2);
+  const diff2 = Object.keys(ref2).filter((k) => ref2[k] !== now2[k]);
+  s.check(diff2.length === 0 && (await statusText(p2)) === 'Estado de la ranura 2 cargado (guardado recién).', 'la consola sigue andando: Cargar vuelve al estado que quedó en memoria', JSON.stringify(diff2));
+  await p2.ev("document.getElementById('states-group').scrollIntoView({ block: 'center' })");
+  await p2.shot('48-estados-sin-lugar');
+  // Haciendo lugar, el próximo cambio guarda todo (también lo que estaba solo en memoria).
+  await p2.ev(`(() => { for (let i = 0; i < ${filled.n || 0}; i++) localStorage.removeItem('relleno-' + i); return true; })()`);
+  await clickHit(p2, slotSel(3, 'save'));
+  await sleep(120);
+  const st3 = await stored(p2, STATES_KEY);
+  const h3 = await p2.ev("document.getElementById('states-hint').textContent");
+  s.check(st3 && st3.roms[sha] && st3.roms[sha].slots['2'] && st3.roms[sha].slots['3'] && !/no entró/.test(h3), 'con lugar otra vez, el próximo Guardar deja en localStorage la ranura 2 (que estaba en memoria) y la 3', JSON.stringify(st3 && Object.keys(st3.roms[sha].slots)));
+  s.check(p2.errors.length === 0, 'sin lugar no hay excepciones ni errores de consola', p2.errors.join(' | '));
+  await p2.close();
+
+  // Un estado dañado en localStorage: la ranura lo muestra y Cargar avisa sin tocar la máquina.
+  const rom = romContador();
+  const p3 = await freshApp(ctx, s);
+  await p3.ev(`localStorage.setItem('${STATES_KEY}', JSON.stringify({ version: 1, roms: { '${sha1Hex(rom)}': { name: 'contador.ch8', slots: { '1': { date: Date.now() - 60000, text: '{"format":"chip8-state","version":1,"platform":"chip8"}' } } } } }))`);
+  await p3.reload();
+  await p3.instrument();
+  await loadWithButton(p3, writeFixture(ctx, 'contador.ch8', rom), 'contador.ch8');
+  await instrumentPrints(p3);
+  await p3.click('.tagline');
+  await sleep(300);
+  await p3.press('Space');
+  await sleep(80);
+  const v3 = await slotsView(p3);
+  const before3 = await machinePrint(p3);
+  await clickHit(p3, slotSel(1, 'load'));
+  await sleep(150);
+  const after3 = await machinePrint(p3);
+  const t3 = await toastsInfo(p3);
+  const diff3 = Object.keys(before3).filter((k) => before3[k] !== after3[k]);
+  s.check(!v3[1].empty && v3[1].blank === 'DAÑADO' && v3[1].load && /No se puede cargar: Estado inválido: /.test(v3[1].title) &&
+    t3.some((x) => x.kind === 'error' && x.text.startsWith('No se pudo cargar el estado de la ranura 1: Estado inválido: ')) && diff3.length === 0 && (await p3.ev('window.chip8.isPaused()')),
+  `un estado dañado se ve «DAÑADO» y Cargar avisa «${(t3.find((x) => x.kind === 'error') || { text: '' }).text.slice(0, 70)}…» sin tocar la máquina`, JSON.stringify({ slot: v3[1], t3, diff3 }));
+  await p3.ev("document.getElementById('states-group').scrollIntoView({ block: 'center' })");
+  await p3.shot('48-estado-danado');
+  s.check(p3.errors.length === 0, 'con un estado dañado no hay excepciones ni errores de consola', p3.errors.join(' | '));
+  await p3.close();
+
+  // Sin cartucho (un archivo sin demos incluidos): «Estados» explica que los estados son del cartucho de la ranura.
+  const noDemos = `Object.defineProperty(globalThis, 'CHIP8_DEMOS', { configurable: true, get() { return []; }, set() {} });`;
+  const p4 = await Page.open(ctx, { initScripts: [noDemos] });
+  s.page = p4;
+  await clearStorage(p4, ctx);
+  await p4.goto(ctx.base + 'chip8.html');
+  const e4 = await p4.ev(`({ hidden: document.getElementById('save-slots').hidden, hint: document.getElementById('states-hint').textContent, name: document.getElementById('cart-name').textContent, list: window.chip8.listSlots() })`);
+  await p4.click('.tagline');
+  await p4.press('KeyI');
+  await sleep(80);
+  const i4 = await statusText(p4);
+  await p4.press('KeyU');
+  await sleep(80);
+  const u4 = await statusText(p4);
+  s.check(e4.hidden && e4.name === 'Ranura vacía' && e4.list === null && e4.hint.startsWith('Los estados son del cartucho que está en la ranura') &&
+    i4 === 'No hay un cartucho en la ranura: los estados son de cada cartucho.' && u4 === i4,
+  `sin cartucho no hay ranuras: «${e4.hint}»; I y U lo dicen en la línea de estado`, JSON.stringify({ e4, i4, u4 }));
+  await p4.ev("document.getElementById('states-group').scrollIntoView({ block: 'center' })");
+  await p4.shot('48-estados-sin-cartucho');
+  s.check(p4.errors.length === 0, 'sin cartucho no hay excepciones ni errores de consola', p4.errors.join(' | '));
+}, 120000);
+
+// 49 -------------------------------------------------------------------------------
+scenario(49, 'Diseño con «Estados» a la vista: 1440, 768 y 360 px (sin scroll horizontal, keypad de 44 px, pantallitas con escala entera y botones enteros)', async (ctx, s) => {
+  const page = await freshApp(ctx, s, { width: 1440, height: 900 });
+  await loadWithButton(page, writeFixture(ctx, 'contador.ch8', romContador()), 'contador.ch8');
+  await page.click('.tagline');
+  await sleep(400);
+  await page.press('KeyI');
+  await sleep(300);
+  await clickHit(page, slotSel(2, 'save'));
+  for (const [w, h, mobile] of [[1440, 900, false], [768, 1024, false], [360, 640, true]]) {
+    await page.setViewport(w, h, mobile ? 2 : 1, mobile);
+    await page.reload();
+    await page.click('#lib-chips .chip:nth-child(1)');   // contador, desde «Tuyos:», con sus estados
+    await page.waitFor(`document.getElementById('cart-name').textContent === 'contador'`, { timeout: 3000, desc: 'contador desde «Tuyos:»' });
+    await sleep(400);
+    await page.ev('window.scrollTo(0, 0)');
+    const m = await page.ev(`(() => {
+      const r = (el) => { const b = el.getBoundingClientRect(); return { t: Math.round(b.top), b: Math.round(b.bottom), l: Math.round(b.left), r: Math.round(b.right), w: Math.round(b.width), h: Math.round(b.height) }; };
+      const over = [];
+      document.querySelectorAll('body *').forEach((el) => { const b = el.getBoundingClientRect(); if (b.width && b.right > innerWidth + 0.5 && getComputedStyle(el).position !== 'fixed') over.push((el.id ? '#' + el.id : el.tagName.toLowerCase() + '.' + el.className).slice(0, 40)); });
+      const keys = Array.from(document.querySelectorAll('#keypad .key')).map((k) => k.getBoundingClientRect());
+      const box = (list) => ({ t: Math.round(Math.min(...list.map((k) => k.top))), b: Math.round(Math.max(...list.map((k) => k.bottom))), l: Math.round(Math.min(...list.map((k) => k.left))), r: Math.round(Math.max(...list.map((k) => k.right))) });
+      const group = document.getElementById('states-group'), g = group.getBoundingClientRect();
+      const cards = Array.from(group.querySelectorAll('.save-slot')).map((c) => c.getBoundingClientRect());
+      const btns = Array.from(group.querySelectorAll('.save-btn')).map((b) => ({ text: b.textContent, clipped: b.scrollWidth > b.clientWidth + 1, h: b.getBoundingClientRect().height }));
+      const thumbs = Array.from(group.querySelectorAll('canvas')).filter((c) => !c.hidden).map((c) => Math.round(parseFloat(c.style.width) * devicePixelRatio / c.width * 1000) / 1000);
+      const overlap = cards.some((a, i) => cards.some((b, j) => i < j && a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5));
+      return { iw: innerWidth, ih: innerHeight, sw: document.documentElement.scrollWidth, sy: scrollY, over: over.slice(0, 6),
+        minKey: Math.min(...keys.map((k) => Math.min(k.width, k.height))), keys: box(keys), crt: r(document.getElementById('crt')),
+        group: r(group), cardsIn: cards.every((c) => c.left >= g.left && c.right <= g.right), overlap, cols: new Set(cards.map((c) => Math.round(c.top))).size,
+        clipped: btns.filter((b) => b.clipped).map((b) => b.text), minBtn: Math.min(...btns.map((b) => b.h)), thumbs, rewindBtn: r(document.getElementById('btn-rewind')) };
+    })()`);
+    s.info(`${w}×${h}: pantalla ${m.crt.t}–${m.crt.b} px, keypad ${m.keys.t}–${m.keys.b} px (teclas de ${m.minKey.toFixed(0)} px), «Estados» ${m.group.w}×${m.group.h} px en ${m.cols} fila(s), pantallitas ×${m.thumbs.join(', ×')}`);
+    s.check(m.sw <= m.iw && m.over.length === 0, `${w}px: sin scroll horizontal (${m.sw} ≤ ${m.iw})`, 'se salen: ' + m.over.join(', '));
+    s.check(m.minKey >= 44, `${w}px: teclas del keypad de al menos 44 px (${m.minKey.toFixed(1)})`);
+    s.check(m.group.l >= 0 && m.group.r <= m.iw && m.cardsIn && !m.overlap && m.clipped.length === 0 && m.minBtn >= 24,
+      `${w}px: «Estados» entra en el ancho (${m.group.l}–${m.group.r} px), las cinco ranuras no se pisan y los botones (${Math.round(m.minBtn)} px de alto) muestran su texto entero`, JSON.stringify(m));
+    s.check(m.thumbs.length === 2 && m.thumbs.every((x) => Number.isInteger(x) && x >= 2), `${w}px: las dos pantallitas tienen escala entera de al menos 2 píxeles del monitor por píxel CHIP-8 (×${m.thumbs.join(', ×')})`, JSON.stringify(m.thumbs));
+    if (w === 360) {
+      s.check(m.sy === 0 && m.crt.t >= 0 && m.crt.b <= m.ih && m.keys.t >= m.crt.b && m.keys.b <= m.ih && m.keys.l >= 0 && m.keys.r <= m.iw,
+        `360×640: la pantalla (${m.crt.t}–${m.crt.b}) y el keypad entero (${m.keys.t}–${m.keys.b}) siguen entrando en la primera vista`, JSON.stringify({ crt: m.crt, keys: m.keys }));
+    }
+    await page.shot(`49-diseno-${w}`);
+    await page.ev("document.getElementById('states-group').scrollIntoView({ block: 'center' })");
+    await page.shot(`49-diseno-${w}-estados`);
+  }
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 50 -------------------------------------------------------------------------------
+scenario(50, 'Rebobinado a 60 fps con XO-CHIP a 1000 IPF: Planos y una ROM que reescribe la memoria entera corren y rebobinan sin perder cuadros', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  // Cuadros de animación del navegador (requestAnimationFrame) entre dos momentos.
+  const rafStart = () => page.ev(`(() => { const R = window.__raf = { n: 0, gaps: [], last: 0, stop: false }; const f = (t) => { if (R.last) R.gaps.push(t - R.last); R.last = t; R.n++; if (!R.stop) requestAnimationFrame(f); }; requestAnimationFrame(f); R.t0 = performance.now(); return true; })()`);
+  const rafStop = () => page.ev(`(() => { const R = window.__raf; R.stop = true; const secs = (performance.now() - R.t0) / 1000; const g = R.gaps.slice().sort((a, b) => a - b); return { fps: R.n / secs, max: g[g.length - 1] || 0, p95: g[Math.floor(g.length * 0.95)] || 0 }; })()`);
+  async function rewindFor(label, ms) {
+    const e0 = await page.ev('window.chip8.rewindInfo().entries');
+    await rafStart();
+    const t0 = await page.ev('performance.now()');
+    await page.keyDown('KeyB');
+    await sleep(ms);
+    const e1 = await page.ev('window.chip8.rewindInfo().entries');
+    const t1 = await page.ev('performance.now()');
+    await page.keyUp('KeyB');
+    const raf = await rafStop();
+    const perSec = (e0 - e1) / ((t1 - t0) / 1000);
+    s.info(`${label}: rebobinando ${(ms / 1000).toFixed(1)} s, ${raf.fps.toFixed(1)} cuadros por segundo (el más largo, ${raf.max.toFixed(1)} ms; el 95 %, menos de ${raf.p95.toFixed(1)} ms), ${perSec.toFixed(0)} frames hacia atrás por segundo`);
+    return { raf, perSec, e0, e1 };
+  }
+  // Planos (XO-CHIP, dos planos y sonido), a 1000 IPF.
+  await clickCart(page, 'planos');
+  await page.click('#ipf-chips .chip:nth-child(6)');   // 1000
+  await page.click('.tagline');
+  await sleep(4000);
+  const run1 = await measureRate(page, 2000);
+  const pl = await rewindFor('Planos', 2000);
+  s.check(run1.fps >= 55 && run1.fps <= 66, `Planos a 1000 IPF corre a ${run1.fps.toFixed(1)} frames por segundo guardando una foto por frame`);
+  s.check(pl.raf.fps >= 55 && pl.raf.p95 < 25 && pl.perSec >= 100 && pl.perSec <= 135,
+    `rebobinando Planos: ${pl.raf.fps.toFixed(1)} cuadros por segundo y ${pl.perSec.toFixed(0)} frames hacia atrás por segundo (el doble de 60)`, JSON.stringify(pl));
+  // La captura, ya medido: Planos rebobinando (los dos planos y «⏪» en la pantalla).
+  await page.keyDown('KeyB');
+  await sleep(300);
+  await page.ev('window.scrollTo(0, 0)');
+  await page.shot('50-rebobinando-planos');
+  await page.keyUp('KeyB');
+  // Una ROM de XO-CHIP que escribe 16 bytes en casi cada página de los 64 KB, a 1000 IPF: cada foto copia la memoria cambiada.
+  await loadWithButton(page, writeFixture(ctx, 'memoria64.ch8', asm(`
+        LD V3, 240
+inicio: LD I, LONG 0x0400
+        LD V4, 0
+bucle:  LD [I], VF              ; 16 bytes (I avanza 16 con el quirk de memoria de XO-CHIP)
+        ADD I, V3               ; y 240 más: la página siguiente
+        ADD V0, 1
+        ADD V4, 1
+        SE V4, 252
+        JP bucle
+        JP inicio`, true)), 'memoria64.ch8');
+  await chooseWithMouse(page, '#preset', 'xochip');
+  await page.click('#ipf-chips .chip:nth-child(6)');
+  await page.click('.tagline');
+  await sleep(3000);
+  const run2 = await measureRate(page, 2000);
+  const info2 = await page.ev('window.chip8.rewindInfo()');
+  const mm = await rewindFor('memoria64', 2000);
+  s.info(`memoria64: ${run2.fps.toFixed(1)} frames por segundo corriendo, ${Math.round(run2.ips)} instrucciones por segundo; ${info2.entries} fotos en ${(info2.bytes / 1048576).toFixed(1)} MB`);
+  s.check(run2.fps >= 55 && run2.fps <= 66 && run2.ips >= 1000 * run2.fps * 0.95, `memoria64 a 1000 IPF corre a ${run2.fps.toFixed(1)} frames por segundo con las fotos del rebobinado`, JSON.stringify(run2));
+  s.check(mm.raf.fps >= 55 && mm.raf.p95 < 25 && mm.perSec >= 100 && mm.perSec <= 135,
+    `rebobinando memoria64: ${mm.raf.fps.toFixed(1)} cuadros por segundo y ${mm.perSec.toFixed(0)} frames hacia atrás por segundo`, JSON.stringify(mm));
+  s.check(info2.bytes <= 48 * 1024 * 1024, `el buffer respeta su tope de 48 MB (${(info2.bytes / 1048576).toFixed(1)} MB)`);
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+}, 120000);
 
 // ---------------------------------------------------------------- principal
 async function runScenario(ctx, sc) {

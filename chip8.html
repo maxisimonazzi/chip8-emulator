@@ -241,6 +241,9 @@
     pointer-events: none;
   }
   .crt-tags span { padding: 3px 6px; border: 1px solid currentColor; background: rgba(0, 0, 0, .4); }
+  /* «⏪» (rebobinando): un ícono, con el mismo resplandor que el texto de las otras etiquetas */
+  .crt-tags .tag-ico { display: block; width: 1.45em; height: 1em; filter: drop-shadow(0 0 3px var(--scr-fg)); }
+  .crt[data-mode="puro"] .crt-tags .tag-ico, .crt[data-palette="lcd"] .crt-tags .tag-ico { filter: none; }
   .crt[data-palette="lcd"] .crt-tags { text-shadow: none; }
   .crt[data-palette="lcd"] .crt-tags span { background: rgba(155, 188, 15, .85); }
   .crt-msg {
@@ -291,7 +294,8 @@
   }
   .bezel-btn svg { width: 15px; height: 15px; }
   .bezel-btn:active, .bezel-btn[aria-pressed="true"] { transform: translateY(1px); box-shadow: 0 1px 0 #0b0a09, inset 0 1px 3px rgba(0, 0, 0, .45); }
-  #btn-turbo[aria-pressed="true"] { color: var(--focus); }
+  #btn-turbo[aria-pressed="true"], #btn-rewind[aria-pressed="true"] { color: var(--focus); }
+  .bezel-btn:disabled { opacity: .4; cursor: not-allowed; }
   #btn-full .ico-exit { display: none; }
   #btn-full[aria-pressed="true"] .ico-exit { display: block; }
   #btn-full[aria-pressed="true"] .ico-enter { display: none; }
@@ -638,6 +642,46 @@
   .keymap-key { display: grid; gap: 4px; min-width: 0; font-size: 12px; font-weight: 700; color: var(--ink-soft); }
   .keymap-key .select { padding: 5px 6px; font-family: var(--font-mono); }
 
+  /* Estados: la ranura rápida (I / U) y cuatro más. Cada una muestra la pantalla de ese momento en una
+     pantallita hundida en el plástico oscuro (como la ranura del cartucho), con los colores de la paleta. */
+  .group-states { grid-column: 1 / -1; }
+  /* Con la consola a su ancho máximo, cada pantallita mide 129 px: un 64×32 entra al doble (128 px). */
+  .save-slots { --slot-gap: 6px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px var(--slot-gap); margin-top: 10px; }
+  .save-slot { min-width: 0; display: grid; grid-template-rows: auto auto 1fr; gap: 6px; }
+  .save-well {
+    padding: 2px; border-radius: 7px;
+    background: linear-gradient(180deg, #3b342d, #1a1714);
+    box-shadow: inset 0 3px 6px rgba(0, 0, 0, .75), 0 1px 0 rgba(255, 255, 255, .85), 0 -1px 0 rgba(110, 85, 50, .3);
+  }
+  .save-screen {
+    position: relative; aspect-ratio: 2 / 1; display: grid; place-items: center; overflow: hidden;
+    border-radius: 5px; background: var(--thumb-bg, rgb(4, 16, 9));
+  }
+  .save-screen::after {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .55), inset 0 0 10px rgba(0, 0, 0, .3);
+  }
+  .save-screen canvas { display: block; max-width: 100%; image-rendering: crisp-edges; image-rendering: pixelated; }
+  .save-blank { font: 700 10px/1 var(--font-mono); letter-spacing: .14em; color: var(--thumb-fg, rgb(124, 255, 150)); opacity: .55; }
+  .save-slot.is-damaged .save-blank { color: var(--term-err); opacity: 1; }
+  .save-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 1px 6px; min-width: 0; }
+  .save-name { font: 800 10px/1.3 var(--font-ui); letter-spacing: .14em; text-transform: uppercase; color: var(--print); white-space: nowrap; }
+  .save-keys { margin-left: auto; font: 10px/1.3 var(--font-mono); color: var(--ink-soft); white-space: nowrap; }
+  .save-when { flex: 1 1 100%; min-width: 0; font: 11px/1.3 var(--font-mono); color: var(--ink-soft); overflow-wrap: anywhere; }
+  .save-acts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 5px; align-content: end; }
+  .save-btn {
+    min-width: 0; padding: 5px 2px; border-radius: 7px;
+    border: 1px solid rgba(80, 60, 35, .4);
+    background: linear-gradient(180deg, #f8f2e3, #e3d8bf);
+    color: var(--ink); font: 800 11px/1.2 var(--font-ui); letter-spacing: .02em;
+    box-shadow: 0 2px 0 rgba(120, 95, 60, .45);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .save-btn--save { grid-column: 1 / -1; }
+  .save-btn:active:not(:disabled) { transform: translateY(2px); box-shadow: none; }
+  .save-btn:disabled { opacity: .45; cursor: not-allowed; }
+  .rewind-info { align-self: center; font-size: 12px; color: var(--ink-soft); }
+
   /* ---------- Pie de la consola ---------- */
   .console-foot { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 16px; flex-wrap: wrap; }
   .foot-print { font: 700 9px/1.4 var(--font-ui); letter-spacing: .2em; color: var(--print); text-transform: uppercase; opacity: .85; }
@@ -945,7 +989,19 @@
     .panel { grid-template-columns: minmax(0, 1fr); padding: 10px; }
     .tagline { letter-spacing: .12em; }
   }
+  /* Estados en tres columnas (y en dos, más abajo): la ranura rápida ocupa dos, con la pantallita a la
+     izquierda y lo demás a la derecha, así las cinco entran parejas. Por debajo de 826 px, cinco en fila
+     ya no dejan 128 px para cada pantallita. */
+  @media (max-width: 825px) {
+    .save-slots { --slot-gap: 10px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .save-well { padding: 4px; border-radius: 8px; }
+    .save-slot--quick { grid-column: span 2; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: auto 1fr; column-gap: var(--slot-gap); }
+    .save-slot--quick .save-well { grid-column: 1; grid-row: 1 / span 2; align-self: start; }
+    .save-slot--quick .save-meta, .save-slot--quick .save-acts { grid-column: 2; }
+    .save-slot--quick .save-acts { align-content: start; }
+  }
   @media (max-width: 480px) {
+    .save-slots { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .desk { padding-top: 16px; }
     /* En el teléfono, pantalla y keypad entran juntos en ~640 px de alto. */
     .tagline { display: none; }
@@ -1022,13 +1078,16 @@
               <div class="crt-vignette" aria-hidden="true"></div>
               <div class="crt-glare" aria-hidden="true"></div>
               <div class="crt-power" id="crt-power" aria-hidden="true" hidden><span class="crt-power-beam"></span></div>
-              <div class="crt-tags" aria-hidden="true"><span id="tag-pause" hidden>PAUSA</span><span id="tag-wait" hidden>ESPERANDO TECLA</span><span id="tag-turbo" hidden>×4</span></div>
+              <div class="crt-tags" aria-hidden="true"><span id="tag-pause" hidden>PAUSA</span><span id="tag-wait" hidden>ESPERANDO TECLA</span><span id="tag-turbo" hidden>×4</span><span id="tag-rewind" hidden><svg class="tag-ico" viewBox="2 5 20 14"><path fill="currentColor" d="M21.5 6v12l-9-6zM11.5 6v12l-9-6z"/></svg></span><span id="tag-state" hidden></span></div>
               <div class="crt-msg" id="crt-msg" hidden><strong id="crt-msg-title">ERROR</strong><span id="crt-msg-text"></span><button class="act-btn" id="crt-msg-fix" type="button" hidden>Cambiar de plataforma y reiniciar</button><small id="crt-msg-hint"></small></div>
             </div>
             <div class="bezel-foot">
               <span class="bezel-label" id="video-label">Video 64 × 32</span>
               <span class="audio-hint" id="audio-hint">Sonido: tocá la consola para activarlo</span>
               <span class="bezel-tools">
+                <button class="bezel-btn" id="btn-rewind" type="button" aria-pressed="false" aria-label="Rebobinar (mantené B)" title="Rebobinar: mientras lo mantenés apretado (o la tecla B), la máquina vuelve atrás en el tiempo">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.5 6v12l-9-6zM11.5 6v12l-9-6z"/></svg>
+                </button>
                 <button class="bezel-btn" id="btn-turbo" type="button" aria-pressed="false" aria-label="Avance rápido ×4 (mantené T)" title="Avance rápido: mientras lo mantenés apretado (o la tecla T), la máquina corre 4 veces más rápido">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M2.5 6v12l9-6zM12.5 6v12l9-6z"/></svg>
                 </button>
@@ -1200,6 +1259,15 @@
             <p class="hint" id="keymap-hint"></p>
             <p class="hint" id="pad-hint">Joystick: ninguno. Conectalo y tocá un botón para que el navegador lo reconozca.</p>
           </div>
+          <div class="panel-group group-states" id="states-group">
+            <h2 class="section-print">Estados</h2>
+            <div class="save-slots" id="save-slots" hidden></div>
+            <div class="toggles">
+              <button class="toggle" id="tg-rewind" type="button" aria-pressed="true" aria-describedby="rewind-info" title="Mientras mantenés apretada la B (o el botón de rebobinar, debajo de la pantalla), la máquina vuelve atrás en el tiempo. Apagado, la consola no guarda los últimos segundos."><span class="toggle-sw" aria-hidden="true"></span>Rebobinado</button>
+              <span class="rewind-info" id="rewind-info">Podés volver hasta 0 s.</span>
+            </div>
+            <p class="hint" id="states-hint">Los estados son del cartucho que está en la ranura: con uno puesto, acá guardás su partida en cualquier momento y volvés a ella.</p>
+          </div>
         </section>
 
         <footer class="console-foot">
@@ -1295,16 +1363,23 @@
           <tr><th><kbd>T</kbd></th><td>Mantenela apretada: avance rápido (la máquina corre 4 veces más rápido)</td></tr>
           <tr><th><kbd>P</kbd></th><td>Pantalla completa (para salir, otra vez <kbd>P</kbd> o <kbd>Esc</kbd>)</td></tr>
           <tr><th><kbd>G</kbd></th><td>Guardar una captura de la pantalla (PNG)</td></tr>
+          <tr><th><kbd>I</kbd></th><td>Guardar el estado de la máquina en la ranura rápida</td></tr>
+          <tr><th><kbd>U</kbd></th><td>Cargar el estado de la ranura rápida</td></tr>
+          <tr><th><kbd>B</kbd></th><td>Mantenela apretada: rebobinar (la máquina vuelve atrás en el tiempo; en pausa, un toque vuelve un frame)</td></tr>
           <tr><th><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd></th><td>Las teclas del keypad que elijas en «Controles» (de fábrica, 5, 8, 7 y 9)</td></tr>
           <tr><th><kbd>Esc</kbd></th><td>Cerrar diálogos</td></tr>
         </tbody>
       </table>
-      <p>Los botones que tocás con el mouse no se quedan con el foco, así el teclado sigue manejando la consola. Si llegás a un control con <kbd>Tab</kbd>, <kbd>Espacio</kbd> y <kbd>Enter</kbd> lo activan (no pausan); las teclas del keypad, <kbd>N</kbd>, <kbd>H</kbd>, <kbd>T</kbd>, <kbd>P</kbd>, <kbd>G</kbd> y <kbd>Retroceso</kbd> siguen yendo a la consola, y las flechas también, salvo en los selectores, los deslizadores y el modo de pantalla, que las usan para elegir.</p>
+      <p>Los botones que tocás con el mouse no se quedan con el foco, así el teclado sigue manejando la consola. Si llegás a un control con <kbd>Tab</kbd>, <kbd>Espacio</kbd> y <kbd>Enter</kbd> lo activan (no pausan); las teclas del keypad, <kbd>N</kbd>, <kbd>H</kbd>, <kbd>T</kbd>, <kbd>P</kbd>, <kbd>G</kbd>, <kbd>I</kbd>, <kbd>U</kbd>, <kbd>B</kbd> y <kbd>Retroceso</kbd> siguen yendo a la consola, y las flechas también, salvo en los selectores, los deslizadores y el modo de pantalla, que las usan para elegir.</p>
 
       <h3>Avance rápido, pantalla completa y capturas</h3>
       <p>Mientras mantenés apretada la <kbd>T</kbd> (o el botón de avance rápido, debajo de la pantalla), la máquina corre 4 veces más rápido, timers incluidos, y en la pantalla aparece «×4»: sirve para pasar rápido una presentación lenta. Al soltar vuelve a la velocidad de siempre, sin atrasos que recuperar; en pausa no hace nada.</p>
       <p>Con <kbd>P</kbd> o el botón de pantalla completa del bisel, la pantalla ocupa todo el monitor, siempre con píxeles enteros; <kbd>P</kbd> o <kbd>Esc</kbd> la devuelven a la consola. En un teléfono o una tableta el keypad va al lado de la pantalla (o abajo, con el aparato vertical). Si el navegador no tiene pantalla completa, como el del iPhone, el botón no aparece.</p>
       <p>Con <kbd>G</kbd> o el botón de la cámara se baja una captura en PNG con los colores exactos de la paleta, sin los efectos del tubo y con el giro de la pantalla, de 640 × 320 (cada píxel, un cuadrado de 10 × 10, o de 5 × 5 en alta resolución). Se llama <code>chip8-</code>, el nombre del cartucho y la fecha y hora.</p>
+
+      <h3>Estados guardados y rebobinado</h3>
+      <p>En <strong>Estados</strong>, al final del panel, guardás la máquina entera (memoria, registros, pantalla, timers y sonido) para volver a ese momento cuando quieras. La ranura <strong>Rápido</strong> se maneja también con el teclado: <kbd>I</kbd> guarda y <kbd>U</kbd> carga; las otras cuatro, con sus botones. Cada ranura muestra la pantalla de ese momento y cuándo la guardaste, y <strong>Borrar</strong> trae <strong>Deshacer</strong>. Cargar un estado no toca la pausa: si la máquina estaba en pausa, queda en pausa en ese momento. Los estados son de cada cartucho: cada ROM tiene sus cinco ranuras y otra ROM no las ve. Quedan guardados en este navegador; si no deja guardar datos, duran hasta que cierres la página.</p>
+      <p>Mientras mantenés apretada la <kbd>B</kbd> (o el botón de rebobinar, debajo de la pantalla) la máquina vuelve atrás en el tiempo, al doble de velocidad (con <kbd>T</kbd> también apretada, ocho veces más rápido), hasta 30 segundos; al soltarla sigue desde ahí. En pausa también anda: un toque de <kbd>B</kbd> vuelve un frame y <strong>Frame</strong> avanza uno. Después de un error o del fin del programa, rebobinar vuelve a antes y deja la máquina en pausa, para que mires qué pasó. Rebobinar o cargar un estado vuelve atrás también las banderas que el juego guardó con <code>FX75</code> (récords o partidas). Si no lo usás, apagá <strong>Rebobinado</strong> y la consola deja de guardar los últimos segundos.</p>
 
       <h3>Joystick y controles</h3>
       <p>Las flechas del teclado y un joystick (gamepad) también manejan los juegos. En <strong>Controles</strong> elegís qué teclas del keypad aprietan: <strong>WASD de Octo</strong> (arriba 5, abajo 8, izquierda 7, derecha 9; A 6, B 4), el de casi todos los juegos de la Octojam; <strong>Teclado numérico del VIP</strong> (arriba 2, abajo 8, izquierda 4, derecha 6; A 5, B 0), el de muchos juegos clásicos; o <strong>Personalizado</strong>, donde elegís cada una. La elección queda guardada y, con <strong>Ajustes por cartucho</strong>, también la de cada ROM.</p>
@@ -1350,7 +1425,7 @@
       <p>Si una ROM usa una instrucción de pantalla de SUPER-CHIP o XO-CHIP que la plataforma elegida no tiene, la consola la ignora, como hacía un intérprete de la época, y te avisa una vez con un botón para pasar a la plataforma que hace falta. Si la instrucción no se puede ignorar, la máquina se detiene y el mensaje de error trae el botón <strong>Cambiar a … y reiniciar</strong>. Cuando un programa termina con <code>EXIT</code> (<code>00FD</code>) no es un error: la pantalla muestra «FIN DEL PROGRAMA» y el LED RUN queda en ámbar.</p>
 
       <h3>Monitor</h3>
-      <p>El monitor muestra PC, I, SP, los timers, la plataforma con su modo de video, los registros V0–VF (se resaltan los que cambiaron), la pila, el desensamblado alrededor del PC y la memoria a la que apunta I. Con XO-CHIP las direcciones tienen 4 dígitos (64 KB). Pausá con <kbd>Espacio</kbd> y avanzá de a una instrucción con <kbd>N</kbd>.</p>
+      <p>El monitor muestra PC, I, SP, los timers, la plataforma con su modo de video, los registros V0–VF (se resaltan los que cambiaron), la pila, el desensamblado alrededor del PC y la memoria a la que apunta I. Con XO-CHIP las direcciones tienen 4 dígitos (64 KB). Pausá con <kbd>Espacio</kbd> y avanzá de a una instrucción con <kbd>N</kbd>; con <kbd>B</kbd> volvés atrás de a un frame.</p>
 
       <h3>Consejos</h3>
       <ul>
@@ -3386,6 +3461,13 @@ globalThis.CHIP8_ARCHIVE = {
  * pantalla completa del bisel (P), captura PNG exacta (G), joystick (Gamepad API), el mapa de las
  * flechas y el joystick a teclas del keypad («Controles», también por cartucho), y dos efectos del
  * tubo: la curvatura (un filtro SVG) y el encendido animado (una capa encima de la imagen).
+ *
+ * Estados guardados y rebobinado: cada cartucho tiene cinco ranuras («Estados»: la rápida, con I y U, y
+ * cuatro más), guardadas por su SHA-1 en 'chip8-consola.estados' con Core.encodeState. Cargar una vuelve
+ * a ese momento sin reiniciar (Core.decodeState y cpu.loadState; la pausa no cambia). El rebobinado (B o
+ * el botón del bisel, mantenidos) guarda una foto por frame emulado en un Core.RewindBuffer y vuelve
+ * atrás de a REWIND_STEP frames por tick real. Cargar un estado o rebobinar no cuenta como un cambio de
+ * ajustes de la persona.
  */
 (function () {
   'use strict';
@@ -3419,6 +3501,7 @@ globalThis.CHIP8_ARCHIVE = {
   var STORAGE_KEY = 'chip8-consola.ajustes';
   var ROMS_KEY = 'chip8-consola.cartuchos';      // ajustes recordados de cada ROM, por su SHA-1
   var LIBRARY_KEY = 'chip8-consola.biblioteca';  // «Tus cartuchos»: las ROMs cargadas desde un archivo
+  var STATES_KEY = 'chip8-consola.estados';      // los estados guardados de cada ROM (cinco ranuras), por su SHA-1
   var ROMS_MAX = 500;                            // ROMs con ajustes recordados, como mucho (se van las más viejas)
   var ROM_SAVE_MS = 400;                         // los cambios de ajustes de una ROM se guardan juntos, tras esta pausa
   var FLAGS_CHECK_MS = 1000;                     // cada cuánto se miran las banderas RPL mientras la ROM corre
@@ -3490,6 +3573,14 @@ globalThis.CHIP8_ARCHIVE = {
   var PAD_DEADZONE = 0.5;        // palanca del joystick: desde acá cuenta como una dirección
   var POWER_ON_MS = 700;         // duración del encendido animado (la de la animación en el CSS)
   var CURVE_AMOUNT = 0.07;       // curvatura: cuánto se meten las esquinas (7 % de medio ancho y de medio alto)
+  var STATE_SLOTS = ['rapido', '1', '2', '3', '4'];   // las ranuras de estados de cada cartucho: la rápida (I / U) y cuatro más
+  var STATE_TEXT_MAX = 200000;   // un estado en texto ocupa de 1 a 4 KB; uno de XO-CHIP con los 64 KB llenos, unos 100 KB
+  var STATE_TAG_MS = 1500;       // cuánto se ve «GUARDADO» o «CARGADO» en la pantalla
+  var STATE_TIMES_MS = 30000;    // cada cuánto se ponen al día los «hace 5 min» de las ranuras
+  var REWIND_FRAMES = 1800;      // rebobinado: una foto por frame emulado, 30 s como mucho...
+  var REWIND_MAX_BYTES = 48 * 1024 * 1024;   // ...y unos 48 MB (en XO-CHIP, si la memoria cambia mucho, entran menos segundos)
+  var REWIND_STEP = 2;           // frames que vuelve cada tick real de 60 Hz (el doble de rápido; con T, por TURBO_FACTOR)
+  var REWIND_HOLD_MS = 350;      // en pausa, un toque de B vuelve un frame; sostenida, sigue rebobinando después de esta espera
 
   // ------------------------------------------------------------------ utilidades
   function $(id) { return document.getElementById(id); }
@@ -3611,7 +3702,8 @@ globalThis.CHIP8_ARCHIVE = {
       perRom: true,           // «Ajustes por cartucho»
       keymap: presetKeymap('octo'),   // «Controles»: tu último mapa elegido (con eso arranca una ROM que nunca usaste)
       customKeys: null,       // las seis teclas de «Personalizado» (null: todavía no lo usaste)
-      curvature: false, powerOn: true
+      curvature: false, powerOn: true,
+      rewind: true            // «Rebobinado» (en «Estados»): guardar los últimos segundos para volver atrás con B
     };
     var raw = storageRead(STORAGE_KEY);
     if (!raw || typeof raw !== 'object') return s;
@@ -3629,7 +3721,7 @@ globalThis.CHIP8_ARCHIVE = {
     var colors = normalizeColors(raw.customColors);
     if (colors) s.customColors = colors;
     if (SCREEN_MODES.indexOf(raw.screenMode) >= 0) s.screenMode = raw.screenMode;
-    ['scanlines', 'persistence', 'muted', 'monitorOpen', 'perRom'].forEach(function (k) {
+    ['scanlines', 'persistence', 'muted', 'monitorOpen', 'perRom', 'rewind'].forEach(function (k) {
       if (typeof raw[k] === 'boolean') s[k] = raw[k];
     });
     if (typeof raw.volume === 'number' && isFinite(raw.volume)) s.volume = clamp(raw.volume, 0, 1);
@@ -4095,6 +4187,60 @@ globalThis.CHIP8_ARCHIVE = {
     return 'jugado el ' + a.getDate() + ' de ' + MONTHS[a.getMonth()] + (a.getFullYear() !== b.getFullYear() ? ' de ' + a.getFullYear() : '');
   }
 
+  // ------------------------------------------------------------------ estados guardados: almacenamiento
+  // localStorage 'chip8-consola.estados':
+  //   { version: 1, roms: { [sha1]: { name, slots: { rapido | '1'..'4': { date, text } } } } }
+  // text es Core.encodeState(cpu.saveState()): la máquina entera en un JSON compacto (casi siempre de 1 a
+  // 4 KB). Al leer se valida la estructura y lo roto se ignora; cada estado se decodifica entero (con
+  // Core.decodeState, que valida todo) recién al mostrar su pantallita o al cargarlo. Sin almacenamiento,
+  // o sin lugar, los estados quedan en memoria durante la sesión.
+  function sanitizeStateSlot(raw) {
+    if (!raw || typeof raw !== 'object' || !isTime(raw.date) || typeof raw.text !== 'string') return null;
+    if (raw.text.length < 2 || raw.text.length > STATE_TEXT_MAX || raw.text.charAt(0) !== '{') return null;
+    return { date: raw.date, text: raw.text };
+  }
+  function sanitizeStateRom(raw) {
+    if (!raw || typeof raw !== 'object' || !raw.slots || typeof raw.slots !== 'object') return null;
+    var slots = {}, any = false;
+    STATE_SLOTS.forEach(function (id) {
+      var s = hasOwn(raw.slots, id) ? sanitizeStateSlot(raw.slots[id]) : null;
+      if (s) { slots[id] = s; any = true; }
+    });
+    return any ? { name: cleanText(raw.name, 120) || 'ROM sin nombre', slots: slots } : null;
+  }
+  function loadStateStore() {
+    var store = { version: 1, roms: {} };
+    var raw = storageRead(STATES_KEY);
+    var roms = raw && typeof raw === 'object' && raw.version === 1 && raw.roms && typeof raw.roms === 'object' ? raw.roms : null;
+    if (roms) {
+      Object.keys(roms).forEach(function (key) {
+        var sha = key.toLowerCase(), e = SHA_RE.test(sha) ? sanitizeStateRom(roms[key]) : null;
+        if (e) store.roms[sha] = e;
+      });
+    }
+    return store;
+  }
+  var stateStore = loadStateStore();
+  var statesUnsaved = false;   // lo último que se cambió no entró en el almacenamiento: está solo en memoria
+  var statesWarned = false;    // ya se avisó (una vez por sesión) que este navegador no deja guardar datos
+
+  // Guarda todos los estados: 'ok', 'memoria' (este navegador no deja guardar datos), 'lleno' (no hay más
+  // lugar) o 'error'. Para hacer lugar no saca cartuchos de la biblioteca (los ajustes sí): eso lo elige la persona.
+  function writeStateStore() {
+    if (!storageOk) return 'memoria';
+    try {
+      if (Object.keys(stateStore.roms).length) window.localStorage.setItem(STATES_KEY, JSON.stringify(stateStore));
+      else window.localStorage.removeItem(STATES_KEY);
+      return 'ok';
+    } catch (e) {
+      return isQuotaError(e) ? 'lleno' : 'error';
+    }
+  }
+  function slotEntry(sha, id) {
+    var rom = sha && hasOwn(stateStore.roms, sha) ? stateStore.roms[sha] : null;
+    return rom && hasOwn(rom.slots, id) ? rom.slots[id] : null;
+  }
+
   // ------------------------------------------------------------------ referencias al DOM
   var consoleEl = $('console');
   var crtEl = $('crt'), screenCanvas = $('screen'), glowCanvas = $('glow');
@@ -4128,6 +4274,8 @@ globalThis.CHIP8_ARCHIVE = {
   var warpImage = $('crt-warp-map'), warpDisp = $('crt-warp-disp');
   var keymapSel = $('keymap'), keymapKeys = $('keymap-keys'), keymapHint = $('keymap-hint'), padHint = $('pad-hint');
   var keySelects = [];   // las seis del mapa «Personalizado» (las arma buildKeymapControls)
+  var tagRewind = $('tag-rewind'), tagState = $('tag-state'), btnRewind = $('btn-rewind');
+  var tgRewind = $('tg-rewind'), rewindInfoEl = $('rewind-info'), saveSlotsEl = $('save-slots'), statesHint = $('states-hint');
 
   // ------------------------------------------------------------------ pantalla
   var screenCtx = screenCanvas.getContext('2d', { alpha: false }) || screenCanvas.getContext('2d');
@@ -4440,6 +4588,7 @@ globalThis.CHIP8_ARCHIVE = {
     paletteSel.value = id;
     customColorsEl.hidden = id !== CUSTOM;
     if (screenScale && scanKindNow() !== scanKind) scanPattern = buildScanPattern(screenScale);
+    paintThumbs();   // las pantallitas de los estados, con los colores nuevos
     needsRender = true;
   }
   // La persona eligió una paleta (selector o API): queda como su paleta y, con «Ajustes por cartucho»,
@@ -4851,6 +5000,7 @@ globalThis.CHIP8_ARCHIVE = {
     updateLevels(false);
     updateTransport();
     updateMonitor(true);
+    rewindRestart();   // el pasado era de la máquina de antes
   }
 
   // Cambia solo la plataforma (los quirks no se tocan). La máquina se reinicia con la misma ROM;
@@ -5003,7 +5153,9 @@ globalThis.CHIP8_ARCHIVE = {
     acc = 0;
     cpu.displayDirty = false;
     updateLevels(false);
+    rewindRestart();
     updateSlot();
+    renderStates();   // las ranuras de estados de este cartucho
     updateShelfSelection();
     updateTransport();
     updatePlatformUI();
@@ -5193,6 +5345,7 @@ globalThis.CHIP8_ARCHIVE = {
   function tick() {
     state.instr += cpu.runFrame(liveIpf);
     if (cpu.soundTimer > 0) soundSeen = true;
+    rewindPush();   // la foto de este frame, para el rebobinado
     syncDisplay(true);
     if (cpu.halted) handleHalt();
   }
@@ -5202,6 +5355,7 @@ globalThis.CHIP8_ARCHIVE = {
     setPaused(true, true);
     if (cpu.halted) return false;
     var ok = cpu.step();
+    if (ok || cpu.halted) rewind.top = false;   // la máquina ya no es la última foto del rebobinado
     if (ok) state.instr++;
     syncDisplay(false);
     if (cpu.halted) { handleHalt(); return ok; }   // handleHalt ya anunció el error: no se lo pisa
@@ -5269,9 +5423,16 @@ globalThis.CHIP8_ARCHIVE = {
     }
     return 'custom';
   }
+  var shownQuirks = '';   // los quirks que muestran los interruptores (quirkSig), para no reescribirlos al rebobinar
+  function quirkSig() {
+    var s = '';
+    for (var i = 0; i < QUIRK_KEYS.length; i++) s += cpu.quirks[QUIRK_KEYS[i]] ? '1' : '0';
+    return s;
+  }
   function refreshQuirkUI() {
     QUIRK_KEYS.forEach(function (k) { dipButtons[k].setAttribute('aria-checked', cpu.quirks[k] ? 'true' : 'false'); });
     presetSel.value = detectPreset();
+    shownQuirks = quirkSig();
   }
   // Los interruptores DIP cambian solo los quirks: nunca la plataforma. Sin auto es un cambio de la
   // persona (quedan como sus quirks y, con «Ajustes por cartucho», como los de esta ROM).
@@ -5366,6 +5527,7 @@ globalThis.CHIP8_ARCHIVE = {
     gamepad.held = 0;
     gamepad.start = true;
     releaseTurbo();
+    releaseRewind();
   }
   // reset() del núcleo limpia las teclas: se vuelven a informar las que siguen apretadas.
   function resyncKeys() {
@@ -5465,6 +5627,19 @@ globalThis.CHIP8_ARCHIVE = {
         e.preventDefault();
         if (!e.repeat) saveScreenshot();
         break;
+      case 'KeyI':   // guardar en la ranura rápida
+        e.preventDefault();
+        if (!e.repeat) saveToSlot('rapido');
+        break;
+      case 'KeyU':   // cargar la ranura rápida
+        e.preventDefault();
+        if (!e.repeat) loadFromSlot('rapido');
+        break;
+      case 'KeyB':   // mantenida: rebobinado
+        e.preventDefault();
+        if (settings.rewind) setRewindSource('key', true);
+        else if (!e.repeat) announce('El rebobinado está apagado: prendelo en «Estados».');
+        break;
       case 'Escape':
         showDrop(false);
         break;
@@ -5487,6 +5662,11 @@ globalThis.CHIP8_ARCHIVE = {
     }
     if (e.code === 'KeyT' && turbo.key) {
       setTurboSource('key', false);
+      e.preventDefault();
+      return;
+    }
+    if (e.code === 'KeyB' && rewind.key) {
+      setRewindSource('key', false);
       e.preventDefault();
       return;
     }
@@ -5620,40 +5800,223 @@ globalThis.CHIP8_ARCHIVE = {
       btnTurbo.setAttribute('aria-pressed', on ? 'true' : 'false');
     }
     // El «×4» de la pantalla, ya mismo (updateIndicators lo mantiene después, cuadro a cuadro).
-    var fast = on && isRunning();
+    var fast = on && (isRunning() || rewind.active);
     if (fast !== ind.turbo) {
       ind.turbo = fast;
       tagTurbo.hidden = !fast;
     }
   }
-  function bindTurboButton() {
-    btnTurbo.addEventListener('pointerdown', function (e) {
+  // Un botón del bisel que se mantiene apretado (avance rápido y rebobinado): con el puntero (mouse o dedo,
+  // con captura: soltarlo afuera también cuenta) o, con el foco puesto desde el teclado, con Espacio o
+  // Enter sostenidos (no pausan). hold guarda qué puntero lo aprieta; setSource(origen, apretado).
+  function bindHoldButton(btn, hold, setSource) {
+    btn.addEventListener('pointerdown', function (e) {
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       e.preventDefault();   // sin foco ni selección de texto, como las teclas del keypad
-      if (turbo.pointer) return;
-      turbo.pointerId = e.pointerId;
-      try { btnTurbo.setPointerCapture(e.pointerId); } catch (err) { /* sin captura: igual funciona */ }
-      setTurboSource('pointer', true);
+      if (hold.pointer || btn.disabled) return;
+      hold.pointerId = e.pointerId;
+      try { btn.setPointerCapture(e.pointerId); } catch (err) { /* sin captura: igual funciona */ }
+      setSource('pointer', true);
     });
-    function end(e) { if (turbo.pointer && e.pointerId === turbo.pointerId) setTurboSource('pointer', false); }
-    btnTurbo.addEventListener('pointerup', end);
-    btnTurbo.addEventListener('pointercancel', end);
-    btnTurbo.addEventListener('lostpointercapture', end);
-    btnTurbo.addEventListener('contextmenu', function (e) { e.preventDefault(); });
-    // Con el foco puesto desde el teclado: Espacio o Enter sostenidos (no pausan).
-    btnTurbo.addEventListener('keydown', function (e) {
+    function end(e) { if (hold.pointer && e.pointerId === hold.pointerId) setSource('pointer', false); }
+    btn.addEventListener('pointerup', end);
+    btn.addEventListener('pointercancel', end);
+    btn.addEventListener('lostpointercapture', end);
+    btn.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    btn.addEventListener('keydown', function (e) {
       if (!isActivationKey(e) || e.ctrlKey || e.metaKey || e.altKey) return;
       e.preventDefault();
       e.stopPropagation();
-      setTurboSource('button', true);
+      setSource('button', true);
     });
-    btnTurbo.addEventListener('keyup', function (e) {
+    btn.addEventListener('keyup', function (e) {
       if (!isActivationKey(e)) return;
       e.preventDefault();
       e.stopPropagation();
-      setTurboSource('button', false);
+      setSource('button', false);
     });
-    btnTurbo.addEventListener('blur', function () { setTurboSource('button', false); });
+    btn.addEventListener('blur', function () { setSource('button', false); });
+  }
+
+  // ------------------------------------------------------------------ rebobinado
+  // Mientras la máquina corre, después de cada frame emulado (también en avance rápido y esperando una
+  // tecla) se guarda una foto en rewindBuf. Mientras se mantiene B, el botón de rebobinar del bisel (con
+  // el puntero, o con Espacio/Enter si está enfocado) o setRewinding(true), la máquina no corre: en cada
+  // tick real de 60 Hz vuelve REWIND_STEP frames (por TURBO_FACTOR con T), con el sonido callado, «⏪»
+  // en la pantalla y el monitor al día, hasta la foto más vieja. Al soltar sigue desde ahí, o queda en
+  // pausa si lo estaba (o si estaba detenida por un error o EXIT). En pausa (o detenida) un toque vuelve
+  // un frame y, sostenida, sigue rebobinando después de REWIND_HOLD_MS. El buffer vuelve a empezar (con la foto del presente) al cargar una ROM o
+  // un estado, al reiniciar y al cambiar de plataforma. Mientras rewind.top, la foto más nueva es el
+  // presente (no se ejecutó nada desde que se tomó): al rebobinar se descarta, así cada paso es de frames
+  // enteros.
+  var rewindBuf = new Core.RewindBuffer({ maxEntries: REWIND_FRAMES, maxBytes: REWIND_MAX_BYTES });
+  var rewind = {
+    key: false, pointer: false, button: false, api: false, pointerId: null,   // qué lo mantiene apretado
+    active: false,     // rebobinando ahora
+    top: false,        // la foto más nueva del buffer es el presente
+    acc: 0,            // tiempo acumulado para los ticks de 60 Hz
+    holdUntil: 0,      // en pausa: hasta cuándo esperar antes de seguir rebobinando
+    frames: 0,         // cuántos frames se volvió en este rebobinado (para el anuncio)
+    shown: -1          // los segundos que muestra «Podés volver hasta N s.» (-2: apagado)
+  };
+  function rewindHeld() { return rewind.key || rewind.pointer || rewind.button || rewind.api; }
+  function rewindPush() {
+    if (!settings.rewind || !state.romLoaded) return;
+    rewindBuf.push(cpu);
+    rewind.top = true;
+  }
+  // Sin pasado: queda solo la foto del presente.
+  function rewindRestart() {
+    rewindBuf.clear();
+    rewind.top = false;
+    rewindPush();
+    updateRewindInfo(false);
+  }
+  function setRewindSource(source, on) {
+    on = !!on;
+    if (rewind[source] === on) return;
+    rewind[source] = on;
+    if (source === 'pointer' && !on) rewind.pointerId = null;
+    syncRewind();
+  }
+  function releaseRewind() {
+    rewind.key = rewind.pointer = rewind.button = rewind.api = false;
+    rewind.pointerId = null;
+    syncRewind();
+  }
+  // Empieza o termina según lo que está apretado y si el rebobinado se puede usar ahora.
+  function syncRewind() {
+    var want = rewindHeld() && settings.rewind && state.romLoaded;
+    if (want && !rewind.active) rewindStart();
+    else if (!want && rewind.active) rewindStop();
+    if (btnRewind.__on !== rewind.active) {
+      btnRewind.__on = rewind.active;
+      btnRewind.setAttribute('aria-pressed', rewind.active ? 'true' : 'false');
+    }
+  }
+  function rewindStepFrames() { return REWIND_STEP * (turboHeld() ? TURBO_FACTOR : 1); }
+  function rewindStart() {
+    rewind.active = true;
+    rewind.frames = 0;
+    rewind.acc = 0;
+    if (isRunning()) {
+      rewind.holdUntil = 0;
+      rewindBack(rewindStepFrames());
+    } else {
+      rewind.holdUntil = performance.now() + REWIND_HOLD_MS;
+      rewindBack(1);
+    }
+    syncDisplay(true);
+    setBeep(false);
+    updateIndicators();
+  }
+  function rewindStop() {
+    rewind.active = false;
+    acc = 0;   // la máquina sigue desde acá, sin ponerse al día
+    var f = rewind.frames;
+    if (f > 0) {
+      announce('Rebobinado: volviste ' + (f < 60 ? f + (f === 1 ? ' frame' : ' frames') : formatSeconds(f / 60) + ' s') + ' atrás' +
+        (state.paused || cpu.halted ? ' (en pausa, PC = 0x' + hex(cpu.pc, addrDigits) + ').' : '.'));
+    } else if (state.romLoaded) {
+      announce('No hay más para rebobinar: este es el momento más viejo que quedó guardado.');
+    }
+    updateIndicators();
+  }
+  function formatSeconds(v) {
+    v = Math.round(v * 10) / 10;
+    try { return v.toLocaleString('es-AR', { maximumFractionDigits: 1 }); } catch (e) { return String(v); }
+  }
+  // Vuelve n frames atrás (o hasta la foto más vieja). Devuelve cuántos volvió. El estado cargado vuelve
+  // al buffer como su foto más nueva (es el presente): así, si la máquina avanza desde ahí (corriendo o con
+  // Frame), volver de nuevo pasa por él y no se saltea ningún frame. La pantalla la pone al día quien llama
+  // (con syncDisplay, una vez por tick).
+  function rewindBack(n) {
+    var keep = rewind.top ? 1 : 0;              // la foto del presente no es un paso atrás
+    if (rewindBuf.length <= keep) return 0;     // ya está en la más vieja
+    if (keep) rewindBuf.pop();
+    var st = null, k = 0, p;
+    while (k < n && (p = rewindBuf.pop())) {
+      st = p;
+      k++;
+    }
+    try {
+      cpu.loadState(st);
+    } catch (err) {
+      rewindRestart();   // no debería pasar: el buffer vuelve a empezar al cambiar de plataforma o de ROM
+      return 0;
+    }
+    machineStateLoaded(false, true);
+    rewindPush();
+    rewind.frames += k;
+    return k;
+  }
+  // Un tick real de 60 Hz mientras se rebobina (desde el bucle principal).
+  function rewindTick() {
+    rewindBack(rewindStepFrames());
+    syncDisplay(true);
+  }
+  // «Podés volver hasta N s.» (cambia de a un segundo; apagado, lo dice).
+  function updateRewindInfo(force) {
+    if (!settings.rewind) {
+      if (force || rewind.shown !== -2) {
+        rewind.shown = -2;
+        rewindInfoEl.textContent = 'Apagado: la consola no guarda los últimos segundos.';
+      }
+      return;
+    }
+    var s = Math.floor(rewindBuf.length / 60);
+    if (!force && s === rewind.shown) return;
+    rewind.shown = s;
+    rewindInfoEl.textContent = 'Podés volver hasta ' + s + ' s.';
+  }
+  var REWIND_TITLE = btnRewind.title;
+  // «Rebobinado» prendido o apagado (el interruptor de «Estados» o la API). Apagado no guarda fotos y B no hace nada.
+  function setRewindEnabled(on) {
+    on = !!on;
+    if (on !== settings.rewind) {
+      settings.rewind = on;
+      saveSettings();
+      if (on) rewindRestart();
+      else {
+        rewindBuf.clear();
+        rewind.top = false;
+      }
+      syncRewind();
+      announce(on ? 'Rebobinado prendido: mantené B para volver atrás en el tiempo.' : 'Rebobinado apagado: la consola ya no guarda los últimos segundos.');
+    }
+    tgRewind.setAttribute('aria-pressed', on ? 'true' : 'false');
+    btnRewind.disabled = !on;
+    btnRewind.title = on ? REWIND_TITLE : 'Rebobinado apagado: prendelo en «Estados»';
+    updateRewindInfo(true);
+    return on;
+  }
+  function rewindInfo() {
+    return { seconds: Math.round(rewindBuf.length / 60 * 100) / 100, entries: rewindBuf.length, bytes: rewindBuf.bytes };
+  }
+
+  // El núcleo acaba de cargar un estado (cpu.loadState: de una ranura o del rebobinado) y la interfaz se
+  // pone al día sin reiniciar nada: los controles de plataforma y quirks (sin guardarlos como ajustes de
+  // la persona ni del cartucho), las teclas que siguen apretadas (loadState las suelta; si entre ellas está
+  // la que esperaba FX0A, soltarla termina la espera como en la original) y el mensaje de error o de fin
+  // del programa del estado cargado. La pausa no cambia. Si la máquina estaba detenida (error o EXIT),
+  // vuelve a la pausa que había antes de detenerse, como al reiniciar; al rebobinar (stay) queda en pausa:
+  // no corría, y así se ve el momento de antes del error en vez de volver a chocar con él. Con exact, la
+  // pantalla muestra ese frame tal cual, sin estela; si no, la pone al día quien llama.
+  function machineStateLoaded(exact, stay) {
+    var wasError = state.errorShown;
+    if (platformSel.value !== cpu.platform || (cpu.memory.length > 0x1000 ? 4 : 3) !== addrDigits) updatePlatformUI();
+    if (quirkSig() !== shownQuirks) refreshQuirkUI();
+    resyncKeys();
+    if (wasError) {
+      clearError();
+      state.paused = stay || state.pausedBeforeHalt;
+    }
+    if (cpu.halted) handleHalt();   // el error o el fin del programa de este estado (y queda en pausa)
+    else if (wasError) updateTransport();
+    if (exact) {
+      cpu.displayDirty = false;
+      updateLevels(false);
+    }
   }
 
   // ------------------------------------------------------------------ controles: flechas y joystick
@@ -6054,6 +6417,7 @@ globalThis.CHIP8_ARCHIVE = {
   // rearma solo cuando el núcleo avisa que cambió (cpu.audioDirty). Sin patrón, el beep de siempre.
   function syncAudioSource() {
     if (!audio.ctx) return;   // todavía no hay AudioContext: audioDirty queda marcado para cuando lo haya
+    if (rewind.active) return;   // rebobinando está callado: el patrón se rearma una vez, al soltar
     if (state.romLoaded && cpu.audioPatternSet) {
       if (cpu.audioDirty || !audio.pattern) {
         cpu.audioDirty = false;
@@ -6107,7 +6471,7 @@ globalThis.CHIP8_ARCHIVE = {
     exit: { badge: 'Terminado', led: 'led is-amber' },
     error: { badge: 'Error', led: 'led is-red' }
   };
-  var ind = { mode: '', wait: null, snd: null, turbo: null };
+  var ind = { mode: '', wait: null, snd: null, turbo: null, rewind: null };
 
   function computeMode() {
     if (!state.romLoaded) return 'idle';
@@ -6133,13 +6497,20 @@ globalThis.CHIP8_ARCHIVE = {
       ind.wait = waiting;
       tagWait.hidden = !waiting;
     }
-    // «×4»: el avance rápido está apretado y la máquina corre (en pausa o detenida no hace nada).
-    var fast = turboHeld() && isRunning();
+    // «⏪» mientras se rebobina; «×4»: el avance rápido está apretado y la máquina corre o rebobina (en
+    // pausa o detenida no hace nada).
+    var back = rewind.active;
+    if (back !== ind.rewind) {
+      ind.rewind = back;
+      tagRewind.hidden = !back;
+    }
+    var fast = turboHeld() && (isRunning() || back);
     if (fast !== ind.turbo) {
       ind.turbo = fast;
       tagTurbo.hidden = !fast;
     }
-    var snd = isRunning() && (cpu.soundTimer > 0 || soundSeen) && !document.hidden;
+    // Rebobinando, el sonido se calla.
+    var snd = isRunning() && !back && (cpu.soundTimer > 0 || soundSeen) && !document.hidden;
     if (snd !== ind.snd) {
       ind.snd = snd;
       ledSnd.className = snd ? 'led is-red' : 'led';
@@ -6514,6 +6885,337 @@ globalThis.CHIP8_ARCHIVE = {
     return true;
   }
 
+  // ------------------------------------------------------------------ estados guardados: las ranuras
+  // «Estados» muestra las cinco ranuras del cartucho de la ranura: cada una con la pantalla de ese momento
+  // (los colores de la paleta, escala entera), cuándo se guardó y Guardar / Cargar / Borrar. Sin cartucho,
+  // la explicación. Guardar y cargar se anuncian en la línea de estado y con «GUARDADO» o «CARGADO» en la
+  // pantalla; Borrar, con un aviso que trae «Deshacer».
+  var slotEls = {};   // id -> los elementos de su ranura, el texto del estado que muestra y su pantallita
+  function slotName(id) { return id === 'rapido' ? 'Rápido' : 'Ranura ' + id; }
+  function slotPhrase(id) { return id === 'rapido' ? 'ranura rápida' : 'ranura ' + id; }
+  // 'rapido' (o 'rápido') y de 1 a 4 (número o texto) -> el id de la ranura; otra cosa -> null.
+  function normalizeSlot(v) {
+    if (v === 'rapido' || v === 'rápido') return 'rapido';
+    var n = typeof v === 'string' && /^[1-4]$/.test(v) ? Number(v) : v;
+    return isInt(n, 1, 4) ? String(n) : null;
+  }
+  function two(n) { return (n < 10 ? '0' : '') + n; }
+  // Cuándo se guardó: short para la ranura («recién», «hace 5 min», «hoy 09:40», «ayer 18:20», «28 de
+  // octubre», con el año si no es este) y long para las frases («hoy a las 09:40», «el 28 de octubre»).
+  function savedWhen(t, now) {
+    var a = new Date(t), b = new Date(now), secs = (now - t) / 1000;
+    if (secs < 60) return { short: 'recién', long: 'recién' };
+    if (secs < 3600) {
+      var m = 'hace ' + Math.floor(secs / 60) + ' min';
+      return { short: m, long: m };
+    }
+    var hm = two(a.getHours()) + ':' + two(a.getMinutes());
+    var days = Math.round((Date.UTC(b.getFullYear(), b.getMonth(), b.getDate()) - Date.UTC(a.getFullYear(), a.getMonth(), a.getDate())) / 86400000);
+    if (days <= 0) return { short: 'hoy ' + hm, long: 'hoy a las ' + hm };
+    if (days === 1) return { short: 'ayer ' + hm, long: 'ayer a las ' + hm };
+    var date = a.getDate() + ' de ' + MONTHS[a.getMonth()] + (a.getFullYear() !== b.getFullYear() ? ' de ' + a.getFullYear() : '');
+    return { short: date, long: 'el ' + date };
+  }
+  function savedTitle(t) {
+    var a = new Date(t);
+    return 'Guardado el ' + a.getDate() + ' de ' + MONTHS[a.getMonth()] + ' de ' + a.getFullYear() + ' a las ' + two(a.getHours()) + ':' + two(a.getMinutes());
+  }
+
+  function slotButton(kind, label, title, run) {
+    var b = make('button', 'save-btn save-btn--' + kind, label);
+    b.type = 'button';
+    b.setAttribute('data-act', kind);
+    b.setAttribute('aria-label', title);
+    b.title = title;
+    b.addEventListener('click', run);
+    return b;
+  }
+  function buildStateSlots() {
+    STATE_SLOTS.forEach(function (id) {
+      var quick = id === 'rapido';
+      var root = make('div', 'save-slot is-empty' + (quick ? ' save-slot--quick' : ''));
+      root.setAttribute('role', 'group');
+      root.setAttribute('data-slot', id);
+      var well = make('div', 'save-well');
+      var screen = make('div', 'save-screen');
+      screen.setAttribute('aria-hidden', 'true');
+      var canvas = make('canvas');
+      canvas.width = IDLE_W;
+      canvas.height = IDLE_H;
+      canvas.hidden = true;
+      var blank = make('span', 'save-blank', 'VACÍA');
+      screen.appendChild(canvas);
+      screen.appendChild(blank);
+      well.appendChild(screen);
+      var meta = make('div', 'save-meta');
+      var name = make('span', 'save-name', slotName(id));
+      name.id = 'save-name-' + id;
+      root.setAttribute('aria-labelledby', name.id);
+      meta.appendChild(name);
+      if (quick) {
+        var keys = make('span', 'save-keys', 'I · U');
+        keys.title = 'I guarda y U carga';
+        keys.setAttribute('aria-hidden', 'true');
+        meta.appendChild(keys);
+      }
+      var when = make('span', 'save-when', 'Nada guardado');
+      meta.appendChild(when);
+      var acts = make('div', 'save-acts');
+      var save = slotButton('save', 'Guardar', 'Guardar el estado de la máquina en la ' + slotPhrase(id) + (quick ? ' (I)' : ''), function () { saveToSlot(id); });
+      var load = slotButton('load', 'Cargar', 'Cargar el estado de la ' + slotPhrase(id) + (quick ? ' (U)' : ''), function () { loadFromSlot(id); });
+      var del = slotButton('delete', 'Borrar', 'Borrar el estado de la ' + slotPhrase(id), function () { deleteSlot(id); });
+      load.disabled = del.disabled = true;
+      acts.appendChild(save);
+      acts.appendChild(load);
+      acts.appendChild(del);
+      root.appendChild(well);
+      root.appendChild(meta);
+      root.appendChild(acts);
+      saveSlotsEl.appendChild(root);
+      slotEls[id] = { root: root, screen: screen, canvas: canvas, blank: blank, when: when, save: save, load: load, del: del, text: null, thumb: null, date: 0 };
+    });
+  }
+
+  // La pantallita de un estado: decodificarlo entero también lo valida. { w, h, display, platform } o { error }.
+  function stateThumb(text) {
+    try {
+      var st = Core.decodeState(text);
+      return { w: st.displayWidth, h: st.displayHeight, display: st.display, platform: st.platform, error: null };
+    } catch (err) {
+      return { error: errorText(err) };
+    }
+  }
+  // cpu.display del estado, un píxel del lienzo por píxel CHIP-8, con el color de la paleta de cada valor
+  // (0 fondo, 1 plano 1, 2 plano 2, 3 los dos); el CSS lo agranda sin suavizar.
+  function drawThumb(el) {
+    var t = el.thumb, cv = el.canvas;
+    if (!t || t.error) return;
+    if (cv.width !== t.w) cv.width = t.w;
+    if (cv.height !== t.h) cv.height = t.h;
+    var g = cv.getContext('2d'), img = g.createImageData(t.w, t.h), px = new Uint32Array(img.data.buffer), p = activeColors;
+    var colors = [p.bg, p.on, p.p2, p.both].map(function (c) { return packColor(c[0], c[1], c[2]); });
+    for (var i = 0; i < px.length; i++) px[i] = colors[t.display[i] & 3];
+    g.putImageData(img, 0, 0);
+    cv.hidden = false;
+    sizeThumb(el);
+  }
+  // Escala entera en píxeles físicos, como la pantalla: cada píxel CHIP-8 ocupa s × s píxeles del monitor
+  // (con 64×32, el doble que con 128×64), lo más grande que entre en la pantallita.
+  function sizeThumb(el) {
+    var t = el.thumb;
+    if (!t || t.error) return;
+    var box = el.screen.clientWidth;
+    if (!box) return;
+    var dpr = window.devicePixelRatio || 1;
+    var s = Math.max(1, Math.floor(box * dpr / t.w + 1e-6));
+    var w = (t.w * s / dpr) + 'px';
+    if (el.canvas.style.width !== w) {
+      el.canvas.style.width = w;
+      el.canvas.style.height = (t.h * s / dpr) + 'px';
+    }
+  }
+  function sizeThumbs() { STATE_SLOTS.forEach(function (id) { if (slotEls[id]) sizeThumb(slotEls[id]); }); }
+  // La paleta cambió: las pantallitas se pintan con los colores nuevos.
+  function paintThumbs() {
+    var p = activeColors;
+    saveSlotsEl.style.setProperty('--thumb-bg', 'rgb(' + p.bg.join(',') + ')');
+    saveSlotsEl.style.setProperty('--thumb-fg', 'rgb(' + p.on.join(',') + ')');
+    STATE_SLOTS.forEach(function (id) {
+      var el = slotEls[id];
+      if (el && el.thumb && !el.thumb.error) drawThumb(el);
+    });
+  }
+
+  // Las cinco ranuras del cartucho de la ranura (sin cartucho, solo la explicación).
+  function renderStates() {
+    var sha = state.romLoaded ? state.romSha : null, now = Date.now();
+    saveSlotsEl.hidden = !sha;
+    STATE_SLOTS.forEach(function (id) { renderSlot(id, sha ? slotEntry(sha, id) : null, now); });
+    updateStatesHint();
+  }
+  function renderSlot(id, entry, now) {
+    var el = slotEls[id];
+    if (!el) return;
+    if (!entry) {
+      el.text = null;
+      el.thumb = null;
+      el.root.classList.add('is-empty');
+      el.root.classList.remove('is-damaged');
+      el.canvas.hidden = true;
+      el.blank.hidden = false;
+      el.blank.textContent = 'VACÍA';
+      el.when.textContent = 'Nada guardado';
+      el.when.title = '';
+      setSlotButtons(el, false);
+      return;
+    }
+    if (el.text !== entry.text) {
+      el.text = entry.text;
+      el.thumb = stateThumb(entry.text);
+    }
+    el.date = entry.date;
+    var bad = !!el.thumb.error;
+    el.root.classList.remove('is-empty');
+    el.root.classList.toggle('is-damaged', bad);
+    if (bad) {
+      el.canvas.hidden = true;
+      el.blank.hidden = false;
+      el.blank.textContent = 'DAÑADO';
+    } else {
+      el.blank.hidden = true;
+      drawThumb(el);
+    }
+    updateSlotWhen(el, now || Date.now());
+    setSlotButtons(el, true);
+  }
+  function updateSlotWhen(el, now) {
+    if (el.text === null) return;
+    el.when.textContent = savedWhen(el.date, now).short;
+    el.when.title = savedTitle(el.date) + (el.thumb.error ? '. No se puede cargar: ' + el.thumb.error : '');
+  }
+  function updateSlotTimes() {
+    var now = Date.now();
+    STATE_SLOTS.forEach(function (id) { if (slotEls[id]) updateSlotWhen(slotEls[id], now); });
+  }
+  // Cargar y Borrar, solo con un estado. Si el foco del teclado estaba en uno que se apaga, pasa a Guardar.
+  function setSlotButtons(el, full) {
+    [el.load, el.del].forEach(function (b) {
+      if (!full && document.activeElement === b && focusVisible(b)) el.save.focus();
+      b.disabled = !full;
+    });
+  }
+  function updateStatesHint() {
+    var text = state.romLoaded && state.romSha
+      ? 'Estos estados son de «' + state.romName + '»: cada cartucho tiene los suyos. I guarda en la ranura rápida y U la carga; B, mantenida, rebobina.'
+      : 'Los estados son del cartucho que está en la ranura: con uno puesto, acá guardás su partida en cualquier momento y volvés a ella.';
+    if (!storageOk) text += ' Este navegador no deja guardar datos: duran hasta que cierres la página.';
+    else if (statesUnsaved) text += ' Lo último que guardaste no entró en el navegador: dura hasta que cierres la página.';
+    statesHint.textContent = text;
+  }
+  var stateTagTimer = 0;
+  function flashStateTag(text) {
+    tagState.textContent = text;
+    tagState.hidden = false;
+    window.clearTimeout(stateTagTimer);
+    stateTagTimer = window.setTimeout(function () { tagState.hidden = true; }, STATE_TAG_MS);
+  }
+  // Guarda los estados y, si no se pudo, avisa: sin lugar, qué borrar para hacerlo; sin almacenamiento,
+  // una vez por sesión. Lo que no entró sigue en memoria y se vuelve a intentar en el próximo cambio.
+  function commitStates() {
+    var r = writeStateStore();
+    statesUnsaved = r !== 'ok';
+    if (r === 'lleno') {
+      toast('No hay más lugar en este navegador: el estado queda solo hasta que cierres la página. Para hacer lugar, borrá estados viejos o cartuchos de «Tus cartuchos».', 'error');
+    } else if (r === 'error') {
+      toast('No se pudo guardar en este navegador: el estado queda solo hasta que cierres la página.', 'error');
+    } else if (r === 'memoria' && !statesWarned) {
+      statesWarned = true;
+      toast('Este navegador no deja guardar datos: los estados duran hasta que cierres la página.', 'info');
+    }
+    updateStatesHint();
+    return r;
+  }
+
+  // Guarda la máquina entera en una ranura del cartucho de la ranura. Devuelve true si quedó (aunque sea
+  // solo en memoria: entonces commitStates ya avisó por qué).
+  function saveToSlot(id) {
+    if (!state.romLoaded || !state.romSha) {
+      announce('No hay un cartucho en la ranura: los estados son de cada cartucho.');
+      return false;
+    }
+    var text;
+    try {
+      text = Core.encodeState(cpu.saveState());
+    } catch (err) {
+      toast('No se pudo guardar el estado: ' + errorText(err), 'error');
+      return false;
+    }
+    var sha = state.romSha;
+    var rom = hasOwn(stateStore.roms, sha) ? stateStore.roms[sha] : (stateStore.roms[sha] = { name: state.romName, slots: {} });
+    rom.name = state.romName;
+    rom.slots[id] = { date: Date.now(), text: text };
+    commitStates();
+    renderSlot(id, rom.slots[id]);
+    announce('Estado guardado en la ' + slotPhrase(id) + '.');
+    flashStateTag('GUARDADO');
+    return true;
+  }
+  // Vuelve al estado de una ranura sin reiniciar: la pausa no cambia (en pausa, se ve ese frame). Si el
+  // estado no se puede leer o cargar, avisa y no cambia nada.
+  function loadFromSlot(id) {
+    if (!state.romLoaded || !state.romSha) {
+      announce('No hay un cartucho en la ranura: los estados son de cada cartucho.');
+      return false;
+    }
+    var entry = slotEntry(state.romSha, id);
+    if (!entry) {
+      announce('La ' + slotPhrase(id) + ' está vacía' + (id === 'rapido' ? ': guardá con I.' : '.'));
+      return false;
+    }
+    try {
+      cpu.loadState(Core.decodeState(entry.text));
+    } catch (err) {
+      toast('No se pudo cargar el estado de la ' + slotPhrase(id) + ': ' + errorText(err), 'error');
+      return false;
+    }
+    updatePlatformUI();
+    refreshQuirkUI();
+    machineStateLoaded(true, false);
+    rewindRestart();
+    updateTransport();
+    updateMonitor(true);
+    var msg = 'Estado de la ' + slotPhrase(id) + ' cargado (guardado ' + savedWhen(entry.date, Date.now()).long + ').';
+    if (cpu.halted) msg += cpu.exited ? ' El programa había terminado: reiniciá para volver a empezar.' : ' La máquina estaba detenida por un error: reiniciá para seguir.';
+    announce(msg);
+    flashStateTag('CARGADO');
+    return true;
+  }
+  // Borra el estado de una ranura; el aviso trae «Deshacer» (lo devuelve si la ranura sigue vacía).
+  function deleteSlot(id) {
+    var sha = state.romLoaded ? state.romSha : null, entry = slotEntry(sha, id);
+    if (!entry) return false;
+    var rom = stateStore.roms[sha], name = rom.name;
+    delete rom.slots[id];
+    if (!Object.keys(rom.slots).length) delete stateStore.roms[sha];
+    commitStates();
+    renderSlot(id, null);
+    toast('Borraste el estado de la ' + slotPhrase(id) + ' de «' + name + '».', 'info', {
+      label: 'Deshacer',
+      run: function () { restoreSlot(sha, name, id, entry); }
+    });
+    return true;
+  }
+  function restoreSlot(sha, name, id, entry) {
+    if (slotEntry(sha, id)) {
+      announce('La ' + slotPhrase(id) + ' ya tiene otro estado: no lo reemplacé.');
+      return false;
+    }
+    var rom = hasOwn(stateStore.roms, sha) ? stateStore.roms[sha] : (stateStore.roms[sha] = { name: name, slots: {} });
+    rom.slots[id] = entry;
+    commitStates();
+    if (state.romLoaded && state.romSha === sha) renderSlot(id, entry);
+    announce('El estado de la ' + slotPhrase(id) + ' de «' + name + '» volvió.');
+    return true;
+  }
+  // Lo que devuelve la API: las cinco ranuras del cartucho de la ranura (null sin cartucho).
+  function listSlots() {
+    if (!state.romLoaded || !state.romSha) return null;
+    var now = Date.now();
+    return STATE_SLOTS.map(function (id) {
+      var entry = slotEntry(state.romSha, id), el = slotEls[id];
+      var out = { slot: id === 'rapido' ? 'rapido' : Number(id), name: slotName(id), empty: !entry };
+      if (entry) {
+        var t = el && el.text === entry.text ? el.thumb : stateThumb(entry.text);
+        out.date = entry.date;
+        out.when = savedWhen(entry.date, now).short;
+        out.size = entry.text.length;
+        out.platform = t.error ? null : t.platform;
+        out.damaged = !!t.error;
+      }
+      return out;
+    });
+  }
+
   // ------------------------------------------------------------------ ayuda y arrastre
   function openHelp() {
     releaseAllKeys();
@@ -6557,7 +7259,19 @@ globalThis.CHIP8_ARCHIVE = {
     if (dt < 0 || dt > 250) dt = FRAME_MS;   // la pestaña estuvo oculta: se descarta el atraso
     if (gamepad.count) pollGamepads();        // antes de correr: lo apretado vale para los ticks de este cuadro
     soundSeen = false;
-    if (isRunning()) {
+    if (rewind.active && now >= rewind.holdUntil) {
+      // Rebobinando: la máquina no corre; cada tick real de 60 Hz vuelve atrás (rewindTick).
+      acc = 0;
+      fadeAcc = 0;
+      rewind.acc += dt;
+      var rticks = 0;
+      while (rewind.acc >= FRAME_MS - FRAME_SLACK && rticks < MAX_CATCHUP) {
+        rewindTick();
+        rewind.acc -= FRAME_MS;
+        rticks++;
+      }
+      if (rewind.acc >= FRAME_MS) rewind.acc = 0;
+    } else if (isRunning() && !rewind.active) {
       acc += dt;
       var ticks = 0;
       // Avance rápido: cada tick real corre TURBO_FACTOR ticks emulados. El tope sigue siendo de
@@ -6598,6 +7312,7 @@ globalThis.CHIP8_ARCHIVE = {
     if (cpu.hint) checkHint();
     syncAudioSource();
     updateMonitor(false);
+    updateRewindInfo(false);
   }
 
   // ------------------------------------------------------------------ armado de la interfaz
@@ -6762,12 +7477,16 @@ globalThis.CHIP8_ARCHIVE = {
     btnFrame.addEventListener('click', function () { frameOnce(); });
     btnReset.addEventListener('click', function () { doReset(); });
 
-    // Bisel: avance rápido (se mantiene), captura y pantalla completa (sin la API, no aparece).
-    bindTurboButton();
+    // Bisel: rebobinado y avance rápido (se mantienen), captura y pantalla completa (sin la API, no aparece).
+    bindHoldButton(btnRewind, rewind, setRewindSource);
+    bindHoldButton(btnTurbo, turbo, setTurboSource);
     btnShot.addEventListener('click', function () { saveScreenshot(); });
     btnFull.hidden = !fsApi;
     btnFull.addEventListener('click', function () { toggleFullscreen(); });
     buildKeymapControls();
+    // Estados: las cinco ranuras y el interruptor «Rebobinado».
+    buildStateSlots();
+    tgRewind.addEventListener('click', function () { setRewindEnabled(!settings.rewind); });
     $('btn-help').addEventListener('click', function (e) {
       // Con el mouse, sin foco en «?»: al cerrar la ayuda el foco vuelve a la página y no al botón.
       if (e.detail > 0) this.blur();
@@ -6837,8 +7556,10 @@ globalThis.CHIP8_ARCHIVE = {
     if (typeof ResizeObserver === 'function') {
       new ResizeObserver(function () { resizeScreen(); }).observe(crtEl);
       new ResizeObserver(fitMonitor).observe(monitorEl);   // el monitor crece con un error y se achica al ocultarlo
+      new ResizeObserver(sizeThumbs).observe(saveSlotsEl);   // las pantallitas de los estados, con escala entera
     }
-    window.addEventListener('resize', function () { resizeScreen(); fitMonitor(); });
+    window.addEventListener('resize', function () { resizeScreen(); fitMonitor(); sizeThumbs(); });
+    window.setInterval(updateSlotTimes, STATE_TIMES_MS);   // «hace 5 min» se pone al día
     if (typeof IntersectionObserver === 'function') {
       new IntersectionObserver(function (entries) {
         mon.onScreen = entries[entries.length - 1].isIntersecting;
@@ -6925,7 +7646,17 @@ globalThis.CHIP8_ARCHIVE = {
     setCurvature: function (on) { setCurvature(on); return settings.curvature; },
     getCurvature: function () { return settings.curvature; },
     setPowerOn: function (on) { return setPowerOn(on); },
-    getPowerOn: function () { return settings.powerOn; }
+    getPowerOn: function () { return settings.powerOn; },
+    // Estados guardados del cartucho de la ranura (slot: 'rapido' o de 1 a 4) y rebobinado.
+    saveSlot: function (slot) { var id = normalizeSlot(slot); return id ? saveToSlot(id) : false; },
+    loadSlot: function (slot) { var id = normalizeSlot(slot); return id ? loadFromSlot(id) : false; },
+    deleteSlot: function (slot) { var id = normalizeSlot(slot); return id ? deleteSlot(id) : false; },
+    listSlots: function () { return listSlots(); },
+    setRewind: function (on) { return setRewindEnabled(on); },
+    getRewind: function () { return settings.rewind; },
+    setRewinding: function (on) { setRewindSource('api', on); return rewind.active; },   // como mantener B
+    isRewinding: function () { return rewind.active; },
+    rewindInfo: function () { return rewindInfo(); }   // { seconds, entries, bytes }
   };
 
   // ------------------------------------------------------------------ arranque
@@ -6941,6 +7672,8 @@ globalThis.CHIP8_ARCHIVE = {
   updatePlatformUI();
   setIpf(settings.ipf, null, true);
   setMonitorOpen(settings.monitorOpen, true);
+  setRewindEnabled(settings.rewind);
+  renderStates();
   bindGlobalEvents();
   resizeScreen();
   updateAudioHint();
