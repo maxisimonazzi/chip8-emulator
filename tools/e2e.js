@@ -14,8 +14,12 @@
  *     requestAnimationFrame y espera con temporizadores de verdad.
  *   - Imprime un informe PASA / FALLA por escenario, guarda capturas de pantalla
  *     y termina con código 1 si algo falló.
+ *   - Las ROMs de prueba se arman con el ensamblador del repositorio
+ *     (tools/chip8asm.js); los archivos se cargan con «Cargar ROM» (el diálogo de
+ *     archivos se intercepta) y las descargas de la captura van a la carpeta
+ *     temporal del navegador.
  *   - Al terminar (bien, mal o con Ctrl+C) cierra el navegador y borra el perfil
- *     temporal.
+ *     temporal (con las ROMs de prueba y las descargas).
  *
  * Uso:
  *   node tools/e2e.js [opciones]          (o: npm run e2e -- [opciones])
@@ -60,6 +64,37 @@
  *   22 error con la máquina en pausa (Reiniciar deja 0x200 en pausa) o corriendo (vuelve a correr)
  *   23 ícono de la pestaña embebido: ningún pedido da 404 por http
  *   24 pantalla angosta (360×640 y 375×667): la pantalla y el keypad entero en la primera vista
+ *   25 plataformas: cada perfil elegido con el mouse trae su plataforma (selector, placa y fila MÁQUINA
+ *      del monitor), la plataforma sola no toca los quirks, y una ROM de XO-CHIP en 128×64 se ve en
+ *      Píxeles puros con exactamente los cuatro colores de la paleta, cada píxel en su lugar
+ *   26 una ROM de 4000 bytes pasa sola a XO-CHIP; elegir una plataforma de 4 KB (o el perfil COSMAC
+ *      VIP) se rechaza con un aviso y el selector vuelve
+ *   27 diagnóstico: instrucción ignorada (aviso, uno por ROM, y «Usar SUPER-CHIP»); error de plataforma
+ *      con «Cambiar a XO-CHIP y reiniciar» en el CRT y en el monitor (a 1280×900 el botón del monitor se
+ *      puede llevar a la vista); 00FD: «FIN DEL PROGRAMA», LED ámbar y Reiniciar
+ *   28 colores: «Personalizada» cambia en vivo y se conserva al recargar; «Del cartucho» aparece con un
+ *      juego del archivo y, al cargar otra ROM, se va y vuelve tu paleta
+ *   29 autoconfiguración (entrada del archivo de Octo registrada para la prueba): plataforma, quirks,
+ *      IPF, colores y giro de 270° aplicados antes del primer frame, con su aviso y la línea de la
+ *      ranura; con el interruptor apagado, nada; un cambio tuyo se recuerda y «Olvidar ajustes» (aviso)
+ *      vuelve a los del archivo
+ *   30 ajustes recordados: ROM con «Cargar ROM», cambios con el mouse, recarga, la misma ROM otra vez
+ *      (aviso, ranura y valores) y «Olvidar ajustes» de la ranura
+ *   31 banderas RPL: lo que guarda FX75 sobrevive a una recarga y FX85 lo lee
+ *   32 biblioteca: «Tus cartuchos» y «Tuyos:», cargar desde los dos, recarga, quitar y «Deshacer»; con
+ *      el almacenamiento roto, todo anda en memoria
+ *   33 Planos (XO-CHIP) desde el estante: 60 fps, valores de píxel 1 a 3, patrón de sonido y W frena el rombo
+ *   34 avance rápido: T sostenida y el botón del bisel dan ×4 instrucciones y ticks de los timers; al
+ *      soltar, vuelve a 60 por segundo sin ponerse al día
+ *   35 captura: G y el botón de la cámara bajan el PNG (nombre con la fecha, mismos bytes que
+ *      screenshot(), colores exactos de la paleta); en 128×64, los cuatro colores
+ *   36 pantalla completa: el botón del bisel, P y Esc entran y salen, con escala entera
+ *   37 joystick de mentira (Gamepad API): la cruz, la palanca, A y B, Start pausa y desconectarlo
+ *   38 flechas y «Controles»: Octo, VIP y personalizado (con el mouse); los controles con foco se
+ *      quedan con sus flechas; el mapa de cada cartucho se recuerda al recargar
+ *   39 curvatura (apagarla deja el tubo idéntico, píxel por píxel) y encendido animado (al cargar; no
+ *      con prefers-reduced-motion ni con el interruptor apagado)
+ *   40 diseño con la biblioteca llena y «Controles» personalizados a la vista: 1440, 768 y 360 px
  */
 
 const { spawn, spawnSync } = require('node:child_process');
@@ -67,10 +102,14 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const http = require('node:http');
+const crypto = require('node:crypto');
+const zlib = require('node:zlib');
 const { pathToFileURL } = require('node:url');
 
 const ROOT = path.resolve(__dirname, '..');
 const HTML_PATH = path.join(ROOT, 'chip8.html');
+// Las ROMs de prueba de los escenarios nuevos se arman con el ensamblador del repositorio.
+const { assemble } = require(path.join(ROOT, 'tools', 'chip8asm.js'));
 
 // ---------------------------------------------------------------- utilidades
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -537,6 +576,9 @@ class Page {
   }
 
   async shot(name, { fullPage = false } = {}) {
+    // El encendido animado (≈0,7 s después de cargar la página) es una capa encima de la pantalla:
+    // la captura espera a que termine, así muestra la consola como queda.
+    await this.poll("!document.getElementById('crt-power') || document.getElementById('crt-power').hidden", 1500).catch(() => false);
     const params = { format: 'png' };
     if (fullPage) {
       const m = await this.send('Page.getLayoutMetrics');
@@ -680,6 +722,275 @@ async function chooseSelect(page, selector, value) {
   }
   await page.ev(`document.querySelector(${JSON.stringify(selector)}).blur()`);
   return cur === info.idx;
+}
+
+// ---------------------------------------------------------------- ayudas de los escenarios 25 en adelante
+// Elige una opción de un <select> con el mouse: el clic abre la lista desplegable y ahí se elige. En
+// Chrome sin ventana la lista no se puede cliquear por coordenadas: flechas + Enter la manejan, y esas
+// teclas van a la lista (no al <select>), igual que un clic sobre una opción (por eso el selector suelta
+// el foco al cambiar, como con el mouse). Devuelve el valor que quedó (la consola puede rechazar el cambio).
+async function chooseWithMouse(page, selector, value) {
+  const st = await page.ev(`(() => { const s = document.querySelector(${JSON.stringify(selector)}); return { idx: Array.from(s.options).findIndex((o) => o.value === ${JSON.stringify(value)}), cur: s.selectedIndex }; })()`);
+  if (st.idx < 0) throw new Error(`La opción ${value} no existe en ${selector}`);
+  await page.click(selector);
+  await sleep(200);
+  const n = st.idx - st.cur;
+  for (let i = 0; i < Math.abs(n); i++) {
+    await page.press(n > 0 ? 'ArrowDown' : 'ArrowUp', 10);
+    await sleep(30);
+  }
+  await page.press('Enter');
+  await sleep(150);
+  return page.ev(`document.querySelector(${JSON.stringify(selector)}).value`);
+}
+
+// Carga un archivo como una persona: clic en «Cargar ROM» y, en el diálogo de archivos (interceptado con
+// Page.setInterceptFileChooserDialog), el archivo. Espera a que la ROM esté en la ranura: expectName es
+// lo que tiene que decir (el nombre del archivo o, si es un juego del archivo de Octo, su título).
+async function loadWithButton(page, file, expectName) {
+  await page.send('Page.setInterceptFileChooserDialog', { enabled: true });
+  const r0 = await page.ev(`window.chip8.cpu.__e2e ? window.chip8.cpu.__e2e.resets : -1`);
+  const opened = page.cdp.waitEvent('Page.fileChooserOpened', page.sessionId, 5000);
+  await page.click('#btn-load');
+  const ev = await opened;
+  await page.send('DOM.setFileInputFiles', { files: [file], backendNodeId: ev.backendNodeId });
+  // La misma ROM otra vez deja el mismo nombre: también se espera el reinicio de la carga (instrument()).
+  const loaded = `document.getElementById('cart-name').textContent === ${JSON.stringify(expectName)}` + (r0 >= 0 ? ` && window.chip8.cpu.__e2e.resets > ${r0}` : '');
+  await page.waitFor(loaded, { timeout: 4000, desc: `«${expectName}» en la ranura (${path.basename(file)} con «Cargar ROM»)` });
+}
+
+// Clic con el mouse en el centro de un elemento, después de comprobar que en ese punto no hay otra cosa
+// encima (si la hay, el clic de una persona no le llegaría).
+async function clickHit(page, selector) {
+  const r = await page.rect(selector);
+  const hit = await page.ev(`(() => { const el = document.querySelector(${JSON.stringify(selector)}), at = document.elementFromPoint(${r.cx}, ${r.cy}); return at ? (at === el || el.contains(at) ? '' : (at.id || at.className || at.tagName)) : 'nada'; })()`);
+  if (hit) throw new Error(`Un clic en ${selector} le llegaría a otro elemento (${hit}) en (${Math.round(r.cx)}, ${Math.round(r.cy)})`);
+  await page.clickAt(r.cx, r.cy);
+}
+
+// Los avisos a la vista: texto, tipo (info o error) y el botón de acción, si tiene.
+async function toastsInfo(page) {
+  return page.ev(`Array.from(document.querySelectorAll('#toasts .toast')).map((t) => ({ text: t.querySelector('p').textContent, kind: t.classList.contains('toast--error') ? 'error' : 'info', action: t.querySelector('.toast-act') ? t.querySelector('.toast-act').textContent : null }))`);
+}
+
+// Clic con el mouse en el botón de acción de un aviso (el último que lo tenga).
+async function clickToastAction(page, label) {
+  await sleep(250);   // el aviso entra con una animación de 0,2 s
+  const r = await page.ev(`(() => { const b = Array.from(document.querySelectorAll('#toasts .toast-act')).filter((x) => x.textContent === ${JSON.stringify(label)}).pop(); if (!b) return null; const q = b.getBoundingClientRect(); return { x: q.left + q.width / 2, y: q.top + q.height / 2 }; })()`);
+  if (!r) throw new Error(`No hay un aviso con el botón «${label}»`);
+  await page.clickAt(r.x, r.y);
+}
+
+// Lo que se ve en la consola de un vistazo: máquina, selectores, ranura y estado.
+function consoleView(page) {
+  return page.ev(`(() => {
+    const c = window.chip8.cpu, $ = (id) => document.getElementById(id), info = window.chip8.romInfo();
+    return { platform: c.platform, platSel: $('platform').value, preset: $('preset').value, quirks: Object.assign({}, c.quirks),
+      ipf: window.chip8.getIpf(), ipfIn: $('ipf-input').value, palette: window.chip8.getPalette(), palSel: $('palette').value, rotation: window.chip8.getRotation(),
+      res: c.displayWidth + '×' + c.displayHeight, mem: c.memory.length, mode: $('mon-mode').textContent, video: $('video-label').textContent,
+      plate: [$('plate-model').textContent, $('plate-ram').textContent, $('plate-video').textContent].join(' · '),
+      name: $('cart-name').textContent, slot: $('cart-size').textContent, slotTip: $('cart-size').title, forget: !$('cart-forget').hidden,
+      source: info ? info.source : null, sha1: info ? info.sha1 : null, halted: c.halted, status: $('status').textContent };
+  })()`);
+}
+
+// Lee un JSON de localStorage (null si no está o si el almacenamiento no anda).
+function stored(page, key) {
+  return page.ev(`(() => { try { return JSON.parse(localStorage.getItem(${JSON.stringify(key)})); } catch (e) { return null; } })()`);
+}
+
+// Los cuatro colores de cada paleta, en el orden de PALETTES en chip8-ui: fondo, plano 1 (el píxel de
+// siempre), plano 2 y los dos planos a la vez.
+const FOSFORO = ['#041009', '#7CFF96', '#28A858', '#166032'];
+const AMBAR = ['#140A02', '#FFB23E', '#D6641A', '#76360C'];
+const sortedColors = (list) => list.map((c) => c.toUpperCase()).sort();
+const sameList = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const sha1Hex = (bytes) => crypto.createHash('sha1').update(Buffer.from(bytes)).digest('hex');
+
+// El lienzo #screen comparado con cpu.display (sin giro, en Píxeles puros): cada píxel físico tiene que
+// tener exactamente el color de la paleta que le toca a su píxel CHIP-8 (fondo, plano 1, plano 2 o ambos).
+function canvasVsDisplayExpr(colors) {
+  return `(() => {
+    window.chip8.screenColors();   // dibuja lo pendiente
+    const cv = document.getElementById('screen'), c = window.chip8.cpu;
+    const W = cv.width, H = cv.height, w = c.displayWidth, h = c.displayHeight, sc = W / w;
+    const d = cv.getContext('2d').getImageData(0, 0, W, H).data, disp = c.display;
+    const pal = ${JSON.stringify(colors)}.map((s) => parseInt(s.slice(1), 16));
+    let wrong = 0, first = '';
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const i = (y * W + x) * 4, got = (d[i] << 16) | (d[i + 1] << 8) | d[i + 2];
+        const want = pal[disp[Math.floor(y / sc) * w + Math.floor(x / sc)] & 3];
+        if (got !== want) { if (!wrong) first = '(' + x + ',' + y + ') ' + got.toString(16) + ' en vez de ' + want.toString(16); wrong++; }
+      }
+    }
+    return { size: [W, H], res: [w, h], scale: sc, square: H / h === sc, wrong, first };
+  })()`;
+}
+
+// Valores de píxel (máscaras de planos 0..3) que hay en la pantalla del núcleo.
+const DISPLAY_VALUES = 'Array.from(new Set(window.chip8.cpu.display)).sort()';
+// El programa terminó de dibujar y quedó en su salto a sí mismo (JP propio): la pantalla ya no cambia.
+async function waitSelfJump(page, timeout = 5000) {
+  return page.waitFor(`(() => { const c = window.chip8.cpu, m = c.memory; return !c.halted && ((m[c.pc] << 8) | m[c.pc + 1]) === (0x1000 | c.pc); })()`, { timeout, desc: 'el programa llegó a su salto final' });
+}
+
+// Cuenta los ticks de los timers (uno por cada runFrame), como instrument() cuenta los frames.
+async function instrumentTimers(page) {
+  await page.ev(`(() => { const c = window.chip8.cpu; if (c.__ticks) return true; c.__ticks = { n: 0 }; const t = c.tickTimers; c.tickTimers = function () { c.__ticks.n++; return t.apply(this, arguments); }; return true; })()`);
+}
+async function rates(page, ms) {
+  const read = () => page.ev(`({ calls: ${E2E}.calls, instr: ${E2E}.instr, ticks: window.chip8.cpu.__ticks.n, now: performance.now() })`);
+  const a = await read();
+  await sleep(ms);
+  const b = await read();
+  const secs = (b.now - a.now) / 1000;
+  return { fps: (b.calls - a.calls) / secs, ips: (b.instr - a.instr) / secs, tps: (b.ticks - a.ticks) / secs };
+}
+
+// Decodifica un PNG (RGB o RGBA de 8 bits, como los que arma un <canvas>) a { width, height, data RGBA }.
+function decodePng(buf) {
+  if (buf.length < 8 || buf.readUInt32BE(0) !== 0x89504e47) throw new Error('no es un PNG');
+  let pos = 8, width = 0, height = 0, depth = 0, ctype = 0;
+  const idat = [];
+  while (pos < buf.length) {
+    const len = buf.readUInt32BE(pos), type = buf.toString('ascii', pos + 4, pos + 8), data = buf.subarray(pos + 8, pos + 8 + len);
+    if (type === 'IHDR') { width = data.readUInt32BE(0); height = data.readUInt32BE(4); depth = data[8]; ctype = data[9]; }
+    else if (type === 'IDAT') idat.push(data);
+    else if (type === 'IEND') break;
+    pos += 12 + len;
+  }
+  const bpp = { 6: 4, 2: 3 }[ctype];
+  if (depth !== 8 || !bpp) throw new Error(`PNG no soportado (profundidad ${depth}, tipo ${ctype})`);
+  const raw = zlib.inflateSync(Buffer.concat(idat)), stride = width * bpp, out = new Uint8Array(width * height * 4);
+  let prev = new Uint8Array(stride), p = 0;
+  for (let y = 0; y < height; y++) {
+    const f = raw[p++], line = new Uint8Array(raw.subarray(p, p + stride));
+    p += stride;
+    for (let i = 0; i < stride; i++) {
+      const a = i >= bpp ? line[i - bpp] : 0, b = prev[i], c = i >= bpp ? prev[i - bpp] : 0;
+      let v = line[i];
+      if (f === 1) v += a;
+      else if (f === 2) v += b;
+      else if (f === 3) v += (a + b) >> 1;
+      else if (f === 4) { const q = a + b - c, pa = Math.abs(q - a), pb = Math.abs(q - b), pc = Math.abs(q - c); v += pa <= pb && pa <= pc ? a : pb <= pc ? b : c; }
+      line[i] = v & 255;
+    }
+    for (let x = 0; x < width; x++) {
+      const o = (y * width + x) * 4, s = x * bpp;
+      out[o] = line[s]; out[o + 1] = line[s + 1]; out[o + 2] = line[s + 2]; out[o + 3] = bpp === 4 ? line[s + 3] : 255;
+    }
+    prev = line;
+  }
+  return { width, height, data: out };
+}
+
+// Compara una captura PNG con la pantalla del núcleo: cada píxel tiene que ser el color de la paleta que le
+// toca (sin giro; scale = píxeles de la captura por píxel CHIP-8).
+function pngVsDisplay(img, display, w, colors) {
+  const scale = img.width / w;
+  const pal = colors.map((c) => c.toUpperCase());
+  const hexOf = (o) => '#' + [img.data[o], img.data[o + 1], img.data[o + 2]].map((v) => v.toString(16).padStart(2, '0')).join('').toUpperCase();
+  let wrong = 0, first = '';
+  const used = new Set();
+  for (let y = 0; y < img.height; y++) {
+    for (let x = 0; x < img.width; x++) {
+      const o = (y * img.width + x) * 4, got = hexOf(o), want = pal[display[Math.floor(y / scale) * w + Math.floor(x / scale)] & 3];
+      used.add(got);
+      if (got !== want || img.data[o + 3] !== 255) { if (!wrong) first = `(${x},${y}) ${got} en vez de ${want}`; wrong++; }
+    }
+  }
+  return { scale, wrong, first, colors: [...used].sort() };
+}
+
+// Captura de la pantalla de la consola (el tubo #crt), con la página arriba de todo.
+async function crtCapture(page) {
+  await page.ev('window.scrollTo(0, 0)');
+  const r = await page.rect('#crt', false);
+  const { data } = await page.send('Page.captureScreenshot', { format: 'png', clip: { x: r.x, y: r.y, width: r.w, height: r.h, scale: 1 } }, 30000);
+  return decodePng(Buffer.from(data, 'base64'));
+}
+function imageDiff(a, b) {
+  if (a.width !== b.width || a.height !== b.height) return -1;
+  let n = 0;
+  for (let i = 0; i < a.data.length; i += 4) if (a.data[i] !== b.data[i] || a.data[i + 1] !== b.data[i + 1] || a.data[i + 2] !== b.data[i + 2]) n++;
+  return n;
+}
+
+// La próxima descarga del navegador (Browser.setDownloadBehavior con eventsEnabled), hasta que termina:
+// { name: el nombre que propuso la página, file: donde quedó, bytes, state }.
+function nextDownload(ctx, timeout = 10000) {
+  let off, guid = null, name = null;
+  const p = new Promise((resolve) => {
+    off = ctx.browser.cdp.on((m) => {
+      if (m.method === 'Browser.downloadWillBegin' && !guid) { guid = m.params.guid; name = m.params.suggestedFilename; }
+      else if (m.method === 'Browser.downloadProgress' && m.params.guid === guid && m.params.state !== 'inProgress') {
+        resolve({ name, file: m.params.filePath || null, bytes: m.params.totalBytes, state: m.params.state });
+      }
+    });
+  });
+  return withTimeout(p, timeout, 'descarga').finally(() => off());
+}
+
+// Joysticks de mentira (Gamepad API): navigator.getGamepads devuelve los que se conectan con
+// window.__pad.connect(índice, nombre), y se dispara gamepadconnected como con uno de verdad.
+const FAKE_GAMEPADS = `(() => {
+  const pads = [null, null, null, null];
+  const mk = (index, id) => ({ index, id, connected: true, mapping: 'standard', axes: [0, 0, 0, 0], timestamp: 0,
+    buttons: Array.from({ length: 17 }, () => ({ pressed: false, touched: false, value: 0 })) });
+  Object.defineProperty(Navigator.prototype, 'getGamepads', { configurable: true, value: function () { return pads.slice(); } });
+  const fire = (type, g) => { const ev = new Event(type); Object.defineProperty(ev, 'gamepad', { value: g }); window.dispatchEvent(ev); };
+  window.__pad = {
+    connect(i, id) { pads[i] = mk(i, id); fire('gamepadconnected', pads[i]); },
+    disconnect(i) { const g = pads[i]; pads[i] = null; g.connected = false; fire('gamepaddisconnected', g); },
+    button(i, b, on) { pads[i].buttons[b] = { pressed: !!on, touched: !!on, value: on ? 1 : 0 }; pads[i].timestamp++; },
+    axis(i, a, v) { pads[i].axes[a] = v; pads[i].timestamp++; },
+  };
+})();`;
+
+const onlyKey = (keys, k) => keys.every((v, i) => (i === k ? v === 1 : v === 0));
+const noKeys = (keys) => keys.every((v) => v === 0);
+const KEYCAPS_DOWN = "Array.from(document.querySelectorAll('#keypad .key.is-down')).map((e) => Number(e.dataset.key))";
+
+// ROMs de prueba (con tools/chip8asm.js).
+const asm = (src, xochip = false) => Array.from(assemble(src, { xochip }).bytes);
+const db = (bytes) => 'DB ' + bytes.map((b) => '0x' + b.toString(16).toUpperCase().padStart(2, '0')).join(', ');
+const CUADRO = [0xFF, 0x81, 0xBD, 0xA5, 0xA5, 0xBD, 0x81, 0xFF];
+const ROMBO = [0x18, 0x3C, 0x7E, 0xFF, 0xFF, 0x7E, 0x3C, 0x18];
+const CUADRO_PIXELS = CUADRO.reduce((n, b) => n + b.toString(2).replace(/0/g, '').length, 0);   // 40 píxeles encendidos
+// XO-CHIP en alta resolución: un sprite en el plano 1, otro en el plano 2 y otro en los dos (cuatro colores).
+function romCuatroColores(sprite) {
+  return asm(`
+        HIGH                    ; 128×64
+        LD I, sprite
+        LD V1, 24
+        LD V0, 16
+        PLANE 1
+        DRW V0, V1, 8
+        LD V0, 56
+        PLANE 2
+        DRW V0, V1, 8
+        LD V0, 96
+        PLANE 3                 ; los dos planos: DRW lee 8 bytes para cada uno
+        DRW V0, V1, 8
+fin:    JP fin
+sprite: ${db(sprite)}
+        ${db(sprite)}`, true);
+}
+// Dos dígitos de la fuente en el medio de la pantalla (de CHIP-8: corre en las tres plataformas).
+function romDigitos(a, b) {
+  return asm(`
+        CLS
+        LD V0, ${a}
+        LD F, V0
+        LD V1, 24
+        LD V2, 13
+        DRW V1, V2, 5
+        LD V0, ${b}
+        LD F, V0
+        LD V1, 34
+        DRW V1, V2, 5
+fin:    JP fin`);
 }
 
 // ---------------------------------------------------------------- escenarios
@@ -997,8 +1308,10 @@ scenario(6, 'Carga de ROMs: selector de archivos, errores y arrastrar y soltar',
   await page.shot('06-fuente');
 
   const vacio = writeFixture(ctx, 'vacia.ch8', []);
-  const grande = writeFixture(ctx, 'grande.ch8', new Uint8Array(3585).fill(0x12));
-  for (const [file, label, pattern] of [[vacio, 'vacía (0 bytes)', /vac[ií]/i], [grande, 'de 3585 bytes', /3[.,]?585/]]) {
+  // 65025 bytes: uno más de lo que entra en XO-CHIP (una ROM de 3585 a 65024 bytes no es un error:
+  // la consola pasa sola al perfil XO-CHIP).
+  const grande = writeFixture(ctx, 'grande.ch8', new Uint8Array(65025).fill(0x12));
+  for (const [file, label, pattern] of [[vacio, 'vacía (0 bytes)', /vac[ií]/i], [grande, 'de 65025 bytes', /65[.,]?025/]]) {
     const c0 = await counters(page);
     await page.setFiles('#file-input', [file]);
     const t = await page.poll(`Array.from(document.querySelectorAll('#toasts .toast--error p')).map((p) => p.textContent).join(' | ')`, 2000);
@@ -1969,6 +2282,979 @@ scenario(24, 'Pantalla angosta: a 360×640 la pantalla y el keypad entero entran
     s.check(page.errors.length === 0, `${w}×${h}: sin errores de consola`, page.errors.join(' | '));
     await page.close();
   }
+});
+
+// 25 -------------------------------------------------------------------------------
+scenario(25, 'Plataformas: cada perfil trae su plataforma, la plataforma sola no toca los quirks y XO-CHIP dibuja 128×64 con cuatro colores', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  const v0 = await consoleView(page);
+  s.check(v0.platform === 'chip8' && v0.platSel === 'chip8' && v0.preset === 'vip' && v0.mode === 'CHIP-8 · 64×32' && v0.plate === 'MODELO VIP · 4 KB RAM · 64×32',
+    `de fábrica: perfil COSMAC VIP con la plataforma CHIP-8 (MÁQUINA «${v0.mode}», placa «${v0.plate}»)`, JSON.stringify(v0));
+  // Cada perfil elegido con el mouse: su plataforma, sus seis quirks y la ROM (Rebote) vuelve a empezar.
+  const PROFILES = [
+    ['schip', 'SUPER-CHIP', 'schip', 'SUPER-CHIP · 64×32', 'MODELO SUPER-CHIP · 4 KB RAM · 128×64', 4096],
+    ['xochip', 'XO-CHIP', 'xochip', 'XO-CHIP · 64×32 · plano 1', 'MODELO XO-CHIP · 64 KB RAM · 128×64', 65536],
+    ['vip', 'COSMAC VIP', 'chip8', 'CHIP-8 · 64×32', 'MODELO VIP · 4 KB RAM · 64×32', 4096],
+  ];
+  for (const [id, label, platform, mode, plate, mem] of PROFILES) {
+    const c0 = await counters(page);
+    const got = await chooseWithMouse(page, '#preset', id);
+    await sleep(100);
+    const v = await consoleView(page);
+    const c1 = await counters(page);
+    const ae = await page.ev('document.activeElement && document.activeElement.id');
+    s.check(got === id && v.platform === platform && v.platSel === platform && v.mem === mem && sameQuirks(v.quirks, presetQuirks(id)) && v.mode === mode && v.plate === plate && c1.resets > c0.resets && /volvió a empezar/.test(v.status) && ae !== 'preset',
+      `perfil ${label} elegido con el mouse: plataforma ${platform} (también en el selector «Plataforma»), sus seis quirks, la ROM vuelve a empezar; MÁQUINA «${v.mode}», placa «${v.plate}»`, JSON.stringify({ got, v, ae, reinicios: c1.resets - c0.resets }));
+  }
+  // La plataforma sola (con el perfil COSMAC VIP): cambia la máquina y no toca los quirks.
+  const q0 = await page.ev('Object.assign({}, window.chip8.cpu.quirks)');
+  const c2 = await counters(page);
+  const gotP = await chooseWithMouse(page, '#platform', 'xochip');
+  await sleep(100);
+  const v1 = await consoleView(page);
+  const c3 = await counters(page);
+  s.check(gotP === 'xochip' && v1.platform === 'xochip' && v1.mem === 65536 && sameQuirks(v1.quirks, q0) && v1.preset === 'vip' && c3.resets > c2.resets && v1.status === 'Plataforma XO-CHIP: la ROM «Rebote» volvió a empezar.',
+    `Plataforma XO-CHIP elegida con el mouse: 64 KB de memoria, los quirks no cambian (el perfil sigue en COSMAC VIP) y la ROM vuelve a empezar («${v1.status}»)`, JSON.stringify(v1));
+  await page.click('#dip-bank .dip-col:nth-of-type(3) .dip'); // SHIFT
+  const v2 = await consoleView(page);
+  s.check(v2.platform === 'xochip' && v2.quirks.shifting === true && v2.preset === 'custom', 'el interruptor 3 (SHIFT) cambia un quirk y el perfil pasa a «Personalizado», pero la plataforma sigue en XO-CHIP', JSON.stringify(v2));
+  // Una ROM de XO-CHIP en alta resolución: un cuadro en el plano 1, otro en el 2 y otro en los dos.
+  await loadWithButton(page, writeFixture(ctx, 'cuatro-colores.ch8', romCuatroColores(CUADRO)), 'cuatro-colores.ch8');
+  const four = await page.poll(`[1, 2, 3].every((v) => window.chip8.cpu.display.includes(v))`, 3000);
+  await page.click('#screen-mode .seg[data-mode="puro"]');
+  await sleep(150);
+  const v3 = await consoleView(page);
+  const colors = await page.ev('window.chip8.screenColors()');
+  const m = await page.ev(canvasVsDisplayExpr(FOSFORO));
+  s.check(four && v3.platform === 'xochip' && v3.res === '128×64' && v3.video === 'Video 128 × 64' && v3.mode === 'XO-CHIP · 128×64 · planos 1+2' && !v3.halted,
+    `«cuatro-colores.ch8» (con «Cargar ROM») corre en XO-CHIP a 128×64 con píxeles en el plano 1, en el 2 y en los dos (MÁQUINA «${v3.mode}», bisel «${v3.video}»)`, JSON.stringify(v3));
+  s.check(sameList(colors, sortedColors(FOSFORO)), `Píxeles puros con Verde fósforo: screenColors() da exactamente los cuatro colores de la paleta (${colors.join(' ')})`, JSON.stringify(colors));
+  s.check(m.wrong === 0 && m.square && Number.isInteger(m.scale) && m.res.join('×') === '128×64', `cada píxel del lienzo (${m.size.join('×')}, escala ${m.scale}) tiene el color de su píxel en cpu.display (${m.wrong} distintos)`, m.first);
+  await page.ev('window.scrollTo(0, 0)');
+  await page.shot('25-xochip-cuatro-colores');
+  const gotPal = await chooseWithMouse(page, '#palette', 'ambar');
+  await sleep(100);
+  const colors2 = await page.ev('window.chip8.screenColors()');
+  const m2 = await page.ev(canvasVsDisplayExpr(AMBAR));
+  s.check(gotPal === 'ambar' && sameList(colors2, sortedColors(AMBAR)) && m2.wrong === 0, `paleta Ámbar elegida con el mouse: los cuatro colores de Ámbar (${colors2.join(' ')}), cada píxel en su lugar`, JSON.stringify({ colors2, m2 }));
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 26 -------------------------------------------------------------------------------
+scenario(26, 'Una ROM de 4000 bytes pasa sola a XO-CHIP; una plataforma de 4 KB se rechaza con un aviso y el selector vuelve', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  // 4000 bytes: el programa al principio y un cuadro al final, en 0x1198 (más allá de los 4 KB de CHIP-8).
+  const prog = asm(`
+LEJOS   EQU 0x1198
+        LD I, LONG LEJOS
+        LD V0, 28
+        LD V1, 12
+        DRW V0, V1, 8
+fin:    JP fin`, true);
+  const rom = new Uint8Array(4000);
+  rom.set(prog);
+  rom.set(CUADRO, 0x1198 - 0x200);
+  await loadWithButton(page, writeFixture(ctx, 'grande-4000.ch8', rom), 'grande-4000.ch8');
+  await page.poll('window.chip8.cpu.display.some((v) => v)', 2000);
+  const st = () => page.ev(`(() => { const c = window.chip8.cpu, $ = (id) => document.getElementById(id); return { platform: c.platform, platSel: $('platform').value, preset: $('preset').value, quirks: Object.assign({}, c.quirks), I: c.I, lit: c.display.reduce((a, b) => a + (b ? 1 : 0), 0), halted: c.halted, mode: $('mon-mode').textContent, rom: c.rom.length }; })()`);
+  const a = await st();
+  const t = await toastsInfo(page);
+  s.check(a.platform === 'xochip' && a.platSel === 'xochip' && a.preset === 'xochip' && sameQuirks(a.quirks, presetQuirks('xochip')) && a.rom === 4000,
+    `la ROM de 4000 bytes (más de 3584) pasa sola al perfil XO-CHIP: plataforma y quirks (MÁQUINA «${a.mode}»)`, JSON.stringify(a));
+  s.check(t.some((x) => x.kind === 'info' && x.text === 'La ROM «grande-4000.ch8» ocupa 4.000 bytes y solo entra en XO-CHIP (64 KB), así que pasé al perfil XO-CHIP.'),
+    `aviso: «${t.map((x) => x.text).join(' | ')}»`, JSON.stringify(t));
+  s.check(!a.halted && a.I === 0x1198 && a.lit === CUADRO_PIXELS, `corre sin error y dibuja el cuadro que está al final de la ROM, en 0x1198 (I = ${hx(a.I, 4)}, ${a.lit} píxeles encendidos)`, JSON.stringify(a));
+  await page.ev('window.scrollTo(0, 0)');
+  await page.shot('26-rom-grande-en-xochip');
+  // La plataforma CHIP-8 o SUPER-CHIP, o el perfil COSMAC VIP: la ROM no entra en 4 KB.
+  for (const [sel, value, label, name] of [['#platform', 'chip8', 'plataforma CHIP-8', 'CHIP-8'], ['#platform', 'schip', 'plataforma SUPER-CHIP', 'SUPER-CHIP'], ['#preset', 'vip', 'perfil COSMAC VIP', 'CHIP-8']]) {
+    await page.ev("document.querySelectorAll('#toasts .toast').forEach((t) => t.remove())");
+    const c0 = await counters(page);
+    const got = await chooseWithMouse(page, sel, value);
+    await sleep(300);
+    const b = await st();
+    const c1 = await counters(page);
+    const tt = await toastsInfo(page);
+    const want = `La ROM cargada ocupa 4000 bytes y con la plataforma ${name} el máximo es 3584: no se cambió la plataforma.`;
+    s.check(tt.length === 1 && tt[0].kind === 'error' && tt[0].text === want, `${label} con el mouse: aviso de error «${(tt[0] || {}).text}»`, JSON.stringify(tt));
+    s.check(got === 'xochip' && b.platSel === 'xochip' && b.preset === 'xochip' && b.platform === 'xochip' && sameQuirks(b.quirks, presetQuirks('xochip')) && c1.resets === c0.resets && c1.calls > c0.calls + 10 && !b.halted,
+      `${label}: el selector vuelve a XO-CHIP, no cambia nada y la ROM sigue corriendo sin reiniciarse`, JSON.stringify({ got, b, reinicios: c1.resets - c0.resets, frames: c1.calls - c0.calls }));
+    if (value === 'chip8') await page.shot('26-plataforma-rechazada');
+  }
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 27 -------------------------------------------------------------------------------
+scenario(27, 'Diagnóstico: instrucción ignorada (aviso y botón), error de plataforma (botón en el CRT y en el monitor) y FIN DEL PROGRAMA', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  // a) HIGH (00FF, de SUPER-CHIP) en CHIP-8: se ignora, como en un intérprete de la época, y se avisa una
+  //    vez por ROM cargada, con un botón para pasar a SUPER-CHIP.
+  const alta = asm(`
+        HIGH
+        LD I, cuadro
+        LD V0, 28
+        LD V1, 12
+        DRW V0, V1, 8
+fin:    JP fin
+cuadro: ${db(CUADRO)}`);
+  await loadWithButton(page, writeFixture(ctx, 'alta.ch8', alta), 'alta.ch8');
+  const hint = await page.poll(`(() => { const t = Array.from(document.querySelectorAll('#toasts .toast')).find((x) => x.querySelector('.toast-act')); return t ? { text: t.querySelector('p').textContent, action: t.querySelector('.toast-act').textContent } : null; })()`, 3000);
+  const a = await page.ev(`({ platform: window.chip8.cpu.platform, halted: window.chip8.cpu.halted, res: window.chip8.cpu.displayWidth + '×' + window.chip8.cpu.displayHeight, lit: window.chip8.cpu.display.reduce((x, y) => x + y, 0) })`);
+  s.check(hint && hint.text === 'La ROM usó «HIGH» (pasar a alta resolución (128×64)), que es de SUPER-CHIP, y la plataforma CHIP-8 la ignora.' && hint.action === 'Usar SUPER-CHIP',
+    `aviso: «${hint && hint.text}», con el botón «${hint && hint.action}»`, JSON.stringify(hint));
+  s.check(a.platform === 'chip8' && !a.halted && a.res === '64×32' && a.lit > 0, `la máquina sigue en CHIP-8 a ${a.res}: ignoró la instrucción y dibujó igual`, JSON.stringify(a));
+  await page.click('#btn-reset');
+  await sleep(400);
+  const nHints = await page.ev(`Array.from(document.querySelectorAll('#toasts .toast-act')).filter((b) => b.textContent === 'Usar SUPER-CHIP').length`);
+  s.check(nHints === 1, `Reiniciar no repite el aviso: uno por ROM cargada (${nHints} a la vista)`);
+  await page.ev('window.scrollTo(0, 0)');
+  await page.shot('27-aviso-instruccion-ignorada');
+  const c0 = await counters(page);
+  await clickToastAction(page, 'Usar SUPER-CHIP');
+  const hi = await page.poll('window.chip8.cpu.displayWidth === 128', 2000);
+  const b = await consoleView(page);
+  const c1 = await counters(page);
+  const left = await page.ev(`document.querySelectorAll('#toasts .toast-act').length`);
+  s.check(hi && b.platform === 'schip' && b.preset === 'schip' && sameQuirks(b.quirks, presetQuirks('schip')) && c1.resets > c0.resets && left === 0 && b.mode === 'SUPER-CHIP · 128×64',
+    `clic en «Usar SUPER-CHIP»: perfil SUPER-CHIP, la ROM vuelve a empezar y ahora pasa a 128×64 (MÁQUINA «${b.mode}»; «${b.status}»)`, JSON.stringify({ hi, b, left }));
+
+  // b) PLANE (de XO-CHIP) en SUPER-CHIP no se puede ignorar: la máquina se detiene con un botón.
+  const plano = asm(`
+        LD I, cuadro
+        LD V0, 28
+        LD V1, 12
+        PLANE 1
+        DRW V0, V1, 8
+fin:    JP fin
+cuadro: ${db(CUADRO)}`, true);
+  await loadWithButton(page, writeFixture(ctx, 'plano.ch8', plano), 'plano.ch8');
+  await page.waitFor('window.chip8.cpu.halted', { timeout: 2000, desc: 'error de plataforma' });
+  await sleep(150);
+  const errView = () => page.ev(`(() => { const $ = (id) => document.getElementById(id); return { crt: !$('crt-msg').hidden, title: $('crt-msg-title').textContent, text: $('crt-msg-text').textContent, fix: $('crt-msg-fix').hidden ? null : $('crt-msg-fix').textContent,
+    mon: $('mon-error').hidden ? null : $('mon-error').textContent, monFix: $('mon-fix').hidden ? null : $('mon-fix-btn').textContent, badge: $('mon-badge').textContent, status: $('status').textContent,
+    platform: window.chip8.cpu.platform, halted: window.chip8.cpu.halted, lit: window.chip8.cpu.display.reduce((x, y) => x + (y ? 1 : 0), 0) }; })()`);
+  const e1 = await errView();
+  const want = 'Instrucción inválida en SUPER-CHIP: «PLANE 1» (elegir el plano de dibujo) es de XO-CHIP (opcode 0xF101 en la dirección 0x206). Elegí la plataforma XO-CHIP.';
+  s.info(`Error: «${e1.text}»`);
+  s.check(e1.crt && e1.title === 'ERROR' && e1.text === want && e1.fix === 'Cambiar a XO-CHIP y reiniciar', 'el CRT muestra el error de plataforma en castellano con el botón «Cambiar a XO-CHIP y reiniciar»', JSON.stringify(e1));
+  s.check(e1.mon === want && e1.monFix === 'Cambiar a XO-CHIP y reiniciar' && e1.badge === 'Error' && e1.status === 'Error: ' + want, 'el monitor muestra el mismo error con el mismo botón y la línea de estado lo anuncia', JSON.stringify(e1));
+  await page.ev('window.scrollTo(0, 0)');
+  await page.shot('27-error-de-plataforma');
+  await clickHit(page, '#crt-msg-fix');
+  const ok1 = await page.poll('!window.chip8.cpu.halted && window.chip8.cpu.platform === "xochip" && window.chip8.cpu.display.some((v) => v)', 2000);
+  const e2 = await errView();
+  s.check(ok1 && !e2.crt && e2.mon === null && e2.monFix === null && e2.lit === CUADRO_PIXELS, `clic en el botón del CRT: pasa a XO-CHIP, reinicia y la ROM corre sin error (dibuja su cuadro de ${e2.lit} píxeles)`, JSON.stringify(e2));
+  // Otra vez el error (perfil SUPER-CHIP elegido con el mouse) y ahora el botón del monitor.
+  await chooseWithMouse(page, '#preset', 'schip');
+  const again = await page.poll('window.chip8.cpu.halted', 2000);
+  await sleep(100);
+  const e3 = await errView();
+  // A 1280×900 el monitor (pegado arriba, sticky) con el error es más alto que la ventana: su botón tiene
+  // que poder llevarse a la vista (con el foco o scrolleando), no quedar siempre debajo del borde.
+  const reach = await page.ev(`(() => { const b = document.getElementById('mon-fix-btn'), m = document.getElementById('monitor'); b.scrollIntoView({ block: 'center', behavior: 'instant' });
+    const r = b.getBoundingClientRect(), at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return { top: Math.round(r.top), bottom: Math.round(r.bottom), ih: innerHeight, monH: Math.round(m.getBoundingClientRect().height), hit: !!at && (at === b || b.contains(at)), pos: getComputedStyle(m).position }; })()`);
+  s.check(reach.hit && reach.top >= 0 && reach.bottom <= reach.ih, `el monitor (${reach.pos}, ${reach.monH} px de alto en una ventana de ${reach.ih}) deja llevar su botón a la vista: queda en ${reach.top}–${reach.bottom} px`, JSON.stringify(reach));
+  await clickHit(page, '#mon-fix-btn');
+  const ok2 = await page.poll('!window.chip8.cpu.halted && window.chip8.cpu.platform === "xochip"', 2000);
+  const e4 = await errView();
+  s.check(again && e3.monFix === 'Cambiar a XO-CHIP y reiniciar' && ok2 && !e4.crt && e4.mon === null, 'con el perfil SUPER-CHIP el error vuelve; el botón del monitor también pasa a XO-CHIP y reinicia', JSON.stringify({ e3, e4 }));
+
+  // c) EXIT (00FD) no es un error: «FIN DEL PROGRAMA», LED ámbar, y Reiniciar vuelve a empezar.
+  const fin = asm(`
+        CLS
+        LD V0, 0xE
+        LD F, V0
+        LD V1, 30
+        LD V2, 13
+        DRW V1, V2, 5
+        LD V3, K                ; espera una tecla...
+        EXIT                    ; ...y termina el programa`);
+  await loadWithButton(page, writeFixture(ctx, 'fin.ch8', fin), 'fin.ch8');
+  await page.waitFor('window.chip8.cpu.waitingForKey', { timeout: 2000, desc: 'esperando una tecla antes de EXIT' });
+  await page.click('.tagline');
+  await page.press('KeyX', 60);
+  await page.waitFor('window.chip8.cpu.halted', { timeout: 2000, desc: 'EXIT detuvo la máquina' });
+  await sleep(150);
+  const endView = () => page.ev(`(() => { const $ = (id) => document.getElementById(id), c = window.chip8.cpu; return { halted: c.halted, exited: c.exited, wait: c.waitingForKey, crt: !$('crt-msg').hidden, title: $('crt-msg-title').textContent, text: $('crt-msg-text').textContent, hint: $('crt-msg-hint').textContent,
+    exit: $('crt-msg').classList.contains('is-exit'), fix: !$('crt-msg-fix').hidden, led: $('led-run').className, badge: $('mon-badge').textContent, mon: !$('mon-error').hidden, status: $('status').textContent, reset: !$('btn-reset').disabled, pause: $('btn-pause').disabled }; })()`);
+  const f = await endView();
+  s.check(f.exited && f.crt && f.title === 'FIN DEL PROGRAMA' && f.text === 'La ROM terminó con EXIT (00FD).' && f.exit && !f.fix && !f.mon,
+    `con una tecla llega a EXIT: el CRT dice «${f.title}» / «${f.text}» / «${f.hint}», sin error en el monitor`, JSON.stringify(f));
+  s.check(f.led === 'led is-amber' && f.badge === 'Terminado' && /^Fin del programa/.test(f.status) && f.reset && f.pause, `LED RUN en ámbar («${f.led}»), monitor «${f.badge}», línea de estado «${f.status.slice(0, 45)}…»; solo Reiniciar queda habilitado`, JSON.stringify(f));
+  await page.ev('window.scrollTo(0, 0)');
+  await page.shot('27-fin-del-programa');
+  const c2 = await counters(page);
+  await page.click('#btn-reset');
+  await sleep(250);
+  const g = await endView();
+  const c3 = await counters(page);
+  s.check(!g.halted && !g.exited && !g.crt && g.wait && g.badge === 'Esperando tecla' && /is-green/.test(g.led) && c3.resets > c2.resets,
+    `Reiniciar (mouse): la ROM vuelve a empezar y espera la tecla otra vez (LED «${g.led}», monitor «${g.badge}»)`, JSON.stringify(g));
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 28 -------------------------------------------------------------------------------
+scenario(28, 'Colores: «Personalizada» cambia en vivo y se conserva al recargar; «Del cartucho» aparece con el cartucho y se va con él', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  // La ROM de cuatro colores en CHIP-8 se detiene en PLANE (de XO-CHIP); el perfil XO-CHIP, elegido con
+  // ella en la ranura, la hace andar. (Elegirlo antes, con Rebote en la ranura, le dejaría a Rebote sus
+  // ajustes recordados, paleta incluida: así funcionan los ajustes por cartucho.)
+  await loadWithButton(page, writeFixture(ctx, 'cuatro-colores.ch8', romCuatroColores(CUADRO)), 'cuatro-colores.ch8');
+  await page.waitFor('window.chip8.cpu.halted', { timeout: 2000, desc: 'PLANE en CHIP-8 detiene la máquina' });
+  await chooseWithMouse(page, '#preset', 'xochip');
+  const runs = await page.poll(`!window.chip8.cpu.halted && [1, 2, 3].every((v) => window.chip8.cpu.display.includes(v))`, 3000);
+  s.check(runs, 'la ROM de cuatro colores se detiene en CHIP-8 y, con el perfil XO-CHIP elegido con el mouse, corre y dibuja en los dos planos');
+  await page.click('#screen-mode .seg[data-mode="puro"]');
+  const IDS = ['color-bg', 'color-p1', 'color-p2', 'color-both'];
+  const inputs = () => page.ev(`({ hidden: document.getElementById('custom-colors').hidden, values: ${JSON.stringify(IDS)}.map((id) => document.getElementById(id).value.toUpperCase()) })`);
+  const got = await chooseWithMouse(page, '#palette', 'custom');
+  await sleep(100);
+  const i0 = await inputs();
+  const c0 = await page.ev('window.chip8.screenColors()');
+  s.check(got === 'custom' && !i0.hidden && sameList(i0.values, FOSFORO) && sameList(c0, sortedColors(FOSFORO)),
+    `«Personalizada» elegida con el mouse: aparecen los cuatro selectores de color (la primera vez, los de Verde fósforo: ${i0.values.join(' ')})`, JSON.stringify({ got, i0, c0 }));
+  // El selector de colores del sistema no se maneja por CDP: se hace lo que hace él al elegir un color
+  // (cambia el valor y dispara «input» mientras se elige, y «change» al cerrarlo).
+  const NEW = ['#102030', '#F0E0D0', '#00C060', '#C03090'];
+  const bad = [];
+  for (let i = 0; i < 4; i++) {
+    const live = await page.ev(`(() => { const el = document.getElementById('${IDS[i]}'); el.value = '${NEW[i].toLowerCase()}'; el.dispatchEvent(new Event('input', { bubbles: true })); return window.chip8.screenColors(); })()`);
+    await page.ev(`document.getElementById('${IDS[i]}').dispatchEvent(new Event('change', { bubbles: true }))`);
+    const saved = await stored(page, 'chip8-consola.ajustes');
+    if (!live.includes(NEW[i]) || !saved || !saved.customColors || saved.customColors[i] !== NEW[i]) bad.push(`${IDS[i]}: en pantalla ${live.join(' ')}, guardado ${saved && saved.customColors}`);
+  }
+  const c1 = await page.ev('window.chip8.screenColors()');
+  const m1 = await page.ev(canvasVsDisplayExpr(NEW));
+  s.check(bad.length === 0, 'cada uno de los cuatro colores se ve en la pantalla mientras se elige y queda guardado al cerrar el selector', bad.join('; '));
+  s.check(sameList(c1, sortedColors(NEW)) && m1.wrong === 0, `la pantalla tiene exactamente los cuatro colores elegidos (${c1.join(' ')}), cada píxel en su lugar`, JSON.stringify({ c1, m1 }));
+  await page.ev("document.getElementById('custom-colors').scrollIntoView({ block: 'center' })");
+  await page.shot('28-personalizada');
+  // Se conservan al recargar (Rebote arranca solo: fondo y plano 1) y con la ROM de cuatro colores (desde «Tuyos:»).
+  await page.reload();
+  await page.instrument();
+  await sleep(300);
+  const i2 = await inputs();
+  const r2 = await page.ev(`({ palette: window.chip8.getPalette(), sel: document.getElementById('palette').value, colors: window.chip8.screenColors(), name: document.getElementById('cart-name').textContent })`);
+  s.check(r2.palette === 'custom' && r2.sel === 'custom' && !i2.hidden && sameList(i2.values, NEW) && sameList(r2.colors, sortedColors(NEW.slice(0, 2))),
+    `después de recargar: «Personalizada» con los cuatro colores en sus selectores; «${r2.name}» usa el fondo y el plano 1 (${r2.colors.join(' ')})`, JSON.stringify({ r2, i2 }));
+  await page.click('#lib-chips .chip:nth-child(1)');
+  await page.waitFor(`document.getElementById('cart-name').textContent === 'cuatro-colores'`, { timeout: 3000, desc: 'cuatro-colores desde «Tuyos:»' });
+  await page.poll(`[1, 2, 3].every((v) => window.chip8.cpu.display.includes(v))`, 3000);
+  const c3 = await page.ev('window.chip8.screenColors()');
+  s.check(sameList(c3, sortedColors(NEW)), `«cuatro-colores» (desde «Tuyos:») muestra otra vez los cuatro colores elegidos (${c3.join(' ')})`, JSON.stringify(c3));
+  // «Del cartucho»: un juego del archivo de Octo con sus colores (entrada registrada para la prueba).
+  const CART = ['#662200', '#996600', '#FF6600', '#FFCC00'];
+  const cartRom = romCuatroColores(ROMBO);
+  const reg = await page.ev(`window.chip8.registerArchiveEntry(${JSON.stringify(sha1Hex(cartRom))}, { id: 'colores-e2e', title: 'Colores del cartucho', platform: 'xochip', colors: ${JSON.stringify(CART)} })`);
+  await loadWithButton(page, writeFixture(ctx, 'colores.ch8', cartRom), 'Colores del cartucho');
+  await page.poll(`[1, 2, 3].every((v) => window.chip8.cpu.display.includes(v))`, 3000);
+  const pal = () => page.ev(`({ options: Array.from(document.getElementById('palette').options).map((o) => o.textContent), sel: document.getElementById('palette').value, palette: window.chip8.getPalette(), colors: window.chip8.screenColors() })`);
+  const p1 = await pal();
+  const m2 = await page.ev(canvasVsDisplayExpr(CART));
+  s.check(reg === true && p1.options.includes('Del cartucho') && p1.sel === 'cartucho' && p1.palette === 'cartucho' && sameList(p1.colors, sortedColors(CART)) && m2.wrong === 0,
+    `un juego del archivo con colores: aparece «Del cartucho» en «Paleta», queda elegida y la pantalla usa sus cuatro colores (${p1.colors.join(' ')})`, JSON.stringify({ reg, p1, m2 }));
+  await page.ev("document.getElementById('palette').scrollIntoView({ block: 'center' })");
+  await page.shot('28-del-cartucho');
+  // Otro cartucho (Fuente, desde «Incluidos:»): la opción se va y vuelve tu paleta, la personalizada.
+  const fuente = await page.ev("window.chip8.demos.findIndex((d) => d.id === 'fuente')");
+  await page.click(`#cart-chips .chip:nth-child(${fuente + 1})`);
+  await page.waitFor(`document.getElementById('cart-name').textContent === 'Fuente'`, { timeout: 3000 });
+  await sleep(200);
+  const p2 = await pal();
+  s.check(!p2.options.includes('Del cartucho') && p2.sel === 'custom' && p2.palette === 'custom' && sameList(p2.colors, sortedColors(NEW.slice(0, 2))),
+    `al cargar Fuente la opción «Del cartucho» se va y vuelve tu paleta «Personalizada» (${p2.colors.join(' ')}; opciones: ${p2.options.join(', ')})`, JSON.stringify(p2));
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 29 -------------------------------------------------------------------------------
+scenario(29, 'Autoconfiguración con el archivo de Octo: todo aplicado antes del primer frame; con el interruptor apagado, nada', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  const rom = romDigitos(2, 9);
+  const sha = sha1Hex(rom);
+  const QUIRKS = { vfReset: false, memory: false, shifting: true, jumping: true, clipping: false, displayWait: false };
+  const CART = ['#102030', '#F0E0D0', '#00C060', '#C03090'];
+  const reg = await page.ev(`window.chip8.registerArchiveEntry(${JSON.stringify(sha)}, { id: 'prueba-e2e', title: 'Prueba E2E', authors: 'Equipo de pruebas', event: 'Octojam 9', year: 2022,
+    platform: 'xochip', ipf: 1234, quirks: ${JSON.stringify(QUIRKS)}, colors: ${JSON.stringify(CART)}, rotation: 270 })`);
+  s.check(reg === true, 'registerArchiveEntry acepta la entrada de prueba (XO-CHIP, quirks, 1234 IPF, colores y giro de 270°)');
+  // Cómo arranca el primer frame de esta ROM (PC en 0x200: todavía no corrió ninguna instrucción suya).
+  await page.ev(`(() => {
+    const c = window.chip8.cpu, rf = c.runFrame;
+    window.__primero = null;
+    c.runFrame = function (n) {
+      const info = window.chip8.romInfo();
+      if (!window.__primero && info && info.sha1 === ${JSON.stringify(sha)} && this.pc === 0x200) {
+        const cv = document.getElementById('screen');
+        window.__primero = { ipf: n, platform: this.platform, quirks: Object.assign({}, this.quirks), palette: window.chip8.getPalette(), sel: document.getElementById('palette').value,
+          rotation: window.chip8.getRotation(), canvas: [cv.width, cv.height], res: [this.displayWidth, this.displayHeight] };
+      }
+      return rf.call(this, n);
+    };
+    return true;
+  })()`);
+  const file = writeFixture(ctx, 'prueba.ch8', rom);
+  // a) Con «Ajustes por cartucho» apagado (un clic): carga como siempre, sin aplicar nada.
+  await page.click('#tg-perrom');
+  const off = await page.ev(`({ api: window.chip8.getPerRom(), pressed: document.getElementById('tg-perrom').getAttribute('aria-pressed') })`);
+  await loadWithButton(page, file, 'Prueba E2E');
+  const f0 = await page.waitFor('window.__primero', { timeout: 2000, desc: 'primer frame con el interruptor apagado' });
+  await sleep(200);
+  const v0 = await consoleView(page);
+  const t0 = await toastsInfo(page);
+  s.check(!off.api && off.pressed === 'false', 'un clic apaga «Ajustes por cartucho»', JSON.stringify(off));
+  s.check(f0.platform === 'chip8' && f0.ipf === 15 && sameQuirks(f0.quirks, presetQuirks('vip')) && f0.palette === 'fosforo' && f0.rotation === 0,
+    'apagado: el primer frame corre con tus ajustes de siempre (CHIP-8, 15 IPF, quirks del VIP, Verde fósforo, sin giro)', JSON.stringify(f0));
+  s.check(!t0.some((x) => /archivo de Octo|recordados/.test(x.text)) && !/ajustes/.test(v0.slot) && !v0.forget && v0.palSel === 'fosforo' && !(await page.ev(`!!document.querySelector('#palette option[value="cartucho"]')`)),
+    `apagado: sin aviso de ajustes, la ranura no habla de ajustes («${v0.slot}») y no aparece «Del cartucho»`, JSON.stringify({ t0, v0 }));
+  // b) Prendido otra vez (un clic) y la misma ROM con «Cargar ROM»: todo antes del primer frame.
+  await page.click('#tg-perrom');
+  await page.ev('window.__primero = null; true');
+  await loadWithButton(page, file, 'Prueba E2E');
+  const f1 = await page.waitFor('window.__primero', { timeout: 2000, desc: 'primer frame con el interruptor prendido' });
+  await sleep(200);
+  const v1 = await consoleView(page);
+  const t1 = await toastsInfo(page);
+  s.check(f1.platform === 'xochip' && f1.ipf === 1234 && sameQuirks(f1.quirks, QUIRKS) && f1.palette === 'cartucho' && f1.sel === 'cartucho' && f1.rotation === 270 && f1.canvas[1] > f1.canvas[0],
+    `prendido: el primer frame (PC en 0x200) ya corre en XO-CHIP con 1234 IPF, los quirks del archivo, la paleta «Del cartucho» y la pantalla girada 270° (lienzo ${f1.canvas.join('×')})`, JSON.stringify(f1));
+  s.check(t1.some((x) => x.text === '«Prueba E2E», del archivo de Octo (Octojam 9): XO-CHIP, 1.234 IPF, sus colores y la pantalla girada 270°.'), `aviso: «${t1.map((x) => x.text).join(' | ')}»`, JSON.stringify(t1));
+  s.check(v1.name === 'Prueba E2E' && v1.slot === `${rom.length} bytes · ajustes del archivo` && /Equipo de pruebas/.test(v1.slotTip) && /Octojam 9/.test(v1.slotTip) && !v1.forget && v1.source === 'archivo',
+    `ranura: «${v1.name}» / «${v1.slot}» (al pasar el mouse: «${v1.slotTip.slice(0, 60)}…»)`, JSON.stringify(v1));
+  const onScreen = await page.ev('window.chip8.screenColors()');
+  s.check(v1.platSel === 'xochip' && v1.ipfIn === '1234' && v1.palSel === 'cartucho' && v1.preset === 'custom' && onScreen.includes(CART[0]) && onScreen.includes(CART[1]),
+    'los controles muestran lo aplicado (Plataforma XO-CHIP, 1234 IPF, «Del cartucho», perfil «Personalizado») y la pantalla usa el fondo y el color del juego', JSON.stringify({ v1, onScreen: onScreen.slice(0, 12) }));
+  const g1 = await stored(page, 'chip8-consola.ajustes');
+  const r1 = await stored(page, 'chip8-consola.cartuchos');
+  s.check(g1 && g1.platform === 'chip8' && g1.ipf === 15 && g1.palette === 'fosforo' && !(r1 && r1.roms && r1.roms[sha]), 'la autoconfiguración no toca tus ajustes guardados ni queda como «recordada»', JSON.stringify({ g1, r1 }));
+  await page.ev('window.scrollTo(0, 0)');
+  await page.shot('29-autoconfiguracion-girada');
+  // Un cambio tuyo (IPF 500 con el mouse) queda recordado; «Olvidar ajustes» del aviso vuelve a los del archivo.
+  await page.click('#ipf-chips .chip:nth-child(5)');
+  await page.ev('window.__primero = null; true');
+  await loadWithButton(page, file, 'Prueba E2E');
+  await page.waitFor('window.__primero', { timeout: 2000 });
+  const v2 = await consoleView(page);
+  const t2 = await toastsInfo(page);
+  s.check(v2.source === 'recordado' && v2.ipf === 500 && v2.rotation === 270 && t2.some((x) => x.text === 'Ajustes recordados para «Prueba E2E»: XO-CHIP, 500 IPF, sus colores y la pantalla girada 270°.' && x.action === 'Olvidar ajustes'),
+    `IPF 500 con el mouse queda recordado: al volver a cargarla, «${(t2.find((x) => x.action) || {}).text}»`, JSON.stringify({ v2, t2 }));
+  await clickToastAction(page, 'Olvidar ajustes');
+  await sleep(200);
+  const v3 = await consoleView(page);
+  const t3 = await toastsInfo(page);
+  s.check(v3.source === 'archivo' && v3.ipf === 1234 && v3.platform === 'xochip' && v3.rotation === 270 && t3.some((x) => x.text === 'Olvidé los ajustes de «Prueba E2E»: volvieron los del archivo de Octo.'),
+    '«Olvidar ajustes» (botón del aviso): vuelven los del archivo (1234 IPF) y lo avisa', JSON.stringify({ v3, t3 }));
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 30 -------------------------------------------------------------------------------
+scenario(30, 'Ajustes recordados por cartucho: cambios con el mouse, recarga, la misma ROM por «Cargar ROM» y «Olvidar ajustes»', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  const rom = romDigitos(3, 0);
+  const sha = sha1Hex(rom);
+  const file = writeFixture(ctx, 'juego.ch8', rom);
+  await loadWithButton(page, file, 'juego.ch8');
+  const v0 = await consoleView(page);
+  s.check(v0.source === 'ninguno' && v0.sha1 === sha && v0.slot === `${rom.length} bytes` && !v0.forget && (await toastsInfo(page)).length === 0,
+    `una ROM desconocida arranca con tus ajustes, sin aviso («${v0.slot}»)`, JSON.stringify(v0));
+  // Cambios con el mouse mientras juega.
+  await chooseWithMouse(page, '#preset', 'schip');
+  await page.click('#ipf-chips .chip:nth-child(3)');                // 30
+  await chooseWithMouse(page, '#palette', 'ambar');
+  await page.click('#dip-bank .dip-col:nth-of-type(1) .dip');        // VF=0
+  await sleep(150);
+  const v1 = await consoleView(page);
+  s.check(/ajustes recordados$/.test(v1.slot) && v1.forget && v1.platform === 'schip' && v1.ipf === 30 && v1.palette === 'ambar' && v1.quirks.vfReset === true,
+    `perfil SUPER-CHIP, IPF 30, paleta Ámbar y el interruptor VF=0, con el mouse: la ranura dice «${v1.slot}» y aparece «Olvidar ajustes»`, JSON.stringify(v1));
+  // Otro cartucho con otros ajustes: los tuyos de siempre pasan a ser IPF 100 y Blanco.
+  await page.click('#cart-chips .chip:nth-child(1)');               // Rebote
+  await page.waitFor(`document.getElementById('cart-name').textContent === 'Rebote'`, { timeout: 3000 });
+  await page.click('#ipf-chips .chip:nth-child(4)');                // 100
+  await chooseWithMouse(page, '#palette', 'blanco');
+  await sleep(600);   // los ajustes de una ROM se guardan juntos, 400 ms después del último cambio
+  const st = await stored(page, 'chip8-consola.cartuchos');
+  const e = st && st.roms && st.roms[sha];
+  s.check(e && e.platform === 'schip' && e.ipf === 30 && e.palette === 'ambar' && e.quirks.vfReset === true && e.quirks.shifting === true && e.name === 'juego.ch8',
+    'quedó guardado el juego de ajustes de «juego.ch8» (SUPER-CHIP, sus quirks con VF=0, 30 IPF, Ámbar)', JSON.stringify(e));
+  // Recarga y la misma ROM otra vez con «Cargar ROM».
+  await page.reload();
+  await page.instrument();
+  await loadWithButton(page, file, 'juego.ch8');
+  await sleep(150);
+  const v2 = await consoleView(page);
+  const t2 = await toastsInfo(page);
+  s.check(v2.source === 'recordado' && v2.platform === 'schip' && v2.platSel === 'schip' && v2.ipf === 30 && v2.ipfIn === '30' && v2.palette === 'ambar' && v2.palSel === 'ambar' && v2.quirks.vfReset === true && v2.quirks.shifting === true,
+    'después de recargar, la misma ROM arranca con lo recordado: SUPER-CHIP, 30 IPF, Ámbar y VF=0 (y los controles lo muestran)', JSON.stringify(v2));
+  s.check(t2.some((x) => x.text === 'Ajustes recordados para «juego.ch8»: SUPER-CHIP, 30 IPF y la paleta Ámbar.' && x.action === 'Olvidar ajustes') && /ajustes recordados$/.test(v2.slot) && v2.forget,
+    `aviso «${(t2.find((x) => x.action) || {}).text}» y la ranura «${v2.slot}»`, JSON.stringify({ t2, v2 }));
+  await page.ev('window.scrollTo(0, 0)');
+  await page.shot('30-ajustes-recordados');
+  // «Olvidar ajustes» de la ranura.
+  await page.click('#cart-forget');
+  await sleep(200);
+  const v3 = await consoleView(page);
+  const t3 = await toastsInfo(page);
+  const st3 = await stored(page, 'chip8-consola.cartuchos');
+  const focus = await page.ev('document.activeElement && (document.activeElement.id || document.activeElement.tagName)');
+  s.check(!(st3 && st3.roms && st3.roms[sha]) && v3.source === 'ninguno' && !v3.forget && !/recordados/.test(v3.slot) && v3.ipf === 30 && t3.some((x) => x.text === 'Olvidé los ajustes de «juego.ch8»: la próxima vez arranca con tus ajustes de siempre.'),
+    '«Olvidar ajustes» (en la ranura): se borra lo recordado, el enlace se va, quedan los ajustes de ahora y lo avisa', JSON.stringify({ v3, t3, st3 }));
+  s.check(focus !== 'cart-forget' && focus !== 'btn-load', `con el mouse, el foco no se queda en un botón (${focus})`);
+  await loadWithButton(page, file, 'juego.ch8');
+  await sleep(150);
+  const v4 = await consoleView(page);
+  s.check(v4.source === 'ninguno' && v4.ipf === 100 && v4.palette === 'blanco', `la próxima carga arranca con tus ajustes de siempre (${v4.ipf} IPF, paleta ${v4.palette})`, JSON.stringify(v4));
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 31 -------------------------------------------------------------------------------
+scenario(31, 'Banderas RPL: lo que guarda FX75 sobrevive a una recarga y FX85 lo lee', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  // Lee las banderas; si están en cero, guarda 2A y 07 y muestra un 0; si no, muestra el 7 que leyó.
+  const { bytes: rom, labels } = assemble(`
+        LD V1, R                ; V0 y V1 <- banderas (FX85)
+        SE V0, 0
+        JP leidas
+        LD V0, 0x2A
+        LD V1, 7
+        LD R, V1                ; banderas <- V0 y V1 (FX75)
+        LD V4, 0
+        JP muestra
+leidas: LD V4, V1
+muestra:
+        LD F, V4
+        LD V2, 28
+        LD V3, 12
+        DRW V2, V3, 5
+fin:    JP fin`);
+  const sha = sha1Hex(rom);
+  const file = writeFixture(ctx, 'banderas.ch8', rom);
+  await chooseWithMouse(page, '#preset', 'schip');   // FX75 y FX85 son de SUPER-CHIP
+  await loadWithButton(page, file, 'banderas.ch8');
+  await page.waitFor(`window.chip8.cpu.pc === ${labels.fin}`, { timeout: 2000, desc: 'la ROM terminó su trabajo' });
+  const a = await page.ev('({ flags: window.chip8.getFlags(), v4: window.chip8.cpu.V[4] })');
+  s.check(a.flags[0] === 0x2A && a.flags[1] === 7 && a.v4 === 0, `primera vez: FX75 guarda 2A y 07 en las banderas (${a.flags.slice(0, 3).join(', ')}, …)`, JSON.stringify(a));
+  const saved = await page.poll(`(() => { try { const e = JSON.parse(localStorage.getItem('chip8-consola.cartuchos')).roms[${JSON.stringify(sha)}]; return e && e.flags && e.flags[0] === 42 ? e : null; } catch (e) { return null; } })()`, 3000, 100);
+  const v = await consoleView(page);
+  s.check(saved && saved.flags.length === 16 && saved.flags[1] === 7 && saved.platform === undefined && v.source === 'ninguno' && !v.forget,
+    'en menos de 2 s quedan guardadas para esta ROM (solo las banderas: no cuentan como ajustes recordados)', JSON.stringify({ saved, v }));
+  await page.click('#cart-chips .chip:nth-child(2)');   // Teclado: otra ROM arranca con las banderas en cero
+  await page.waitFor(`document.getElementById('cart-name').textContent === 'Teclado'`, { timeout: 3000 });
+  s.check((await page.ev('window.chip8.getFlags()')).every((x) => x === 0), 'otra ROM (Teclado) arranca con sus banderas, en cero');
+  await page.reload();
+  await page.instrument();
+  await loadWithButton(page, file, 'banderas.ch8');
+  await page.waitFor(`window.chip8.cpu.pc === ${labels.fin}`, { timeout: 2000, desc: 'la ROM terminó su trabajo después de recargar' });
+  const b = await page.ev('({ v0: window.chip8.cpu.V[0], v1: window.chip8.cpu.V[1], v4: window.chip8.cpu.V[4], flags: window.chip8.getFlags(), platform: window.chip8.cpu.platform })');
+  s.check(b.v0 === 0x2A && b.v1 === 7 && b.v4 === 7 && b.flags[0] === 0x2A && b.platform === 'schip', `después de recargar, FX85 lee 2A y 07 (las banderas llegaron antes del primer frame) y la ROM muestra el ${b.v4}`, JSON.stringify(b));
+  await page.ev('window.scrollTo(0, 0)');
+  await page.shot('31-banderas-leidas');
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 32 -------------------------------------------------------------------------------
+scenario(32, 'Biblioteca: «Tus cartuchos» y «Tuyos:», cargar desde ahí, quitar y «Deshacer»; con el almacenamiento roto también anda', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  const lib = () => page.ev(`({ api: window.chip8.libraryList().map((x) => x.name), shelf: Array.from(document.querySelectorAll('#lib-list .lib-item')).map((w) => ({ name: w.querySelector('.cart-name').textContent, x: w.querySelector('.cart-remove').getAttribute('aria-label'), meta: w.querySelector('.cart-ctrl').textContent, pressed: w.querySelector('.lib-cart').getAttribute('aria-pressed') })),
+    chips: Array.from(document.querySelectorAll('#lib-chips .chip')).map((c) => c.textContent + (c.getAttribute('aria-pressed') === 'true' ? ' *' : '')), picker: !document.getElementById('lib-picker').hidden, empty: !document.getElementById('lib-empty').hidden,
+    stored: (() => { try { return JSON.parse(localStorage.getItem('chip8-consola.biblioteca')).items.map((x) => x.name); } catch (e) { return null; } })() })`);
+  const l0 = await lib();
+  s.check(l0.api.length === 0 && !l0.picker && l0.empty && l0.shelf.length === 0, 'vacía: sin «Tuyos:» y con la explicación del estante', JSON.stringify(l0));
+  const NAMES = ['Pong (1 jugador)', 'tetris', 'Space Invaders [David Winter]'];
+  for (let i = 0; i < NAMES.length; i++) await loadWithButton(page, writeFixture(ctx, NAMES[i] + '.ch8', romDigitos(i + 1, i + 4)), NAMES[i] + '.ch8');
+  const l1 = await lib();
+  const order1 = [NAMES[2], NAMES[1], NAMES[0]];
+  s.check(sameList(l1.api, order1) && sameList(l1.shelf.map((x) => x.name), order1) && sameList(l1.stored, order1) && l1.picker && !l1.empty,
+    `las tres ROMs cargadas con «Cargar ROM» quedan en «Tus cartuchos», la última jugada primero (${l1.api.join(', ')}), y guardadas`, JSON.stringify(l1));
+  s.check(sameList(l1.chips, [order1[0] + ' *', order1[1], order1[2]]) && l1.shelf.every((x) => / bytes · jugado hoy$/.test(x.meta)) && l1.shelf[0].pressed === 'true' && l1.shelf[1].x === `Quitar «${order1[1]}» de tus cartuchos`,
+    `«Tuyos:» muestra ${l1.chips.join(', ')} (la de la ranura marcada); cada cartucho dice «${l1.shelf[0].meta}» y tiene su ×`, JSON.stringify(l1));
+  // Cargar desde «Tuyos:» y desde el estante.
+  await page.click('#lib-chips .chip:nth-child(3)');
+  await page.waitFor(`document.getElementById('cart-name').textContent === ${JSON.stringify(NAMES[0])}`, { timeout: 3000, desc: 'Pong desde «Tuyos:»' });
+  const l2 = await lib();
+  s.check(l2.api[0] === NAMES[0] && l2.chips[0] === NAMES[0] + ' *', `clic en «${NAMES[0]}» de «Tuyos:»: lo carga y pasa adelante`, JSON.stringify(l2));
+  await page.click('#lib-list .lib-item:nth-child(3) .lib-cart');
+  await page.waitFor(`document.getElementById('cart-name').textContent === ${JSON.stringify(NAMES[1])}`, { timeout: 3000, desc: 'tetris desde el estante' });
+  const lit = await page.poll('window.chip8.cpu.display.reduce((a, b) => a + b, 0)', 1500);
+  const l3 = await lib();
+  s.check(l3.api[0] === NAMES[1] && lit > 0, `clic en «${NAMES[1]}» del estante «Tus cartuchos»: lo carga y corre (${lit} píxeles)`, JSON.stringify(l3));
+  // Se conserva al recargar.
+  await page.reload();
+  await page.instrument();
+  const l4 = await lib();
+  s.check(sameList(l4.api, l3.api) && l4.picker && l4.shelf.length === 3, `después de recargar sigue igual (${l4.api.join(', ')})`, JSON.stringify(l4));
+  // Quitar con la × y «Deshacer».
+  await page.click('#lib-list .lib-item:nth-child(2) .cart-remove');
+  await sleep(150);
+  const l5 = await lib();
+  const t5 = await toastsInfo(page);
+  const removed = l4.api[1];
+  s.check(l5.api.length === 2 && !l5.api.includes(removed) && sameList(l5.stored, l5.api) && t5.some((x) => x.text === `Quitaste «${removed}» de tus cartuchos.` && x.action === 'Deshacer'),
+    `la × quita «${removed}» (también de lo guardado) y el aviso trae «Deshacer»`, JSON.stringify({ l5, t5 }));
+  await page.ev('window.scrollTo(0, document.documentElement.scrollHeight)');
+  await page.shot('32-biblioteca-quitar');
+  await clickToastAction(page, 'Deshacer');
+  await sleep(150);
+  const l6 = await lib();
+  s.check(sameList(l6.api, l4.api) && sameList(l6.stored, l4.api), `«Deshacer» lo devuelve a su lugar (${l6.api.join(', ')})`, JSON.stringify(l6));
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+  await page.close();
+
+  // localStorage que tira excepción en cada acceso: todo en memoria durante la sesión.
+  const broken = `Object.defineProperty(window, 'localStorage', { configurable: true, get() { throw new DOMException('Acceso al almacenamiento denegado (e2e)', 'SecurityError'); } });`;
+  const p2 = await Page.open(ctx, { initScripts: [broken] });
+  s.page = p2;
+  await p2.goto(ctx.base + 'chip8.html');
+  await p2.instrument();
+  const note = await p2.ev(`({ note: !document.getElementById('lib-note').hidden, text: document.getElementById('lib-note').textContent })`);
+  await loadWithButton(p2, writeFixture(ctx, 'memoria.ch8', romDigitos(7, 7)), 'memoria.ch8');
+  await p2.click('#ipf-chips .chip:nth-child(4)');                 // 100: queda recordado (en memoria)
+  await p2.click('#cart-chips .chip:nth-child(2)');                // Teclado
+  await p2.waitFor(`document.getElementById('cart-name').textContent === 'Teclado'`, { timeout: 3000 });
+  await p2.click('#lib-chips .chip:nth-child(1)');                 // memoria, desde «Tuyos:»
+  await p2.waitFor(`document.getElementById('cart-name').textContent === 'memoria'`, { timeout: 3000 });
+  const m = await p2.ev(`({ lib: window.chip8.libraryList().map((x) => x.name), info: window.chip8.romInfo(), ipf: window.chip8.getIpf() })`);
+  const r = await measureRate(p2, 600);
+  s.check(note.note && m.lib.join() === 'memoria' && m.info.source === 'recordado' && m.ipf === 100 && r.fps > 50,
+    `con el almacenamiento roto: el estante avisa («${note.text.slice(0, 40)}…»), la ROM queda en «Tus cartuchos» y sus ajustes se recuerdan durante la sesión`, JSON.stringify({ note, m, fps: r.fps }));
+  s.check(p2.errors.length === 0, 'con el almacenamiento roto no hay excepciones ni errores de consola', p2.errors.join(' | '));
+  await p2.ev('document.getElementById("lib-title").scrollIntoView({ block: "start" })');
+  await p2.shot('32-biblioteca-sin-almacenamiento');
+});
+
+// 33 -------------------------------------------------------------------------------
+scenario(33, 'Planos, el demo de XO-CHIP: desde el estante corre a 60 fps sin errores, con los valores 1 a 3, su patrón de sonido, y W frena el rombo', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  const name = await clickCart(page, 'planos');   // clic en el estante «Cartuchos incluidos»
+  await page.poll('window.chip8.cpu.displayWidth === 128', 3000);   // su primera instrucción es HIGH
+  await sleep(500);   // el primer clic también crea el AudioContext: se mide después
+  const v = await consoleView(page);
+  s.check(v.platform === 'xochip' && v.platSel === 'xochip' && v.res === '128×64' && /^XO-CHIP · 128×64/.test(v.mode) && v.source === 'demo',
+    `«${name}» pide XO-CHIP y la consola pasa sola a esa plataforma, a 128×64 (MÁQUINA «${v.mode}»)`, JSON.stringify(v));
+  const c0 = await counters(page);
+  const seen = new Set();
+  const t0 = Date.now();
+  while (Date.now() - t0 < 3000) {
+    (await page.ev(DISPLAY_VALUES)).forEach((x) => seen.add(x));
+    await sleep(100);
+  }
+  const c1 = await counters(page);
+  const fps = (c1.calls - c0.calls) / ((c1.now - c0.now) / 1000);
+  s.info(`Planos: ${fps.toFixed(1)} frames por segundo; valores de píxel vistos en 3 s: ${[...seen].sort().join(', ')}`);
+  s.check(fps >= 50 && fps <= 70, `corre en tiempo real: ${fps.toFixed(1)} frames por segundo`);
+  s.check([1, 2, 3].every((x) => seen.has(x)), `en la pantalla aparecen los valores 1, 2 y 3: plano 1, plano 2 y los dos a la vez (${[...seen].sort().join(', ')})`);
+  const au = await page.ev('({ a: window.chip8.audioState(), set: window.chip8.cpu.audioPatternSet })');
+  s.check(au.set && au.a.pattern && au.a.patternRate > 0, `cargó un patrón de sonido (AUDIO) y la consola toca ese patrón y no el beep (${Math.round(au.a.patternRate)} bits por segundo)`, JSON.stringify(au));
+  const st = await page.ev(`({ halted: window.chip8.cpu.halted, err: window.chip8.cpu.error, toasts: document.querySelectorAll('#toasts .toast').length })`);
+  s.check(!st.halted && !st.err && st.toasts === 0 && page.errors.length === 0, 'sin errores: la máquina no se detuvo, no hay avisos y la consola del navegador está limpia', JSON.stringify(st) + ' ' + page.errors.join(' | '));
+  // W (tecla 5) sostenida: el rombo, lo único del plano 2, se queda quieto.
+  const plane2 = `Array.from(window.chip8.cpu.display, (v) => (v & 2) ? 1 : 0).join('')`;
+  await page.click('.tagline');
+  await page.keyDown('KeyW');
+  await sleep(350);
+  const p0 = await page.ev(plane2);
+  await sleep(500);
+  const p1 = await page.ev(plane2);
+  await page.ev('window.scrollTo(0, 0)');
+  await page.shot('33-planos');
+  await page.keyUp('KeyW');
+  await sleep(600);
+  const p2 = await page.ev(plane2);
+  s.check(p0.includes('1') && p0 === p1 && p2 !== p1, 'con W apretada el rombo (plano 2) no se mueve durante medio segundo; al soltarla vuelve a moverse');
+});
+
+// 34 -------------------------------------------------------------------------------
+scenario(34, 'Avance rápido: con T sostenida (o el botón del bisel) corren 4 veces más instrucciones y ticks de los timers; al soltar, vuelve a 60', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  await loadWithButton(page, writeFixture(ctx, 'bucle.ch8', asm(`
+bucle:  ADD V0, 1
+        JP bucle`)), 'bucle.ch8');
+  await instrumentTimers(page);
+  await page.click('#ipf-chips .chip:nth-child(4)');   // 100 IPF
+  await page.click('.tagline');
+  await sleep(300);
+  const n0 = await rates(page, 2000);
+  s.info(`normal: ${n0.fps.toFixed(1)} frames/s, ${n0.tps.toFixed(1)} ticks de los timers/s, ${Math.round(n0.ips)} instrucciones/s`);
+  s.check(n0.fps > 52 && n0.fps < 68 && Math.abs(n0.tps - n0.fps) < 3, `sin avance rápido: ~60 frames y ~60 ticks de los timers por segundo (${n0.tps.toFixed(1)})`, JSON.stringify(n0));
+  // T sostenida (el teclado la repite mientras está apretada).
+  await page.keyDown('KeyT');
+  for (let i = 0; i < 4; i++) { await sleep(40); await page.keyDown('KeyT', { repeat: true }); }
+  await sleep(150);
+  const on = await page.ev(`({ tag: !document.getElementById('tag-turbo').hidden, text: document.getElementById('tag-turbo').textContent, api: window.chip8.isTurbo(), btn: document.getElementById('btn-turbo').getAttribute('aria-pressed'), paused: window.chip8.isPaused() })`);
+  const t1 = await rates(page, 2000);
+  await page.ev('window.scrollTo(0, 0)');
+  await page.shot('34-avance-rapido');
+  await page.keyUp('KeyT');
+  const tUp = await page.ev('performance.now()');
+  const fx = t1.ips / n0.ips, tx = t1.tps / n0.tps;
+  s.info(`con T: ${t1.fps.toFixed(1)} frames/s, ${t1.tps.toFixed(1)} ticks de los timers/s, ${Math.round(t1.ips)} instrucciones/s (×${fx.toFixed(2)} y ×${tx.toFixed(2)})`);
+  s.check(on.tag && on.text === '×4' && on.api && on.btn === 'true' && !on.paused, 'con T apretada aparece «×4» en la pantalla y el botón del bisel se ve apretado', JSON.stringify(on));
+  s.check(fx > 3.5 && fx < 4.5 && tx > 3.5 && tx < 4.5, `con T: ×${fx.toFixed(2)} instrucciones y ×${tx.toFixed(2)} ticks de los timers por segundo real`, JSON.stringify(t1));
+  await sleep(1300);
+  const times = await page.ev(`${E2E}.times.slice()`);
+  const first = times.filter((t) => t >= tUp && t < tUp + 250).length, after = times.filter((t) => t >= tUp && t < tUp + 1000).length;
+  const off = await page.ev(`({ tag: !document.getElementById('tag-turbo').hidden, api: window.chip8.isTurbo() })`);
+  const n1 = await rates(page, 1000);
+  s.check(!off.tag && !off.api && first <= 22 && after >= 50 && after <= 70 && n1.tps > 52 && n1.tps < 68,
+    `al soltar T, «×4» se va y vuelve a ~60 por segundo sin ponerse al día (${first} frames en 0,25 s, ${after} en 1 s, ${n1.tps.toFixed(1)} ticks/s)`, JSON.stringify({ off, n1 }));
+  // El botón del bisel, mantenido con el mouse.
+  const r = await page.rect('#btn-turbo');
+  await page.mouse('mouseMoved', r.cx, r.cy);
+  await page.mouse('mousePressed', r.cx, r.cy);
+  await sleep(250);
+  const m1 = await rates(page, 1200);
+  const mf = await page.ev(`({ api: window.chip8.isTurbo(), tag: !document.getElementById('tag-turbo').hidden, focus: document.activeElement === document.getElementById('btn-turbo') })`);
+  await page.mouse('mouseReleased', r.cx, r.cy);
+  await sleep(250);
+  const m2 = await rates(page, 1000);
+  s.check(m1.tps / n0.tps > 3.5 && m1.tps / n0.tps < 4.5 && mf.api && mf.tag && !mf.focus && m2.tps > 52 && m2.tps < 68 && !(await page.ev('window.chip8.isTurbo()')),
+    `el botón del bisel mantenido con el mouse: ${m1.tps.toFixed(0)} ticks/s (×${(m1.tps / n0.tps).toFixed(2)}); al soltarlo, ${m2.tps.toFixed(0)} (y no se queda con el foco)`, JSON.stringify({ m1, mf, m2 }));
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 35 -------------------------------------------------------------------------------
+scenario(35, 'Captura: G y el botón de la cámara bajan un PNG (nombre, tamaño y colores exactos); screenshot() es cpu.display con la paleta', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  const dir = path.join(ctx.browser.tmp, 'descargas');
+  fs.mkdirSync(dir, { recursive: true });
+  await ctx.browser.cdp.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: dir, eventsEnabled: true });
+  try {
+    await clickCart(page, 'fuente');
+    await waitSelfJump(page);   // Fuente dibuja un sprite por frame (espera de vblank): terminó
+    await page.click('.tagline');
+    const today =await page.ev("(() => { const d = new Date(), t = (n) => String(n).padStart(2, '0'); return '' + d.getFullYear() + t(d.getMonth() + 1) + t(d.getDate()); })()");
+    const want = await page.ev('({ url: window.chip8.screenshot(), d: Array.from(window.chip8.cpu.display), w: window.chip8.cpu.displayWidth })');
+    const wantBytes = Buffer.from(want.url.slice(want.url.indexOf(',') + 1), 'base64');
+    const NAME_RE = /^chip8-fuente-(\d{8})-\d{6}\.png$/;
+    const check = (dl, how) => {
+      const file = dl.file || path.join(dir, dl.name);
+      const buf = fs.existsSync(file) ? fs.readFileSync(file) : null;
+      const m = NAME_RE.exec(dl.name || '');
+      s.check(dl.state === 'completed' && m && m[1] === today && buf && buf.length === dl.bytes,
+        `${how}: el navegador baja «${dl.name}» (${buf ? buf.length : 0} bytes; la fecha del nombre es la de hoy)`, JSON.stringify(dl));
+      s.check(buf && buf.equals(wantBytes), `${how}: el archivo es la misma imagen PNG que screenshot() (${wantBytes.length} bytes)`);
+      return buf;
+    };
+    const p1 = nextDownload(ctx);
+    await page.press('KeyG');
+    const buf1 = check(await p1, 'G');
+    const status = await page.ev("document.getElementById('status').textContent");
+    if (buf1) {
+      const img = decodePng(buf1);
+      const cmp = pngVsDisplay(img, want.d, want.w, FOSFORO);
+      s.check(img.width === 640 && img.height === 320 && cmp.scale === 10 && cmp.wrong === 0 && sameList(cmp.colors, sortedColors(FOSFORO.slice(0, 2))),
+        `el PNG mide ${img.width}×${img.height} (cada píxel CHIP-8, un cuadrado de ${cmp.scale}×${cmp.scale}) y cada píxel es el color de la paleta que le toca en cpu.display (${cmp.colors.join(' ')})`, `${cmp.wrong} distintos; ${cmp.first}`);
+      const copy = path.join(ctx.opts.shots, '35-captura-bajada-con-G.png');
+      fs.writeFileSync(copy, buf1);
+      ctx.shots.push(copy);
+    }
+    s.check(/^Captura guardada: chip8-fuente-\d{8}-\d{6}\.png \(640 × 320 píxeles\)\.$/.test(status), `la línea de estado lo anuncia («${status}»)`);
+    const p2 = nextDownload(ctx);
+    await page.click('#btn-shot');
+    check(await p2, 'botón de la cámara (clic)');
+    // XO-CHIP en alta resolución, con los cuatro colores: cada píxel CHIP-8 es un cuadrado de 5×5.
+    await chooseWithMouse(page, '#preset', 'xochip');
+    await loadWithButton(page, writeFixture(ctx, 'cuatro-colores.ch8', romCuatroColores(CUADRO)), 'cuatro-colores.ch8');
+    await page.poll(`[1, 2, 3].every((v) => window.chip8.cpu.display.includes(v))`, 3000);
+    const hi = await page.ev('({ url: window.chip8.screenshot(), d: Array.from(window.chip8.cpu.display), w: window.chip8.cpu.displayWidth })');
+    const img2 = decodePng(Buffer.from(hi.url.slice(hi.url.indexOf(',') + 1), 'base64'));
+    const cmp2 = pngVsDisplay(img2, hi.d, hi.w, FOSFORO);
+    s.check(img2.width === 640 && img2.height === 320 && cmp2.scale === 5 && cmp2.wrong === 0 && sameList(cmp2.colors, sortedColors(FOSFORO)),
+      `128×64 con dos planos: screenshot() de ${img2.width}×${img2.height} (escala ${cmp2.scale}) con los cuatro colores de la paleta, cada píxel en su lugar (${cmp2.colors.join(' ')})`, `${cmp2.wrong} distintos; ${cmp2.first}`);
+  } finally {
+    await ctx.browser.cdp.send('Browser.setDownloadBehavior', { behavior: 'default' }).catch(() => {});
+  }
+  await page.ev('window.scrollTo(0, 0)');
+  await page.shot('35-captura');
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 36 -------------------------------------------------------------------------------
+scenario(36, 'Pantalla completa: el botón del bisel, P y Esc entran y salen', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  await clickCart(page, 'rebote');
+  await sleep(300);
+  const state = () => page.ev(`(() => { const b = document.getElementById('bezel'), cv = document.getElementById('screen'), r = cv.getBoundingClientRect();
+    return { fs: document.fullscreenElement ? (document.fullscreenElement.id || document.fullscreenElement.tagName) : null, api: window.chip8.isFullscreen(), cls: b.classList.contains('is-fullscreen'),
+      btn: document.getElementById('btn-full').getAttribute('aria-pressed'), back: [cv.width, cv.height], css: [r.width, r.height], dpr: devicePixelRatio, status: document.getElementById('status').textContent }; })()`);
+  const isIn = (x) => x.fs === 'bezel' && x.api && x.cls && x.btn === 'true';
+  const isOut = (x, ref) => !x.fs && !x.api && !x.cls && x.btn === 'false' && x.back.join() === ref.back.join();
+  const s0 = await state();
+  await page.click('#btn-full');
+  await page.poll('!!document.fullscreenElement', 3000);
+  await sleep(400);
+  const s1 = await state();
+  const scale0 = s0.back[0] / 64, scale1 = s1.back[0] / 64;
+  s.check(isIn(s1) && s1.status === 'Pantalla completa: P o Esc para volver a la consola.', `clic en el botón del bisel: el bisel pasa a pantalla completa (document.fullscreenElement = #${s1.fs}) y se anuncia`, JSON.stringify(s1));
+  s.check(Number.isInteger(scale1) && scale1 > scale0 && Math.abs(s1.css[0] * s1.dpr - s1.back[0]) < 0.5, `en pantalla completa la imagen crece con escala entera: ${scale1}× (antes ${scale0}×), 1:1 con los píxeles físicos`, JSON.stringify({ s0, s1 }));
+  await page.shot('36-pantalla-completa');
+  await page.press('KeyP');
+  await page.poll('!document.fullscreenElement', 3000);
+  await sleep(300);
+  const s2 = await state();
+  s.check(isOut(s2, s0) && s2.status === 'Volviste a la consola.', 'P sale de la pantalla completa y la consola queda como estaba', JSON.stringify(s2));
+  await page.press('KeyP');
+  const in2 = await page.poll('!!document.fullscreenElement', 3000);
+  await sleep(300);
+  await page.click('#btn-full');
+  const out2 = await page.poll('!document.fullscreenElement', 3000);
+  await sleep(300);
+  const s3 = await state();
+  s.check(in2 && out2 && isOut(s3, s0), 'P entra y el mismo botón del bisel sale', JSON.stringify(s3));
+  await page.press('KeyP');
+  const in3 = await page.poll('!!document.fullscreenElement', 3000);
+  await sleep(300);
+  await page.press('Escape');
+  const out3 = await page.poll('!document.fullscreenElement', 3000);
+  await sleep(300);
+  const s4 = await state();
+  s.check(in3 && out3 && isOut(s4, s0), 'P entra y Esc sale', JSON.stringify(s4));
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 37 -------------------------------------------------------------------------------
+scenario(37, 'Joystick (Gamepad API): la cruz, la palanca y A/B aprietan las teclas de «Controles» y Start pausa y continúa', async (ctx, s) => {
+  const page = await freshApp(ctx, s, { initScripts: [FAKE_GAMEPADS] });
+  await clickCart(page, 'teclado');
+  await page.click('.tagline');
+  const settle = () => sleep(100);
+  const keys = () => page.ev(KEYS_EXPR);
+  const g0 = await page.ev(`({ g: window.chip8.gamepadState(), hint: document.getElementById('pad-hint').textContent })`);
+  s.check(g0.g.supported && g0.g.connected.length === 0 && /ninguno/.test(g0.hint), `antes de conectar: ningún joystick («${g0.hint}»)`, JSON.stringify(g0));
+  await page.ev("window.__pad.connect(0, 'Mando de prueba (STANDARD GAMEPAD)')");
+  await settle();
+  const t1 = await toastsInfo(page);
+  const hint1 = await page.ev("document.getElementById('pad-hint').textContent");
+  s.check(t1.some((x) => x.text === 'Joystick conectado: Mando de prueba (STANDARD GAMEPAD)') && hint1 === 'Joystick: Mando de prueba (STANDARD GAMEPAD).',
+    `al conectarlo aparece el aviso «Joystick conectado: …» y «Controles» dice «${hint1}»`, JSON.stringify({ t1, hint1 }));
+  const bad = [];
+  for (const [b, k, label] of [[12, 5, 'cruz arriba'], [13, 8, 'cruz abajo'], [14, 7, 'cruz izquierda'], [15, 9, 'cruz derecha'], [0, 6, 'A'], [1, 4, 'B']]) {
+    await page.ev(`window.__pad.button(0, ${b}, true)`);
+    await settle();
+    const d = await keys(), caps = await page.ev(KEYCAPS_DOWN);
+    await page.ev(`window.__pad.button(0, ${b}, false)`);
+    await settle();
+    const u = await keys();
+    if (!(onlyKey(d, k) && caps.join() === String(k) && noKeys(u))) bad.push(`${label}: ${d.join('')} (keypad ${caps}) -> ${u.join('')}`);
+  }
+  s.check(bad.length === 0, 'con «WASD de Octo»: la cruz arriba/abajo/izquierda/derecha aprieta 5/8/7/9, A aprieta 6 y B aprieta 4 (y se ven en el keypad)', bad.join('; '));
+  const axes = [];
+  for (const [a, value, k] of [[0, -0.8, 7], [0, 0.8, 9], [1, -0.8, 5], [1, 0.8, 8], [0, -0.3, -1], [1, 0.45, -1]]) {
+    await page.ev(`window.__pad.axis(0, ${a}, ${value})`);
+    await settle();
+    const d = await keys();
+    await page.ev(`window.__pad.axis(0, ${a}, 0)`);
+    await settle();
+    if (!(k < 0 ? noKeys(d) : onlyKey(d, k))) axes.push(`eje ${a} = ${value}: ${d.join('')}`);
+  }
+  s.check(axes.length === 0 && noKeys(await keys()), 'la palanca izquierda también: ±0,8 aprieta la dirección; 0,3 y 0,45 (zona muerta) no', axes.join('; '));
+  await page.ev('window.__pad.button(0, 9, true)');
+  await sleep(150);
+  const p1 = await page.ev(`({ paused: window.chip8.isPaused(), tag: !document.getElementById('tag-pause').hidden })`);
+  await sleep(300);
+  const p1b = await page.ev('window.chip8.isPaused()');
+  await page.ev('window.__pad.button(0, 9, false)');
+  await settle();
+  await page.ev('window.__pad.button(0, 9, true)');
+  await settle();
+  const p2 = await page.ev('window.chip8.isPaused()');
+  await page.ev('window.__pad.button(0, 9, false)');
+  await settle();
+  s.check(p1.paused && p1.tag && p1b && !p2, 'Start pausa (aparece «PAUSA») y, apretado otra vez, continúa; sostenerlo no lo repite', JSON.stringify({ p1, p1b, p2 }));
+  await page.ev('window.__pad.button(0, 15, true)');
+  await sleep(200);
+  await page.ev('window.scrollTo(0, 0)');
+  await page.shot('37-joystick-derecha');
+  await page.ev('window.__pad.button(0, 0, true)');
+  await settle();
+  const held = await keys();
+  await page.ev('window.__pad.disconnect(0)');
+  await settle();
+  const gone = await keys();
+  const t2 = await toastsInfo(page);
+  s.check(held[9] === 1 && held[6] === 1 && noKeys(gone) && t2.some((x) => x.text === 'Joystick desconectado: Mando de prueba (STANDARD GAMEPAD)'),
+    'al desconectarlo con la cruz y A apretadas, se sueltan sus teclas y aparece «Joystick desconectado: …»', JSON.stringify({ held: held.join(''), gone: gone.join(''), t2 }));
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 38 -------------------------------------------------------------------------------
+scenario(38, 'Flechas y «Controles»: cada mapa y uno personalizado, los controles con foco se quedan con sus flechas y el mapa de cada cartucho se recuerda', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  await clickCart(page, 'teclado');
+  await page.click('.tagline');
+  const hexs = (list) => list.map((k) => k.toString(16).toUpperCase()).join(' ');
+  async function arrows(want) {
+    const bad = [];
+    for (const [code, k] of [['ArrowUp', want[0]], ['ArrowDown', want[1]], ['ArrowLeft', want[2]], ['ArrowRight', want[3]]]) {
+      const sy0 = await page.ev('scrollY');
+      await page.keyDown(code);
+      await sleep(30);
+      const d = await page.ev(KEYS_EXPR), caps = await page.ev(KEYCAPS_DOWN), sy1 = await page.ev('scrollY');
+      await page.keyUp(code);
+      await sleep(30);
+      const u = await page.ev(KEYS_EXPR);
+      if (!(onlyKey(d, k) && caps.join() === String(k) && noKeys(u) && sy0 === sy1)) bad.push(`${code}: ${d.join('')} (keypad ${caps}) -> ${u.join('')}, scroll ${sy0}->${sy1}`);
+    }
+    return bad;
+  }
+  const b0 = await arrows([5, 8, 7, 9]);
+  s.check(b0.length === 0, 'de fábrica («WASD de Octo»): ↑ ↓ ← → aprietan 5 8 7 9 y la página no se mueve', b0.join('; '));
+  const k1 = await chooseWithMouse(page, '#keymap', 'vip');
+  await page.click('.tagline');
+  const b1 = await arrows([2, 8, 4, 6]);
+  const hint1 = await page.ev("document.getElementById('keymap-hint').textContent");
+  s.check(k1 === 'vip' && b1.length === 0 && hint1 === 'Flechas y cruz del joystick: ↑ 2 · ↓ 8 · ← 4 · → 6. Botones del joystick: A 5 · B 0 · Start pausa y continúa.',
+    `«Teclado numérico del VIP» elegido con el mouse: ↑ ↓ ← → aprietan 2 8 4 6 («${hint1}»)`, b1.join('; ') + ' ' + hint1);
+  const k2 = await chooseWithMouse(page, '#keymap', 'custom');
+  const vis = await page.ev(`({ hidden: document.getElementById('keymap-keys').hidden, labels: Array.from(document.querySelectorAll('#keymap-keys .keymap-key span')).map((x) => x.textContent), vals: Array.from(document.querySelectorAll('#keymap-keys select')).map((x) => x.value) })`);
+  s.check(k2 === 'custom' && !vis.hidden && vis.labels.join() === 'Arriba,Abajo,Izquierda,Derecha,Botón A,Botón B' && vis.vals.join() === '2,8,4,6,5,0',
+    `«Personalizado»: aparecen seis selectores (${vis.labels.join(', ')}) que arrancan con el mapa de antes (${vis.vals.join(',')})`, JSON.stringify(vis));
+  const up = await chooseWithMouse(page, '#keymap-keys select[data-slot="up"]', '10');
+  const right = await chooseWithMouse(page, '#keymap-keys select[data-slot="right"]', '15');
+  await page.ev("document.querySelector('.group-controls').scrollIntoView({ block: 'center' })");
+  await page.shot('38-controles-personalizado');
+  await page.click('.tagline');
+  const b2 = await arrows([10, 8, 4, 15]);
+  const km = await page.ev('window.chip8.getKeymap()');
+  s.check(up === '10' && right === '15' && b2.length === 0 && km.preset === 'custom' && km.up === 10 && km.right === 15,
+    `Arriba = A y Derecha = F elegidas con el mouse: ↑ ↓ ← → aprietan ${hexs([10, 8, 4, 15])}`, b2.join('; ') + ' ' + JSON.stringify(km));
+  // Con el foco en un control que usa las flechas, las flechas son de ese control y no del keypad.
+  const exc = [];
+  for (const [sel, desc, val, go, back] of [
+    ['#palette', 'el selector «Paleta»', "document.getElementById('palette').value", 'ArrowDown', 'ArrowUp'],
+    ['#ipf-range', 'el deslizador de velocidad', "document.getElementById('ipf-range').value", 'ArrowRight', 'ArrowLeft'],
+    ['#screen-mode .seg[aria-checked="true"]', 'el modo de pantalla', 'window.chip8.getScreenMode()', 'ArrowDown', 'ArrowUp'],
+  ]) {
+    await page.ev(`document.querySelector(${JSON.stringify(sel)}).focus()`);
+    const v0 = await page.ev(val);
+    await page.keyDown(go);
+    await sleep(40);
+    const d = await page.ev(KEYS_EXPR);
+    await page.keyUp(go);
+    await sleep(60);
+    const v1 = await page.ev(val);
+    await page.press(back, 20);
+    await sleep(60);
+    const v2 = await page.ev(val);
+    if (!noKeys(d) || v1 === v0 || v2 !== v0) exc.push(`${desc}: teclas ${d.join('')}, ${v0} -> ${v1} -> ${v2}`);
+    await page.ev('document.activeElement && document.activeElement.blur()');
+  }
+  s.check(exc.length === 0, 'con el foco en el selector «Paleta», el deslizador de velocidad o el modo de pantalla, las flechas los cambian (y los devuelven) sin apretar teclas del CHIP-8', exc.join('; '));
+  await page.ev(`document.querySelector('#keypad .key[data-key="1"]').focus()`);
+  await page.keyDown('ArrowDown');
+  const onKey = await page.ev(KEYS_EXPR);
+  await page.keyUp('ArrowDown');
+  await page.ev('document.activeElement.blur()');
+  s.check(onlyKey(onKey, 8), 'con el foco en una tecla del keypad, ↓ sí aprieta su tecla (8)', onKey.join(''));
+  // Por cartucho: Teclado queda con el personalizado; Atrapa, con «WASD de Octo» elegido con el mouse.
+  await clickCart(page, 'atrapa');
+  const atr0 = await page.ev('window.chip8.getKeymap().preset');
+  await chooseWithMouse(page, '#keymap', 'octo');
+  await sleep(600);
+  await page.reload();
+  await page.instrument();
+  await clickCart(page, 'teclado');
+  await sleep(100);
+  const r1 = await page.ev(`({ km: window.chip8.getKeymap(), sel: document.getElementById('keymap').value, toast: Array.from(document.querySelectorAll('#toasts .toast p')).map((p) => p.textContent).pop() || '' })`);
+  await page.click('.tagline');
+  const b3 = await arrows([10, 8, 4, 15]);
+  s.check(atr0 === 'custom' && r1.km.preset === 'custom' && r1.km.up === 10 && r1.sel === 'custom' && b3.length === 0 && r1.toast === 'Ajustes recordados para «Teclado»: CHIP-8, 15 IPF y sus controles personalizados.',
+    `después de recargar, Teclado arranca con su mapa personalizado (↑ = A) y lo avisa: «${r1.toast}»`, JSON.stringify(r1) + ' ' + b3.join('; '));
+  await clickCart(page, 'atrapa');
+  await page.click('.tagline');
+  const r2 = await page.ev(`({ km: window.chip8.getKeymap(), sel: document.getElementById('keymap').value })`);
+  const b4 = await arrows([5, 8, 7, 9]);
+  s.check(r2.km.preset === 'octo' && r2.sel === 'octo' && b4.length === 0, 'y Atrapa, con «WASD de Octo»: ↑ ↓ ← → aprietan 5 8 7 9', JSON.stringify(r2) + ' ' + b4.join('; '));
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 39 -------------------------------------------------------------------------------
+scenario(39, 'Curvatura y encendido animado: la curvatura apagada deja la imagen idéntica; el encendido aparece al cargar, salvo con movimiento reducido', async (ctx, s) => {
+  const powerState = (p) => p.ev(`({ hidden: document.getElementById('crt-power').hidden, on: document.getElementById('crt-power').classList.contains('is-on'),
+    anims: document.getAnimations().filter((a) => /crt-power/.test(a.animationName)).length, pc: window.chip8.cpu.pc })`);
+  const page = await Page.open(ctx);
+  s.page = page;
+  await clearStorage(page, ctx);
+  await page.goto(ctx.base + 'chip8.html');
+  const p0 = await powerState(page);
+  const gone = await page.poll("document.getElementById('crt-power').hidden", 2000, 20);
+  s.check(!p0.hidden && p0.on && p0.anims >= 2, `justo después de cargar, la capa de encendido está animándose (${p0.anims} animaciones)`, JSON.stringify(p0));
+  s.check(gone, 'y en menos de 2 s se va sola');
+  await page.instrument();
+  // Curvatura: con Fuente (imagen fija) y la estela ya apagada, el tubo con y sin curvatura.
+  await clickCart(page, 'fuente');
+  await waitSelfJump(page);
+  await sleep(1000);   // la estela del fósforo termina de apagarse
+  const filters = () => page.ev(`({ screen: getComputedStyle(document.getElementById('screen')).filter, glow: getComputedStyle(document.getElementById('glow')).filter, curved: document.getElementById('crt').classList.contains('is-curved'), pressed: document.getElementById('tg-curve').getAttribute('aria-pressed') })`);
+  const f0 = await filters();
+  const a = await crtCapture(page);
+  await page.click('#tg-curve');
+  await sleep(400);
+  const f1 = await filters();
+  const b = await crtCapture(page);
+  await page.shot('39-curvatura-prendida');
+  await page.click('#tg-curve');
+  await sleep(400);
+  const f2 = await filters();
+  const c = await crtCapture(page);
+  const dOn = imageDiff(a, b), dOff = imageDiff(a, c);
+  s.check(f0.screen === 'none' && !f0.curved && f0.pressed === 'false', 'de fábrica la curvatura está apagada: ningún filtro en el lienzo', JSON.stringify(f0));
+  s.check(f1.curved && /url\(.*crt-warp/.test(f1.screen) && /url\(.*crt-warp/.test(f1.glow) && f1.pressed === 'true' && dOn > 1000,
+    `un clic en «Curvatura» curva el lienzo y el resplandor (${dOn} píxeles del tubo cambian)`, JSON.stringify({ f1, dOn }));
+  s.check(f2.screen === 'none' && !f2.curved && f2.pressed === 'false' && dOff === 0, `otro clic la apaga y el tubo queda idéntico, píxel por píxel, a antes de prenderla (${a.width}×${a.height}, ${dOff} píxeles distintos)`, JSON.stringify({ f2, dOff }));
+  // Encendido animado apagado con un clic: al recargar no aparece.
+  await page.click('#tg-power');
+  await page.reload();
+  const p1 = await powerState(page);
+  s.check(p1.hidden && !p1.on && p1.anims === 0, 'con «Encendido animado» apagado, al recargar no hay animación', JSON.stringify(p1));
+  await page.close();
+  // Con prefers-reduced-motion: no aparece.
+  const p2 = await Page.open(ctx, { media: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
+  s.page = p2;
+  await clearStorage(p2, ctx);
+  await p2.goto(ctx.base + 'chip8.html');
+  const r = await powerState(p2);
+  s.check(r.hidden && !r.on && r.anims === 0, 'con prefers-reduced-motion no hay animación de encendido (el interruptor sigue prendido)', JSON.stringify(r));
+  s.check(page.errors.length === 0 && p2.errors.length === 0, 'sin errores de consola', page.errors.concat(p2.errors).join(' | '));
+});
+
+// 40 -------------------------------------------------------------------------------
+scenario(40, 'Diseño con la biblioteca llena y «Controles» a la vista: 1440, 768 y 360 px', async (ctx, s) => {
+  const page = await freshApp(ctx, s, { width: 1440, height: 900 });
+  const NAMES = ['Space Invaders [David Winter]', 'Pong (1 jugador)', 'Tetris', 'Blinky', 'Brix', 'UFO'];
+  for (let i = 0; i < NAMES.length; i++) await loadWithButton(page, writeFixture(ctx, NAMES[i] + '.ch8', romDigitos(i, 9 - i)), NAMES[i] + '.ch8');
+  await chooseWithMouse(page, '#keymap', 'custom');   // con los seis selectores de «Personalizado» a la vista
+  for (const [w, h, mobile] of [[1440, 900, false], [768, 1024, false], [360, 640, true]]) {
+    await page.setViewport(w, h, mobile ? 2 : 1, mobile);
+    await page.reload();
+    await sleep(400);
+    await page.ev('window.scrollTo(0, 0)');
+    const m = await page.ev(`(() => {
+      const r = (el) => { const b = el.getBoundingClientRect(); return { t: Math.round(b.top), b: Math.round(b.bottom), l: Math.round(b.left), r: Math.round(b.right), w: Math.round(b.width), h: Math.round(b.height) }; };
+      const over = [];
+      document.querySelectorAll('body *').forEach((el) => { const b = el.getBoundingClientRect(); if (b.width && b.right > innerWidth + 0.5 && getComputedStyle(el).position !== 'fixed') over.push((el.id ? '#' + el.id : el.tagName.toLowerCase() + '.' + el.className).slice(0, 40)); });
+      const keys = Array.from(document.querySelectorAll('#keypad .key')).map((k) => k.getBoundingClientRect());
+      const box = (list) => ({ t: Math.round(Math.min(...list.map((k) => k.top))), b: Math.round(Math.max(...list.map((k) => k.bottom))), l: Math.round(Math.min(...list.map((k) => k.left))), r: Math.round(Math.max(...list.map((k) => k.right))) });
+      const sels = Array.from(document.querySelectorAll('#keymap-keys select')).map((x) => x.getBoundingClientRect());
+      return { iw: innerWidth, ih: innerHeight, sw: document.documentElement.scrollWidth, sy: scrollY, over: over.slice(0, 6),
+        minKey: Math.min(...keys.map((k) => Math.min(k.width, k.height))), keys: box(keys), crt: r(document.getElementById('crt')),
+        chips: document.querySelectorAll('#lib-chips .chip').length, items: document.querySelectorAll('#lib-list .lib-item').length, picker: !document.getElementById('lib-picker').hidden, pickerBox: r(document.getElementById('lib-picker')),
+        controls: r(document.querySelector('.group-controls')), custom: !document.getElementById('keymap-keys').hidden, sels: sels.length ? box(sels) : null, selMin: sels.length ? Math.round(Math.min(...sels.map((x) => x.width))) : 0 };
+    })()`);
+    s.info(`${w}×${h}: pantalla ${m.crt.t}–${m.crt.b} px, keypad ${m.keys.t}–${m.keys.b} px (teclas de ${m.minKey.toFixed(0)} px), «Tuyos:» ${m.chips} chips, «Controles» ${m.controls.w}×${m.controls.h} px`);
+    s.check(m.sw <= m.iw && m.over.length === 0, `${w}px: sin scroll horizontal (${m.sw} ≤ ${m.iw})`, 'se salen: ' + m.over.join(', '));
+    s.check(m.minKey >= 44, `${w}px: teclas del keypad de al menos 44 px (${m.minKey.toFixed(1)})`);
+    s.check(m.picker && m.chips === 5 && m.items === 6 && m.pickerBox.l >= 0 && m.pickerBox.r <= m.iw, `${w}px: «Tuyos:» muestra 5 cartuchos y el estante los 6, dentro del ancho`, JSON.stringify(m));
+    s.check(m.custom && m.controls.w > 0 && m.controls.l >= 0 && m.controls.r <= m.iw && m.sels && m.sels.l >= 0 && m.sels.r <= m.iw && m.selMin >= 40,
+      `${w}px: «Controles» con los seis selectores de «Personalizado» entra en el ancho (${m.controls.l}–${m.controls.r} px)`, JSON.stringify({ controls: m.controls, sels: m.sels, selMin: m.selMin }));
+    if (w === 360) {
+      s.check(m.sy === 0 && m.crt.t >= 0 && m.crt.b <= m.ih && m.keys.t >= m.crt.b && m.keys.b <= m.ih && m.keys.l >= 0 && m.keys.r <= m.iw,
+        `360×640: la pantalla (${m.crt.t}–${m.crt.b}) y el keypad entero (${m.keys.t}–${m.keys.b}) entran en la primera vista, sin scrollear`, JSON.stringify({ crt: m.crt, keys: m.keys }));
+    }
+    await page.shot(`40-diseno-${w}`);
+    await page.ev("document.querySelector('.group-controls').scrollIntoView({ block: 'center' })");
+    await page.shot(`40-diseno-${w}-controles`);
+    await page.ev('window.scrollTo(0, 0)');
+    await page.shot(`40-diseno-${w}-completa`, { fullPage: true });
+  }
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
 });
 
 // ---------------------------------------------------------------- principal
