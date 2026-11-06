@@ -2,9 +2,11 @@
 
 Este manual explica CHIP-8 de punta a punta: de dónde viene, cómo es la máquina por
 dentro, qué hace cada una de sus 35 instrucciones y en qué detalles difieren las
-distintas implementaciones que existieron desde 1977. Está pensado para programadores
-que nunca vieron CHIP-8, pero también sirve como referencia rápida mientras escribís
-un programa o depurás uno ajeno.
+distintas implementaciones que existieron desde 1977. También cubre sus dos extensiones
+más difundidas, SUPER-CHIP y XO-CHIP, que este emulador ejecuta (sección
+[13](#13-variantes-y-extensiones)). Está pensado para programadores que nunca vieron
+CHIP-8, pero también sirve como referencia rápida mientras escribís un programa o
+depurás uno ajeno.
 
 - Si querés aprender haciendo, empezá por el [tutorial](TUTORIAL.md).
 - Si te interesa cómo está construido este emulador (arquitectura, tests, decisiones),
@@ -15,13 +17,19 @@ un programa o depurás uno ajeno.
 ## Convenciones de este manual
 
 - **Hexadecimal.** Los números con prefijo `0x` están en base 16. Las direcciones se
-  escriben con 3 dígitos (`0x200`), los bytes con 2 (`0x2A`) y los opcodes con 4
-  (`0xD01F`). En las tablas a veces se omite el prefijo.
+  escriben con 3 dígitos (`0x200`, o 4 cuando son de los 64 KB de XO-CHIP: `0x8000`),
+  los bytes con 2 (`0x2A`) y los opcodes con 4 (`0xD01F`). En las tablas a veces se
+  omite el prefijo.
 - **"El VIP"** es el RCA COSMAC VIP con el intérprete CHIP-8 original de 1977-1978.
   **"Este emulador"** es `chip8.html`, el programa que acompaña a este manual.
 - Cuando el hardware original y este emulador se comportan distinto, aparece un
   párrafo marcado **Diferencia con el VIP**. Todo lo que dice "este emulador" describe
   exactamente lo que hace el código y lo que verifican los tests del proyecto.
+- **SUPER-CHIP 1.1** es la versión de 1991 para las calculadoras HP-48 que se toma como
+  referencia de SUPER-CHIP, y **Octo** es el entorno de John Earnest donde nació
+  XO-CHIP. Este emulador ejecuta las instrucciones de las dos extensiones como Octo; donde
+  eso se aparta de SUPER-CHIP 1.1, o donde este emulador se aparta de Octo, aparece un
+  párrafo marcado **Diferencia con SUPER-CHIP 1.1** o **Diferencia con Octo**.
 - **"El monitor"** es el panel de depuración de la consola, el que se titula MONITOR:
   registros, desensamblado alrededor del PC, pila y memoria. Cuando se habla del
   sistema operativo en ROM del VIP, que también se llamaba así, se dice **"el programa
@@ -29,14 +37,21 @@ un programa o depurás uno ajeno.
 - Los mnemónicos son los de la referencia de Cowgod (`LD`, `DRW`, `SKP`, ...). Son los
   mismos que acepta el ensamblador del proyecto (`tools/chip8asm.js`, con la sintaxis
   que explica la [sección 4.4 del tutorial](TUTORIAL.md#44-la-sintaxis-completa)) y los
-  que muestra el desensamblador del monitor. Los ejemplos de este manual se ensamblan
-  tal cual, salvo los que empiezan con `; Fragmento`: son pedazos de un programa más
-  grande y usan etiquetas (subrutinas, destinos de salto, tablas) que están en otra
-  parte; el comentario del principio dice cuáles son, y para ensamblarlos tenés que
-  definirlas vos.
+  que muestra el desensamblador del monitor. Las instrucciones de SUPER-CHIP y XO-CHIP
+  usan los mnemónicos del mismo ensamblador (`SCD`, `HIGH`, `PLANE`, ...; sección
+  [13.11](#1311-referencia-de-las-instrucciones-de-super-chip-y-xo-chip)). Los ejemplos
+  de este manual se ensamblan tal cual, salvo los que empiezan con `; Fragmento`: son
+  pedazos de un programa más grande y usan etiquetas (subrutinas, destinos de salto,
+  tablas) que están en otra parte; el comentario del principio dice cuáles son, y para
+  ensamblarlos tenés que definirlas vos.
+- Los ejemplos que usan instrucciones de SUPER-CHIP o XO-CHIP dicen su plataforma en un
+  comentario al principio, `; Plataforma: SUPER-CHIP` o `; Plataforma: XO-CHIP`: es la
+  que tenés que elegir en la consola para correrlos. Los que no dicen nada son de
+  CHIP-8. Un programa de XO-CHIP que pase de `0xFFF` se ensambla con la opción `--xo`.
 - En los opcodes, `X` e `Y` son números de registro (un dígito hex), `N` es un dígito
-  hex, `NN` un byte y `NNN` una dirección de 12 bits. La sección
-  [9](#9-formato-de-las-instrucciones) lo explica en detalle.
+  hex, `NN` un byte y `NNN` una dirección de 12 bits; `NNNN` es una dirección de 16 bits,
+  la que sigue a `F000` en XO-CHIP. La sección [9](#9-formato-de-las-instrucciones) lo
+  explica en detalle.
 
 <!--
 Convención de los bloques de código asm de este manual (la verifica tests/manual.test.js):
@@ -44,8 +59,20 @@ Convención de los bloques de código asm de este manual (la verifica tests/manu
 - Un fragmento empieza con una línea de comentario "; Fragmento: ..." que nombra las
   etiquetas que usa y no define. El test las agrega como etiquetas de relleno y exige que
   así se ensamble; también exige que el fragmento use al menos una etiqueta que no define.
+- Un bloque (fragmento o no) puede declarar su plataforma con una línea de comentario
+  entre las que lo abren: "; Plataforma: SUPER-CHIP" o "; Plataforma: XO-CHIP" (también
+  "; Plataforma: CHIP-8", que es lo que se supone si no dice nada). En un fragmento va
+  después de la línea "; Fragmento: ...". Un bloque de XO-CHIP se ensambla con la opción
+  xochip (puede pasar de 0xFFF). Un bloque que usa instrucciones de SUPER-CHIP o XO-CHIP
+  tiene que declarar una plataforma que las tenga.
 - Un ejemplo que termina en el bucle "fin: JP fin" es un programa completo: el test lo
-  ejecuta con cada perfil y exige que llegue a ese bucle sin que la máquina se detenga.
+  ejecuta en la plataforma que declara, con cada perfil de quirks, y exige que llegue a
+  ese bucle sin que la máquina se detenga ni ignore ninguna instrucción.
+El test también exige que la referencia de 13.11 tenga una ficha por cada instrucción de
+SUPER-CHIP y XO-CHIP del ensamblador y del núcleo (con el opcode que genera el ensamblador
+y la plataforma que dice el núcleo), y compara con el núcleo y con data/archive.json la
+tabla y los dibujos de la fuente grande, la tabla de tonos de 13.10 y los números del
+archivo de la comunidad.
 -->
 
 ## Índice
@@ -208,6 +235,12 @@ de bits y sonido programable (sección [13](#13-variantes-y-extensiones)). Entre
 y 2023 organizó todos los años la **Octojam**, una game jam de CHIP-8 que se hacía en
 octubre; hubo diez ediciones y la de 2023 fue la última.
 
+John Earnest mantiene además el **archivo de la comunidad** (*Chip8 Community Archive*):
+un repositorio con programas de CHIP-8, SUPER-CHIP y XO-CHIP, sus autores y las
+opciones con que se juegan en Octo, todo con licencia CC0. La mayoría son de las
+Octojam. Esta consola lo usa para configurar sola los juegos que reconoce
+([11.11](#1111-ajustes-por-cartucho)).
+
 Buena parte de lo que hoy se sabe con precisión sobre el comportamiento original viene
 de trabajo reciente de la comunidad: el análisis del intérprete del VIP publicado por
 Laurence Scotford, la suite de tests de Timendus, las tablas de variantes de Steffen
@@ -293,6 +326,13 @@ emuladores:
 | Teclado | 16 teclas hexadecimales | [7](#7-teclado-hexadecimal) |
 | Buzzer | Suena mientras ST > 0 | [5.3](#53-el-buzzer) |
 
+Así es CHIP-8, la plataforma de siempre. Las extensiones que este emulador también
+ejecuta cambian algunos números del diagrama: SUPER-CHIP agrega una pantalla de
+**128 × 64**, una fuente grande y 16 **banderas** que viven fuera de la memoria y
+sobreviven al reinicio; XO-CHIP suma **64 KB** de memoria, un segundo plano de dibujo
+(2 bits por píxel, cuatro colores) y un patrón de audio con su tono. La sección
+[13](#13-variantes-y-extensiones) explica cada cosa.
+
 ### 2.2 El ciclo fetch-decode-execute
 
 El intérprete repite siempre lo mismo:
@@ -334,7 +374,7 @@ los modernos, organiza la ejecución en **frames de 1/60 de segundo**:
 ```
 cada 1/60 s (un frame):
     repetir hasta IPF veces:                  ; IPF = instrucciones por frame
-        si la máquina está detenida por un error, o esperando una tecla (FX0A): cortar
+        si la máquina está detenida (por un error o por EXIT) o esperando una tecla (FX0A): cortar
         ejecutar una instrucción (step)
         si el quirk displayWait está activo y la instrucción fue un DXYN: cortar
     bajar los timers una vez (tickTimers)      ; también mientras espera una tecla
@@ -352,7 +392,9 @@ frame completo; los dos dejan la máquina en pausa, y el monitor muestra cómo q
 
 CHIP-8 direcciona **4096 bytes** (4 KB), de `0x000` a `0xFFF`: las direcciones de las
 instrucciones tienen 12 bits. Código y datos comparten la misma memoria (no hay
-separación entre programa y datos), y todo se puede leer y escribir.
+separación entre programa y datos), y todo se puede leer y escribir. SUPER-CHIP se queda
+con esos 4 KB; XO-CHIP llega a **64 KB**, de `0x0000` a `0xFFFF`
+([13.9](#139-la-memoria-de-64-kb-y-la-carga-larga)).
 
 ### 3.1 El mapa de memoria del COSMAC VIP
 
@@ -383,7 +425,7 @@ sistema operativo, en la página `0x81xx` (sección [8](#8-fuente-hexadecimal)).
 ### 3.2 El mapa de memoria de este emulador
 
 En este emulador la pila, los registros y la pantalla son estructuras separadas y no
-ocupan memoria CHIP-8. Los 4 KB quedan así:
+ocupan memoria CHIP-8. Con las plataformas CHIP-8 y SUPER-CHIP, los 4 KB quedan así:
 
 ```
  0xFFF +--------------------------------------+
@@ -393,7 +435,10 @@ ocupan memoria CHIP-8. Los 4 KB quedan así:
        |                                      |   (MAX_ROM_SIZE = 4096 - 0x200)
        |                                      |
  0x200 +--------------------------------------+   PROGRAM_START: acá se copia la ROM
-       |      libre (ceros)                   |   0x0A0 - 0x1FF    y arranca el PC
+       |      libre (ceros)                   |   0x140 - 0x1FF    y arranca el PC
+ 0x140 +--------------------------------------+
+       |      fuente grande (160 bytes)       |   0x0A0 - 0x13F    BIG_FONT_ADDR = 0x0A0
+       |      (con CHIP-8, ceros)             |                    (SUPER-CHIP y XO-CHIP)
  0x0A0 +--------------------------------------+
        |      fuente hexadecimal (80 bytes)   |   0x050 - 0x09F    FONT_ADDR = 0x050
  0x050 +--------------------------------------+
@@ -401,16 +446,27 @@ ocupan memoria CHIP-8. Los 4 KB quedan así:
  0x000 +--------------------------------------+
 ```
 
+Con XO-CHIP, la parte de abajo es igual y la memoria sigue hasta `0xFFFF`: la ROM puede
+ocupar hasta 65.024 bytes. El mapa completo está en
+[13.9](#139-la-memoria-de-64-kb-y-la-carga-larga).
+
 - Al reiniciar (`reset()`), toda la memoria se pone en cero, se copia la fuente a
-  `0x050`, se vuelve a copiar la última ROM cargada a `0x200` y el PC queda en `0x200`.
-- Una ROM puede ocupar **hasta 3584 bytes** (`0x200`–`0xFFF`). Si el archivo es más
-  grande (o está vacío), la consola rechaza la carga con un aviso, arriba de la página,
+  `0x050` (y, con SUPER-CHIP y XO-CHIP, la fuente grande a `0x0A0`), se vuelve a copiar
+  la última ROM cargada a `0x200` y el PC queda en `0x200`. Las banderas de `FX75` no se
+  borran ([13.8](#138-las-banderas-rpl)).
+- Con CHIP-8 y SUPER-CHIP, una ROM puede ocupar **hasta 3584 bytes** (`0x200`–`0xFFF`);
+  con XO-CHIP, **hasta 65.024** (`0x200`–`0xFFFF`). Si cargás una ROM de más de 3584
+  bytes con otra plataforma, la consola pasa sola al perfil XO-CHIP y te avisa por qué
+  ([11.10](#1110-diagnósticos-de-plataforma)). Si el archivo es más grande que 65.024
+  bytes (o está vacío), la consola rechaza la carga con un aviso, arriba de la página,
   y deja en la ranura el cartucho que había.
 - La ROM llega con el botón **Cargar ROM**, arrastrando el archivo sobre la página o
   eligiendo un cartucho incluido: con los botones de la fila **Incluidos:**, debajo de
   la ranura, o desde el estante **Cartuchos incluidos**, debajo de la consola, que
   además los describe. Con un cartucho incluido en la ranura, debajo aparecen sus
-  controles.
+  controles. Las ROMs que cargás desde un archivo quedan además en el estante **Tus
+  cartuchos** (las cinco más recientes, también en la fila **Tuyos:**), listas para
+  volver a jugarlas ([11.11](#1111-ajustes-por-cartucho)).
 - La zona `0x000`–`0x1FF` no está protegida: un programa puede escribirla (por
   ejemplo, pisar la fuente).
 
@@ -464,9 +520,11 @@ modifica a sí mismo vas a ver el código cambiado.
 
 ### 3.6 Direcciones que dan la vuelta
 
-En este emulador el PC se mantiene siempre en 12 bits (`& 0xFFF`) y **toda** lectura o
-escritura de memoria usa la dirección módulo 4096 (`dirección & 0xFFF`). Si `I` vale
-`0x1002`, `FX65` lee desde `0x002`; si el PC pasa de `0xFFE`, sigue en `0x000`.
+En este emulador, con CHIP-8 y SUPER-CHIP, el PC se mantiene siempre en 12 bits
+(`& 0xFFF`) y **toda** lectura o escritura de memoria usa la dirección módulo 4096
+(`dirección & 0xFFF`). Si `I` vale `0x1002`, `FX65` lee desde `0x002`; si el PC pasa de
+`0xFFE`, sigue en `0x000`. Con XO-CHIP pasa lo mismo, pero en 16 bits: todo da la vuelta
+en `0xFFFF` ([13.9](#139-la-memoria-de-64-kb-y-la-carga-larga)).
 
 Un caso típico de depuración: si tu programa "se cae" a memoria vacía, el emulador
 ejecuta cada `0000` como `SYS 0x000`, que no hace nada (ver
@@ -520,18 +578,23 @@ suites de test modernas.
 `I` guarda una dirección de memoria. Lo usan las instrucciones que leen o escriben
 memoria: `DXYN` (lee el sprite), `FX33` (escribe BCD), `FX55`/`FX65` (guardan y cargan
 registros). Se carga con `ANNN` (una dirección de 12 bits), se incrementa con `FX1E`,
-y `FX29` lo apunta al glifo de un dígito de la fuente.
+y `FX29` lo apunta al glifo de un dígito de la fuente. SUPER-CHIP agrega `FX30`, que lo
+apunta a un dígito de la fuente grande; XO-CHIP lo usa también en `5XY2`/`5XY3` y en
+`F002`, y lo carga con 16 bits con `F000 NNNN` (`LD I, LONG`).
 
 En el VIP, `I` era el registro RA del 1802, de 16 bits. En este emulador `I` se guarda
-con 16 bits (`I & 0xFFFF`) y cada acceso a memoria usa `I & 0xFFF`, así que un `I`
-"desbordado" por `FX1E` sigue funcionando, dando la vuelta dentro de los 4 KB.
+con 16 bits (`I & 0xFFFF`) y, con CHIP-8 y SUPER-CHIP, cada acceso a memoria usa
+`I & 0xFFF`, así que un `I` "desbordado" por `FX1E` sigue funcionando, dando la vuelta
+dentro de los 4 KB. Con XO-CHIP, cada acceso usa los 16 bits de `I` y llega a toda la
+memoria de 64 KB.
 
 ### 4.4 PC, el contador de programa
 
 El PC tiene la dirección de la próxima instrucción. El programa no puede leerlo ni
 escribirlo directamente: solo lo modifican los saltos (`1NNN`, `BNNN`), las llamadas y
 retornos (`2NNN`, `00EE`) y los *skips*. Arranca en `0x200`. En el VIP era el registro
-R5 del 1802; en este emulador se mantiene siempre en el rango `0x000`–`0xFFF`.
+R5 del 1802; en este emulador se mantiene siempre en el rango `0x000`–`0xFFF`
+(`0x0000`–`0xFFFF` con XO-CHIP).
 
 ### 4.5 La pila y SP
 
@@ -561,6 +624,11 @@ el recuadro PILA.
 > modernos ofrecen 16. Un programa que use más de 12 niveles no va a funcionar bien en
 > un VIP real; si querés compatibilidad total, no anides más de 12 llamadas.
 
+> **Diferencia con Octo.** El emulador de Octo también se detiene, con un aviso de
+> desbordamiento, cuando un `CALL` encuentra 12 niveles ocupados. La especificación de
+> XO-CHIP pide 16 niveles, con un error al desbordar o al vaciar la pila, y eso hace este
+> emulador en las tres plataformas.
+
 ### 4.6 DT y ST, los timers
 
 Dos registros de 8 bits que el hardware (en el VIP, la rutina de interrupción de video)
@@ -574,17 +642,27 @@ Para depurar (desde el monitor o desde la consola de JavaScript del navegador, c
 
 | Campo | Tipo | Significado |
 |---|---|---|
-| `memory` | `Uint8Array(4096)` | La memoria CHIP-8 |
+| `platform` | texto | La plataforma: `'chip8'`, `'schip'` o `'xochip'` (se cambia con `setPlatform`; [13.3](#133-las-plataformas-de-este-emulador)) |
+| `memory` | `Uint8Array` | La memoria: 4096 bytes (65.536 con XO-CHIP) |
 | `V` | `Uint8Array(16)` | V0–VF |
 | `I` | número | Registro índice (16 bits) |
-| `pc` | número | Contador de programa (12 bits) |
+| `pc` | número | Contador de programa (12 bits; 16 con XO-CHIP) |
 | `stack`, `sp` | `Uint16Array(16)`, número | Pila y cantidad de elementos |
 | `delayTimer`, `soundTimer` | número 0–255 | DT y ST |
-| `display` | `Uint8Array(2048)` | Pantalla, fila por fila: índice = `y * 64 + x`, valores 0 o 1 |
+| `display` | `Uint8Array` | Pantalla, fila por fila: índice = `y * displayWidth + x`. Cada valor es una máscara de planos: 0 o 1 (de 0 a 3 con XO-CHIP; [13.6](#136-planos-y-colores)) |
+| `displayWidth`, `displayHeight`, `hires` | números, booleano | La resolución actual: 64 × 32 o 128 × 64 ([13.5](#135-alta-y-baja-resolución)) |
+| `planes` | número 0–3 | Los planos elegidos con `FN01` (siempre 1 fuera de XO-CHIP) |
+| `flags` | `Uint8Array(16)` | Las banderas RPL de `FX75`/`FX85` ([13.8](#138-las-banderas-rpl)) |
+| `audioPattern`, `audioPatternSet`, `pitch` | `Uint8Array(16)`, booleano, número | El patrón de audio de XO-CHIP, si `F002` ya lo cargó desde el último reinicio, y el tono ([13.10](#1310-el-audio-de-xo-chip-patrón-y-tono)) |
 | `keys` | `Uint8Array(16)` | 1 = tecla apretada |
 | `quirks` | objeto | Los seis quirks (sección [11](#11-quirks)) |
 | `waitingForKey` | booleano | `true` mientras un `FX0A` espera una tecla |
-| `halted`, `error` | booleano, texto | Máquina detenida y el mensaje de error |
+| `halted`, `error`, `errorInfo` | booleano, texto, objeto | Máquina detenida, el mensaje de error y sus datos (`kind`, `opcode`, `addr` y, en un error de plataforma, `needs`) |
+| `exited` | booleano | `true` si la máquina se detuvo por `00FD`: el programa terminó, sin error |
+| `hint` | objeto o `null` | La primera instrucción de otra plataforma que se ignoró desde el último reinicio ([11.10](#1110-diagnósticos-de-plataforma)) |
+
+El arreglo `display` se reemplaza por otro cuando cambia la resolución: si lo mirás desde
+la consola de JavaScript, volvé a leer `cpu.display` en lugar de guardarlo.
 
 ---
 
@@ -637,7 +715,8 @@ bucle:  LD   V0, DT
 ### 5.3 El buzzer
 
 Mientras ST es mayor que 0, suena un tono. CHIP-8 no tiene control de frecuencia ni de
-volumen: hay un solo sonido, encendido o apagado.
+volumen: hay un solo sonido, encendido o apagado. (XO-CHIP sí deja elegir cómo suena:
+[13.10](#1310-el-audio-de-xo-chip-patrón-y-tono).)
 
 En el VIP, la rutina de interrupción encendía la línea Q del 1802 mientras el timer de
 sonido no fuera 0, y la línea Q activaba un circuito generador de tono conectado a un
@@ -651,8 +730,10 @@ decide quien escribe el intérprete.
 > el beep siempre que ST sea mayor que 0, así que `ST = 1` produce un pitido muy corto
 > (1/60 s).
 
-En este emulador el beep es una **onda cuadrada de 440 Hz generada con Web Audio**, y
-mientras suena se prende la luz SONIDO de la consola. En el grupo «Pantalla y sonido»
+En este emulador el beep es una **onda cuadrada de 440 Hz generada con Web Audio**,
+salvo que un programa de XO-CHIP haya cargado un patrón de audio: desde ese momento suena
+el patrón ([13.10](#1310-el-audio-de-xo-chip-patrón-y-tono)). Mientras suena se prende la
+luz SONIDO de la consola. En el grupo «Pantalla y sonido»
 hay un interruptor **Silencio** y un control de **Volumen**. Los navegadores no permiten
 reproducir sonido hasta que el usuario interactúa con la página, así que el beep se
 habilita con el primer clic o la primera tecla.
@@ -694,16 +775,24 @@ hacia abajo.
  y = 31 +----------------------------------------------------------------+
 ```
 
+Esa es la pantalla de CHIP-8. SUPER-CHIP y XO-CHIP agregan un modo de alta resolución de
+**128 × 64**, y XO-CHIP, un segundo plano de dibujo que da cuatro colores: secciones
+[13.5](#135-alta-y-baja-resolución) y [13.6](#136-planos-y-colores).
+
 Los colores son una decisión de presentación: el VIP mostraba puntos blancos sobre
 fondo negro. Este emulador escala la imagen por un número entero, así que cada píxel
-CHIP-8 es un cuadrado nítido del mismo tamaño que los demás, y en el grupo «Pantalla y
-sonido» ofrece cuatro paletas (verde fósforo, ámbar, blanco y LCD) y dos **modos de
-pantalla**:
+CHIP-8 es un cuadrado nítido del mismo tamaño que los demás. En el grupo «Pantalla y
+sonido» ofrece cuatro paletas (verde fósforo, ámbar, blanco y LCD), una
+**Personalizada**, en la que elegís los colores vos, y la **Del cartucho**, que aparece
+cuando un juego trae sus propios colores ([11.11](#1111-ajustes-por-cartucho)). Cada
+paleta tiene cuatro colores: el fondo, el de los píxeles encendidos (el plano 1) y dos
+que solo usa XO-CHIP, el del plano 2 y el de los píxeles encendidos en los dos planos.
+También ofrece dos **modos de pantalla**:
 
 | Modo | Cómo se ve |
 |---|---|
 | **Tubo CRT** (por defecto) | Imita una pantalla de tubo: resplandor alrededor de los píxeles, estela del fósforo (la *persistencia* de [6.5](#65-el-parpadeo)), líneas de barrido (*scanlines*), viñeta y reflejo del vidrio. La persistencia y las scanlines tienen su propio interruptor. Con la paleta LCD no hay resplandor y, en lugar de scanlines, se ve la grilla de celdas de una pantalla de cristal líquido |
-| **Píxeles puros** | Píxeles cuadrados y nítidos, con exactamente dos colores (el fondo y el de los píxeles encendidos): sin estela, resplandor, scanlines, viñeta ni reflejo. Cada cuadro muestra exactamente lo que hay en la pantalla de la máquina |
+| **Píxeles puros** | Píxeles cuadrados y nítidos, solo con los colores de la paleta (dos, o hasta cuatro con XO-CHIP): sin estela, resplandor, scanlines, viñeta ni reflejo. Cada cuadro muestra exactamente lo que hay en la pantalla de la máquina |
 
 En **Píxeles puros** los interruptores Scanlines y Persistencia quedan deshabilitados,
 pero guardan lo que elegiste para cuando vuelvas al tubo. El modo es solo de
@@ -714,7 +803,8 @@ presentación: no cambia nada de lo que ve el programa.
 La única forma de dibujar es `DXYN` (`DRW VX, VY, N`): dibuja un **sprite** de
 **8 píxeles de ancho** y **N filas de alto** (N de 1 a 15), leyendo N bytes de memoria
 a partir de la dirección `I`. Cada byte es una fila, y el bit más significativo es el
-píxel de la izquierda.
+píxel de la izquierda. (Con N = 0, SUPER-CHIP y XO-CHIP dibujan un sprite de 16 × 16:
+ficha [DXY0](#dxy0--drw-vx-vy-0).)
 
 ```
  dirección  byte   bits        píxeles
@@ -768,7 +858,8 @@ Hay que distinguir dos cosas:
 
 1. **La posición inicial siempre da la vuelta.** Las coordenadas se toman módulo el
    tamaño de la pantalla: `x0 = VX % 64`, `y0 = VY % 32`. Dibujar en `x = 70` es lo
-   mismo que dibujar en `x = 6`, y en `y = 32` es lo mismo que en `y = 0`.
+   mismo que dibujar en `x = 6`, y en `y = 32` es lo mismo que en `y = 0`. (En alta
+   resolución, módulo 128 y 64.)
 2. **Lo que se sale por la derecha o por abajo depende del quirk `clipping`.** Si un
    sprite empieza cerca del borde, los píxeles que quedan afuera se **recortan**
    (*clipping*, lo que hacía el VIP) o **aparecen del otro lado** (*wrapping*, lo que
@@ -974,7 +1065,8 @@ del dígito bajo de VX, y después se lo dibuja con `DRW VX, VY, 5`.
 En **este emulador** la fuente está en la RAM, en `0x050`–`0x09F` (`FONT_ADDR`). Es la
 ubicación que se volvió costumbre entre los emuladores modernos; en principio podría
 estar en cualquier lugar de `0x000`–`0x1FF`, que ningún programa debería usar. Como
-está en RAM, un programa podría modificarla.
+está en RAM, un programa podría modificarla. Con SUPER-CHIP y XO-CHIP hay además una
+fuente grande, de 8 × 10, en `0x0A0`–`0x13F` ([13.7](#137-la-fuente-grande)).
 
 > **Diferencia con el VIP.** En el VIP los dígitos estaban en la **ROM del sistema
 > operativo**, en la página `0x81xx`. `FX29` usaba una tabla de 16 bytes en
@@ -982,11 +1074,15 @@ está en RAM, un programa podría modificarla.
 > ROM, fuera de los 4 KB que un programa CHIP-8 puede direccionar con `ANNN`. Un
 > programa que suponga que la fuente está en una dirección fija no es portable.
 
+> **Diferencia con Octo.** Octo guarda la fuente chica en `0x000` y la grande a
+> continuación, en `0x050`. Otra razón para no suponer direcciones fijas: pedile siempre
+> la dirección del glifo al intérprete, con `FX29` (y `FX30` para la grande).
+
 ### 8.2 Los 16 glifos
 
 Esta es la fuente estándar que usan este emulador y la mayoría de los modernos (la
-misma que publica la referencia de Cowgod). La columna izquierda de cada glifo es el
-byte y la derecha el dibujo (`#` = píxel encendido):
+misma que publica la referencia de Cowgod y la que trae Octo). La columna izquierda de
+cada glifo es el byte y la derecha el dibujo (`#` = píxel encendido):
 
 ```
       0            1            2            3
@@ -1041,7 +1137,8 @@ I ← 0x050 + (V[X] & 0xF) × 5
 ```
 
 Solo importa el dígito hexadecimal bajo de VX: si V3 vale `0x2B`, `LD F, V3` apunta al
-glifo `B` (`0x087`).
+glifo `B` (`0x087`). La fuente grande tiene su propia instrucción, `FX30`, que hace lo
+mismo con glifos de 10 bytes ([FX30](#fx30--ld-hf-vx)).
 
 ### 8.4 La fuente original del VIP
 
@@ -1091,30 +1188,31 @@ instrucción y los demás son operandos:
 | `N` | 3–0 | nibble | Un número de 0 a 15 (filas de un sprite, o subtipo) |
 | `NN` | 7–0 | byte | Una constante de 0 a 255 (el manual del VIP la llama `KK`) |
 | `NNN` | 11–0 | 12 bits | Una dirección de memoria (el manual del VIP la llama `MMM`) |
+| `NNNN` | la palabra siguiente | 16 bits | Solo en `F000 NNNN` de XO-CHIP, la única instrucción de 4 bytes: una dirección de 16 bits |
 
 Ejemplo: en `0xD01F` el tipo es `D` (dibujar), `X = 0`, `Y = 1` y `N = 0xF` = 15 filas:
 `DRW V0, V1, 15`.
 
 ### 9.2 Decodificación por el primer nibble
 
-| Primer nibble | Instrucciones | Cómo se distinguen |
-|:---:|---|---|
-| `0` | `00E0`, `00EE`, `0NNN` | Por el opcode completo |
-| `1` | `1NNN` | — |
-| `2` | `2NNN` | — |
-| `3` | `3XNN` | — |
-| `4` | `4XNN` | — |
-| `5` | `5XY0` | El último nibble debe ser 0 |
-| `6` | `6XNN` | — |
-| `7` | `7XNN` | — |
-| `8` | `8XY0`–`8XY7`, `8XYE` | Por el último nibble (N) |
-| `9` | `9XY0` | El último nibble debe ser 0 |
-| `A` | `ANNN` | — |
-| `B` | `BNNN` | — |
-| `C` | `CXNN` | — |
-| `D` | `DXYN` | — |
-| `E` | `EX9E`, `EXA1` | Por el último byte (NN) |
-| `F` | `FX07`, `FX0A`, `FX15`, `FX18`, `FX1E`, `FX29`, `FX33`, `FX55`, `FX65` | Por el último byte (NN) |
+| Primer nibble | Instrucciones | Cómo se distinguen | Además, en SUPER-CHIP y XO-CHIP |
+|:---:|---|---|---|
+| `0` | `00E0`, `00EE`, `0NNN` | Por el opcode completo | `00CN` y `00FB` a `00FF`; en XO-CHIP, también `00DN` |
+| `1` | `1NNN` | — | — |
+| `2` | `2NNN` | — | — |
+| `3` | `3XNN` | — | — |
+| `4` | `4XNN` | — | — |
+| `5` | `5XY0` | El último nibble debe ser 0 | En XO-CHIP, `5XY2` y `5XY3` |
+| `6` | `6XNN` | — | — |
+| `7` | `7XNN` | — | — |
+| `8` | `8XY0`–`8XY7`, `8XYE` | Por el último nibble (N) | — |
+| `9` | `9XY0` | El último nibble debe ser 0 | — |
+| `A` | `ANNN` | — | — |
+| `B` | `BNNN` | — | — |
+| `C` | `CXNN` | — | — |
+| `D` | `DXYN` | — | Con N = 0, `DXY0` dibuja 16 × 16 |
+| `E` | `EX9E`, `EXA1` | Por el último byte (NN) | — |
+| `F` | `FX07`, `FX0A`, `FX15`, `FX18`, `FX1E`, `FX29`, `FX33`, `FX55`, `FX65` | Por el último byte (NN) | `FX30`, `FX75`, `FX85`; en XO-CHIP, también `F000 NNNN`, `FN01`, `F002` y `FX3A` |
 
 En código, la decodificación se reduce a separar los campos con desplazamientos y
 máscaras y hacer un `switch` sobre el primer nibble:
@@ -1136,9 +1234,17 @@ switch (op >> 12) {
 
 ### 9.3 Opcodes inválidos
 
-Hay combinaciones que no corresponden a ninguna instrucción: `5XYN` y `9XYN` con N
-distinto de 0; `8XY8` a `8XYD` y `8XYF`; cualquier `EX??` que no sea `9E` o `A1`; y
-cualquier `FX??` fuera de los nueve de la tabla.
+En CHIP-8 hay combinaciones que no corresponden a ninguna instrucción: `5XYN` y `9XYN`
+con N distinto de 0; `8XY8` a `8XYD` y `8XYF`; cualquier `EX??` que no sea `9E` o `A1`;
+y cualquier `FX??` fuera de los nueve de la tabla.
+
+SUPER-CHIP y XO-CHIP les dan sentido a algunas (las de la última columna de la tabla
+anterior). Las demás siguen siendo inválidas en las tres plataformas, y también estas,
+que se parecen a instrucciones de XO-CHIP pero no lo son: `5XYN` con N distinto de 0, 2
+y 3; `FN01` con N mayor que 3; y `FX00` y `FX02` con X distinto de 0 (solo existen
+`F000` y `F002`). Una instrucción de SUPER-CHIP o XO-CHIP en una plataforma que no la
+tiene es otro caso: la consola la ignora con un aviso o detiene la máquina con un error
+que dice qué plataforma hace falta ([11.10](#1110-diagnósticos-de-plataforma)).
 
 En **este emulador**, un opcode inválido detiene la máquina: `halted` pasa a `true`, el
 PC queda apuntando **a la instrucción culpable** y `error` guarda un mensaje en
@@ -1146,7 +1252,9 @@ castellano con el opcode y su dirección en hexadecimal. La consola muestra ese 
 sobre la pantalla y en el monitor, y lo anuncia una sola vez en la línea de estado
 («Error: ...»). Lo mismo pasa con un `CALL` con la pila llena o un `RET` con la pila
 vacía. El desensamblador muestra estos opcodes como `DW 0x5121` (una palabra de datos),
-y el ensamblador acepta esa misma sintaxis.
+y el ensamblador acepta esa misma sintaxis. El desensamblador del monitor usa además los
+mnemónicos de la plataforma elegida: con CHIP-8, `F130` se ve como `DW 0xF130`; con
+SUPER-CHIP, como `LD HF, V1`.
 
 Para seguir hay que reiniciar (**Reiniciar** o Retroceso): la ROM vuelve a empezar en
 `0x200` y se respeta cómo venías ejecutándola justo antes del error. Si la máquina
@@ -1218,6 +1326,10 @@ En la columna VF, "—" significa que la instrucción no lo toca como flag (si X
 VF igual cambia porque es el registro destino). Los "0" de `8XY1`–`8XY3` valen solo con
 `vfReset` activo.
 
+Las 17 instrucciones que agregan SUPER-CHIP y XO-CHIP tienen su propia tabla y sus
+fichas, con este mismo formato, en la sección
+[13.11](#1311-referencia-de-las-instrucciones-de-super-chip-y-xo-chip).
+
 ### 10.3 Cómo leer cada ficha
 
 Cada instrucción tiene: su opcode y mnemónico, una línea con su efecto sobre VF y el
@@ -1225,7 +1337,13 @@ quirk relacionado, un **pseudocódigo** preciso (`←` es asignación; `&`, `|`,
 y `<<` son las operaciones de bits habituales), una explicación, las diferencias con el
 VIP cuando las hay, y un ejemplo en la sintaxis del ensamblador del proyecto. En los
 pseudocódigos, "saltear" significa `PC ← PC + 2`; como el PC ya avanzó al leer la
-instrucción, eso hace que la siguiente no se ejecute.
+instrucción, eso hace que la siguiente no se ejecute. Con XO-CHIP, saltear es saltear
+la instrucción siguiente **entera**: si es `F000 NNNN`, son 4 bytes
+([13.9](#139-la-memoria-de-64-kb-y-la-carga-larga)). Los pseudocódigos usan la pantalla
+de 64 × 32 y la memoria de 4 KB de CHIP-8; qué cambia con las otras plataformas lo
+explican [13.5](#135-alta-y-baja-resolución) (la pantalla de 128 × 64),
+[13.6](#136-planos-y-colores) (los planos) y
+[13.9](#139-la-memoria-de-64-kb-y-la-carga-larga) (las direcciones de 16 bits).
 
 ---
 
@@ -1253,8 +1371,15 @@ son `CLS` y `RET`). Dos consecuencias prácticas:
 
 - `0000` es `SYS 0x000`: la memoria vacía se ejecuta como una serie de instrucciones
   que no hacen nada.
-- Varias instrucciones de SUPER-CHIP (`00FF`, `00FE`, `00FB`, `00FC`, `00FD`, `00CN`)
-  caen en este grupo, así que acá se ignoran (ver [13](#13-variantes-y-extensiones)).
+- Las instrucciones de pantalla de SUPER-CHIP y XO-CHIP (`00CN`, `00DN` y `00FB` a
+  `00FF`) también tienen la forma `0NNN`. Con una plataforma que las tiene, se ejecutan
+  ([13.11](#1311-referencia-de-las-instrucciones-de-super-chip-y-xo-chip)); con una que
+  no, se ignoran como cualquier `0NNN`, pero la consola avisa la primera vez
+  ([11.10](#1110-diagnósticos-de-plataforma)).
+
+> **Diferencia con Octo.** En Octo, `0000` termina el programa y cualquier otro `0NNN`
+> lo detiene con el aviso de que el código máquina no está soportado. Acá no hacen nada,
+> en ninguna plataforma.
 
 ```asm
         SYS  0x300          ; en un VIP ejecutaría código 1802 en 0x300; acá no hace nada
@@ -1272,8 +1397,10 @@ son `CLS` y `RET`). Dos consecuencias prácticas:
 para cada píxel (x, y):  display[y][x] ← 0
 ```
 
-Apaga los 2048 píxeles. No toca registros, memoria ni timers. Es habitual al empezar un
-programa o al pasar de una pantalla a otra.
+Apaga los 2048 píxeles (los 8192 en la alta resolución de SUPER-CHIP y XO-CHIP). No toca
+registros, memoria ni timers. Es habitual al empezar un programa o al pasar de una
+pantalla a otra. Con XO-CHIP borra solo los planos elegidos con `PLANE`
+([13.6](#136-planos-y-colores)).
 
 ```asm
         CLS                 ; empezar con la pantalla en negro
@@ -1379,7 +1506,8 @@ CHIP-8 no tiene saltos condicionales: tiene **skips** condicionales. La forma de
 escribir un "si ... entonces saltar" es un skip seguido de un `JP`. Como el skip se
 saltea la instrucción siguiente cuando su condición se cumple, un skip seguido de `JP`
 salta cuando la condición **no** se cumple: conviene leerlo como "si VX = NN, no hagas
-lo que sigue".
+lo que sigue". Con XO-CHIP, si lo que sigue es `F000 NNNN`, la saltea entera (4 bytes);
+lo mismo vale para los otros cinco skips.
 
 ```asm
         LD   V0, 0
@@ -1420,8 +1548,9 @@ registro tiene cierto valor.
 si V[X] = V[Y]:  PC ← PC + 2
 ```
 
-Igual que `3XNN`, pero compara dos registros. El último nibble tiene que ser 0: en este
-emulador `5XY1`–`5XYF` son opcodes inválidos.
+Igual que `3XNN`, pero compara dos registros. El último nibble tiene que ser 0: `5XY2` y
+`5XY3` son `SAVE` y `LOAD` de XO-CHIP ([5XY2](#5xy2--save-vx-vy)), y los demás (`5XY1` y
+`5XY4`–`5XYF`) son opcodes inválidos en las tres plataformas.
 
 ```asm
 ; Fragmento: seguir y gano son etiquetas de tu programa.
@@ -1723,7 +1852,9 @@ emulador `9XY1`–`9XYF` son opcodes inválidos.
 I ← NNN
 ```
 
-Casi siempre se usa con una etiqueta: el ensamblador calcula la dirección.
+Casi siempre se usa con una etiqueta: el ensamblador calcula la dirección. Con XO-CHIP,
+las direcciones de más de 12 bits se cargan con `LD I, LONG`
+([F000 NNNN](#f000-nnnn--ld-i-long-nnnn)).
 
 ```asm
         LD   I, nave        ; I apunta a los bytes del sprite
@@ -1743,6 +1874,7 @@ nave:   DB   0b00011000, 0b00111100, 0b11111111
 ```
 si quirks.jumping:  PC ← (NNN + V[X]) & 0xFFF    ; BXNN: X = primer dígito de NNN
 si no:              PC ← (NNN + V[0]) & 0xFFF    ; COSMAC VIP (por defecto)
+; con XO-CHIP es & 0xFFFF: el salto puede pasar de 0xFFF (hasta 0x10FE)
 ```
 
 El único salto calculado de CHIP-8. Sirve para **tablas de saltos**: según el valor de
@@ -1838,8 +1970,13 @@ La instrucción más importante de CHIP-8, explicada en detalle en la sección
 - VF indica si algún píxel encendido se apagó.
 - Las coordenadas iniciales dan la vuelta; lo que sobresale se recorta o da la vuelta
   según `clipping`. Los píxeles recortados no cuentan como colisión.
-- Con `N = 0` este emulador no dibuja nada y pone VF en 0. (En SUPER-CHIP, `DXY0`
-  dibuja un sprite de 16×16; eso no está implementado acá.)
+- Con `N = 0`, en la plataforma CHIP-8 no dibuja nada, pone VF en 0 y la consola avisa
+  que es una instrucción de SUPER-CHIP ([11.10](#1110-diagnósticos-de-plataforma)); con
+  SUPER-CHIP y XO-CHIP dibuja un sprite de 16×16 (ficha [DXY0](#dxy0--drw-vx-vy-0)).
+- Con SUPER-CHIP y XO-CHIP, el pseudocódigo es el mismo con el ancho y el alto de la
+  resolución actual en lugar de 64 y 32 ([13.5](#135-alta-y-baja-resolución)), y con
+  XO-CHIP se repite para cada plano elegido, cada uno con sus N bytes
+  ([13.6](#136-planos-y-colores)).
 - Con `displayWait` activo (por defecto), después de un `DXYN` termina el frame: se
   ejecuta como máximo un dibujo cada 1/60 s, imitando la espera del VIP (sección
   [12.4](#124-la-espera-del-vblank)).
@@ -2029,7 +2166,8 @@ I ← 0x050 + (V[X] & 0xF) × 5              ; en este emulador
 ```
 
 Apunta I al glifo de 5 filas del dígito hexadecimal bajo de VX, listo para
-`DRW VX, VY, 5` (sección [8](#8-fuente-hexadecimal)).
+`DRW VX, VY, 5` (sección [8](#8-fuente-hexadecimal)). Para la fuente grande de
+SUPER-CHIP y XO-CHIP está [`FX30`](#fx30--ld-hf-vx).
 
 ```asm
         LD   V2, 0x0A
@@ -2085,7 +2223,7 @@ bcd:    DB   0, 0, 0
 
 ```
 para i de 0 a X:
-    memoria[(I + i) & 0xFFF] ← V[i]
+    memoria[(I + i) & 0xFFF] ← V[i]       ; & 0xFFFF con XO-CHIP
 si quirks.memory:  I ← I + X + 1          ; COSMAC VIP (por defecto)
 ```
 
@@ -2096,7 +2234,8 @@ registro I en cada byte, así que al terminar I quedaba apuntando al byte siguie
 dejaban I en I + X, y SUPER-CHIP 1.1 no lo modificaba.
 
 **Consejo de portabilidad:** volvé a cargar I con `ANNN` antes de cada `FX55`/`FX65`
-y no dependas de dónde queda después.
+y no dependas de dónde queda después. Con XO-CHIP también podés usar `SAVE` y `LOAD`
+([5XY2](#5xy2--save-vx-vy)), que nunca mueven I, con cualquier perfil.
 
 ```asm
 ; Guardar V0..V2 en "copia" y recuperarlos más tarde
@@ -2119,14 +2258,15 @@ copia:  DB   0, 0, 0
 
 ```
 para i de 0 a X:
-    V[i] ← memoria[(I + i) & 0xFFF]
+    V[i] ← memoria[(I + i) & 0xFFF]       ; & 0xFFFF con XO-CHIP
 si quirks.memory:  I ← I + X + 1          ; COSMAC VIP (por defecto)
 ```
 
 La operación inversa de `FX55`. Muy usada para leer registros de una tabla (por
 ejemplo, las coordenadas de un nivel) o los tres dígitos que deja `FX33`. Mismo quirk y
-mismo consejo que `FX55`. Cualquier `FX??` que no sea uno de los nueve de la tabla es
-un opcode inválido.
+mismo consejo que `FX55`. En CHIP-8, cualquier `FX??` que no sea uno de los nueve de la
+tabla es un opcode inválido; SUPER-CHIP y XO-CHIP agregan los de la sección
+[13.11](#1311-referencia-de-las-instrucciones-de-super-chip-y-xo-chip).
 
 ```asm
 ; Cargar posición inicial (V0 = x, V1 = y) desde una tabla
@@ -2159,7 +2299,9 @@ escribió el programa. Los quirks tienen orígenes distintos:
 
 Este emulador expone seis quirks. Cada uno es un interruptor que se lee en cada
 instrucción, así que los cambios se aplican en vivo. Los valores por defecto son los del
-**COSMAC VIP**.
+**COSMAC VIP**. Los quirks son independientes de la plataforma: cualquier combinación
+vale con CHIP-8, SUPER-CHIP o XO-CHIP
+([11.9](#119-cómo-elegir-la-configuración-en-este-emulador)).
 
 | Identificador | Activado significa... | Instrucciones afectadas |
 |---|---|---|
@@ -2199,8 +2341,9 @@ cada byte (Scotford), así que I termina después del bloque. El manual lo docum
 "I = I + X + 1".
 
 **Después.** CHIP-48 y SUPER-CHIP 1.0 dejaban I en `I + X` (uno menos); SUPER-CHIP 1.1,
-la versión más difundida, no modificaba I. XO-CHIP volvió al comportamiento del VIP y
-agregó instrucciones nuevas (`5XY2`/`5XY3`) que nunca tocan I. Este emulador modela los
+la versión más difundida, no modificaba I. XO-CHIP (y Octo, por defecto) volvió al
+comportamiento del VIP y agregó instrucciones nuevas (`5XY2`/`5XY3`) que nunca tocan I.
+Este emulador modela los
 dos casos más comunes (avanzar X + 1 o no tocar I); la variante `I + X` de CHIP-48 no
 está disponible.
 
@@ -2267,16 +2410,20 @@ sprites del lado contrario o detectar colisiones falsas contra lo que haya ahí.
 ### 11.7 displayWait: esperar el vblank
 
 **Qué controla.** Si está activo, `DXYN` termina el frame actual: se dibuja como máximo
-un sprite cada 1/60 s.
+un sprite cada 1/60 s. En este emulador vale para todos los dibujos, también los de
+16 × 16 (`DXY0`) y los de alta resolución.
 
 **En el VIP.** La rutina de dibujo espera la próxima interrupción de video antes de
 escribir en la memoria de pantalla, para que el chip de video nunca muestre un sprite a
 medio dibujar (Scotford). En la práctica eso limita la velocidad a unos 60 sprites por
 segundo (Timendus) y, según Gulrak, a veces el VIP necesita incluso dos cuadros.
 
-**Después.** Los intérpretes de la HP-48 y los modernos en general no esperan (Gulrak
-señala que los de la HP-48 sí esperaban el cuadro siguiente en el modo de 64×32; las
-fuentes no coinciden del todo). XO-CHIP no espera.
+**Después.** Los intérpretes modernos en general no esperan, y XO-CHIP (Octo) tampoco.
+Con SUPER-CHIP hay un matiz: según la suite de Timendus, que Gulrak probó en dos
+calculadoras HP-48, SUPER-CHIP 1.0 y 1.1 esperan el cuadro siguiente en baja resolución
+(64×32), como el VIP, y no esperan en alta. Los intérpretes que la suite llama de
+SUPER-CHIP "moderno" no esperan nunca, y así lo modelan también la `chip-8-database` y
+el perfil SUPER-CHIP de este emulador.
 
 **Impacto.** En la velocidad, no en la lógica. Sin la espera, algunos programas del VIP
 corren demasiado rápido, porque su ritmo dependía implícitamente de ella. Con la espera,
@@ -2285,18 +2432,39 @@ los programas modernos que dibujan muchos sprites por paso se vuelven lentísimo
 
 ### 11.8 Tabla comparativa
 
-| Quirk | COSMAC VIP | CHIP-48 | SUPER-CHIP 1.1 | XO-CHIP |
-|---|---|---|---|---|
-| `vfReset` (AND/OR/XOR ponen VF = 0) | sí | no | no | no |
-| `memory` (I después de FX55/FX65) | I + X + 1 | I + X | sin cambios | I + X + 1 |
-| `shifting` (8XY6/8XYE sobre VX) | no: usan VY | sí | sí | no: usan VY |
-| `jumping` (BXNN) | no: usa V0 | sí | sí | no: usa V0 |
-| `clipping` | recorta | recorta | recorta | da la vuelta |
-| `displayWait` | sí | no (ver 11.7) | no (ver 11.7) | no |
+| Quirk | COSMAC VIP | CHIP-48 | SUPER-CHIP 1.1 | XO-CHIP | Octo (por defecto) |
+|---|---|---|---|---|---|
+| `vfReset` (AND/OR/XOR ponen VF = 0) | sí | no | no | no | no |
+| `memory` (I después de FX55/FX65) | I + X + 1 | I + X | sin cambios | I + X + 1 | I + X + 1 |
+| `shifting` (8XY6/8XYE sobre VX) | no: usan VY | sí | sí | no: usan VY | no: usan VY |
+| `jumping` (BXNN) | no: usa V0 | sí | sí | no: usa V0 | no: usa V0 |
+| `clipping` | recorta | recorta | recorta | da la vuelta | da la vuelta |
+| `displayWait` | sí | no (ver 11.7) | no (ver 11.7) | no | no |
+
+La columna de Octo son los valores con que arranca su emulador (`js/emulator.js`): sus
+siete opciones de quirks empiezan apagadas. Coinciden con la columna de XO-CHIP, porque
+XO-CHIP se definió en Octo, y son exactamente los quirks del perfil XO-CHIP de este
+emulador. Importan aunque el programa no use nada de XO-CHIP: casi todos los juegos
+modernos se hicieron y se probaron en Octo, y en el archivo de la comunidad
+([11.11](#1111-ajustes-por-cartucho)) 96 de los 104 programas usan esa combinación, sean
+de CHIP-8, de SUPER-CHIP o de XO-CHIP.
+
+Las opciones de Octo tienen otros nombres; esta es la correspondencia (la misma que usa
+`tools/archive.js` para pasar los ajustes del archivo a la consola):
+
+| Opción de Octo | Quirk de este emulador |
+|---|---|
+| `logicQuirks` | `vfReset` |
+| `loadStoreQuirks` | `memory`, al revés: en Octo, `true` quiere decir que I **no** se mueve |
+| `shiftQuirks` | `shifting` |
+| `jumpQuirks` | `jumping` |
+| `clipQuirks` | `clipping` |
+| `vBlankQuirks` | `displayWait` |
+| `vfOrderQuirks` | No existe acá: este emulador escribe VF siempre al final ([4.2](#42-vf-el-registro-de-flags)), que es lo que hace Octo con la opción apagada |
 
 Y los perfiles que ofrece este emulador:
 
-| Quirk | Perfil COSMAC VIP (por defecto) | Perfil SUPER-CHIP | Perfil XO-CHIP |
+| | Perfil COSMAC VIP (por defecto) | Perfil SUPER-CHIP | Perfil XO-CHIP |
 |---|:---:|:---:|:---:|
 | `vfReset` | activado | — | — |
 | `memory` | activado | — | activado |
@@ -2304,54 +2472,169 @@ Y los perfiles que ofrece este emulador:
 | `jumping` | — | activado | — |
 | `clipping` | activado | activado | — |
 | `displayWait` | activado | — | — |
+| **Plataforma** | CHIP-8 | SUPER-CHIP | XO-CHIP |
 
 El perfil SUPER-CHIP reproduce los quirks de SUPER-CHIP 1.1 tal como los modelan las
-suites modernas, pero **no** agrega sus instrucciones nuevas (sección
+suites modernas, y el perfil XO-CHIP, los de Octo. Cada perfil elige además su
+plataforma, que es la que trae las instrucciones nuevas (sección
 [13](#13-variantes-y-extensiones)).
 
 ### 11.9 Cómo elegir la configuración en este emulador
 
-En el grupo **Quirks** del panel de control hay un selector **Perfil** (**COSMAC VIP**,
-**SUPER-CHIP**, **XO-CHIP** y **Personalizado**) y seis interruptores DIP, uno por
-quirk; al pasar el mouse por uno, o al llegar a él con Tab, aparece qué hace. Elegir un
-perfil mueve los seis interruptores; si después tocás alguno y la combinación ya no
-coincide con ningún perfil, el selector pasa solo a "Personalizado" (y si coincide con
-otro perfil, muestra ese). Los cambios se aplican en el momento, sin reiniciar, aunque
-si el programa ya calculó algo con la configuración anterior conviene reiniciarlo.
+En el grupo **Compatibilidad** del panel de control hay dos selectores, **Perfil** y
+**Plataforma**, seis interruptores DIP (uno por quirk: al pasar el mouse por uno, o al
+llegar a él con Tab, aparece qué hace) y el interruptor **Ajustes por cartucho**
+([11.11](#1111-ajustes-por-cartucho)). Perfil y plataforma son dos cosas distintas:
 
-**La consola recuerda la configuración.** Los quirks (y con ellos el perfil), las IPF,
-el modo de pantalla, la paleta y el sonido se guardan en este navegador y vuelven la
-próxima vez que abrís la página. Por eso "por defecto" quiere decir "la primera vez":
-si ayer elegiste SUPER-CHIP, hoy la consola arranca en SUPER-CHIP. Si un programa se
-comporta raro, antes que nada revisá que el perfil sea el que corresponde.
+| | Qué decide | Opciones | Al cambiarlo |
+|---|---|---|---|
+| **Plataforma** | Qué máquina es: el juego de instrucciones, la memoria y la pantalla ([13.3](#133-las-plataformas-de-este-emulador)) | CHIP-8, SUPER-CHIP y XO-CHIP | La ROM vuelve a empezar; los quirks no cambian |
+| **Perfil** | Los seis quirks y la plataforma que va con ellos | COSMAC VIP (con CHIP-8), SUPER-CHIP (con SUPER-CHIP), XO-CHIP (con XO-CHIP) y Personalizado | Mueve los seis interruptores y elige la plataforma del perfil. Si la plataforma cambia, la ROM vuelve a empezar; si no, los quirks se aplican en el momento |
+| **Interruptores DIP** | Un quirk cada uno | Activado o desactivado | Se aplican en el momento; nunca cambian la plataforma |
 
-Una guía rápida:
+Si tocás los interruptores y la combinación ya no coincide con ningún perfil, el
+selector Perfil pasa solo a "Personalizado"; si coincide con otro perfil, muestra ese,
+aunque la plataforma sea otra (el selector compara solo los quirks). Cualquier
+combinación de quirks vale con cualquier plataforma. Los cambios de quirks se aplican sin
+reiniciar, aunque si el programa ya calculó algo con la configuración anterior conviene
+reiniciarlo.
 
-- **Programas del VIP y CHIP-8 "clásico"** (los juegos del manual, los de los 70 y 80,
-  y los cartuchos incluidos en la consola): perfil **COSMAC VIP**.
-- **Programas de la HP-48** (los de los 90, muchas veces con extensión `.sc8`, o
-  documentados como SCHIP): perfil **SUPER-CHIP**. Si usan el modo de alta resolución u
-  otras instrucciones propias de SUPER-CHIP, no van a funcionar bien acá.
-- **Programas escritos con Octo** que solo usan instrucciones de CHIP-8: perfil
-  **XO-CHIP**, y probablemente más instrucciones por frame.
-- Si no sabés para qué plataforma es un programa, buscalo en la
-  [chip-8-database](https://github.com/chip-8/chip-8-database), que cataloga cientos de
-  ROMs con su plataforma y su velocidad recomendada.
+**La consola recuerda la configuración.** Lo que elegís a mano (perfil, plataforma,
+interruptores, IPF y paleta) se guarda en este navegador, junto con el modo de pantalla
+y el sonido, y vuelve la próxima vez que abrís la página. Con **Ajustes por cartucho**
+prendido, además, cada ROM recuerda lo que le cambiaste. Por eso "por defecto" quiere
+decir "la primera vez": si ayer elegiste SUPER-CHIP, hoy la consola arranca en
+SUPER-CHIP, y una ROM que ya jugaste arranca como la dejaste. Si un programa se comporta
+raro, antes que nada revisá el perfil y la plataforma.
 
-Si algo se ve mal, estos síntomas orientan:
+Una guía rápida, en este orden:
+
+1. **Si el juego está en el archivo de la comunidad**, no tenés que hacer nada: la
+   consola lo reconoce por su huella y lo configura sola, con la plataforma, los quirks,
+   las IPF y los colores con que se juega en Octo. En la ranura dice «ajustes del
+   archivo».
+2. **Programas hechos con Octo**, que son casi todos los modernos (los de las Octojam
+   incluidos): perfil **XO-CHIP**, aunque sean juegos de CHIP-8 puro. Sus quirks son
+   exactamente los de Octo por defecto, con los que se probaron, y la plataforma XO-CHIP
+   también ejecuta todo CHIP-8 y SUPER-CHIP.
+3. **Juegos clásicos de SUPER-CHIP para la HP-48** (los de los 90, muchas veces con
+   extensión `.sc8`, o documentados como SCHIP): perfil **SUPER-CHIP**.
+4. **Programas del VIP y CHIP-8 de los 70 y 80** (los juegos del manual del VIP, por
+   ejemplo) y los cartuchos de CHIP-8 incluidos en la consola: perfil **COSMAC VIP**.
+5. Si no sabés de dónde salió un programa, buscalo en la
+   [chip-8-database](https://github.com/chip-8/chip-8-database), que cataloga cientos de
+   ROMs con su plataforma y su velocidad recomendada.
+
+Después ajustá la velocidad ([12.2](#122-instrucciones-por-frame-ipf)). Si algo se ve
+mal, estos síntomas orientan:
 
 | Síntoma | Probá cambiar |
 |---|---|
-| Un programa que conocés anda distinto que la última vez, o todos andan raro | El perfil y las IPF: la consola recuerda los que usaste la vez anterior |
-| Gráficos desarmados, laberintos mal dibujados, cuentas absurdas | `shifting` y `memory` (perfil SUPER-CHIP) |
+| Un programa que conocés anda distinto que la última vez | Si en la ranura dice «ajustes recordados», **Olvidar ajustes** ([11.11](#1111-ajustes-por-cartucho)); si no, el perfil, la plataforma y las IPF: la consola recuerda los que usaste la vez anterior |
+| Un aviso dice que la ROM usó una instrucción de SUPER-CHIP o XO-CHIP y que la plataforma la ignora | El botón del aviso, **Usar SUPER-CHIP** o **Usar XO-CHIP** ([11.10](#1110-diagnósticos-de-plataforma)) |
+| La máquina se detiene con «Instrucción inválida en CHIP-8: ... es de SUPER-CHIP» (o de XO-CHIP) | El botón del mensaje, **Cambiar a SUPER-CHIP y reiniciar** (o a XO-CHIP) |
+| La pantalla dice FIN DEL PROGRAMA | Nada: no es un error, la ROM terminó con `EXIT` (`00FD`). Reiniciá para volver a empezar |
+| Gráficos desarmados, laberintos mal dibujados, cuentas absurdas | `shifting` y `memory`: perfil SUPER-CHIP para los de la HP-48, XO-CHIP para los de Octo |
 | Basura en la pantalla, puntaje que no sube, datos corruptos | `memory` |
 | El programa salta a cualquier lado después de un `BNNN` y se detiene | `jumping` |
 | Pedazos de sprites del lado opuesto de la pantalla, o sprites que se cortan en el borde | `clipping` |
-| El juego va lentísimo aunque subas las instrucciones por frame | apagar `displayWait` |
-| Un juego del VIP va demasiado rápido | encender `displayWait` o bajar las instrucciones por frame |
+| El juego va lentísimo aunque subas las instrucciones por frame | Apagar `displayWait` (los perfiles SUPER-CHIP y XO-CHIP lo traen apagado) |
+| Un juego del VIP va demasiado rápido | Encender `displayWait` o bajar las instrucciones por frame |
 | Colisiones o condiciones que fallan justo después de un AND/OR/XOR | `vfReset` |
 
-### 11.10 Otras diferencias con el VIP que no son configurables
+### 11.10 Diagnósticos de plataforma
+
+Cuando una ROM usa una instrucción que la plataforma elegida no tiene, la consola no se
+queda callada. Lo que hace depende de la instrucción:
+
+**Una instrucción de pantalla se ignora, con un aviso.** `00CN`, `00DN`, `00FB` a `00FF`
+y `DXY0` tienen, en CHIP-8, la forma de instrucciones que no hacen nada: `0NNN`, y
+`DXYN` con N = 0, que no dibuja. Un intérprete de la época las ignoraba, y la consola
+hace lo mismo: el programa sigue (en 64 × 32, sin desplazamientos y sin terminar en
+`00FD`), pero la primera vez aparece un aviso como este, con un botón:
+
+```text
+La ROM usó «HIGH» (pasar a alta resolución (128×64)), que es de SUPER-CHIP, y la plataforma CHIP-8 la ignora.
+```
+
+El botón, **Usar SUPER-CHIP** (o **Usar XO-CHIP**), elige el perfil de esa plataforma,
+con sus quirks, y reinicia la ROM. El aviso sale una sola vez por cada ROM que cargás;
+en el núcleo, esa primera instrucción ignorada queda en `cpu.hint`. Con SUPER-CHIP pasa
+lo mismo con `00DN`, que es de XO-CHIP.
+
+**Cualquier otra detiene la máquina.** `FX30`, `FX75`, `FX85`, `5XY2`, `5XY3`,
+`F000 NNNN`, `FN01`, `F002` y `FX3A` no se pueden ignorar sin romper el programa, así que
+la máquina se detiene con un error que nombra las dos plataformas:
+
+```text
+Instrucción inválida en CHIP-8: «LD HF, V1» (fuente grande) es de SUPER-CHIP (opcode 0xF130 en la dirección 0x20A). Elegí la plataforma SUPER-CHIP.
+```
+
+El mensaje aparece sobre la pantalla y en el monitor, con el botón **Cambiar a
+SUPER-CHIP y reiniciar** (o a XO-CHIP), que también elige el perfil completo. En el
+núcleo, `cpu.errorInfo.kind` vale `'platform'` y `cpu.errorInfo.needs` dice la
+plataforma que hace falta.
+
+**Una ROM de más de 3584 bytes pasa sola a XO-CHIP.** Con CHIP-8 y SUPER-CHIP no entra
+en la memoria, así que la consola elige el perfil XO-CHIP (plataforma y quirks) antes de
+cargarla y te avisa por qué. Hasta 65.024 bytes; una más grande no entra en ninguna
+plataforma y la carga se rechaza.
+
+**`00FD` no es un error.** Cuando un programa de SUPER-CHIP o XO-CHIP termina con
+`EXIT`, la máquina se detiene sin error: la pantalla muestra «FIN DEL PROGRAMA» y «La ROM
+terminó con EXIT (00FD).», la luz RUN queda en ámbar y el monitor dice «Terminado».
+Reiniciá (Retroceso) para volver a empezar.
+
+### 11.11 Ajustes por cartucho
+
+Cada ROM se reconoce por su **huella SHA-1**: un número de 40 dígitos hexadecimales que
+se calcula con sus bytes y que cambia si cambia uno solo (el núcleo la calcula con
+`Chip8Core.sha1`). Con el interruptor **Ajustes por cartucho** prendido, que es como
+viene, la consola usa esa huella para dos cosas:
+
+- **Los juegos conocidos se configuran solos.** La consola trae una tabla con el archivo
+  de la comunidad de John Earnest (*Chip8 Community Archive*, licencia CC0), que
+  `tools/archive.js` genera a partir de `data/archive.json`. Tiene 104 programas: 50 de
+  CHIP-8, 26 de SUPER-CHIP y 28 de XO-CHIP, la mayoría de las Octojam, cada uno con la
+  plataforma, los quirks, la velocidad, los colores y la orientación de la pantalla con
+  que se juega en Octo. Si cargás uno, se configura antes de arrancar y en la ranura dice
+  «ajustes del archivo». Sus colores quedan en la paleta **Del cartucho**, y si el juego
+  se pensó para una pantalla girada, la imagen se gira.
+- **Lo que vos cambiás se recuerda.** Si mientras corre una ROM cambiás la plataforma,
+  el perfil, un interruptor, las IPF, la paleta o los controles (en el grupo
+  **Controles**, qué teclas del keypad aprietan las flechas y el joystick), la consola lo
+  recuerda para esa ROM: la próxima vez arranca así, y en la ranura dice «ajustes
+  recordados». **Olvidar ajustes** borra lo recordado; si es un juego del archivo,
+  vuelven los del archivo.
+
+Cuando cargás una ROM, cada fuente de ajustes pisa a la de abajo, campo por campo:
+
+| Prioridad | De dónde salen | Qué aportan |
+|:---:|---|---|
+| 1 (gana) | Lo que le cambiaste a esa ROM | Plataforma, quirks, IPF, paleta, giro y controles |
+| 2 | El archivo de la comunidad, si es un juego conocido | Plataforma, quirks, IPF, colores y giro |
+| 3 | El cartucho incluido, si es uno de los demos | Su plataforma |
+| 4 | Tus últimas elecciones explícitas | Plataforma, quirks, IPF, paleta y controles: con esto arranca una ROM que nunca usaste |
+
+Lo que aplica la consola sola no cuenta como una elección tuya: no cambia tus ajustes
+generales ni queda recordado para la ROM. Las banderas RPL de los juegos que guardan
+récords o partidas también se recuerdan por ROM ([13.8](#138-las-banderas-rpl)).
+
+En el archivo, la plataforma de cada programa es la más chica en la que funciona bien
+(así lo pide el archivo), y por eso un juego "de CHIP-8" puede necesitar igual los
+quirks de Octo: 96 de los 104 usan exactamente los de Octo por defecto. Las velocidades
+van de 7 a 10.000 IPF ([12.2](#122-instrucciones-por-frame-ipf)).
+
+Con el interruptor apagado, la consola funciona como siempre: todas las ROMs usan los
+ajustes que estén puestos y no se aplica ni se recuerda nada por cartucho (las banderas
+duran lo que dura la página).
+
+Las ROMs que cargás desde un archivo quedan además en el estante **Tus cartuchos**,
+debajo de los incluidos, con la que jugaste por última vez primero; las cinco más
+recientes aparecen también en la fila **Tuyos:**, debajo de la ranura. Entran hasta 60
+ROMs y unos 2,5 MB entre todas, y quedan guardadas en este navegador.
+
+### 11.12 Otras diferencias con el VIP que no son configurables
 
 | Tema | COSMAC VIP | Este emulador |
 |---|---|---|
@@ -2404,7 +2687,8 @@ elige con el deslizador, con el campo numérico o con los botones de valores pre
 (7, 15, 30, 100, 500, 1000, 5000 y 10000), y debajo se ve la velocidad aproximada en
 instrucciones por segundo. Si escribís un valor fuera de rango, el campo se marca en rojo
 y el aviso dice qué valor se usa mientras tanto (1 o 10.000, el más cercano). El monitor muestra las
-IPF actuales, y la consola las recuerda para la próxima vez (ver
+IPF actuales, y la consola las recuerda para la próxima vez y, con **Ajustes por
+cartucho**, las de cada ROM (ver
 [11.9](#119-cómo-elegir-la-configuración-en-este-emulador)).
 
 ¿Por qué exponer IPF en lugar de fijar una velocidad "correcta"? Porque los programas de
@@ -2424,35 +2708,63 @@ Valores de referencia (los `defaultTickrate` de la `chip-8-database`):
 | XO-CHIP | 100 |
 | Juegos de la Octojam | a menudo 200 o más (la base de datos lo indica por ROM) |
 
+El archivo de la comunidad ([11.11](#1111-ajustes-por-cartucho)) muestra cuánto varía:
+sus 104 programas se juegan en Octo con velocidades de 7 a 10.000 IPF, así repartidas
+(20 es el valor que usa Octo cuando un programa no dice nada):
+
+| IPF | Programas del archivo |
+|---:|---:|
+| 7 | 22 |
+| 12 | 1 |
+| 15 | 15 |
+| 20 | 12 |
+| 30 | 7 |
+| 60 | 1 |
+| 100 | 8 |
+| 120 | 1 |
+| 200 | 9 |
+| 500 | 4 |
+| 1000 | 22 |
+| 10.000 | 2 |
+
 Los timers bajan siempre a 60 Hz, sin importar el IPF. Un juego que regula su ritmo con
 DT (como en [5.2](#52-usar-dt-para-medir-el-tiempo)) no se acelera al subir el IPF;
 uno que no lo hace, sí.
 
-**¿Una ROM bajada de internet va muy lenta?** Casi nunca es por falta de potencia: el
-núcleo ejecuta 600.000 instrucciones por segundo (10.000 IPF) usando una fracción chica
-de la CPU (el escenario 2 de `tools/e2e.js` lo mide). Probá en este orden:
+**¿Una ROM bajada de internet va muy lenta, o anda rara?** Casi nunca es por falta de
+potencia: el núcleo ejecuta 600.000 instrucciones por segundo (10.000 IPF) usando una
+fracción chica de la CPU (el escenario 2 de `tools/e2e.js` lo mide). Probá en este
+orden:
 
-1. **Cambiá el perfil a SUPER-CHIP o XO-CHIP.** El perfil COSMAC VIP (el de fábrica)
-   trae la espera de vblank (`displayWait`): como mucho un `DXYN` por frame, o sea 60
-   sprites por segundo ([12.4](#124-la-espera-del-vblank)). Los juegos modernos dibujan
-   decenas de sprites por frame y con esa espera se arrastran, aunque subas las IPF.
-2. **Subí las IPF**: 500 o 1000 para la mayoría de los juegos de SUPER-CHIP y de la
-   Octojam; algunos piden 5000 o más. Si el juego va demasiado rápido, bajalas: el
-   valor correcto es el que lo hace jugable.
-3. **Si se ve roto** (gráficos desarmados, saltos a cualquier lado), no es la
-   velocidad: son los quirks; mirá la tabla de síntomas de
-   [11.9](#119-cómo-elegir-la-configuración-en-este-emulador).
+1. **Fijate si la consola la reconoció.** Si la ROM está en el archivo de la comunidad,
+   la consola la configura sola al cargarla, con la plataforma, los quirks y la
+   velocidad con que se juega en Octo, y en la ranura dice «ajustes del archivo»
+   ([11.11](#1111-ajustes-por-cartucho)). No hace falta tocar nada.
+2. **Si no, elegí el perfil según de dónde salió.** Los juegos hechos con Octo, que son
+   casi todos los modernos (los de las Octojam incluidos), van con el perfil
+   **XO-CHIP** aunque sean de CHIP-8 puro: sus quirks son exactamente los de Octo por
+   defecto, con los que se probaron (en el archivo, 96 de los 104 programas los usan).
+   Los clásicos de SUPER-CHIP de la HP-48 van con **SUPER-CHIP**, y los programas del
+   VIP de los 70 y los 80, con **COSMAC VIP**. Ojo con este último fuera de su época:
+   trae la espera de vblank (`displayWait`), como mucho un `DXYN` por frame
+   ([12.4](#124-la-espera-del-vblank)), y un juego moderno que dibuja decenas de
+   sprites por frame se arrastra con ella aunque subas las IPF.
+3. **Recién ahí, ajustá las IPF.** Para un juego de Octo, empezá por 20 (lo que usa Octo
+   si el programa no dice nada) y subí: en el archivo hay juegos que piden 1000 y hasta
+   10.000. Si el juego va demasiado rápido, bajalas: el valor correcto es el que lo hace
+   jugable.
 
-Si la ROM usa la pantalla de 128×64 de SUPER-CHIP o las extensiones de XO-CHIP, no va
-a andar bien con ninguna velocidad: esas instrucciones no están implementadas
-([13](#13-variantes-y-extensiones)).
+Si se ve roto (gráficos desarmados, saltos a cualquier lado, avisos de instrucciones
+ignoradas), no es la velocidad: son los quirks o la plataforma; mirá la tabla de
+síntomas de [11.9](#119-cómo-elegir-la-configuración-en-este-emulador).
 
 ### 12.3 El frame de 60 Hz en este emulador
 
 Cada frame hace, en este orden:
 
-1. Ejecuta instrucciones hasta completar IPF, o hasta que la máquina se detenga por un
-   error, empiece a esperar una tecla (`FX0A`) o, con `displayWait`, ejecute un `DXYN`.
+1. Ejecuta instrucciones hasta completar IPF, o hasta que la máquina se detenga (por un
+   error o por `EXIT`), empiece a esperar una tecla (`FX0A`) o, con `displayWait`,
+   ejecute un `DXYN`.
 2. Decrementa DT y ST una vez (también si está esperando una tecla).
 3. La interfaz redibuja la pantalla si cambió y enciende o apaga el beep según ST.
 
@@ -2470,6 +2782,8 @@ Consecuencias que conviene conocer:
 Con `displayWait` activo, cada `DXYN` es la última instrucción del frame: el resto de
 las IPF de ese frame se pierden y el frame siguiente arranca con la instrucción que
 sigue al `DXYN`. Así se ejecutan como máximo 60 `DXYN` por segundo, como en el VIP.
+También cuentan los dibujos de SUPER-CHIP y XO-CHIP: los sprites de 16 × 16 (`DXY0`) y
+los de alta resolución.
 
 Dos efectos prácticos:
 
@@ -2481,88 +2795,1197 @@ Es una aproximación: el VIP no tenía "frames de instrucciones", y a veces un d
 llevaba más de un cuadro. Este emulador no intenta imitar la duración de cada
 instrucción, solo la regla "un dibujo por cuadro", que es lo que afecta a los programas.
 
+### 12.5 Avance rápido
+
+Mientras mantenés apretada la **T** (o el botón de avance rápido, debajo de la
+pantalla), la consola corre **cuatro frames emulados por cada frame real**: en cada
+1/60 de segundo ejecuta cuatro veces el frame de
+[12.3](#123-el-frame-de-60-hz-en-este-emulador), cada uno con sus IPF y su tic de los
+timers. En la pantalla aparece «×4».
+
+Como los timers también van cuatro veces más rápido, el programa no nota nada raro: ve
+exactamente la misma sucesión de frames que a velocidad normal, con DT y ST bajando una
+vez por frame, solo que todo pasa en la cuarta parte del tiempo. Un juego que mide su
+ritmo con DT sigue igual de parejo (la lógica, las animaciones y la música no se
+desfasan entre sí) y la espera del vblank sigue permitiendo un dibujo por frame emulado.
+Sirve para pasar rápido una presentación lenta o una parte aburrida.
+
+Al soltar, la velocidad vuelve a la de siempre, sin atraso que recuperar. En pausa, o
+con la máquina detenida, no hace nada.
+
 ---
 
 ## 13. Variantes y extensiones
 
-> **Nada de esta sección está implementado en este emulador.** Se incluye para que
-> sepas qué son y por qué una ROM de SUPER-CHIP o XO-CHIP puede no funcionar acá.
+CHIP-8 tuvo muchos descendientes. Dos de ellos, **SUPER-CHIP** y **XO-CHIP**, forman
+con CHIP-8 las tres plataformas principales de hoy (así las trata, por ejemplo, la suite
+de Timendus), y están implementados en este emulador: son sus otras dos
+**plataformas**, que se eligen en el grupo Compatibilidad de la consola
+([11.9](#119-cómo-elegir-la-configuración-en-este-emulador)). Las demás variantes
+([13.12](#1312-otras-variantes)) no lo están.
+
+Esta sección cuenta de dónde salió cada extensión (13.1 y 13.2), qué ofrece cada
+plataforma de este emulador y en qué se aparta de los originales (13.3), qué pasa cuando
+cargás una ROM (13.4) y cómo funciona cada novedad: las dos resoluciones, los planos de
+color, la fuente grande, las banderas, la memoria de 64 KB y el audio (13.5 a 13.10). Al
+final, en [13.11](#1311-referencia-de-las-instrucciones-de-super-chip-y-xo-chip), está la
+referencia de cada instrucción nueva, con el mismo formato que la sección
+[10](#10-referencia-completa-de-las-35-instrucciones).
 
 ### 13.1 SUPER-CHIP (SCHIP)
 
-Creado por Erik Bryntse en 1991 a partir de CHIP-48, para la HP-48. Agrega:
+Erik Bryntse lo publicó en 1991, a partir de CHIP-48, para las calculadoras HP-48
+(sección [1.5](#15-el-renacimiento-chip-48-y-super-chip)). Agrega una pantalla de alta
+resolución, desplazamientos de la imagen (*scroll*), sprites de 16 × 16, una fuente
+grande y un lugar fuera de la memoria donde guardar registros:
 
-| Opcode | Mnemónico (Cowgod) | Qué hace |
-|---|---|---|
-| `00CN` | `SCD N` | Scroll de la pantalla N píxeles hacia abajo |
-| `00FB` | `SCR` | Scroll 4 píxeles a la derecha |
-| `00FC` | `SCL` | Scroll 4 píxeles a la izquierda |
-| `00FD` | `EXIT` | Salir del intérprete |
-| `00FE` | `LOW` | Modo de baja resolución (64×32) |
-| `00FF` | `HIGH` | Modo de alta resolución (**128×64**) |
-| `DXY0` | `DRW VX, VY, 0` | Sprite de **16×16** (32 bytes) |
-| `FX30` | `LD HF, VX` | I = dígito de la fuente grande (10 filas de alto) |
-| `FX75` | `LD R, VX` | Guarda V0..VX en los "flags" de usuario de la HP-48, fuera de la memoria |
-| `FX85` | `LD VX, R` | Carga V0..VX desde esos flags |
+| Opcode | Mnemónico | Qué hace | Desde |
+|---|---|---|---|
+| `00CN` | `SCD N` | Desplaza la imagen N píxeles hacia abajo | 1.1 |
+| `00FB` | `SCR` | Desplaza la imagen 4 píxeles a la derecha | 1.1 |
+| `00FC` | `SCL` | Desplaza la imagen 4 píxeles a la izquierda | 1.1 |
+| `00FD` | `EXIT` | Sale del intérprete: termina el programa | 1.0 |
+| `00FE` | `LOW` | Pasa a baja resolución (64 × 32) | 1.0 |
+| `00FF` | `HIGH` | Pasa a alta resolución (**128 × 64**) | 1.0 |
+| `DXY0` | `DRW VX, VY, 0` | Dibuja un sprite de **16 × 16** (32 bytes) | 1.0 |
+| `FX30` | `LD HF, VX` | I = glifo del dígito VX en la fuente grande (10 filas de alto) | 1.0 |
+| `FX75` | `LD R, VX` | Guarda V0..VX en las banderas RPL, fuera de la memoria | 1.0 |
+| `FX85` | `LD VX, R` | Carga V0..VX desde las banderas RPL | 1.0 |
 
-Otros detalles: la pila tiene 16 niveles; hereda de CHIP-48 los quirks `shifting` y
-`jumping`, y la versión 1.1 no modifica I en `FX55`/`FX65`; según Gulrak, en una HP-48
-real `FX75`/`FX85` solo admiten hasta V7, y en alta resolución SUPER-CHIP 1.1 deja en
-VF la cantidad de filas del sprite que chocaron más las que quedaron recortadas abajo,
-en lugar de 0 o 1. Las fuentes no coinciden del todo sobre qué agregó exactamente la
-1.1 respecto de la 1.0 (en particular el scroll y la fuente grande).
+Los mnemónicos son los de la referencia de Cowgod, que son también los del ensamblador
+del proyecto. La columna "Desde" sigue la tabla de variantes de Gulrak: según ella, la
+versión 1.0 ya tenía las dos resoluciones, los sprites grandes, la fuente grande y las
+banderas, y la 1.1 agregó los desplazamientos.
+
+Lo que hacía SUPER-CHIP en la calculadora no es exactamente lo que esperan los programas
+de hoy. Muchos juegos de SUPER-CHIP se escribieron (o se probaron) en intérpretes
+modernos, sobre todo en Octo, que resolvieron algunos detalles de otra manera; la suite
+de Timendus llama **SUPER-CHIP moderno** a ese comportamiento y ***legacy*** al de la
+calculadora. Según la tabla de Gulrak y la suite de Timendus, en la HP-48:
+
+- En baja resolución, cada píxel se dibuja como un cuadrado de 2 × 2 de la pantalla de la
+  calculadora, y los desplazamientos mueven píxeles de la calculadora: en baja
+  resolución, la mitad de lo esperado.
+- `00C0` (desplazar cero filas) no es una instrucción válida.
+- Cambiar de resolución no borra la pantalla.
+- En baja resolución, `DXY0` dibuja un sprite de 8 × 16.
+- En alta resolución, la versión 1.1 deja en VF la cantidad de filas del sprite que
+  chocaron más las que quedaron recortadas abajo, en lugar de 0 o 1.
+- `FX75` y `FX85` admiten solo V0 a V7: la calculadora tiene 8 banderas.
+- En baja resolución, cada `DXYN` espera el cuadro siguiente, como en el VIP; en alta,
+  no espera. (Timendus cuenta que Bryntse presentaba la alta resolución como un modo más
+  rápido.)
+- En los quirks, hereda de CHIP-48 `shifting` y `jumping`; la 1.1 no modifica I en
+  `FX55`/`FX65` (la 1.0 lo dejaba en I + X) y los sprites se recortan en los bordes.
+
+Timendus aclara que casi todos los programas escritos para la calculadora funcionan
+también con el comportamiento moderno, y que casi ninguno depende del desplazamiento a
+medias. Este emulador implementa el moderno, el de Octo (13.3).
 
 ### 13.2 XO-CHIP
 
-Definido por John Earnest para Octo (versión 1.0 hacia 2014; la 1.1 agregó `pitch`).
-Parte de SUPER-CHIP y agrega:
+John Earnest definió XO-CHIP para Octo (sección
+[1.6](#16-octo-xo-chip-y-la-comunidad-actual)). Su especificación explica que los
+agregados son pocos a propósito, para conservar el sabor de las limitaciones de CHIP-8,
+y que todo lo de CHIP-8 y SUPER-CHIP sigue funcionando igual. Tiene dos versiones: la
+1.0 y la 1.1, que agregó `pitch` y llevó las banderas de SUPER-CHIP de 8 a 16. Parte de
+SUPER-CHIP y agrega:
 
-| Opcode | En Octo | Qué hace |
-|---|---|---|
-| `5XY2` | `save vx - vy` | Guarda el rango VX..VY en memoria desde I, **sin** modificar I |
-| `5XY3` | `load vx - vy` | Carga el rango VX..VY desde I, sin modificar I |
-| `F000 NNNN` | `i := long NNNN` | Carga una dirección de **16 bits** en I (instrucción de 4 bytes) |
-| `FN01` | `plane n` | Elige en qué plano de bits se dibuja (1, 2 o ambos) |
-| `F002` | `audio` | Copia 16 bytes desde I al buffer de patrón de audio |
-| `FX3A` | `pitch := vx` | Frecuencia de reproducción del patrón: 4000 × 2^((VX − 64) / 48) Hz |
-| `00DN` | `scroll-up n` | Scroll de N píxeles hacia arriba |
+| Opcode | Mnemónico | En Octo | Qué hace |
+|---|---|---|---|
+| `00DN` | `SCU N` | `scroll-up n` | Desplaza la imagen N píxeles hacia arriba |
+| `5XY2` | `SAVE VX, VY` | `save vx - vy` | Guarda VX..VY en memoria desde I, **sin** modificar I |
+| `5XY3` | `LOAD VX, VY` | `load vx - vy` | Carga VX..VY desde la memoria en I, sin modificar I |
+| `F000 NNNN` | `LD I, LONG NNNN` | `i := long NNNN` | Carga en I una dirección de **16 bits** (instrucción de 4 bytes) |
+| `FN01` | `PLANE N` | `plane n` | Elige en qué planos de bits se dibuja (N de 0 a 3) |
+| `F002` | `AUDIO` | `audio` | Copia 16 bytes desde I al patrón de audio |
+| `FX3A` | `PITCH VX` | `pitch := vx` | Tono: el patrón suena a 4000 × 2^((VX − 64) / 48) bits por segundo |
 
-Las ideas principales:
+Los mnemónicos son los del ensamblador del proyecto (la referencia de Cowgod es anterior
+a XO-CHIP); la columna "En Octo" muestra cómo se escriben en el lenguaje de Octo. Las
+ideas principales:
 
-- **Más memoria.** El PC e I pasan a tener 16 bits: 64 KB direccionables. Las
-  instrucciones de skip saltean los 4 bytes completos de `F000 NNNN`, y eso permite que
-  un programa detecte si está corriendo en un intérprete XO-CHIP.
-- **Color.** Un segundo plano de bits superpuesto al primero da hasta 4 colores (fondo,
-  plano 1, plano 2 y la superposición). `CLS`, `DRW` y el scroll afectan solo a los
-  planos elegidos.
-- **Sonido programable.** Mientras suena el buzzer, se reproduce un patrón de 16 bytes
-  interpretado como 128 muestras de 1 bit, a la frecuencia que fija `pitch`: así se
-  pueden hacer tonos distintos, ruido y hasta música.
-- **Quirks:** sigue al VIP en desplazamientos, `FX55`/`FX65` y `BNNN`; da la vuelta en
-  los bordes en lugar de recortar; no pone VF en 0 en las operaciones lógicas y no
-  espera el vblank. La especificación recomienda una pila de 16 niveles que dé error si
-  se desborda o se vacía.
+- **Más memoria.** El PC e I tienen 16 bits: 64 KB direccionables. La carga larga de I
+  es la única instrucción de 4 bytes, y los saltos condicionales la saltean entera
+  ([13.9](#139-la-memoria-de-64-kb-y-la-carga-larga)).
+- **Color.** Un segundo plano de bits, superpuesto al primero, da cuatro colores: el
+  fondo, el plano 1, el plano 2 y los dos juntos. `CLS`, `DRW` y los desplazamientos
+  actúan solo sobre los planos elegidos ([13.6](#136-planos-y-colores)).
+- **Sonido programable.** Mientras suena el buzzer se reproduce un patrón de 128 bits a
+  la velocidad que fija `pitch`: tonos distintos, ruido y hasta música
+  ([13.10](#1310-el-audio-de-xo-chip-patrón-y-tono)).
+- **Rangos de registros.** `5XY2` y `5XY3` vienen de CHIP-8E: leen y escriben cualquier
+  rango de registros, en el orden en que se nombran, y no tocan I.
+- **Banderas y desplazamientos.** `FX75`/`FX85` admiten los 16 registros, y `00DN`
+  completa los desplazamientos de SUPER-CHIP, que no tenía uno hacia arriba.
+- **Pila.** La especificación pide 16 niveles, y que llamar con la pila llena o volver
+  con la pila vacía sea un error que detenga el programa.
 
-### 13.3 Otras variantes
+La especificación no habla de quirks. En la práctica, un programa de XO-CHIP espera los
+de Octo por defecto (tabla de [11.8](#118-tabla-comparativa)): sigue al VIP en los
+desplazamientos de bits, en `FX55`/`FX65` y en `BNNN`, da la vuelta en los bordes en
+lugar de recortar, no pone VF en 0 en las operaciones lógicas y no espera el vblank.
 
-- **CHIP-8X** (RCA, 1980): color, placa de sonido y un segundo teclado.
-- **CHIP-8E**, **CHIP-10** y otras variantes de la época para el VIP y máquinas afines;
-  CHIP-10 usa una pantalla de mayor resolución.
-- **MEGA-CHIP** (Revival Studios, 2007): una extensión moderna con resolución de hasta
-  256×192.
+### 13.3 Las plataformas de este emulador
+
+El núcleo tiene tres plataformas, y cada una incluye a la anterior:
+
+| | CHIP-8 | SUPER-CHIP | XO-CHIP |
+|---|:---:|:---:|:---:|
+| Nombre en el núcleo (`cpu.platform`) | `chip8` | `schip` | `xochip` |
+| Instrucciones | las 35 de CHIP-8 | + las 10 de SUPER-CHIP | + las 7 de XO-CHIP |
+| Memoria | 4 KB | 4 KB | 64 KB |
+| ROM más grande | 3584 bytes | 3584 bytes | 65.024 bytes |
+| Direcciones (PC y accesos a memoria) | 12 bits | 12 bits | 16 bits |
+| Pantalla | 64 × 32 | 64 × 32 y 128 × 64 | 64 × 32 y 128 × 64 |
+| Planos (colores) | 1 (2) | 1 (2) | 2 (4) |
+| Fuente chica / grande | `0x050` / — | `0x050` / `0x0A0` | `0x050` / `0x0A0` |
+| Banderas RPL | — | 16 | 16 |
+| Sonido | el beep | el beep | el beep, o el patrón con su tono |
+
+En las tres, la pila tiene 16 niveles, I se guarda con 16 bits y los seis quirks valen
+igual: la plataforma es independiente del perfil de quirks
+([11.9](#119-cómo-elegir-la-configuración-en-este-emulador)). Cambiar de plataforma
+reinicia la máquina con la misma ROM (`setPlatform`); las banderas se conservan.
+
+Las instrucciones de SUPER-CHIP y XO-CHIP se ejecutan como en Octo, que es lo que
+esperan los programas modernos: la suite de Timendus toma a Octo como la referencia de
+XO-CHIP, y lo que hace Octo con las instrucciones de SUPER-CHIP es lo que la suite llama
+SUPER-CHIP moderno. Con algunas decisiones propias, que también aparecen en las fichas
+de 13.11:
+
+| Tema | SUPER-CHIP 1.1 en la HP-48 | Octo | Este emulador |
+|---|---|---|---|
+| Profundidad de la pila | 16 niveles | 12 niveles | 16 niveles, como pide la especificación de XO-CHIP |
+| Dónde están las fuentes | — | La chica en `0x000` y la grande en `0x050` | La chica en `0x050` y la grande en `0x0A0` |
+| Fuente grande | Solo los dígitos 0 a 9 | Dígitos propios, más cuadrados, y las letras A a F | Los dígitos de SUPER-CHIP 1.1, byte a byte ([13.7](#137-la-fuente-grande)), y las letras de Octo |
+| `0NNN` | — | `0000` termina el programa; los demás lo detienen con un aviso | No hacen nada |
+| `FN01` con N > 3 y `FX02` con X ≠ 0 | No existen | Se aceptan (`plane` usa N & 3; `FX02` es `audio`) | Opcodes inválidos |
+| VF después de dibujar | 0 o 1; en alta resolución, filas con choque más filas recortadas abajo | 0 o 1 | 0 o 1 |
+| `DXY0` en baja resolución | 8 × 16 | 16 × 16 | 16 × 16 |
+| Desplazamientos en baja resolución | La mitad | Píxeles enteros de baja resolución | Píxeles enteros de baja resolución |
+| `00C0` | Inválido | No hace nada | No hace nada |
+| `00FE` y `00FF` | No borran la pantalla | Borran la pantalla | Borran la pantalla |
+| `FX75` y `FX85` | Hasta V7 | Hasta VF | Hasta VF, también con SUPER-CHIP |
+| Sonido antes del primer `F002` | — | Silencio (el patrón empieza en ceros) | El beep de 440 Hz |
+
+Un guion quiere decir que no aplica o que no lo sabemos. Los datos de la HP-48 salen de
+la tabla de Gulrak y de la suite de Timendus; los de Octo, de su código (`js/emulator.js`)
+y de la especificación de XO-CHIP.
+
+**El ensamblador y el monitor.**
+
+- El ensamblador acepta todas las instrucciones en cualquier programa: no sabe para qué
+  plataforma es, y `SYS 0x0FF` sigue valiendo lo mismo que `HIGH`. Con la opción `--xo`
+  (o `{ xochip: true }` en la API) el programa puede pasar de `0xFFF` y llegar hasta
+  `0xFFFF`; `LD I, LONG` acepta direcciones de 16 bits con o sin esa opción.
+- El desensamblador del monitor usa los mnemónicos de la plataforma elegida: con CHIP-8,
+  `00FF` se ve como `SYS 0x0FF` y `F130` como `DW 0xF130`; con SUPER-CHIP o XO-CHIP,
+  como `HIGH` y `LD HF, V1`. Con XO-CHIP, `F000 NNNN` ocupa una sola fila de 4 bytes y
+  las direcciones tienen 4 dígitos.
+- El campo MÁQUINA del monitor muestra la plataforma, la resolución y, con XO-CHIP, los
+  planos elegidos (por ejemplo, «XO-CHIP · 128×64 · planos 1+2»). La placa de la consola
+  dice el modelo, la memoria y la resolución más grande de la plataforma.
 
 ### 13.4 Qué pasa si cargás una ROM de SUPER-CHIP o XO-CHIP acá
 
-| Instrucción | Qué hace este emulador |
-|---|---|
-| `00FF`, `00FE`, `00FB`, `00FC`, `00FD`, `00CN` | Nada: caen en `0NNN` y se ignoran. El programa sigue en 64×32, sin scroll, y `00FD` no termina nada |
-| `DXY0` | No dibuja nada y pone VF en 0 |
-| `FX30`, `FX75`, `FX85`, `FX3A`, `FN01`, `F002`, `F000` | Opcode inválido: la máquina se detiene con un error |
-| `5XY2`, `5XY3` | Opcode inválido: la máquina se detiene con un error |
+Casi siempre, la consola lo resuelve sola:
 
-Algunos programas de SUPER-CHIP que solo usan la baja resolución funcionan con el
-perfil SUPER-CHIP; los que usan alta resolución, sprites de 16×16 o la fuente grande,
-no.
+1. **Si la ROM está en el archivo de la comunidad**, se configura antes del primer frame
+   con la plataforma, los quirks, la velocidad y los colores con que se juega en Octo
+   (con **Ajustes por cartucho** prendido, como viene; [11.11](#1111-ajustes-por-cartucho)).
+2. **Si ocupa más de 3584 bytes**, solo puede ser de XO-CHIP: la consola pasa al perfil
+   XO-CHIP y te avisa por qué ([11.10](#1110-diagnósticos-de-plataforma)).
+3. **Si no**, corre con la plataforma elegida. Si es más chica que la que la ROM
+   necesita, cada instrucción que falta hace esto:
+
+| Instrucción | Con CHIP-8 | Con SUPER-CHIP |
+|---|---|---|
+| `00CN`, `00FB`, `00FC`, `00FE`, `00FF` | Se ignora, con un aviso: la imagen no se desplaza y la pantalla sigue en 64 × 32 | Se ejecuta |
+| `00FD` | Se ignora, con un aviso: el programa no termina y sigue con la instrucción siguiente | Se ejecuta |
+| `DXY0` | No dibuja nada y pone VF en 0, con un aviso | Se ejecuta |
+| `00DN` | Se ignora, con un aviso | Se ignora, con un aviso |
+| `FX30`, `FX75`, `FX85` | La máquina se detiene con un error de plataforma | Se ejecuta |
+| `5XY2`, `5XY3`, `F000 NNNN`, `FN01`, `F002`, `FX3A` | La máquina se detiene con un error de plataforma | La máquina se detiene con un error de plataforma |
+
+Con XO-CHIP se ejecuta todo. El aviso y el error traen un botón que elige el perfil de la
+plataforma que hace falta y reinicia la ROM, así que en la práctica alcanza con un clic
+([11.10](#1110-diagnósticos-de-plataforma)).
+
+Un programa de SUPER-CHIP o XO-CHIP que no usa ninguna de estas instrucciones (por
+ejemplo, un juego de Octo de CHIP-8 puro) corre con cualquier plataforma; lo que importa
+entonces son los quirks ([11.9](#119-cómo-elegir-la-configuración-en-este-emulador)). El
+cartucho incluido **Planos** es un ejemplo de XO-CHIP: al elegirlo, la consola pasa sola
+a esa plataforma.
+
+### 13.5 Alta y baja resolución
+
+SUPER-CHIP y XO-CHIP tienen dos modos de pantalla:
+
+| Modo | Tamaño | x | y | Se elige con |
+|---|---|---|---|---|
+| Baja resolución (*lores*) | 64 × 32 | 0 a 63 | 0 a 31 | `00FE` (`LOW`) |
+| Alta resolución (*hires*) | 128 × 64 | 0 a 127 | 0 a 63 | `00FF` (`HIGH`) |
+
+Es la misma pantalla con el doble de píxeles en cada dirección: un píxel de baja
+resolución equivale a un cuadrado de 2 × 2 de alta.
+
+```
+ baja resolución: el píxel (1, 0)       alta resolución: los píxeles (2, 0), (3, 0), (2, 1) y (3, 1)
+
+  x:  0   1   2                           x: 0 1 2 3 4 5
+    +---+---+---+                           +-+-+-+-+-+-+
+    |   |###|   |  y = 0                    | | |#|#| | |  y = 0
+    +---+---+---+                           +-+-+-+-+-+-+
+                                            | | |#|#| | |  y = 1
+                                            +-+-+-+-+-+-+
+```
+
+Las reglas:
+
+- **Todo programa arranca en baja resolución**, también los de SUPER-CHIP y XO-CHIP:
+  reiniciar, cargar una ROM o cambiar de plataforma vuelven a 64 × 32.
+- **`HIGH` y `LOW` borran la pantalla**, aunque ya estuviera en ese modo, y los dos
+  planos aunque `PLANE` haya elegido uno solo. No tocan los registros, la memoria ni el
+  plano elegido.
+- **Las coordenadas dan la vuelta según el modo**: en alta resolución, `x0 = VX % 128` e
+  `y0 = VY % 64`, y el quirk `clipping` recorta (o da la vuelta) en los bordes de 128 y
+  de 64.
+- **`DXY0` dibuja 16 × 16 en los dos modos**, y `DXYN` con N de 1 a 15 sigue siendo de
+  8 × N.
+- **Los desplazamientos se miden en píxeles del modo actual**: `SCD N` y `SCU N` mueven
+  N filas (de 0 a 15) y `SCR` y `SCL`, 4 columnas. Lo que sale por un borde se pierde
+  (no vuelve por el otro) y lo que queda libre se apaga.
+- **VF** vale 1 o 0 después de dibujar, en los dos modos.
+- **En el núcleo**, `cpu.hires` dice el modo y `cpu.displayWidth` × `cpu.displayHeight`
+  el tamaño. El arreglo `cpu.display` se reemplaza por uno nuevo cuando el tamaño
+  cambia, así que hay que volver a leerlo en cada frame en lugar de guardarlo.
+
+Con la plataforma CHIP-8, `HIGH`, `LOW` y los desplazamientos se ignoran (con aviso) y
+la pantalla queda siempre en 64 × 32.
+
+> **Diferencia con SUPER-CHIP 1.1.** En la calculadora, cambiar de modo no borraba la
+> pantalla, los desplazamientos en baja resolución movían la mitad, `DXY0` dibujaba
+> 8 × 16 en baja resolución y VF contaba filas en alta (13.1). Este emulador hace lo que
+> Octo.
+
+### 13.6 Planos y colores
+
+La pantalla de XO-CHIP son dos pantallas superpuestas del mismo tamaño, el **plano 1** y
+el **plano 2**. Cada píxel tiene un bit en cada plano, así que puede estar en cuatro
+estados, y la consola pinta cada uno con un color de la paleta:
+
+| Valor del píxel | Plano 2 | Plano 1 | Color de la paleta | En los diagramas |
+|:---:|:---:|:---:|---|:---:|
+| 0 | apagado | apagado | El fondo | `.` |
+| 1 | apagado | prendido | El del plano 1: el color de siempre | `#` |
+| 2 | prendido | apagado | El del plano 2 | `+` |
+| 3 | prendido | prendido | El de los dos planos | `@` |
+
+En el núcleo, cada elemento de `cpu.display` es esa máscara: el bit 0 es el plano 1 y
+el bit 1, el plano 2. Con CHIP-8 y SUPER-CHIP hay un solo plano, el 1 (valores 0 y 1).
+
+**`PLANE` elige dónde actúan las instrucciones de dibujo.** `FN01` (`PLANE N`) guarda
+una máscara de 2 bits: `PLANE 1` (lo que hay al arrancar), `PLANE 2`, `PLANE 3` (los
+dos) o `PLANE 0` (ninguno). `DRW`, `CLS` y los cuatro desplazamientos actúan solo sobre
+los planos elegidos y dejan los otros como estaban. `HIGH` y `LOW` son la excepción:
+siempre borran los dos.
+
+**Con los dos planos elegidos, el sprite usa el doble de bytes.** Primero se dibujan en
+el plano 1 los N bytes que empiezan en I, y después, en el plano 2, los N bytes
+siguientes (con `DXY0`, 32 y 32). Con un solo plano elegido, sus datos empiezan en I, sea
+el 1 o el 2. Así, un solo `DRW` con `PLANE 3` dibuja (o borra, por el XOR) un sprite de
+cuatro colores:
+
+```asm
+; Plataforma: XO-CHIP
+; Un cuadrado de 8 × 8 con los cuatro colores
+        PLANE 3
+        LD   I, cuadro
+        LD   V0, 28
+        LD   V1, 12
+        DRW  V0, V1, 8      ; 8 bytes para el plano 1 y los 8 siguientes para el plano 2
+fin:    JP   fin
+cuadro: DB   0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00   ; plano 1: la mitad de arriba
+        DB   0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0   ; plano 2: la mitad izquierda
+```
+
+```
+   plano 1 (bytes 0 a 7)     plano 2 (bytes 8 a 15)     en la pantalla
+   ########                  ####....                   @@@@####
+   ########                  ####....                   @@@@####
+   ########                  ####....                   @@@@####
+   ########                  ####....                   @@@@####
+   ........                  ####....                   ++++....
+   ........                  ####....                   ++++....
+   ........                  ####....                   ++++....
+   ........                  ####....                   ++++....
+```
+
+**VF** vale 1 si algún píxel encendido se apagó en cualquiera de los planos dibujados;
+lo que pase en un plano no elegido no cuenta. Con `PLANE 0`, `DRW` no dibuja nada y deja
+VF en 0.
+
+Un uso típico, que muestra el cartucho incluido **Planos**: lo que se mueve en un plano y
+lo fijo en el otro. Como `SCR`, `SCL`, `SCD` y `SCU` corren solo los planos elegidos, se
+puede desplazar un plano entero sin tocar el otro.
+
+**Los colores los decide la consola, no el programa**: la especificación deja la paleta
+a cargo del intérprete. Cada paleta de este emulador tiene sus cuatro colores; con
+**Personalizada** los elegís vos, y los juegos del archivo de la comunidad traen los
+suyos (la paleta **Del cartucho**, [11.11](#1111-ajustes-por-cartucho)).
+
+### 13.7 La fuente grande
+
+SUPER-CHIP agrega una segunda fuente, de **8 × 10** píxeles, para mostrar números
+grandes, por ejemplo un puntaje en alta resolución. `FX30` (`LD HF, VX`) apunta I al
+glifo del dígito bajo de VX, que se dibuja con `DRW VX, VY, 10`:
+
+```
+I ← 0x0A0 + (V[X] & 0xF) × 10              ; en este emulador
+```
+
+Con SUPER-CHIP y XO-CHIP, este emulador guarda los 16 glifos (160 bytes) en
+`0x0A0`–`0x13F` (`BIG_FONT_ADDR`), justo después de la fuente chica; con CHIP-8 esa
+zona queda en cero. Los dígitos 0 a 9 tienen la forma de los de SUPER-CHIP 1.1 y las
+letras A a F son las de Octo, porque SUPER-CHIP 1.1 no tenía letras grandes. Como en la
+sección [8.2](#82-los-16-glifos), a la izquierda de cada fila está su byte:
+
+```
+        0                 1                 2                 3
+ 3C  ..####..      18  ...##...      3E  ..#####.      3C  ..####..
+ 7E  .######.      38  ..###...      7F  .#######      7E  .######.
+ E7  ###..###      58  .#.##...      C3  ##....##      C3  ##....##
+ C3  ##....##      18  ...##...      06  .....##.      03  ......##
+ C3  ##....##      18  ...##...      0C  ....##..      0E  ....###.
+ C3  ##....##      18  ...##...      18  ...##...      0E  ....###.
+ C3  ##....##      18  ...##...      30  ..##....      03  ......##
+ E7  ###..###      18  ...##...      60  .##.....      C3  ##....##
+ 7E  .######.      18  ...##...      FF  ########      7E  .######.
+ 3C  ..####..      3C  ..####..      FF  ########      3C  ..####..
+
+        4                 5                 6                 7
+ 06  .....##.      FF  ########      3E  ..#####.      FF  ########
+ 0E  ....###.      FF  ########      7C  .#####..      FF  ########
+ 1E  ...####.      C0  ##......      E0  ###.....      03  ......##
+ 36  ..##.##.      C0  ##......      C0  ##......      06  .....##.
+ 66  .##..##.      FC  ######..      FC  ######..      0C  ....##..
+ C6  ##...##.      FE  #######.      FE  #######.      18  ...##...
+ FF  ########      03  ......##      C3  ##....##      30  ..##....
+ FF  ########      C3  ##....##      C3  ##....##      60  .##.....
+ 06  .....##.      7E  .######.      7E  .######.      60  .##.....
+ 06  .....##.      3C  ..####..      3C  ..####..      60  .##.....
+
+        8                 9                 A                 B
+ 3C  ..####..      3C  ..####..      7E  .######.      FC  ######..
+ 7E  .######.      7E  .######.      FF  ########      FC  ######..
+ C3  ##....##      C3  ##....##      C3  ##....##      C3  ##....##
+ C3  ##....##      C3  ##....##      C3  ##....##      C3  ##....##
+ 7E  .######.      7F  .#######      C3  ##....##      FC  ######..
+ 7E  .######.      3F  ..######      FF  ########      FC  ######..
+ C3  ##....##      03  ......##      FF  ########      C3  ##....##
+ C3  ##....##      03  ......##      C3  ##....##      C3  ##....##
+ 7E  .######.      3E  ..#####.      C3  ##....##      FC  ######..
+ 3C  ..####..      7C  .#####..      C3  ##....##      FC  ######..
+
+        C                 D                 E                 F
+ 3C  ..####..      FC  ######..      FF  ########      FF  ########
+ FF  ########      FE  #######.      FF  ########      FF  ########
+ C3  ##....##      C3  ##....##      C0  ##......      C0  ##......
+ C0  ##......      C3  ##....##      C0  ##......      C0  ##......
+ C0  ##......      C3  ##....##      FF  ########      FF  ########
+ C0  ##......      C3  ##....##      FF  ########      FF  ########
+ C0  ##......      C3  ##....##      C0  ##......      C0  ##......
+ C3  ##....##      C3  ##....##      C0  ##......      C0  ##......
+ FF  ########      FE  #######.      FF  ########      C0  ##......
+ 3C  ..####..      FC  ######..      FF  ########      C0  ##......
+```
+
+Los mismos bytes, con la dirección de cada glifo en este emulador:
+
+| Dígito | Bytes | Dirección |
+|:---:|---|:---:|
+| 0 | `3C 7E E7 C3 C3 C3 C3 E7 7E 3C` | `0x0A0` |
+| 1 | `18 38 58 18 18 18 18 18 18 3C` | `0x0AA` |
+| 2 | `3E 7F C3 06 0C 18 30 60 FF FF` | `0x0B4` |
+| 3 | `3C 7E C3 03 0E 0E 03 C3 7E 3C` | `0x0BE` |
+| 4 | `06 0E 1E 36 66 C6 FF FF 06 06` | `0x0C8` |
+| 5 | `FF FF C0 C0 FC FE 03 C3 7E 3C` | `0x0D2` |
+| 6 | `3E 7C E0 C0 FC FE C3 C3 7E 3C` | `0x0DC` |
+| 7 | `FF FF 03 06 0C 18 30 60 60 60` | `0x0E6` |
+| 8 | `3C 7E C3 C3 7E 7E C3 C3 7E 3C` | `0x0F0` |
+| 9 | `3C 7E C3 C3 7F 3F 03 03 3E 7C` | `0x0FA` |
+| A | `7E FF C3 C3 C3 FF FF C3 C3 C3` | `0x104` |
+| B | `FC FC C3 C3 FC FC C3 C3 FC FC` | `0x10E` |
+| C | `3C FF C3 C0 C0 C0 C0 C3 FF 3C` | `0x118` |
+| D | `FC FE C3 C3 C3 C3 C3 C3 FE FC` | `0x122` |
+| E | `FF FF C0 C0 FF FF C0 C0 FF FF` | `0x12C` |
+| F | `FF FF C0 C0 FF FF C0 C0 C0 C0` | `0x136` |
+
+> **Diferencia con SUPER-CHIP 1.1.** Su fuente grande tenía solo los diez dígitos: así
+> la reproducen Octo y Cadmium, el emulador de Gulrak, y los diez de esta consola
+> coinciden byte a byte con esas dos tablas (incluida la tercera fila del 6, `E0`).
+> Las letras A a F son un agregado de Octo.
+
+> **Diferencia con Octo.** Octo guarda la fuente chica en `0x000` y la grande a
+> continuación, en `0x050`, y con su estilo de fuente por defecto los dígitos grandes son
+> otros, más cuadrados (las letras A a F sí son las mismas). Un programa que dependa de
+> la dirección o de la forma exacta de los glifos no es portable: usá siempre `FX30`.
+
+### 13.8 Las banderas RPL
+
+SUPER-CHIP puede guardar registros fuera de la memoria del programa. En la HP-48 eran
+variables del sistema operativo de la calculadora (así lo cuenta la especificación de
+XO-CHIP), y por eso se las suele llamar **banderas RPL**: RPL es el lenguaje de la
+HP-48. `FX75` (`LD R, VX`) copia V0..VX en las banderas y `FX85` (`LD VX, R`) las vuelve
+a cargar. La especificación agrega que algunos intérpretes modernos las conservan de una
+ejecución a otra: así un juego puede guardar, por ejemplo, su récord.
+
+En este emulador:
+
+- Hay **16 banderas** (`cpu.flags`), con SUPER-CHIP y con XO-CHIP: X puede ir de 0 a F.
+- Están fuera de la memoria: `FX75` y `FX85` no tocan I ni la memoria.
+- Sobreviven a todo lo que reinicia la máquina: **Reiniciar**, cargar otra ROM o cambiar
+  de plataforma.
+- Con **Ajustes por cartucho** prendido, la consola además las guarda en el navegador
+  para cada ROM, por su huella, y se las devuelve la próxima vez que la cargues: un
+  récord dura de una sesión a otra. Una ROM que nunca guardó banderas arranca con las 16
+  en cero. Con el interruptor apagado, las banderas duran lo que dura la página y las
+  comparten todas las ROMs.
+
+```asm
+; Plataforma: SUPER-CHIP
+; Cuenta cuántas veces arrancó este programa: la cuenta sobrevive a Reiniciar
+        LD   V0, R          ; V0 = bandera 0 (cero la primera vez)
+        ADD  V0, 1
+        LD   R, V0          ; bandera 0 = V0, para la próxima
+        LD   F, V0          ; mostrar la cuenta (su dígito hexadecimal bajo)
+        LD   V1, 0
+        DRW  V1, V1, 5
+fin:    JP   fin
+```
+
+> **Diferencia con SUPER-CHIP 1.1.** En una HP-48 hay solo 8 banderas: `FX75` y `FX85`
+> admiten X de 0 a 7 (Gulrak). La versión 1.1 de XO-CHIP las extendió a 16, y este
+> emulador, como Octo, ofrece las 16 también con la plataforma SUPER-CHIP.
+
+### 13.9 La memoria de 64 KB y la carga larga
+
+Con XO-CHIP, el PC e I tienen 16 bits y la memoria llega a 64 KB:
+
+```
+ 0xFFFF +--------------------------------------+
+        |                                      |
+        |   programa y datos (la ROM)          |   hasta 65.024 bytes
+        |   lo que está arriba de 0xFFF solo   |   (de 0x0200 a 0xFFFF)
+        |   se alcanza con LD I, LONG          |
+        |                                      |
+ 0x1000 + - - - - - - - - - - - - - - - - - - -+   hasta acá llegan JP, CALL y LD I, NNN
+        |                                      |
+ 0x0200 +--------------------------------------+   PROGRAM_START: la ROM y el PC
+        |   libre (ceros)                      |   0x0140 - 0x01FF
+ 0x0140 +--------------------------------------+
+        |   fuente grande (160 bytes)          |   0x00A0 - 0x013F
+ 0x00A0 +--------------------------------------+
+        |   fuente chica (80 bytes)            |   0x0050 - 0x009F
+ 0x0050 +--------------------------------------+
+        |   libre (ceros)                      |   0x0000 - 0x004F
+ 0x0000 +--------------------------------------+
+```
+
+Las instrucciones de siempre siguen teniendo direcciones de 12 bits: `JP`, `CALL` y
+`LD I, NNN` llegan solo hasta `0xFFF` (y `JP V0`, como mucho, hasta `0x10FE`). Por eso
+conviene que el código esté abajo; arriba de `0xFFF` van los datos (gráficos, niveles,
+música), y a ellos se llega con la única instrucción de 4 bytes: `F000 NNNN`
+(`LD I, LONG NNNN`), que carga en I la palabra que la sigue.
+
+**Todo da la vuelta en 16 bits.** El PC pasa de `0xFFFE` a `0x0000`, y todas las
+lecturas y escrituras de memoria (`DXYN`, `FX33`, `FX55`, `FX65`, `5XY2`, `5XY3` y
+`F002`) usan la dirección completa, módulo 65.536. `ADD I, VX` también da la vuelta en
+`0xFFFF`, y `JP V0, NNN` puede saltar más allá de `0xFFF` (`NNN + V0` llega hasta
+`0x10FE`).
+
+**Los saltos condicionales saltean `F000 NNNN` entera.** `3XNN`, `4XNN`, `5XY0`,
+`9XY0`, `EX9E` y `EXA1` miran la instrucción siguiente: si es `F000`, avanzan 4 bytes en
+lugar de 2, para no caer en el medio de la instrucción (en la palabra `NNNN`). Con
+CHIP-8 y SUPER-CHIP, `F000` no es una instrucción y los saltos avanzan 2 bytes, como
+siempre. La especificación aprovecha esa diferencia para que un programa averigüe si
+está en un intérprete de XO-CHIP:
+
+```asm
+; ¿El intérprete tiene XO-CHIP? (la idea es de la especificación de XO-CHIP)
+        LD   V0, 0          ; V0 = 0: no hay XO-CHIP
+        SE   VF, VF         ; siempre saltea la instrucción siguiente...
+        DW   0xF000         ; ...que con XO-CHIP es F000 NNNN: 4 bytes, junto con el JP
+        JP   fin            ; CHIP-8 y SUPER-CHIP saltean solo el F000 y llegan acá
+        LD   V0, 1          ; XO-CHIP saltea los 4 bytes y llega acá
+fin:    JP   fin
+```
+
+**Para ensamblar** un programa que pasa de `0xFFF`, usá
+`node tools/chip8asm.js programa.asm --xo` (o `assemble(fuente, { xochip: true })`):
+sin esa opción, el ensamblador avisa que el programa no entra en 4 KB. Con XO-CHIP, el
+monitor muestra las direcciones con 4 dígitos, y los mensajes de error también
+(«... en la dirección 0x020A»).
+
+### 13.10 El audio de XO-CHIP: patrón y tono
+
+CHIP-8 tiene un solo sonido, que suena mientras ST es mayor que 0 (sección
+[5.3](#53-el-buzzer)). XO-CHIP lo conserva, ST sigue decidiendo **cuándo** suena, y
+agrega **cómo** suena:
+
+- **El patrón** son 16 bytes, 128 bits. `F002` (`AUDIO`) los copia desde I. Mientras ST
+  es mayor que 0, la consola los reproduce en bucle, del bit más alto del primer byte al
+  más bajo del último: cada 1 es la onda arriba y cada 0, abajo. Es una copia: cambiar
+  la memoria después no cambia el sonido hasta el próximo `F002`.
+- **El tono** (`pitch`) es la velocidad a la que se leen esos bits. `FX3A` (`PITCH VX`)
+  lo carga desde VX; al arrancar vale 64. La velocidad, en bits por segundo, es
+
+```
+velocidad = 4000 × 2^((pitch − 64) / 48)
+```
+
+Con 64 son 4000 bits por segundo, y cada 48 de `pitch` la velocidad se duplica (una
+octava): sumar 4 sube un semitono. La nota que se oye depende también del patrón: si el
+patrón repite un ciclo cada 16 bits, la frecuencia es la velocidad dividida por 16; si
+tiene un solo ciclo en los 128 bits, la velocidad dividida por 128. En la tabla, las
+tres últimas columnas son la nota con un ciclo cada 128, 32 y 16 bits:
+
+| `pitch` | Bits por segundo | Ciclo de 128 bits | Ciclo de 32 bits | Ciclo de 16 bits |
+|---:|---:|---:|---:|---:|
+| 0 | 1587 | 12,40 Hz | 49,61 Hz | 99,21 Hz |
+| 16 | 2000 | 15,63 Hz | 62,50 Hz | 125,00 Hz |
+| 64 (al arrancar) | 4000 | 31,25 Hz | 125,00 Hz | 250,00 Hz |
+| 112 | 8000 | 62,50 Hz | 250,00 Hz | 500,00 Hz |
+| 115 | 8354 | 65,27 Hz | 261,07 Hz | 522,14 Hz |
+| 160 | 16.000 | 125,00 Hz | 500,00 Hz | 1000,00 Hz |
+| 208 | 32.000 | 250,00 Hz | 1000,00 Hz | 2000,00 Hz |
+| 247 | 56.200 | 439,06 Hz | 1756,25 Hz | 3512,50 Hz |
+| 255 | 63.082 | 492,83 Hz | 1971,33 Hz | 3942,65 Hz |
+
+Los dos patrones de la especificación son estos: con `pitch` 247, el primero da 439 Hz,
+casi el la de 440 Hz, y el segundo, dos octavas más arriba, 1756 Hz. El cartucho
+incluido **Planos** usa un ciclo cada 16 bits: con `pitch` 115 suena un do de 522 Hz.
+
+```
+00 00 00 00 00 00 00 00 FF FF FF FF FF FF FF FF     un ciclo en los 128 bits
+00 00 FF FF 00 00 FF FF 00 00 FF FF 00 00 FF FF     un ciclo cada 32 bits
+```
+
+**Cómo lo hace esta consola:**
+
+- Hasta que el programa ejecuta su primer `F002`, suena el beep de siempre (440 Hz): los
+  programas de CHIP-8 y SUPER-CHIP no se quedan mudos. Desde el primer `F002`, y hasta
+  que la máquina se reinicie, suena el patrón.
+- El patrón respeta el volumen y el silencio de la consola, como el beep. Además, se le
+  resta su promedio: un patrón parejo (todo ceros o todo unos) no suena, y así es como
+  se calla un programa de XO-CHIP.
+- Reiniciar vuelve todo al principio: patrón en ceros, `pitch` en 64 y el beep.
+
+> **Diferencia con Octo.** La especificación deja el contenido inicial del patrón a
+> cargo del intérprete y recomienda cargarlo siempre; Octo lo empieza en ceros, así que
+> un programa que nunca ejecuta `F002` no suena. Acá suena el beep hasta el primer
+> `F002`. Además, la especificación pide que la reproducción vuelva al principio del
+> patrón solo cuando ST llega a 0 o se pone en 0, y así lo hace Octo; esta consola, en
+> cambio, vuelve al principio del bucle cuando cambian el patrón o el tono, y no cuando
+> ST llega a 0.
+
+### 13.11 Referencia de las instrucciones de SUPER-CHIP y XO-CHIP
+
+Las fichas tienen el mismo formato que las de la sección
+[10](#10-referencia-completa-de-las-35-instrucciones) y una línea más, **Plataforma**,
+que dice con cuáles se ejecutan; con una plataforma más chica pasa lo que explica
+[13.4](#134-qué-pasa-si-cargás-una-rom-de-super-chip-o-xo-chip-acá). Cada ejemplo dice,
+en un comentario al principio, la plataforma que hay que elegir para correrlo.
+
+| Opcode | Mnemónico | Qué hace | VF | Plataforma |
+|---|---|---|---|---|
+| `00CN` | `SCD N` | Desplaza los planos elegidos N filas hacia abajo | — | SUPER-CHIP y XO-CHIP |
+| `00DN` | `SCU N` | Desplaza los planos elegidos N filas hacia arriba | — | XO-CHIP |
+| `00FB` | `SCR` | Desplaza los planos elegidos 4 columnas a la derecha | — | SUPER-CHIP y XO-CHIP |
+| `00FC` | `SCL` | Desplaza los planos elegidos 4 columnas a la izquierda | — | SUPER-CHIP y XO-CHIP |
+| `00FD` | `EXIT` | Termina el programa | — | SUPER-CHIP y XO-CHIP |
+| `00FE` | `LOW` | Pasa a 64 × 32 y borra la pantalla | — | SUPER-CHIP y XO-CHIP |
+| `00FF` | `HIGH` | Pasa a 128 × 64 y borra la pantalla | — | SUPER-CHIP y XO-CHIP |
+| `5XY2` | `SAVE VX, VY` | Guarda VX..VY en memoria desde I; I no cambia | — | XO-CHIP |
+| `5XY3` | `LOAD VX, VY` | Carga VX..VY desde la memoria en I; I no cambia | — | XO-CHIP |
+| `DXY0` | `DRW VX, VY, 0` | Dibuja un sprite de 16 × 16 en (VX, VY) | colisión | SUPER-CHIP y XO-CHIP |
+| `F000 NNNN` | `LD I, LONG NNNN` | I = NNNN (instrucción de 4 bytes) | — | XO-CHIP |
+| `FN01` | `PLANE N` | Elige los planos de dibujo (N de 0 a 3) | — | XO-CHIP |
+| `F002` | `AUDIO` | Copia 16 bytes desde I al patrón de audio | — | XO-CHIP |
+| `FX30` | `LD HF, VX` | I = glifo grande del dígito VX | — | SUPER-CHIP y XO-CHIP |
+| `FX3A` | `PITCH VX` | Tono del patrón de audio = VX | — | XO-CHIP |
+| `FX75` | `LD R, VX` | Guarda V0..VX en las banderas RPL | — | SUPER-CHIP y XO-CHIP |
+| `FX85` | `LD VX, R` | Carga V0..VX desde las banderas RPL | — | SUPER-CHIP y XO-CHIP |
+
+---
+
+#### `00CN` — SCD N
+
+**Desplazar la imagen N filas hacia abajo.**
+
+**VF:** sin cambios · **Quirk:** ninguno · **Plataforma:** SUPER-CHIP y XO-CHIP
+
+```
+para cada plano elegido (con SUPER-CHIP, solo el plano 1):
+    cada fila baja N filas; las N de más abajo se pierden
+    las N filas de arriba quedan apagadas
+; las filas son las de la resolución actual (32 o 64); con N = 0 no hace nada
+```
+
+Corre la imagen hacia abajo de 0 a 15 filas, en píxeles de la resolución actual. Lo que
+sale por abajo no vuelve por arriba, y arriba quedan N filas vacías. No toca registros
+ni memoria. Con XO-CHIP corre solo los planos elegidos con `PLANE`
+([13.6](#136-planos-y-colores)); con CHIP-8 se ignora, con un aviso
+([11.10](#1110-diagnósticos-de-plataforma)).
+
+> **Diferencia con SUPER-CHIP 1.1.** En la HP-48, en baja resolución el desplazamiento
+> mueve la mitad, y `00C0` no es una instrucción válida (Gulrak). Este emulador, como
+> Octo, mueve N filas enteras en las dos resoluciones, y `SCD 0` no hace nada.
+
+```asm
+; Plataforma: SUPER-CHIP
+        LD   I, barra
+        LD   V0, 0
+        LD   V1, 0
+        DRW  V0, V1, 1      ; una barra de 8 píxeles en la fila 0
+        SCD  4              ; ahora está en la fila 4, y las filas 0 a 3 quedan vacías
+fin:    JP   fin
+barra:  DB   0xFF
+```
+
+---
+
+#### `00DN` — SCU N
+
+**Desplazar la imagen N filas hacia arriba.**
+
+**VF:** sin cambios · **Quirk:** ninguno · **Plataforma:** XO-CHIP
+
+```
+para cada plano elegido:
+    cada fila sube N filas; las N de más arriba se pierden
+    las N filas de abajo quedan apagadas
+; con N = 0 no hace nada
+```
+
+El complemento de `SCD N`, que XO-CHIP agregó porque SUPER-CHIP tenía desplazamientos
+para abajo y para los costados, pero no para arriba. Las mismas reglas: de 0 a 15 filas
+de la resolución actual, sin dar la vuelta, solo en los planos elegidos. Con CHIP-8 y
+con SUPER-CHIP se ignora, con un aviso (en el monitor de SUPER-CHIP se ve como
+`SYS 0x0DN`).
+
+```asm
+; Plataforma: XO-CHIP
+        LD   I, barra
+        LD   V0, 0
+        LD   V1, 31
+        DRW  V0, V1, 1      ; una barra en la última fila (la 31, en baja resolución)
+        SCU  8              ; sube a la fila 23; abajo quedan 8 filas vacías
+fin:    JP   fin
+barra:  DB   0xFF
+```
+
+---
+
+#### `00FB` — SCR
+
+**Desplazar la imagen 4 píxeles a la derecha.**
+
+**VF:** sin cambios · **Quirk:** ninguno · **Plataforma:** SUPER-CHIP y XO-CHIP
+
+```
+para cada plano elegido, en cada fila:
+    cada píxel se corre 4 columnas a la derecha; las 4 de más a la derecha se pierden
+    las columnas 0 a 3 quedan apagadas
+```
+
+Siempre son 4 columnas de la resolución actual. Lo que sale por la derecha no vuelve
+por la izquierda ni pasa a la fila de abajo. Con XO-CHIP, solo en los planos elegidos.
+
+> **Diferencia con SUPER-CHIP 1.1.** En la HP-48, en baja resolución mueve la mitad: 2
+> píxeles de baja resolución (Gulrak). Acá, como en Octo, son 4 en los dos modos.
+
+```asm
+; Plataforma: SUPER-CHIP
+        LD   I, punto
+        LD   V0, 0
+        LD   V1, 0
+        DRW  V0, V1, 1      ; un punto en (0, 0)
+        SCR                 ; ahora está en (4, 0)
+        SCR                 ; y ahora en (8, 0)
+fin:    JP   fin
+punto:  DB   0x80
+```
+
+---
+
+#### `00FC` — SCL
+
+**Desplazar la imagen 4 píxeles a la izquierda.**
+
+**VF:** sin cambios · **Quirk:** ninguno · **Plataforma:** SUPER-CHIP y XO-CHIP
+
+```
+para cada plano elegido, en cada fila:
+    cada píxel se corre 4 columnas a la izquierda; las 4 de más a la izquierda se pierden
+    las 4 columnas de la derecha quedan apagadas
+```
+
+El espejo de `SCR`, con las mismas reglas y la misma diferencia con SUPER-CHIP 1.1 en
+baja resolución.
+
+```asm
+; Plataforma: SUPER-CHIP
+; Correr la imagen entera 32 píxeles a la izquierda, 4 por frame
+        LD   V2, 8          ; 8 desplazamientos de 4 píxeles
+otra:   SCL
+        LD   V0, 1
+        LD   DT, V0
+espera: LD   V0, DT         ; esperar al frame siguiente
+        SE   V0, 0
+        JP   espera
+        ADD  V2, -1
+        SE   V2, 0
+        JP   otra
+fin:    JP   fin
+```
+
+---
+
+#### `00FD` — EXIT
+
+**Terminar el programa.**
+
+**VF:** sin cambios · **Quirk:** ninguno · **Plataforma:** SUPER-CHIP y XO-CHIP
+
+```
+halted ← verdadero;  exited ← verdadero      ; la máquina se detiene, sin error
+PC ← la dirección del 00FD                   ; queda apuntando a la instrucción
+```
+
+En SUPER-CHIP salía del intérprete. En esta consola, la máquina se detiene **sin
+error** (`cpu.error` queda en `null` y `cpu.exited` en `true`) y la pantalla muestra
+«FIN DEL PROGRAMA» ([11.10](#1110-diagnósticos-de-plataforma)). Para volver a jugar hay
+que reiniciar. Con CHIP-8 se ignora, con un aviso, y el programa sigue con la
+instrucción siguiente.
+
+```asm
+; Fragmento: partida es una subrutina de tu programa.
+; Plataforma: SUPER-CHIP
+otra:   CALL partida
+        LD   V0, K          ; al terminar: la tecla 0 sale, cualquier otra vuelve a jugar
+        SE   V0, 0
+        JP   otra
+        EXIT
+```
+
+---
+
+#### `00FE` — LOW
+
+**Pasar a baja resolución (64 × 32) y borrar la pantalla.**
+
+**VF:** sin cambios · **Quirk:** ninguno · **Plataforma:** SUPER-CHIP y XO-CHIP
+
+```
+resolución ← 64 × 32
+apagar todos los píxeles, en los dos planos
+```
+
+Vuelve al modo de CHIP-8 y borra la pantalla entera, aunque ya estuviera en baja
+resolución y aunque `PLANE` haya elegido un solo plano ([13.5](#135-alta-y-baja-resolución)).
+Toda ROM arranca en baja resolución, así que `LOW` hace falta solo para volver de
+`HIGH`.
+
+> **Diferencia con SUPER-CHIP 1.1.** En la HP-48, cambiar de resolución no borraba la
+> pantalla, y quedaban restos (Gulrak). Este emulador, como Octo, la borra siempre.
+
+```asm
+; Fragmento: titulo es una subrutina y juego una etiqueta de tu programa.
+; Plataforma: SUPER-CHIP
+        HIGH                ; la pantalla de título, en 128 × 64
+        CALL titulo
+        LD   V0, K          ; esperar una tecla
+        LOW                 ; el juego, en 64 × 32 (y con la pantalla borrada)
+        JP   juego
+```
+
+---
+
+#### `00FF` — HIGH
+
+**Pasar a alta resolución (128 × 64) y borrar la pantalla.**
+
+**VF:** sin cambios · **Quirk:** ninguno · **Plataforma:** SUPER-CHIP y XO-CHIP
+
+```
+resolución ← 128 × 64
+apagar todos los píxeles, en los dos planos
+```
+
+Desde acá, las coordenadas van de 0 a 127 y de 0 a 63, y `DXYN`, `DXY0` y los
+desplazamientos trabajan en píxeles de alta resolución
+([13.5](#135-alta-y-baja-resolución)). Como `LOW`, borra la pantalla entera siempre.
+Con CHIP-8 se ignora, con un aviso, y la pantalla sigue en 64 × 32.
+
+```asm
+; Plataforma: SUPER-CHIP
+        HIGH                ; 128 × 64, con la pantalla borrada
+        LD   I, punto
+        LD   V0, 127
+        LD   V1, 63
+        DRW  V0, V1, 1      ; la esquina de abajo a la derecha: existe recién en alta resolución
+fin:    JP   fin
+punto:  DB   0x80
+```
+
+---
+
+#### `5XY2` — SAVE VX, VY
+
+**Guardar VX..VY en memoria, a partir de I, sin mover I.**
+
+**VF:** sin cambios · **Quirk:** ninguno · **Plataforma:** XO-CHIP
+
+```
+si X ≤ Y:  para k de 0 a Y − X:  memoria[I + k] ← V[X + k]
+si no:     para k de 0 a X − Y:  memoria[I + k] ← V[X − k]
+; I no cambia; las direcciones dan la vuelta en 0xFFFF
+```
+
+Guarda un rango de registros en el orden en que los nombrás: `SAVE V2, V5` guarda V2,
+V3, V4 y V5; `SAVE V5, V2` guarda V5, V4, V3 y V2. A diferencia de `FX55`, no tiene que
+empezar en V0 y **nunca mueve I**, con cualquier perfil (el quirk `memory` no la
+afecta). XO-CHIP la tomó de CHIP-8E, que según Gulrak solo admitía X ≤ Y.
+
+```asm
+; Plataforma: XO-CHIP
+; Guardar la posición del jugador (V4, V5) sin tocar V0..V3
+        LD   I, jugador
+        SAVE V4, V5         ; jugador = V4, V5; I sigue apuntando a "jugador"
+fin:    JP   fin
+jugador: DB  0, 0
+```
+
+---
+
+#### `5XY3` — LOAD VX, VY
+
+**Cargar VX..VY desde la memoria en I, sin mover I.**
+
+**VF:** sin cambios (salvo que el rango incluya VF) · **Quirk:** ninguno · **Plataforma:** XO-CHIP
+
+```
+si X ≤ Y:  para k de 0 a Y − X:  V[X + k] ← memoria[I + k]
+si no:     para k de 0 a X − Y:  V[X − k] ← memoria[I + k]
+; I no cambia
+```
+
+La operación inversa de `SAVE`, con las mismas reglas: el orden de los registros es el
+que escribís y I queda donde estaba. Con las dos juntas se puede, por ejemplo, dar
+vuelta un bloque de memoria sin calcular nada.
+
+```asm
+; Plataforma: XO-CHIP
+; Dar vuelta 4 bytes en el lugar (el ejemplo de la especificación)
+        LD   I, datos
+        LOAD V0, V3         ; V0..V3 = 1, 2, 3, 4
+        SAVE V3, V0         ; datos = 4, 3, 2, 1 (I no se movió)
+fin:    JP   fin
+datos:  DB   1, 2, 3, 4
+```
+
+---
+
+#### `DXY0` — DRW VX, VY, 0
+
+**Dibujar un sprite de 16 × 16 en (VX, VY) con XOR; VF = colisión.**
+
+**VF:** 1 si algún píxel encendido se apagó, 0 si no · **Quirks:** [`clipping`](#116-clipping-recortar-o-dar-la-vuelta), [`displayWait`](#117-displaywait-esperar-el-vblank) · **Plataforma:** SUPER-CHIP y XO-CHIP
+
+```
+x0 ← V[X] % ancho;  y0 ← V[Y] % alto          ; 64 × 32 o 128 × 64
+colisión ← 0;  dirección ← I
+para cada plano elegido (primero el 1, después el 2):
+    para fila de 0 a 15:
+        bits ← memoria[dirección + 2 × fila] << 8 | memoria[dirección + 2 × fila + 1]
+        dibujar los 16 bits como DXYN dibuja 8 (XOR; clipping decide en los bordes)
+        si se apagó un píxel encendido de ese plano:  colisión ← 1
+    dirección ← dirección + 32
+V[F] ← colisión
+```
+
+Con N = 0, SUPER-CHIP y XO-CHIP dibujan un sprite de 16 × 16 píxeles: 32 bytes desde I,
+dos por fila. El primer byte de cada fila es la mitad izquierda, con su bit más alto en
+la columna 0. En todo lo demás es [`DXYN`](#dxyn--drw-vx-vy-n): XOR, coordenadas
+iniciales que dan la vuelta, el quirk `clipping` en los bordes, VF = 1 si algo se apagó
+y, con `displayWait`, fin del frame. Con XO-CHIP y los dos planos elegidos usa 64 bytes:
+32 para cada plano. Escribir el sprite con un `DW` por fila es lo más cómodo: cada
+palabra es una fila. Con CHIP-8 no dibuja nada, pone VF en 0 y la consola avisa que es
+de SUPER-CHIP.
+
+> **Diferencia con SUPER-CHIP 1.1.** En baja resolución dibujaba 8 × 16, no 16 × 16, y
+> en alta resolución VF no era 0 o 1 sino la cantidad de filas que chocaron más las que
+> quedaron recortadas abajo (Gulrak). Este emulador hace lo de Octo: 16 × 16 en las dos
+> resoluciones y VF de 0 o 1, también para `DXYN` en alta resolución.
+
+```asm
+; Plataforma: SUPER-CHIP
+        HIGH
+        LD   I, cara
+        LD   V0, 56
+        LD   V1, 24
+        DRW  V0, V1, 0      ; 16 × 16: 32 bytes desde I, una palabra por fila
+fin:    JP   fin
+cara:   DW   %0000011111100000
+        DW   %0001100000011000
+        DW   %0010000000000100
+        DW   %0100000000000010
+        DW   %0100011001100010
+        DW   %1000011001100001
+        DW   %1000000000000001
+        DW   %1000000000000001
+        DW   %1001000000001001
+        DW   %1000100000010001
+        DW   %0100011111100010
+        DW   %0100000000000010
+        DW   %0010000000000100
+        DW   %0001100000011000
+        DW   %0000011111100000
+        DW   %0000000000000000
+```
+
+---
+
+#### `F000 NNNN` — LD I, LONG NNNN
+
+**Cargar en I una dirección de 16 bits.**
+
+**VF:** sin cambios · **Quirk:** ninguno · **Plataforma:** XO-CHIP
+
+```
+I ← memoria[PC] << 8 | memoria[PC + 1]      ; NNNN, la palabra que sigue al F000
+PC ← PC + 2                                 ; el PC queda después de NNNN
+```
+
+La única instrucción de 4 bytes: la palabra `F000` y después la dirección. Llega a toda
+la memoria de 64 KB, mientras que `ANNN` no pasa de `0xFFF`
+([13.9](#139-la-memoria-de-64-kb-y-la-carga-larga)). En el ensamblador se escribe
+`LD I, LONG` y una expresión de 0 a `0xFFFF`. Los saltos condicionales la saltean
+entera, y en el monitor ocupa una sola fila (`LD I, LONG 0x8000`). Con CHIP-8 o
+SUPER-CHIP detiene la máquina con un error de plataforma; `FX00` con X distinto de 0 no
+existe en ninguna.
+
+```asm
+; Plataforma: XO-CHIP
+; Usar la memoria alta como lugar de trabajo: 0x8000 está lejos del programa
+BUFFER  EQU  0x8000
+        LD   I, LONG BUFFER
+        LD   V0, 0x55
+        LD   [I], V0        ; memoria[0x8000] = 0x55
+        LD   I, LONG BUFFER
+        LD   V0, [I]        ; y se puede volver a leer
+fin:    JP   fin
+```
+
+---
+
+#### `FN01` — PLANE N
+
+**Elegir en qué planos se dibuja.**
+
+**VF:** sin cambios · **Quirk:** ninguno · **Plataforma:** XO-CHIP
+
+```
+planos ← N            ; máscara de 2 bits: bit 0 = plano 1, bit 1 = plano 2
+```
+
+Elige los planos sobre los que actúan `DRW`, `CLS` y los desplazamientos: 1 (el de
+siempre, el que está elegido al arrancar), 2, 3 (los dos) o 0 (ninguno). No cambia la
+pantalla ([13.6](#136-planos-y-colores)). Con N de 4 a 15 es un opcode inválido, y el
+ensamblador solo acepta de 0 a 3.
+
+> **Diferencia con Octo.** Octo acepta cualquier N y usa sus dos bits bajos. La
+> especificación dice que N va de 0 a 3 (y que un programa que use más planos no es
+> válido), así que acá un N mayor detiene la máquina.
+
+```asm
+; Plataforma: XO-CHIP
+; Borrar solo el plano 2 y dejar el 1 como está
+        PLANE 2
+        CLS
+        PLANE 1             ; volver al plano de siempre
+fin:    JP   fin
+```
+
+---
+
+#### `F002` — AUDIO
+
+**Copiar 16 bytes desde I al patrón de audio.**
+
+**VF:** sin cambios · **Quirk:** ninguno · **Plataforma:** XO-CHIP
+
+```
+para k de 0 a 15:  patrón[k] ← memoria[I + k]
+; I no cambia
+```
+
+Carga los 128 bits que suenan mientras ST es mayor que 0
+([13.10](#1310-el-audio-de-xo-chip-patrón-y-tono)). Desde el primer `F002`, la consola
+reproduce el patrón en lugar del beep. Es una copia: después se puede reusar esa
+memoria. Con X distinto de 0 (`FX02`) es un opcode inválido.
+
+> **Diferencia con Octo.** Octo acepta `FX02` con cualquier X como `audio`; acá solo
+> existe `F002`.
+
+```asm
+; Plataforma: XO-CHIP
+; Un la de medio segundo: el patrón y el tono del ejemplo de la especificación
+        LD   I, onda
+        AUDIO               ; el patrón: 64 bits en 0 y 64 en 1, un ciclo
+        LD   V0, 247
+        PITCH V0            ; 56.200 bits por segundo / 128 = 439 Hz
+        LD   V0, 30
+        LD   ST, V0         ; suena mientras ST > 0: medio segundo
+fin:    JP   fin
+onda:   DB   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        DB   0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
+```
+
+---
+
+#### `FX30` — LD HF, VX
+
+**I = dirección del glifo grande del dígito VX.**
+
+**VF:** sin cambios · **Quirk:** ninguno · **Plataforma:** SUPER-CHIP y XO-CHIP
+
+```
+I ← 0x0A0 + (V[X] & 0xF) × 10              ; en este emulador
+```
+
+Como [`FX29`](#fx29--ld-f-vx), pero con la fuente de 8 × 10: apunta I al glifo del
+dígito hexadecimal bajo de VX, listo para `DRW VX, VY, 10`
+([13.7](#137-la-fuente-grande)). Con CHIP-8 detiene la máquina con un error de
+plataforma.
+
+```asm
+; Plataforma: SUPER-CHIP
+; Mostrar V3 (0 a 255) en decimal con la fuente grande
+        HIGH
+        LD   V3, 255
+        LD   I, bcd
+        LD   B, V3
+        LD   V2, [I]        ; V0, V1, V2 = centenas, decenas, unidades
+        LD   V4, 49         ; x
+        LD   V5, 27         ; y
+        LD   HF, V0
+        DRW  V4, V5, 10
+        ADD  V4, 10
+        LD   HF, V1
+        DRW  V4, V5, 10
+        ADD  V4, 10
+        LD   HF, V2
+        DRW  V4, V5, 10
+fin:    JP   fin
+bcd:    DB   0, 0, 0
+```
+
+---
+
+#### `FX3A` — PITCH VX
+
+**Tono del patrón de audio = VX.**
+
+**VF:** sin cambios · **Quirk:** ninguno · **Plataforma:** XO-CHIP
+
+```
+pitch ← V[X]
+; el patrón suena a 4000 × 2^((pitch − 64) / 48) bits por segundo
+```
+
+Al arrancar, `pitch` vale 64: 4000 bits por segundo. Cada 48 la velocidad se duplica
+(una octava) y cada 4 sube un semitono; la tabla de
+[13.10](#1310-el-audio-de-xo-chip-patrón-y-tono) tiene algunos valores. El tono vale
+para el patrón que esté cargado y para los que se carguen después.
+
+```asm
+; Fragmento: patron son los 16 bytes del patrón de tu programa.
+; Plataforma: XO-CHIP
+        LD   I, patron
+        AUDIO
+        LD   V0, 112        ; una octava más arriba que al arrancar (64 + 48)
+        PITCH V0
+        LD   V0, 10
+        LD   ST, V0
+```
+
+---
+
+#### `FX75` — LD R, VX
+
+**Guardar V0..VX en las banderas RPL.**
+
+**VF:** sin cambios · **Quirk:** ninguno · **Plataforma:** SUPER-CHIP y XO-CHIP
+
+```
+para i de 0 a X:  banderas[i] ← V[i]
+; I y la memoria no cambian
+```
+
+Guarda un bloque de registros que empieza en V0, como `FX55`, pero en las 16 banderas
+que viven fuera de la memoria y sobreviven a los reinicios
+([13.8](#138-las-banderas-rpl)). Con CHIP-8 detiene la máquina con un error de
+plataforma.
+
+> **Diferencia con SUPER-CHIP 1.1.** En la HP-48, X va solo de 0 a 7: hay 8 banderas
+> (Gulrak). Acá, como en Octo y en XO-CHIP 1.1, son 16 con las dos plataformas.
+
+```asm
+; Plataforma: SUPER-CHIP
+; Guardar el récord (V5) en la bandera 0
+        LD   V0, V5
+        LD   R, V0          ; bandera 0 = V0 (las demás no cambian)
+```
+
+---
+
+#### `FX85` — LD VX, R
+
+**Cargar V0..VX desde las banderas RPL.**
+
+**VF:** sin cambios (salvo que X sea F) · **Quirk:** ninguno · **Plataforma:** SUPER-CHIP y XO-CHIP
+
+```
+para i de 0 a X:  V[i] ← banderas[i]
+```
+
+La operación inversa de `FX75`: carga V0..VX con lo que guardó la última partida (o con
+ceros, si la ROM nunca guardó nada). El ejemplo de [13.8](#138-las-banderas-rpl) usa las
+dos para contar cuántas veces arrancó un programa. Con CHIP-8 detiene la máquina con un
+error de plataforma.
+
+```asm
+; Plataforma: SUPER-CHIP
+; Al arrancar: leer el récord guardado en la bandera 0
+        LD   V0, R          ; V0 = bandera 0
+        LD   V5, V0
+```
+
+---
+
+### 13.12 Otras variantes
+
+Ninguna de estas está implementada en este emulador:
+
+- **CHIP-8X** (RCA, 1980): color, placa de sonido y un segundo teclado.
+- **CHIP-8E**, **CHIP-10** y otras variantes de la época para el VIP y máquinas afines;
+  CHIP-10 usa una pantalla de mayor resolución. De CHIP-8E salen `5XY2` y `5XY3`, que
+  XO-CHIP adoptó.
+- **MEGA-CHIP** (Revival Studios, 2007): una extensión moderna con resolución de hasta
+  256×192.
 
 ---
 
@@ -2574,6 +3997,19 @@ de la arquitectura COSMAC de Weisbecker.
 **1861 (RCA CDP1861, "Pixie").** El chip de video del VIP. Lee la memoria de pantalla
 por DMA y genera la señal de video para el monitor o el televisor.
 
+**Alta resolución.** El modo de 128 × 64 píxeles de SUPER-CHIP y XO-CHIP. Se entra con
+`00FF` (`HIGH`) y se vuelve a la baja resolución, la de 64 × 32, con `00FE` (`LOW`)
+(sección [13.5](#135-alta-y-baja-resolución)). Ver también *Hires / lores*.
+
+**Archivo de la comunidad.** El *Chip8 Community Archive* de John Earnest: un
+repositorio con programas de CHIP-8, SUPER-CHIP y XO-CHIP, sus autores y las opciones con
+que se juegan en Octo, con licencia CC0. Esta consola trae su tabla para configurar sola
+los juegos que reconoce ([11.11](#1111-ajustes-por-cartucho)).
+
+**Banderas RPL.** Los 16 bytes, fuera de la memoria, que guardan `FX75` y leen `FX85`
+en SUPER-CHIP y XO-CHIP. Sobreviven a los reinicios, y los juegos los usan para guardar
+récords o partidas. En la HP-48 eran 8 (sección [13.8](#138-las-banderas-rpl)).
+
 **BCD (decimal codificado en binario).** Representar un número con un dígito decimal
 por byte. `FX33` convierte un registro a BCD.
 
@@ -2581,6 +4017,7 @@ por byte. `FX33` convierte un registro a BCD.
 baja). Las instrucciones CHIP-8 se guardan así.
 
 **Buzzer.** El generador de sonido: un solo tono, que suena mientras ST es mayor que 0.
+En XO-CHIP, lo que suena es el *patrón de audio*.
 
 **Clipping.** Recortar lo que queda fuera de la pantalla. Lo contrario de *wrapping*.
 
@@ -2601,13 +4038,19 @@ es y ejecutarla.
 **Frame.** Un sesenteavo de segundo. En este emulador, la unidad de ejecución: IPF
 instrucciones y un tic de los timers.
 
-**Glifo.** El dibujo de un carácter. La fuente de CHIP-8 tiene 16 glifos de 4×5.
+**Glifo.** El dibujo de un carácter. La fuente de CHIP-8 tiene 16 glifos de 4×5, y la
+fuente grande de SUPER-CHIP y XO-CHIP, 16 de 8×10.
 
-**Hires / lores.** Alta y baja resolución: 128×64 y 64×32 en SUPER-CHIP. CHIP-8 solo
-tiene lores.
+**Hires / lores.** Alta y baja resolución: 128×64 y 64×32 en SUPER-CHIP y XO-CHIP.
+CHIP-8 solo tiene lores.
 
 **Híbrido (programa).** Un programa CHIP-8 que usa código máquina del 1802 (`0NNN`) o
 partes internas del intérprete del VIP.
+
+**Huella SHA-1.** Un resumen de 160 bits (40 dígitos hexadecimales) que se calcula con
+los bytes de un archivo y cambia si cambia uno solo: dos ROMs con la misma huella son,
+en la práctica, la misma ROM. La consola reconoce así los cartuchos
+([11.11](#1111-ajustes-por-cartucho)).
 
 **I.** El registro índice: guarda una dirección de memoria.
 
@@ -2618,16 +4061,31 @@ frame de 1/60 s.
 programa que la interpreta.
 
 **Monitor.** En este manual, el panel de depuración de la consola: estado (PC, I, SP,
-DT, ST, IPF), registros V0–VF, desensamblado alrededor del PC, pila y memoria en I. En
+DT, ST, IPF, la plataforma y su resolución), registros V0–VF, desensamblado alrededor
+del PC, pila y memoria en I. En
 el VIP, *el programa monitor* era el sistema operativo en ROM, con el que se leía y
 escribía la memoria desde el teclado hex y se grababan y leían cassettes.
 
 **Nibble.** Medio byte: 4 bits, un dígito hexadecimal.
 
-**Opcode.** El código numérico de una instrucción; en CHIP-8, una palabra de 16 bits.
+**Octo.** El entorno de John Earnest para programar CHIP-8 en el navegador, con un
+lenguaje ensamblador propio y un emulador. Ahí nació XO-CHIP, y sus valores por defecto
+son los que esperan los programas hechos con él (secciones
+[1.6](#16-octo-xo-chip-y-la-comunidad-actual) y [11.8](#118-tabla-comparativa)).
+
+**Opcode.** El código numérico de una instrucción; en CHIP-8, una palabra de 16 bits
+(en XO-CHIP, `F000 NNNN` ocupa dos).
+
+**Patrón de audio.** En XO-CHIP, los 16 bytes (128 bits) que suenan en bucle mientras
+ST es mayor que 0; se cargan con `F002` (sección
+[13.10](#1310-el-audio-de-xo-chip-patrón-y-tono)).
 
 **PC (program counter).** El contador de programa: la dirección de la próxima
 instrucción.
+
+**Perfil.** En este emulador, una combinación de los seis quirks junto con la plataforma
+que va con ella: COSMAC VIP, SUPER-CHIP o XO-CHIP
+([11.9](#119-cómo-elegir-la-configuración-en-este-emulador)).
 
 **Persistencia (de fósforo).** El brillo que le queda a un punto de un tubo de rayos
 catódicos después de apagarse. En el modo Tubo CRT de este emulador, un efecto visual
@@ -2635,6 +4093,14 @@ opcional que disimula el parpadeo (sección [6.5](#65-el-parpadeo)).
 
 **Pila.** La estructura donde `CALL` guarda las direcciones de retorno y de donde `RET`
 las saca.
+
+**Plano.** En XO-CHIP, cada una de las dos capas de un bit por píxel que forman la
+pantalla. Con dos planos, cada píxel puede estar en cuatro estados, que se ven con
+cuatro colores; `FN01` elige en cuáles se dibuja (sección [13.6](#136-planos-y-colores)).
+
+**Plataforma.** En este emulador, la máquina que se emula: CHIP-8, SUPER-CHIP o XO-CHIP.
+Decide el juego de instrucciones, la memoria y la pantalla; los quirks se eligen aparte
+([13.3](#133-las-plataformas-de-este-emulador)).
 
 **Quirk.** Una diferencia de comportamiento entre implementaciones de las que dependen
 los programas (sección [11](#11-quirks)).
@@ -2648,10 +4114,19 @@ fuente.
 **SP (stack pointer).** Indica cuántas direcciones hay en la pila.
 
 **Sprite.** Un dibujo de 8 píxeles de ancho y 1 a 15 de alto que `DXYN` pone en
-pantalla con XOR.
+pantalla con XOR. SUPER-CHIP y XO-CHIP agregan los de 16 × 16 (`DXY0`).
 
 **ST (sound timer).** Timer de sonido: baja a 60 Hz y el buzzer suena mientras es
 mayor que 0; se escribe con `FX18`.
+
+**SUPER-CHIP (SCHIP).** La extensión de CHIP-8 que Erik Bryntse escribió en 1991 para
+las calculadoras HP-48: alta resolución, desplazamientos de pantalla, sprites de
+16 × 16, fuente grande y banderas. Este emulador la ejecuta como una de sus plataformas
+(sección [13.1](#131-super-chip-schip)).
+
+**Tono (pitch).** En XO-CHIP, el registro que fija a qué velocidad se reproduce el
+patrón de audio: 4000 × 2^((pitch − 64) / 48) bits por segundo. Se carga con `FX3A`
+(sección [13.10](#1310-el-audio-de-xo-chip-patrón-y-tono)).
 
 **Vblank (borrado vertical).** El momento entre dos cuadros de video en que no se está
 dibujando la imagen; el VIP esperaba la interrupción de video antes de dibujar.
@@ -2660,6 +4135,11 @@ dibujando la imagen; el VIP esperaba la interrupción de video antes de dibujar.
 colisión).
 
 **Wrapping.** Dar la vuelta: lo que sale por un borde aparece por el opuesto.
+
+**XO-CHIP.** La extensión de CHIP-8 que John Earnest definió para Octo: 64 KB de
+memoria, dos planos de dibujo (cuatro colores) y sonido por patrón, sobre todo lo de
+SUPER-CHIP. Este emulador la ejecuta como una de sus plataformas (sección
+[13.2](#132-xo-chip)).
 
 **XOR (o exclusivo).** Operación que da 1 si los dos bits son distintos. `DXYN` la usa
 para combinar el sprite con la pantalla.
@@ -2702,15 +4182,36 @@ para combinar el sprite con la pantalla.
 
 ### Quirks, variantes y pruebas
 
-- Timendus, *chip8-test-suite* (incluye el test de quirks y el de teclado).
-  [GitHub](https://github.com/Timendus/chip8-test-suite)
-- Steffen Schümann (Gulrak), *CHIP-8 Variant Opcode Table*.
-  [chip8.gulrak.net](https://chip8.gulrak.net/)
+- Timendus, *chip8-test-suite*: incluye el test de quirks (para CHIP-8, SUPER-CHIP
+  moderno y *legacy*, y XO-CHIP), el de teclado y uno de desplazamientos para SUPER-CHIP
+  y XO-CHIP, y una nota sobre las diferencias entre SUPER-CHIP en la HP-48 y los
+  intérpretes modernos.
+  [GitHub](https://github.com/Timendus/chip8-test-suite) ·
+  [Legacy SUPER-CHIP](https://github.com/Timendus/chip8-test-suite/blob/main/legacy-superchip.md)
+- Steffen Schümann (Gulrak), *CHIP-8 Variant Opcode Table*: qué instrucciones tiene cada
+  variante (también qué agregó cada versión de SUPER-CHIP) y sus quirks.
+  [chip8.gulrak.net](https://chip8.gulrak.net/) ·
+  [los datos de la tabla, en JSON](https://chip8.gulrak.net/data/opcode-table.json)
+- Steffen Schümann (Gulrak), *Cadmium*, emulador de muchas variantes; su código tiene las
+  fuentes grandes de SUPER-CHIP 1.0 y 1.1 (`src/emulation/chip8emulatorbase.cpp`).
+  [GitHub](https://github.com/gulrak/cadmium)
 - *CHIP-8 Database* (plataformas, quirks y velocidades de cientos de ROMs).
   [GitHub](https://github.com/chip-8/chip-8-database)
-- John Earnest, *XO-CHIP Specification* y el entorno Octo.
+- John Earnest, *XO-CHIP Specification* (versión 1.1) y el entorno Octo.
   [Especificación](https://johnearnest.github.io/Octo/docs/XO-ChipSpecification.html) ·
+  [su texto fuente](https://github.com/JohnEarnest/Octo/blob/gh-pages/docs/XO-ChipSpecification.md) ·
   [Octo](https://github.com/JohnEarnest/Octo)
+- John Earnest, el código del emulador de Octo: los valores por defecto de los quirks,
+  las fuentes y cómo ejecuta cada instrucción de SUPER-CHIP y XO-CHIP (`js/emulator.js`),
+  y cómo reproduce el patrón de audio (`js/shared.js`).
+  [emulator.js](https://github.com/JohnEarnest/Octo/blob/gh-pages/js/emulator.js) ·
+  [shared.js](https://github.com/JohnEarnest/Octo/blob/gh-pages/js/shared.js)
+- John Earnest y colaboradores, *Chip8 Community Archive*: programas de CHIP-8,
+  SUPER-CHIP y XO-CHIP con sus autores y las opciones con que se juegan en Octo, todo con
+  licencia CC0. Es la fuente de la tabla de autoconfiguración de la consola
+  (`tools/archive.js` y `data/archive.json`).
+  [GitHub](https://github.com/JohnEarnest/chip8Archive) ·
+  [galería](https://beyondloom.com/octo/archive.html)
 - ArkoSammy12, *jchip* (emulador multivariante; estimación de velocidad del VIP).
   [GitHub](https://github.com/ArkoSammy12/jchip)
 - John Earnest ("Internet Janitor"), respuesta sobre la velocidad del VIP en el foro de
@@ -2738,10 +4239,26 @@ Para no presentar como hecho lo que no lo es, estos puntos quedan con reservas:
   (11 a 15); depende de la mezcla de instrucciones.
 - **El valor exacto de VF después de AND/OR/XOR en el VIP.** Scotford lo describe como
   indefinido (lo que haya quedado en DF); las suites modernas lo modelan como 0.
-- **La espera del vblank en la HP-48.** Gulrak indica que los intérpretes de la HP-48
-  esperaban en el modo de 64×32; la `chip-8-database` modela CHIP-48 y SUPER-CHIP sin
-  esa espera.
-- **Qué agregó exactamente SUPER-CHIP 1.1 respecto de la 1.0.** Las fuentes difieren.
+- **La espera del vblank en la HP-48.** Según la suite de Timendus, probada por Gulrak en
+  una HP48SX y una HP48GX, SUPER-CHIP 1.0 y 1.1 esperan en baja resolución y no en
+  alta; la `chip-8-database` modela CHIP-48 y SUPER-CHIP sin esa espera. No lo
+  comprobamos nosotros.
+- **Qué agregó exactamente SUPER-CHIP 1.1 respecto de la 1.0.** Seguimos la tabla de
+  Gulrak (el desplazamiento de pantalla es de la 1.1; lo demás ya estaba en la 1.0); no
+  la contrastamos con los anuncios originales de Bryntse.
+- **Cómo se comportaba SUPER-CHIP en la HP-48.** El desplazamiento a medias en baja
+  resolución, VF con la cuenta de filas en alta, `DXY0` de 8 × 16 en baja, la pantalla
+  que no se borra al cambiar de modo y las banderas hasta V7 salen de la tabla de Gulrak
+  y de la suite de Timendus; no los probamos en una calculadora ni en un emulador de la
+  HP-48.
+- **La fuente grande de SUPER-CHIP 1.1.** Comparamos la de este emulador con las tablas
+  de Octo y de Cadmium, que coinciden entre sí, y no con un volcado del intérprete de la
+  HP-48. Las dos tablas difieren de la de este emulador en un byte del 6
+  ([13.7](#137-la-fuente-grande)).
+- **El comportamiento de Octo.** Lo tomamos de su código (`js/emulator.js` y
+  `js/shared.js`, leídos en noviembre de 2026) y de la especificación de XO-CHIP, no de
+  correr Octo. En particular, la profundidad de su pila y lo que hace con `0NNN`, con
+  `FN01` (N > 3) y con `FX02` (X ≠ 0) son lo que dice ese código.
 - **La fuente original del VIP.** Los bytes de la sección [8.4](#84-la-fuente-original-del-vip)
   salen de una transcripción del listado de la ROM del manual; no los contrastamos con
   un volcado binario.

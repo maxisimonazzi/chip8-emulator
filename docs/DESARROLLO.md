@@ -6,11 +6,13 @@ como está en el repositorio.
 
 - Para usar la consola, empezá por el [README](../README.md).
 - Para aprender CHIP-8 programando, leé el [tutorial](TUTORIAL.md).
-- Para la referencia de la máquina (instrucciones, quirks, temporización, historia), está
-  el [manual](MANUAL.md).
+- Para la referencia de la máquina (instrucciones, quirks, temporización, historia, y
+  SUPER-CHIP y XO-CHIP), está el [manual](MANUAL.md).
 
 Los nombres de funciones, variables y archivos que aparecen acá existen en el código; si
-cambiás alguno, buscalo también en este documento.
+cambiás alguno, buscalo también en este documento. Algunos (la API de `window.chip8`,
+las claves de `Chip8Core`, las de `localStorage` y la lista de escenarios E2E) los
+controla `tests/manual.test.js` ([6.6](#66-pruebas-de-la-documentación)).
 
 ## Índice
 
@@ -30,89 +32,116 @@ cambiás alguno, buscalo también en este documento.
 
 ### 1.1 Qué es y qué hay en el repositorio
 
-Un emulador de CHIP-8 que corre en el navegador desde **un solo archivo HTML**,
-`chip8.html` (unos 141 KB y 3050 líneas), **sin dependencias**: no pide nada a la red, no
-usa bibliotecas, fuentes ni imágenes externas. Se abre con doble clic (`file://`) o por
-HTTP. Todo lo que ve el usuario, los mensajes de error, los comentarios y la documentación
-están en castellano rioplatense (voseo); los identificadores del código, en inglés.
+Un emulador de CHIP-8, SUPER-CHIP y XO-CHIP que corre en el navegador desde **un solo
+archivo HTML**, `chip8.html` (unos 338 KB y 6200 líneas), **sin dependencias**: no pide
+nada a la red, no usa bibliotecas, fuentes ni imágenes externas, y ni siquiera contiene
+una dirección `http(s)`. Se abre con doble clic (`file://`) o por HTTP. Todo lo que ve el
+usuario, los mensajes de error, los comentarios y la documentación están en castellano
+rioplatense (voseo); los identificadores del código, en inglés.
 
 ```
-chip8.html              la consola: estilos, marcado, núcleo, cartuchos e interfaz
-roms/*.asm, *.ch8       fuentes y binarios de los cinco cartuchos incluidos
+chip8.html              la consola: estilos, marcado, núcleo, cartuchos, tabla del archivo e interfaz
+roms/*.asm, *.ch8       fuentes y binarios de los seis cartuchos incluidos
+data/archive.json       los 104 programas del archivo de la comunidad: huella, plataforma y opciones de Octo
 tools/chip8asm.js       ensamblador (módulo de Node, script de navegador y línea de comandos)
 tools/embed-roms.js     ensambla roms/*.asm y los incrusta en chip8.html
+tools/archive.js        baja el archivo de la comunidad, lo incrusta en chip8.html y prueba sus juegos
 tools/serve.js          servidor estático mínimo (http://localhost:8008/)
 tools/e2e.js            pruebas de punta a punta en Chrome o Edge, por DevTools Protocol
 tests/harness.js        saca los bloques <script> de chip8.html y los evalúa en Node
-tests/*.test.js         pruebas con node:test
-docs/MANUAL.md          manual de referencia de CHIP-8
+tests/*.test.js         pruebas con node:test (17 archivos)
+docs/MANUAL.md          manual de referencia de CHIP-8, SUPER-CHIP y XO-CHIP
 docs/TUTORIAL.md        tutorial, con sus ejemplos en docs/ejemplos/
 docs/DESARROLLO.md      este documento
-package.json            scripts test, asm, roms, serve y e2e; sin dependencias
+package.json            scripts test, asm, roms, archive, serve y e2e; sin dependencias
+.gitattributes          texto con fin de línea LF en todo el repositorio; *.ch8 como binario
+.gitignore              deja afuera la configuración local de cada máquina
 ```
 
 Hace falta Node.js 22 o más nuevo para las herramientas y las pruebas (se usa `node:test`
-y, en `tools/e2e.js`, el `WebSocket` global de Node 22). El emulador en sí no necesita
-nada: solo un navegador moderno.
+y, en `tools/e2e.js`, el `WebSocket` global de Node 22); en esta ronda se trabajó con Node
+24 y las pruebas pasan con 22 y con 24. No hace falta que esté en el PATH
+([9.10](#910-trabajar-sin-node-en-el-path)). El emulador en sí no necesita nada: solo un
+navegador moderno.
 
-### 1.2 Requisitos y dónde se cumplen
+### 1.2 Requisitos originales y dónde se cumplen
 
-Estos son los requisitos originales del proyecto. La tabla dice dónde está implementado
-cada uno y qué lo verifica. Los números de "E2E" son escenarios de `tools/e2e.js` (la
-lista completa está en [6.7](#67-los-escenarios-e2e)).
+Estos son los requisitos del proyecto original, la consola de CHIP-8. La tabla dice dónde
+está implementado cada uno y qué lo verifica. Los números de "E2E" son escenarios de
+`tools/e2e.js` (la lista completa está en [6.7](#67-los-escenarios-e2e)).
 
 | Requisito | Dónde está | Cómo se verifica |
 |---|---|---|
 | Las 35 instrucciones de CHIP-8 | `Chip8.prototype.step` en `chip8-core`: un `switch` por el primer nibble ([3.3](#33-buscar-decodificar-ejecutar)) | `tests/instructions.test.js` (un grupo por instrucción, 175 pruebas); el cartucho Autotest (`tests/roms.test.js`, E2E 9) |
-| 4 KB de memoria | `memory = new Uint8Array(4096)`; toda dirección se enmascara con `& 0xFFF` | `tests/core-api.test.js` (constantes, estado inicial); `tests/mutation-gaps.test.js` (bordes `0xFFE`/`0xFFF`) |
+| 4 KB de memoria | `memory = new Uint8Array(4096)` en CHIP-8 y SUPER-CHIP; toda dirección se enmascara con `_mask` (`0xFFF`) | `tests/core-api.test.js` (constantes, estado inicial); `tests/mutation-gaps.test.js` (bordes `0xFFE`/`0xFFF`) |
 | Registros V0–VF, I, PC y pila | `V` (`Uint8Array(16)`), `I`, `pc`, `stack` (`Uint16Array(16)`) y `sp` ([3.2](#32-estado-de-la-máquina)) | `tests/instructions.test.js`; `tests/core-api.test.js` (desbordes de pila) |
 | Timers de retardo y sonido a 60 Hz | `tickTimers()` al final de cada `runFrame`; el bucle de la interfaz llama a `runFrame` 60 veces por segundo ([4.2](#42-el-bucle-principal)) | `tests/timers-keys.test.js`; E2E 2 (60 frames por segundo reales) y 17 (pestaña oculta) |
-| Pantalla de 64×32 | `display` (`Uint8Array(2048)`) y `_draw` (XOR, colisión, recorte o vuelta) | `tests/display.test.js`; E2E 6 (la pantalla coincide píxel por píxel con el núcleo en Node) y 18 |
+| Pantalla de 64×32 | `display` (`Uint8Array`) y `_draw` (XOR, colisión, recorte o vuelta) | `tests/display.test.js`; E2E 6 (la pantalla coincide píxel por píxel con el núcleo en Node) y 18 |
 | Fuente hexadecimal en memoria | `FONT` en `FONT_ADDR = 0x050`, copiada por `reset()`; `FX29` | `tests/core-api.test.js` (bytes exactos, en `0x050` también después de `reset`); `tests/display.test.js` (los 16 glifos); el cartucho Fuente |
-| Programas cargados en `0x200` | `PROGRAM_START`, `loadRom` (hasta 3584 bytes) | `tests/core-api.test.js` (3584 bytes entran, 3585 no; también con `ArrayBuffer`) |
-| Seis quirks, con los del COSMAC VIP por defecto | `QUIRK_PRESETS`, `DEFAULT_QUIRKS`, `setQuirks`; interruptores DIP y selector de perfil ([4.9](#49-quirks-y-velocidad)) | `tests/quirks.test.js`; E2E 9 y 10 |
+| Programas cargados en `0x200` | `PROGRAM_START`, `loadRom` (hasta 3584 bytes, o 65.024 en XO-CHIP) | `tests/core-api.test.js` y `tests/platform.test.js` (los límites de cada plataforma) |
+| Seis quirks, con los del COSMAC VIP por defecto | `QUIRK_PRESETS`, `DEFAULT_QUIRKS`, `setQuirks`; interruptores DIP y selector de perfil ([4.12](#412-compatibilidad-plataforma-perfil-y-quirks)) | `tests/quirks.test.js`; E2E 9 y 10 |
 | Velocidad configurable en instrucciones por frame (IPF) | `runFrame(ipf)`; `setIpf` con deslizador logarítmico, campo numérico y botones (1 a 10.000, 15 por defecto) | `tests/core-api.test.js` (`runFrame`); E2E 2 y 11 |
-| Cargar ROMs con un botón o arrastrándolas | `loadFile`, `loadRomBytes`, un `input type="file"` escondido y los eventos de arrastre ([4.7](#47-carga-de-roms)) | E2E 6 |
-| Teclado de la computadora mapeado y keypad en pantalla | `KEY_BY_CODE` (por `KeyboardEvent.code`), `onKeyDown`/`onKeyUp`, `buildKeypad` ([4.5](#45-teclado-keypad-y-foco)) | `tests/timers-keys.test.js` (`setKey`, `EX9E`/`EXA1`, `FX0A`); E2E 3, 4, 20 y 21 |
+| Cargar ROMs con un botón o arrastrándolas | `loadFile`, `loadCartridge`, `loadRomBytes`, un `input type="file"` escondido y los eventos de arrastre ([4.8](#48-carga-de-roms)) | E2E 6 |
+| Teclado de la computadora mapeado y keypad en pantalla | `KEY_BY_CODE` (por `KeyboardEvent.code`), `onKeyDown`/`onKeyUp`, `buildKeypad` ([4.6](#46-teclado-keypad-y-foco)) | `tests/timers-keys.test.js` (`setKey`, `EX9E`/`EXA1`, `FX0A`); E2E 3, 4, 20 y 21 |
 | Pantalla retro, nítida y escalada | `resizeScreen` (escala entera con `devicePixelRatio`), `render`, efectos de tubo y los modos Tubo CRT / Píxeles puros ([4.3](#43-la-pantalla-de-cpudisplay-al-lienzo)) | E2E 15 (nitidez con escala 1,25 y 2), 18 y 24 |
-| Pitido con Web Audio | `ensureAudio`, `setBeep`, `updateIndicators` ([4.6](#46-sonido)) | E2E 12 (el grafo de audio y sus ganancias; el sonido audible no, ver [6.8](#68-lo-que-no-se-verifica-automáticamente)) |
-| Monitor de depuración con pausa, paso y reinicio | `updateMonitor`, `togglePause`, `stepOnce`, `frameOnce`, `doReset` y `disassemble` ([4.11](#411-el-monitor)) | `tests/disasm.test.js`; E2E 5, 13, 14 y 22 |
-| Demos originales | `roms/*.asm` → `tools/embed-roms.js` → `<script id="chip8-roms">`; estante y selector rápido ([5.4](#54-los-cinco-cartuchos)) | `tests/roms.test.js`; E2E 7, 8, 9 y 19 |
+| Pitido con Web Audio | `ensureAudio`, `setBeep`, `updateIndicators` ([4.7](#47-sonido)) | E2E 12 (el grafo de audio y sus ganancias; el sonido audible no, ver [6.8](#68-lo-que-no-se-verifica-automáticamente)) |
+| Monitor de depuración con pausa, paso y reinicio | `updateMonitor`, `togglePause`, `stepOnce`, `frameOnce`, `doReset` y `disassembleRange` ([4.16](#416-el-monitor)) | `tests/disasm.test.js`; E2E 5, 13, 14 y 22 |
+| Demos originales | `roms/*.asm` → `tools/embed-roms.js` → `<script id="chip8-roms">`; estante y selector rápido ([5.4](#54-los-seis-cartuchos)) | `tests/roms.test.js`; E2E 7, 8, 9 y 19 |
 | Pruebas de cada instrucción | `tests/*.test.js` con `node:test` ([6](#6-pruebas)) | `node --test` |
-| Verificación en un navegador de verdad | `tools/e2e.js` ([5.6](#56-toolse2ejs)) | 24 escenarios con entrada real |
+| Verificación en un navegador de verdad | `tools/e2e.js` ([5.7](#57-toolse2ejs)) | 40 escenarios con entrada real ([6.7](#67-los-escenarios-e2e)) |
 | Manual, tutorial y documentación de desarrollo | `docs/MANUAL.md`, `docs/TUTORIAL.md` y este documento | `tests/manual.test.js` y `tests/tutorial.test.js` (ejemplos, fragmentos, textos citados y enlaces) |
 
-### 1.3 Requisitos no funcionales
+### 1.3 La segunda ronda: features 1 a 5 y 9
+
+Después del proyecto original, un análisis propuso nueve ampliaciones y el usuario
+aprobó seis ([7.8](#78-segunda-ronda-el-pedido-y-el-punto-de-restauración)). Dónde quedó
+cada una y qué la verifica:
+
+| Feature | Dónde está | Cómo se verifica |
+|---|---|---|
+| **1. Autoconfiguración por ROM**: los juegos del archivo de la comunidad se configuran solos y cada ROM recuerda sus ajustes | `tools/archive.js` → `data/archive.json` → `<script id="chip8-archive">` ([5.5](#55-toolsarchivejs)); `Core.sha1`; en la interfaz, `archiveLookup`, `resolveConfig`, `loadCartridge`, `rememberCurrent`, `forgetRomSettings` y las banderas RPL por ROM ([4.9](#49-ajustes-por-cartucho)) | `tests/archive.test.js` (17 pruebas: la conversión de las opciones de Octo, `data/archive.json`, el bloque embebido); `tests/platform.test.js` (SHA-1 contra `node:crypto`); `tests/manual.test.js` (los números del archivo que cita el manual); `node tools/archive.js test` (103 de 104 juegos sin errores); E2E 29 (autoconfiguración, con una entrada del archivo registrada para la prueba), 30 (ajustes recordados y «Olvidar ajustes») y 31 (banderas RPL) |
+| **2. Diagnóstico de plataforma**: una instrucción de otra plataforma se ignora con un aviso o detiene la máquina con un error que dice qué hace falta | `extendedInfo`, `_ignore` (`cpu.hint`), `_unsupported` (`errorInfo.kind === 'platform'`) en el núcleo ([3.7](#37-errores-avisos-y-fin-del-programa)); `checkHint`, `handleHalt` y el botón «Cambiar a … y reiniciar» en la interfaz ([4.14](#414-diagnósticos)); la carga que pasa sola a XO-CHIP ([4.8](#48-carga-de-roms)) | `tests/platform.test.js` (avisos, errores, `errorInfo`, los 65.536 opcodes de `extendedInfo`); `tests/core-api.test.js` (el mensaje de `loadRom`); `tests/manual.test.js` (el aviso y el error citados tal cual); `tests/roms.test.js` (Planos se detiene pidiendo XO-CHIP en las otras plataformas); E2E 26 (una ROM de 4000 bytes pasa sola a XO-CHIP) y 27 (aviso con «Usar SUPER-CHIP», error de plataforma con su botón en el tubo y en el monitor, FIN DEL PROGRAMA) |
+| **3. SUPER-CHIP y XO-CHIP** | Las plataformas del núcleo ([3.9](#39-las-plataformas)): `PLATFORMS`, `setPlatform`, `_op00`, `_op5`, `_opF`, `_drawExt`, `_skipXO`, la fuente grande, las banderas, los planos y el audio; el ensamblador ([5.1](#51-el-ensamblador-toolschip8asmjs)); en la interfaz, el selector Plataforma, la pantalla de 128×64 con dos planos ([4.3](#43-la-pantalla-de-cpudisplay-al-lienzo)), el audio por patrón ([4.7](#47-sonido)) y el monitor; el cartucho *Planos* | `tests/platform.test.js`, `tests/superchip.test.js` y `tests/xochip.test.js` (421 pruebas, contra referencias propias); `tests/asm-extendido.test.js` (95); `tests/roms.test.js` (Planos y `@platform`); `tests/manual.test.js` (una ficha por instrucción, ejemplos que corren en su plataforma); 65 errores sembrados en el código nuevo del núcleo, todos detectados ([6.5](#65-mutation-testing)); E2E 25 (cada perfil trae su plataforma; XO-CHIP en 128×64 con los cuatro colores, píxel por píxel) y 33 (Planos a 60 fps, con su patrón de sonido) |
+| **4. Colores personalizados** | Paletas de cuatro colores, «Personalizada» con cuatro `input type="color"`, «Del cartucho», la mezcla de dos planos y el giro de la imagen ([4.5](#45-paletas-y-colores)) | E2E 28 («Personalizada» en vivo y guardada; «Del cartucho» aparece con el cartucho y se va con él), 25 (los cuatro colores exactos en Píxeles puros) y 29 (los colores y el giro de un juego del archivo) |
+| **5. Biblioteca de cartuchos** | El estante «Tus cartuchos» y la fila «Tuyos:»: `libraryAdd`, `libraryLoad`, `libraryRemove`, `enforceLibraryLimits`, `evictLibraryItem` ([4.10](#410-tus-cartuchos-la-biblioteca)) | E2E 32 (los dos estantes, cargar, recargar, quitar, «Deshacer» y el almacenamiento roto) y 40 (el diseño con la biblioteca llena) |
+| **9. Comodidades**: avance rápido, pantalla completa, captura PNG, joystick, controles reasignables, curvatura y encendido animado | Avance rápido (`TURBO_FACTOR`), `toggleFullscreen`, `screenshotCanvas`, `pollGamepads`, `KEYMAP_PRESETS` y `liveKeymap`, `buildWarpMap` (curvatura) y `playPowerOn` ([4.17](#417-comodidades)) | E2E 34 (avance rápido), 35 (captura), 36 (pantalla completa), 37 (joystick simulado), 38 (flechas y «Controles»), 39 (curvatura y encendido animado) y 40 (el diseño con «Controles» a la vista) |
+
+Las features 6 (un taller con editor), 7 (un depurador completo) y 8 (estados guardados y
+rebobinado) quedaron para más adelante ([9.11](#911-limitaciones-conocidas-y-trabajo-futuro)).
+
+### 1.4 Requisitos no funcionales
 
 | Requisito | Cómo se cumple | Cómo se verifica |
 |---|---|---|
-| Un solo archivo, sin dependencias ni red | Todo va en línea; el ícono de la pestaña es un SVG en una URL `data:` | `tests/single-file.test.js` (sin `http(s)`, `@import` ni `src`/`href` externos; los cuatro bloques bien formados); E2E 1 (sin errores ni 404) y 23 (el servidor solo recibe `/chip8.html`) |
-| Funciona abierto desde el disco | Sin `fetch`, sin módulos ES, sin workers ([2.6](#26-compatibilidad-con-file)) | E2E 1 carga la página por `file://` y por HTTP |
-| Un programa roto no rompe el emulador | La máquina se detiene con un mensaje ([3.7](#37-errores)) | `tests/core-api.test.js` (unos 50 opcodes inválidos, pila); E2E 14 y 22 |
-| Se puede manejar solo con el teclado y con lector de pantalla | ARIA, modelo de foco, activación sin puntero ([4.14](#414-accesibilidad)) | E2E 5, 20 y 21 |
-| Pantallas chicas y táctiles | Diseño adaptable (760 y 480 px), keypad con punteros y varios dedos | E2E 4, 15 y 24 |
-| Los ajustes se recuerdan | `localStorage` con validación ([4.13](#413-ajustes-guardados)) | E2E 10 (también con un `localStorage` que tira excepciones) y 18 |
-| Respeta "reducir movimiento" | `@media (prefers-reduced-motion: reduce)` | E2E 16 |
+| Un solo archivo, sin dependencias ni red | Todo va en línea; el ícono de la pestaña es un SVG en una URL `data:`; la tabla del archivo guarda su fuente sin `https://` ([8.23](#823-ninguna-dirección-de-red-en-chip8html)) | `tests/single-file.test.js` (sin `http(s)`, `@import` ni `src`/`href`/`url()` externos; los cinco bloques bien formados); E2E 1 (sin errores ni 404) y 23 (el servidor solo recibe `/chip8.html`) |
+| Funciona abierto desde el disco | Sin `fetch`, sin módulos ES, sin workers, y la huella SHA-1 en JavaScript puro ([2.6](#26-compatibilidad-con-file)) | E2E 1 carga la página por `file://` y por HTTP |
+| Un programa roto no rompe el emulador | La máquina se detiene con un mensaje ([3.7](#37-errores-avisos-y-fin-del-programa)) | `tests/core-api.test.js` (unos 50 opcodes inválidos, pila); `tests/platform.test.js` (errores de plataforma); E2E 14 y 22 |
+| Se puede manejar solo con el teclado y con lector de pantalla | ARIA, modelo de foco, activación sin puntero ([4.20](#420-accesibilidad)) | E2E 5, 20 y 21 |
+| Pantallas chicas y táctiles | Diseño adaptable (760 y 480 px), keypad con punteros y varios dedos, el keypad al lado en pantalla completa | E2E 4, 15 y 24 |
+| Los ajustes se recuerdan | `localStorage` con validación campo por campo, en tres claves ([4.19](#419-ajustes-guardados)) | E2E 10 (también con un `localStorage` que tira excepciones) y 18 |
+| Respeta "reducir movimiento" | `@media (prefers-reduced-motion: reduce)`; sin encendido animado | E2E 16 |
 | 60 frames por segundo estables | Acumulador de 60 Hz, sin asignar memoria por frame | E2E 2 (entre 59,7 y 60,3 frames por segundo en las corridas registradas) |
+| La plataforma CHIP-8 no se vuelve más lenta ni cambia | El camino de CHIP-8 de `step` quedó igual de corto: lo nuevo vive en funciones aparte ([3.3](#33-buscar-decodificar-ejecutar)); la pantalla de un solo plano usa la tabla de colores de siempre | Las pruebas de CHIP-8 de la primera ronda siguen pasando (solo cambió el mensaje de `loadRom`, que ahora sugiere XO-CHIP); `tests/platform.test.js` (CHIP-8 por defecto, exactamente como antes, y el desensamblador de siempre en las 65.536 palabras); la medición de [3.10](#310-rendimiento) |
 
 ---
 
 ## 2. Arquitectura del archivo único
 
-### 2.1 Los cuatro bloques
+### 2.1 Los cinco bloques
 
-`chip8.html` tiene cuatro bloques con un `id` fijo, más el marcado:
+`chip8.html` tiene cinco bloques con un `id` fijo, más el marcado:
 
 ```
 chip8.html
 ├── <head>
 │   ├── <link rel="icon" href="data:image/svg+xml,...">    ícono embebido: ningún pedido de red
-│   └── <style id="chip8-style">    ~800 líneas   carcasa, CRT, keypad, panel, monitor, ayuda
+│   └── <style id="chip8-style">      ~975 líneas   carcasa, CRT, keypad, panel, monitor, ayuda
 └── <body>
-    ├── <main class="desk" id="app">  ~260 líneas   consola, panel, estante, monitor, avisos, ayuda
-    ├── <script id="chip8-core">     ~490 líneas   núcleo puro        → globalThis.Chip8Core
-    ├── <script id="chip8-roms">      ~40 líneas   GENERADO           → globalThis.CHIP8_DEMOS
-    └── <script id="chip8-ui">      ~1450 líneas   interfaz y bucle   → window.chip8
+    ├── <main class="desk" id="app">   ~380 líneas   consola, panel, estantes, monitor, avisos, ayuda
+    ├── <script id="chip8-core">      ~1085 líneas   núcleo puro        → globalThis.Chip8Core
+    ├── <script id="chip8-roms">        ~45 líneas   GENERADO           → globalThis.CHIP8_DEMOS
+    ├── <script id="chip8-archive">    ~110 líneas   GENERADO           → globalThis.CHIP8_ARCHIVE
+    └── <script id="chip8-ui">        ~3595 líneas   interfaz y bucle   → window.chip8
 ```
 
 Quién usa a quién:
@@ -120,25 +149,34 @@ Quién usa a quién:
 ```
  roms/*.asm ──► tools/embed-roms.js ──(usa tools/chip8asm.js)──► <script id="chip8-roms">
                                                                          │ CHIP8_DEMOS
- <script id="chip8-core"> ── Chip8Core ──► <script id="chip8-ui"> ◄──────┘
-          ▲                                          │
-          │ tests/harness.js (node:vm)               ├──► el DOM, Canvas 2D, Web Audio, localStorage
-     tests/*.test.js                                 └──► window.chip8 (depuración y tools/e2e.js)
+ data/archive.json ──► tools/archive.js ──► <script id="chip8-archive"> ─┤ CHIP8_ARCHIVE
+                                                                         ▼
+ <script id="chip8-core"> ── Chip8Core ──────────────────────► <script id="chip8-ui">
+          ▲                                                              │
+          │ tests/harness.js (node:vm)                                   ├──► DOM, Canvas 2D, SVG, Web Audio,
+     tests/*.test.js, tools/archive.js test                              │    Gamepad, Fullscreen, localStorage
+                                                                         └──► window.chip8 (depuración y tools/e2e.js)
 ```
 
 - **`chip8-core`** es el emulador y nada más: no toca el DOM, la consola del navegador ni
   ningún global salvo `globalThis.Chip8Core`. Por eso corre igual en Node. Ver
   [3](#3-el-núcleo-chip8-core).
 - **`chip8-roms`** lo escribe `tools/embed-roms.js`: una lista de objetos con el nombre,
-  la descripción, los controles y los bytes en hexadecimal de cada cartucho. No se edita
-  a mano. Ver [5.2](#52-el-incrustador-toolsembed-romsjs).
-- **`chip8-ui`** es todo lo demás: pantalla, keypad, controles, monitor, sonido, ajustes y
-  el bucle principal. Solo lee `Chip8Core` y `CHIP8_DEMOS`. Ver
-  [4](#4-la-interfaz-chip8-ui).
+  la descripción, los controles, la plataforma (si no es CHIP-8) y los bytes en
+  hexadecimal de cada cartucho. No se edita a mano. Ver
+  [5.2](#52-el-incrustador-toolsembed-romsjs).
+- **`chip8-archive`** lo escribe `tools/archive.js`: la fuente, la licencia, el commit del
+  archivo de la comunidad y, para cada uno de sus programas, indexado por la huella SHA-1
+  de su ROM, el título, los autores, el evento, el año, la plataforma, el tamaño, las IPF,
+  los quirks, los cuatro colores y el giro. Tampoco se edita a mano. Ver
+  [5.5](#55-toolsarchivejs).
+- **`chip8-ui`** es todo lo demás: pantalla, keypad, controles, monitor, sonido, ajustes
+  por cartucho, biblioteca, comodidades y el bucle principal. Solo lee `Chip8Core`,
+  `CHIP8_DEMOS` y `CHIP8_ARCHIVE`. Ver [4](#4-la-interfaz-chip8-ui).
 
 El núcleo y la interfaz están escritos en JavaScript de estilo ES5 (`var`, funciones y
 prototipos, dentro de una IIFE con `'use strict'`). Las herramientas y las pruebas usan
-JavaScript moderno, porque corren en Node 22.
+JavaScript moderno, porque corren en Node 22 o más nuevo.
 
 ### 2.2 Por qué un solo archivo
 
@@ -147,52 +185,60 @@ con doble clic sin servidor, no hay nada que instalar ni compilar y no puede rom
 porque falte un recurso. El costo es que el archivo es largo y que el código del núcleo
 no se puede importar como un módulo común. Eso se resuelve con la extracción de bloques
 de [2.5](#25-cómo-los-tests-sacan-los-bloques): las pruebas ejecutan el mismo texto que
-ejecuta el navegador, sin copias.
+ejecuta el navegador, sin copias. La tabla del archivo de la comunidad sigue la misma
+regla: va adentro del HTML, generada, y no se baja de ningún lado.
 
 ### 2.3 Orden de carga
 
-Los tres `<script>` son clásicos (sin `type="module"`, sin `defer`) y están al final del
+Los cuatro `<script>` son clásicos (sin `type="module"`, sin `defer`) y están al final del
 `<body>`, después de todo el marcado. El navegador los ejecuta en orden y de forma
 sincrónica:
 
 1. `chip8-core` define `globalThis.Chip8Core`.
 2. `chip8-roms` define `globalThis.CHIP8_DEMOS`.
-3. `chip8-ui` ya encuentra el DOM armado y los dos globales. Arma el keypad, el monitor,
-   el estante y los controles, aplica los ajustes guardados, carga el primer cartucho
-   (Rebote), anuncia "Cartucho «Rebote» en marcha. Tocá H para ver la ayuda." y arranca
-   el bucle con `requestAnimationFrame`.
+3. `chip8-archive` define `globalThis.CHIP8_ARCHIVE`.
+4. `chip8-ui` ya encuentra el DOM armado y los tres globales. Lee los ajustes guardados,
+   la biblioteca y los ajustes recordados por cartucho; arma el keypad, el monitor, los
+   estantes y los controles; aplica la paleta, el modo de pantalla y la plataforma;
+   carga el primer cartucho (Rebote, con sus ajustes); anuncia "Cartucho «Rebote» en
+   marcha. Tocá H para ver la ayuda."; muestra el encendido animado encima de la imagen
+   y arranca el bucle con `requestAnimationFrame`.
 
 La interfaz se defiende de un orden roto: si no hay `Chip8Core` o no hay `document` (por
 ejemplo, si alguien evalúa el bloque en Node), termina sin hacer nada; si `CHIP8_DEMOS`
 falta o no es una lista, usa una lista vacía y muestra la pantalla de reposo
-"INSERTÁ UN CARTUCHO"; y descarta los cartuchos con hexadecimal inválido, vacío o de más
-de 3584 bytes.
+"INSERTÁ UN CARTUCHO"; descarta los cartuchos con hexadecimal inválido, vacío o que no
+entran en su plataforma; y si `CHIP8_ARCHIVE` falta, simplemente no reconoce ningún juego.
+Cada entrada del archivo se valida campo por campo la primera vez que se usa.
 
 ### 2.4 La regla del cierre de script
 
 El analizador de HTML termina un bloque `<script>` en la primera aparición de `</script`
 (sin importar mayúsculas), aunque esté dentro de un string o de un comentario de
 JavaScript. Por eso **ningún bloque puede contener ese texto**. El archivo tiene
-exactamente tres, uno por bloque. Para eso:
+exactamente cuatro, uno por bloque. Para eso:
 
 - `tools/embed-roms.js` escribe los textos de los cartuchos con `JSON.stringify` y
   reemplaza cada `<` por `\u003c`, así una descripción que contenga `</script>` (o `<!--`)
   queda inofensiva y se evalúa al mismo texto.
+- `tools/archive.js` hace lo mismo con los títulos y autores del archivo, y además
+  reemplaza `>` por `\u003e`: ni un `</script` ni un comentario HTML pueden aparecer,
+  aunque un título los tuviera (lo prueba `tests/archive.test.js`).
 - Hoy ni el núcleo ni la interfaz lo necesitan. Si alguna vez hace falta ese texto en un
   string, hay que partirlo en dos (`'</' + 'script>'`) o escapar la barra (`'<\/script>'`).
-- `tests/harness.js` y `tools/embed-roms.js` encuentran el final de cada bloque buscando
-  el primer `</script>` después de la etiqueta de apertura: si la regla se rompe, el
-  bloque extraído queda cortado y las pruebas fallan.
+- `tests/harness.js`, `tools/embed-roms.js` y `tools/archive.js` encuentran el final de
+  cada bloque buscando el primer `</script>` después de la etiqueta de apertura: si la
+  regla se rompe, el bloque extraído queda cortado y las pruebas fallan.
 
 La otra regla, igual de importante: **las etiquetas de apertura tienen que quedar
 exactamente así**, sin atributos de más: `<style id="chip8-style">`,
-`<script id="chip8-core">`, `<script id="chip8-roms">` y `<script id="chip8-ui">`. Las
-herramientas buscan esos textos literales.
+`<script id="chip8-core">`, `<script id="chip8-roms">`, `<script id="chip8-archive">` y
+`<script id="chip8-ui">`. Las herramientas buscan esos textos literales.
 
-Para revisar la sintaxis de los tres bloques sin abrir el navegador:
+Para revisar la sintaxis de los cuatro bloques de código sin abrir el navegador:
 
 ```sh
-node -e "const h=require('./tests/harness');const vm=require('vm');for(const id of ['chip8-core','chip8-roms','chip8-ui']){new vm.Script(h.extractScript(id).code,{filename:id});}console.log('sintaxis ok')"
+node -e "const h=require('./tests/harness');const vm=require('vm');for(const id of ['chip8-core','chip8-roms','chip8-archive','chip8-ui']){new vm.Script(h.extractScript(id).code,{filename:id});}console.log('sintaxis ok')"
 ```
 
 ### 2.5 Cómo los tests sacan los bloques
@@ -204,13 +250,15 @@ node -e "const h=require('./tests/harness');const vm=require('vm');for(const id 
 - `loadCore()` evalúa `chip8-core` con `vm.Script(...).runInThisContext()`, pasando el
   nombre del archivo y ese desplazamiento de líneas: los errores y los stack traces
   apuntan a la línea real de `chip8.html`. Devuelve `globalThis.Chip8Core` y lo guarda
-  para las llamadas siguientes.
+  para las llamadas siguientes. `tools/archive.js test` también lo usa para correr los
+  juegos del archivo.
 - `loadDemos()` hace lo mismo con `chip8-roms` y devuelve `CHIP8_DEMOS`.
 - `loadAssembler()` hace `require('tools/chip8asm.js')`.
 - Además trae ayudas para escribir pruebas: `makeCpu(programa, opciones)` (acepta una
   lista de opcodes de 16 bits o un `Uint8Array`), `wordsToBytes`, `hexToBytes`,
-  `runSteps`, `pixel(cpu, x, y)` y `renderAscii(cpu)`, que dibuja la pantalla con `#` y
-  `.` para los mensajes de error.
+  `runSteps`, `pixel(cpu, x, y)` (la máscara de planos del píxel, en la resolución
+  actual) y `renderAscii(cpu)`, que dibuja la pantalla en su resolución con `.` (apagado),
+  `#` (plano 1), `+` (plano 2) y `@` (los dos), para los mensajes de error.
 
 `node --test` corre cada archivo `*.test.js` en su propio proceso, así que los globales que
 define un bloque no se filtran de una suite a otra. `tests/harness.js` no es una prueba:
@@ -222,10 +270,16 @@ la carpeta se llama `tests/` (no `test/`) y el nombre no termina en `.test.js`, 
 Abierto desde el disco, el navegador trata la página con un origen restringido. Por eso
 el archivo evita todo lo que ahí no anda: no hay `fetch` ni `XMLHttpRequest`, ni módulos
 ES, ni workers, ni recursos externos. El ícono de la pestaña es un SVG en una URL `data:`
-(sin él, Chrome pide `/favicon.ico` por HTTP y registra un 404 en la consola). Los
-ajustes se guardan en `localStorage`, que también funciona en `file://`; y si el
-navegador no lo deja usar, cada acceso está envuelto en `try/catch` y la consola sigue
-andando sin guardar nada. El escenario E2E 1 abre la página por HTTP y por `file://` y
+(sin él, Chrome pide `/favicon.ico` por HTTP y registra un 404 en la consola). La huella
+de las ROMs se calcula con un SHA-1 escrito en JavaScript puro (`Core.sha1`), porque
+`crypto.subtle` no está disponible en `file://` ([8.25](#825-sha-1-en-javascript-puro)).
+El mapa de la curvatura y las capturas se arman con `canvas.toDataURL`, y la captura se
+baja con un `<a download>` y una URL `blob:`, que también andan desde el disco.
+
+Los ajustes, los ajustes por cartucho y la biblioteca se guardan en `localStorage`, que
+también funciona en `file://`; y si el navegador no lo deja usar, cada acceso está
+envuelto en `try/catch` y la consola sigue andando con lo que tiene en memoria (el estante
+«Tus cartuchos» lo avisa). El escenario E2E 1 abre la página por HTTP y por `file://` y
 exige cero excepciones y cero errores de consola en los dos casos.
 
 ---
@@ -234,32 +288,42 @@ exige cero excepciones y cero errores de consola en los dos casos.
 
 ### 3.1 API pública
 
-El bloque define un único global, `globalThis.Chip8Core`, con 13 claves:
+El bloque define un único global, `globalThis.Chip8Core`, con 24 claves:
 
 | Clave | Valor |
 |---|---|
 | `Chip8` | El constructor de la máquina. |
 | `QUIRK_PRESETS` | `{ vip, schip, xochip }`, cada uno `{ label, quirks }`. Todo congelado con `Object.freeze`. |
 | `DEFAULT_QUIRKS` | Copia congelada de los quirks del VIP (un objeto distinto de `QUIRK_PRESETS.vip.quirks`). |
-| `FONT` | `Uint8Array` de 80 bytes: 16 glifos de 4×5. |
-| `FONT_ADDR` | `0x050`. |
+| `PLATFORMS` | `['chip8', 'schip', 'xochip']`, congelado: cada una incluye a las anteriores. |
+| `PLATFORM_INFO` | `{ chip8, schip, xochip }`, cada una `{ label, memorySize, maxRomSize }`: `CHIP-8` y `SUPER-CHIP` con 4096 y 3584, `XO-CHIP` con 65.536 y 65.024. Congelado. |
+| `PRESET_PLATFORM` | La plataforma de cada perfil: `{ vip: 'chip8', schip: 'schip', xochip: 'xochip' }`. Congelado. |
+| `FONT`, `FONT_ADDR` | `Uint8Array` de 80 bytes (16 glifos de 4×5) y `0x050`. |
+| `BIG_FONT`, `BIG_FONT_ADDR` | `Uint8Array` de 160 bytes (16 glifos de 8×10) y `0x0A0`. Solo se copia a la memoria en SUPER-CHIP y XO-CHIP. |
 | `PROGRAM_START` | `0x200`. |
-| `MEMORY_SIZE` | `4096`. |
-| `MAX_ROM_SIZE` | `3584` (de `0x200` a `0xFFF`). |
-| `DISPLAY_WIDTH`, `DISPLAY_HEIGHT` | `64` y `32`. |
+| `MEMORY_SIZE`, `MAX_ROM_SIZE` | `4096` y `3584`: los de CHIP-8, como antes (los de cada plataforma están en `PLATFORM_INFO`). |
+| `DISPLAY_WIDTH`, `DISPLAY_HEIGHT` | `64` y `32`: la baja resolución. |
+| `HIRES_WIDTH`, `HIRES_HEIGHT` | `128` y `64`: la alta resolución de SUPER-CHIP y XO-CHIP. |
 | `STACK_SIZE` | `16`. |
-| `disassemble(opcode, quirks?)` | Texto de una instrucción ([3.8](#38-el-desensamblador)). |
-| `disassembleRange(memory, start, count, quirks?)` | Lista de `{ addr, opcode, text }`. |
+| `FLAG_COUNT` | `16`: las banderas persistentes de `FX75`/`FX85`. |
+| `disassemble(opcode, quirks?, platform?, nextWord?)` | Texto de una instrucción ([3.8](#38-el-desensamblador)). |
+| `disassembleRange(memory, start, count, quirks?, platform?)` | Lista de `{ addr, opcode, text, size }` (y `long` en las filas de 4 bytes). |
+| `extendedInfo(opcode)` | `{ needs, name }` de una instrucción de SUPER-CHIP o XO-CHIP (la plataforma mínima que la tiene y qué hace), o `null`. |
+| `sha1(bytes)` | La huella SHA-1 de una ROM: 40 dígitos hexadecimales en minúscula. Acepta `Uint8Array`, listas de números o `ArrayBuffer`; un texto es un `TypeError`. |
+| `patternRate(pitch)` | La velocidad del patrón de audio de XO-CHIP en bits por segundo: 4000 × 2^((pitch − 64) / 48). |
 
-`new Chip8({ quirks, random })` acepta dos opciones: `quirks`, un objeto parcial que se
-mezcla sobre una copia de `DEFAULT_QUIRKS`, y `random`, una función que devuelve un
-entero de 0 a 255 (por defecto `Math.floor(Math.random() * 256)`; las pruebas le pasan
-generadores reproducibles). Métodos:
+`new Chip8({ platform, quirks, random })` acepta tres opciones: `platform` (`'chip8'` si
+falta; una desconocida es un `RangeError`: "Plataforma desconocida: "x" (tiene que ser
+chip8, schip o xochip)."), `quirks`, un objeto parcial que se mezcla sobre una copia de
+`DEFAULT_QUIRKS`, y `random`, una función que devuelve un entero de 0 a 255 (por defecto
+`Math.floor(Math.random() * 256)`; las pruebas le pasan generadores reproducibles).
+Métodos:
 
 | Método | Qué hace |
 |---|---|
-| `reset()` | Borra la memoria, copia la fuente a `0x050` y la última ROM a `0x200`, pone `pc = 0x200` y limpia registros, pila, timers, pantalla, teclas, la espera de `FX0A` y el error. Conserva los quirks, `random` y la ROM. |
-| `loadRom(bytes)` | Acepta un `Uint8Array`, una lista de números o un `ArrayBuffer`. Si mide más de 3584 bytes tira un `RangeError` con el mensaje "La ROM ocupa N bytes y el máximo es 3584 (de 0x200 a 0xFFF)."; si no, la copia (los números se truncan a 8 bits) y llama a `reset()`. |
+| `reset()` | Borra la memoria, copia la fuente a `0x050`, la fuente grande a `0x0A0` (en SUPER-CHIP y XO-CHIP) y la última ROM a `0x200`, pone `pc = 0x200` y limpia registros, pila, timers, la pantalla (en baja resolución), los planos (vuelve a `PLANE 1`), teclas, el patrón de audio y el tono (64), la espera de `FX0A`, el error, el aviso y el fin del programa. Conserva la plataforma, los quirks, `random`, la ROM y las banderas. |
+| `loadRom(bytes)` | Acepta un `Uint8Array`, una lista de números o un `ArrayBuffer`. Si no entra en la plataforma tira un `RangeError`: en CHIP-8 y SUPER-CHIP, "La ROM ocupa N bytes y el máximo es 3584 (de 0x200 a 0xFFF)." y, si entraría en 64 KB, además "Con la plataforma XO-CHIP (64 KB) entra."; en XO-CHIP, "La ROM ocupa N bytes y el máximo es 65024 (de 0x200 a 0xFFFF).". Si entra, la copia (los números se truncan a 8 bits) y llama a `reset()`. |
+| `setPlatform(plataforma)` | Cambia de plataforma y reinicia con la misma ROM (las banderas se conservan; la memoria se reemplaza solo si cambia de tamaño). La misma plataforma no hace nada. Si la ROM cargada no entra en la nueva, tira un `RangeError` ("La ROM cargada ocupa N bytes y con la plataforma X el máximo es M: no se cambió la plataforma.") y no cambia nada. |
 | `setQuirks(parcial)` | Copia solo las seis claves conocidas, convertidas a booleanos. `null` o `undefined` no hacen nada. |
 | `tickTimers()` | Baja DT y ST en uno, sin pasar de cero. |
 | `setKey(tecla, apretada)` | Informa una tecla (se usa `tecla & 0xF`). Solo actúa si el estado cambia de verdad; resuelve `FX0A` ([3.4](#34-fx0a-apretar-y-soltar)). |
@@ -273,24 +337,34 @@ puedan leer (y, en las pruebas, escribir):
 
 | Propiedad | Tipo | Qué es |
 |---|---|---|
-| `memory` | `Uint8Array(4096)` | La RAM. La fuente vive en `0x050`–`0x09F` y el programa desde `0x200`. |
+| `platform` | texto | `'chip8'`, `'schip'` o `'xochip'`. Solo lectura: se cambia con `setPlatform`. |
+| `memory` | `Uint8Array(4096)` o `(65536)` | La RAM. La fuente vive en `0x050`–`0x09F`, la grande en `0x0A0`–`0x13F` (SUPER-CHIP y XO-CHIP) y el programa desde `0x200`. |
 | `V` | `Uint8Array(16)` | V0 a VF. Al ser un `Uint8Array`, todo valor se trunca a 8 bits sin código extra (por eso `7XNN` no necesita máscara). |
-| `I` | número | El registro índice, **de 16 bits** ([3.6](#36-i-de-16-bits-y-accesos-de-12)). |
-| `pc` | número | El contador de programa, siempre de 12 bits. |
+| `I` | número | El registro índice, **de 16 bits** ([3.6](#36-i-de-16-bits-y-direcciones-de-12-o-de-16)). |
+| `pc` | número | El contador de programa: 12 bits, o 16 en XO-CHIP. |
 | `stack`, `sp` | `Uint16Array(16)`, número | La pila de retorno y cuántas direcciones tiene (0 a 16). |
 | `delayTimer`, `soundTimer` | número | DT y ST (0 a 255). |
-| `display` | `Uint8Array(2048)` | 0 o 1 por píxel, por filas: el píxel (x, y) está en `y * 64 + x`. |
+| `display` | `Uint8Array(displayWidth × displayHeight)` | Por filas: el píxel (x, y) está en `y * displayWidth + x`. Cada valor es una **máscara de planos**: bit 0 = plano 1, bit 1 = plano 2 (0 a 3 en XO-CHIP; 0 o 1 en las otras). **Se reemplaza** cuando cambia la resolución: hay que leer `cpu.display` cada vez, no guardarlo. |
+| `displayWidth`, `displayHeight`, `hires` | números, booleano | 64×32 (`hires = false`) o 128×64. |
+| `planes` | número | Los planos elegidos con `FN01` (máscara de 0 a 3; 1 al arrancar). Fuera de XO-CHIP el dibujo usa siempre el plano 1. |
 | `keys` | `Uint8Array(16)` | 1 si la tecla está apretada. |
 | `quirks` | objeto | Las seis banderas de esta máquina (una copia propia, no congelada). |
 | `random` | función | La fuente de números al azar de `CXNN`. |
+| `flags` | `Uint8Array(16)` | Las banderas RPL de `FX75`/`FX85`. Persistentes: `reset`, `loadRom` y `setPlatform` no las borran. |
+| `audioPattern`, `audioPatternSet` | `Uint8Array(16)`, booleano | El patrón de audio de XO-CHIP (128 bits, el más alto primero) y si ya se ejecutó un `F002` desde el último reset. |
+| `pitch`, `audioDirty` | número, booleano | El tono (64 al arrancar) y "el sonido cambió" (patrón, tono o reset): la interfaz lo vuelve a `false`. |
 | `waitingForKey` | booleano | `true` mientras `FX0A` espera. |
-| `halted`, `error` | booleano, texto | La máquina se detuvo y por qué. |
+| `halted`, `error`, `errorInfo` | booleano, texto, objeto | La máquina se detuvo, por qué, y el detalle: `{ kind, opcode, addr }`, más `needs` y `name` en un error de plataforma ([3.7](#37-errores-avisos-y-fin-del-programa)). |
+| `exited` | booleano | La máquina se detuvo por `EXIT` (`00FD`): no es un error, `error` queda en `null`. |
+| `hint` | objeto o `null` | La primera instrucción de pantalla de otra plataforma que se ignoró desde el último reset: `{ opcode, addr, needs, name }`. La interfaz lo lee y lo vuelve a `null`. |
 | `displayDirty` | booleano | La pantalla cambió desde que la interfaz la leyó por última vez (la interfaz lo vuelve a `false`). |
 | `rom` | `Uint8Array` | Copia de la última ROM cargada; `reset()` la vuelve a copiar. |
 
-Hay tres campos internos: `_waitReg` (el registro X que recibe la tecla de `FX0A`),
-`_waitKey` (la tecla elegida durante la espera, `-1` si todavía ninguna) y `_drew`
-(`true` si la última instrucción ejecutada fue un `DXYN`).
+Hay campos internos: `_level` (0, 1 o 2: la posición de la plataforma en `PLATFORMS`),
+`_mask` (`0xFFF` con 4 KB, `0xFFFF` con 64 KB), `_waitReg` (el registro X que recibe la
+tecla de `FX0A`), `_waitKey` (la tecla elegida durante la espera, `-1` si todavía
+ninguna), `_drew` (`true` si la última instrucción ejecutada fue un `DXYN`) y `_hinted`
+(ya se dejó un aviso desde el último reset).
 
 ### 3.3 Buscar, decodificar, ejecutar
 
@@ -298,19 +372,27 @@ Hay tres campos internos: `_waitReg` (el registro X que recibe la tecla de `FX0A
 
 ```
 si halted o waitingForKey → return false
-pc = pc & 0xFFF
-opcode = memory[pc] << 8 | memory[(pc + 1) & 0xFFF]      big-endian; en 0xFFF el 2.º byte sale de 0x000
-pc = (pc + 2) & 0xFFF                                    antes de ejecutar: saltos y skips parten de acá
+con 4 KB (_mask = 0xFFF) o con 64 KB (_mask = 0xFFFF), con la máscara constante en cada rama:
+   opcode = memory[pc] << 8 | memory[(pc + 1) & mask]       big-endian; en el último byte, el 2.º sale de 0x000
+   pc = (pc + 2) & mask                                      antes de ejecutar: saltos y skips parten de acá
 _drew = false
 x = (opcode >> 8) & 0xF   y = (opcode >> 4) & 0xF   n = opcode & 0xF   nn = opcode & 0xFF   nnn = opcode & 0xFFF
 switch (opcode >> 12)
-   0x0  00E0 / 00EE / 0NNN (SYS: se ignora)
-   0x1 … 0x7, 0x9 … 0xD   una instrucción por nibble (5XYN y 9XYN con N ≠ 0: inválida)
-   0x8  switch (n): 0..7 y E           (las demás: inválida)
-   0xE  nn = 9E o A1                   (las demás: inválida)
-   0xF  switch (nn): 07 0A 15 18 1E 29 33 55 65   (las demás: inválida)
+   0x0  00E0 (en XO-CHIP borra solo los planos elegidos) / 00EE / 00C0..00FF → _op00 / el resto: SYS, se ignora
+   0x3, 0x4, 0x5 (N = 0), 0x9, 0xE   los saltos condicionales: en XO-CHIP, _skipXO saltea F000 NNNN entera
+   0x5 con N ≠ 0 → _op5               5XY2 SAVE y 5XY3 LOAD (XO-CHIP); las demás, inválidas
+   0x8  switch (n): 0..7 y E          (las demás: inválida)
+   0xD  CHIP-8: _draw (DXY0 no dibuja y deja aviso); SUPER-CHIP y XO-CHIP: _drawExt
+   0xF  07 0A 15 18 1E 29 33 55 65 → acá; el resto → _opF (F000, FN01, F002, FX30, FX3A, FX75, FX85; las demás: inválida)
 return true
 ```
+
+Las instrucciones de SUPER-CHIP y XO-CHIP se resuelven **fuera** del `switch`, en
+`_op00`, `_op5`, `_opF`, `_drawExt` y `_skipXO`, así el camino de CHIP-8 sigue igual de
+corto y rápido que antes de que existieran (medido: [3.10](#310-rendimiento)). La lectura
+del opcode usa máscaras constantes en cada rama y, adentro del `switch`, la máscara se lee
+de `this._mask` donde hace falta: mantenerla en una variable durante todo el `switch` lo
+hacía más lento.
 
 Reglas que el código respeta en todas las instrucciones:
 
@@ -318,19 +400,26 @@ Reglas que el código respeta en todas las instrucciones:
   antes de escribir nada, calculan la bandera con esos valores y escriben VF después de
   VX. Así, con X = F el registro queda con la bandera, y con Y = F se usa el valor
   original. El quirk `vfReset` pone VF en 0 después de guardar el resultado de
-  `OR`/`AND`/`XOR`.
+  `OR`/`AND`/`XOR`. En los dibujos de SUPER-CHIP y XO-CHIP, VF es 1 o 0, como en CHIP-8.
 - **Sin asignaciones de memoria** en el camino caliente: variables locales, un `switch` y
-  nada más. El dibujo está aparte, en `_draw(vx, vy, n)`.
-- **`_draw`** toma la coordenada inicial módulo 64 y 32 (la esquina siempre da la
+  nada más. El dibujo está aparte, en `_draw(vx, vy, n)` y `_drawExt(vx, vy, n)`. Solo
+  un cambio de resolución reemplaza el arreglo de la pantalla.
+- **`_draw`** (CHIP-8) toma la coordenada inicial módulo 64 y 32 (la esquina siempre da la
   vuelta), lee cada fila de `memory[(I + fila) & 0xFFF]`, saltea las filas en 0, y para
   cada píxel que se sale por la derecha o por abajo lo recorta (`clipping` activado) o lo
   hace aparecer del otro lado. VF queda en 1 si algún píxel pasó de 1 a 0. Siempre marca
   `displayDirty`, incluso con N = 0 (que no dibuja nada y deja VF en 0).
+- **`_drawExt`** (SUPER-CHIP y XO-CHIP) hace lo mismo en la resolución actual y con N = 0
+  dibuja 16×16 (2 bytes por fila). Cada plano elegido usa su bloque de datos: el plano 1
+  desde I y el plano 2 a continuación (desde I si es el único elegido); VF = 1 si algún
+  píxel encendido se apagó en cualquiera de los planos dibujados.
 - **`FX0A`** no detiene el `pc`: lo deja apuntando a la instrucción siguiente y activa
   `waitingForKey`. Mientras espera, `step()` devuelve `false`.
 
 La lista de qué hace cada instrucción, con sus casos borde, está en la
-[sección 10 del manual](MANUAL.md#10-referencia-completa-de-las-35-instrucciones).
+[sección 10 del manual](MANUAL.md#10-referencia-completa-de-las-35-instrucciones) y, las
+de SUPER-CHIP y XO-CHIP, en la
+[sección 13.11](MANUAL.md#1311-referencia-de-las-instrucciones-de-super-chip-y-xo-chip).
 
 ### 3.4 FX0A: apretar y soltar
 
@@ -357,8 +446,9 @@ Detalles que fijan las pruebas:
   cambian el estado.
 - Gana la **primera** tecla que se aprieta; soltar otra no resuelve la espera.
 - `reset()` cancela la espera.
-- La interfaz suma todas sus fuentes de teclas antes de llamar a `setKey`, así que el
-  núcleo ve una sola transición por tecla ([4.5](#45-teclado-keypad-y-foco)).
+- La interfaz suma todas sus fuentes de teclas (teclado, flechas, keypad, joystick, API)
+  antes de llamar a `setKey`, así que el núcleo ve una sola transición por tecla
+  ([4.6](#46-teclado-keypad-y-foco)).
 
 Por qué este comportamiento y no el de "cualquier tecla apretada alcanza": ver
 [8.4](#84-fx0a-espera-apretar-y-soltar) y la
@@ -381,64 +471,92 @@ runFrame(ipf):
 
 El quirk `displayWait` imita que el intérprete del VIP esperaba la interrupción de video
 antes de dibujar. En lugar de contar ciclos, el núcleo lo implementa como "**como mucho un
-`DXYN` por frame, y el `DXYN` es la última instrucción del frame**". La consecuencia se
-ve en el E2E 2: Rebote, que dibuja dos veces por paso, ejecuta unas 580 instrucciones por
-segundo tanto a IPF 15 como a IPF 1000, porque cada frame termina en su `DXYN`; un bucle
-sin dibujo a IPF 1000 ejecuta unas 60 000. Por qué se eligió esta forma: ver
-[8.6](#86-displaywait-como-el-dxyn-cierra-el-frame).
+`DXYN` por frame, y el `DXYN` es la última instrucción del frame**". Cuentan también los
+dibujos de SUPER-CHIP y XO-CHIP (`DXY0` y los de alta resolución), y el `DXY0` ignorado de
+CHIP-8. La consecuencia se ve en el E2E 2: Rebote, que dibuja dos veces por paso, ejecuta
+unas 580 instrucciones por segundo tanto a IPF 15 como a IPF 1000, porque cada frame
+termina en su `DXYN`; un bucle sin dibujo a IPF 1000 ejecuta unas 60 000. Por qué se
+eligió esta forma: ver [8.6](#86-displaywait-como-el-dxyn-cierra-el-frame).
 
 Dos consecuencias menores, documentadas y probadas: `runFrame(0)` solo hace el tic de los
 timers; y el frame en el que la máquina se detiene todavía hace su tic (después, con la
 máquina detenida, los timers quedan quietos).
 
-### 3.6 I de 16 bits y accesos de 12
+### 3.6 I de 16 bits y direcciones de 12 (o de 16)
 
-`I` se guarda con 16 bits (`& 0xFFFF`): `ANNN` lo carga con 12, pero `FX1E` y el avance de
-`FX55`/`FX65` (quirk `memory`) pueden llevarlo por encima de `0xFFF`. **Cada acceso a
-memoria a través de I**, en cambio, usa `(I + k) & 0xFFF`: el sprite de `DXYN`, los tres
-bytes de `FX33` y los registros de `FX55`/`FX65` dan la vuelta al final de la memoria.
-Ejemplos que fijan las pruebas: `FX55` con `I = 0xFFE`, X = 2 y el quirk `memory` escribe
-en `0xFFE`, `0xFFF` y `0x000` y deja `I = 0x1001`; `FX1E` desde `0xFFF` sumando 1 deja `I = 0x1000`.
-`FX1E` no toca VF. `FX29` pone `I = 0x050 + (VX & 0xF) * 5`. El `pc`, en cambio, siempre es
-de 12 bits.
+`I` se guarda con 16 bits (`& 0xFFFF`) en todas las plataformas: `ANNN` lo carga con 12,
+pero `FX1E` y el avance de `FX55`/`FX65` (quirk `memory`) pueden llevarlo por encima de
+`0xFFF`, y en XO-CHIP `F000 NNNN` lo carga con 16. **Cada acceso a memoria a través de
+I**, en cambio, usa `(I + k) & _mask`: con 4 KB, `& 0xFFF` (el sprite de `DXYN`, los tres
+bytes de `FX33`, los registros de `FX55`/`FX65` dan la vuelta al final de la memoria); con
+los 64 KB de XO-CHIP, `& 0xFFFF` (también `5XY2`, `5XY3` y `F002`). Ejemplos que fijan las
+pruebas: `FX55` con `I = 0xFFE`, X = 2 y el quirk `memory` escribe en `0xFFE`, `0xFFF` y
+`0x000` y deja `I = 0x1001`; `FX1E` desde `0xFFF` sumando 1 deja `I = 0x1000`. `FX1E` no
+toca VF. `FX29` pone `I = 0x050 + (VX & 0xF) * 5` y `FX30`, `I = 0x0A0 + (VX & 0xF) * 10`.
 
-### 3.7 Errores
+El `pc` tiene 12 bits en CHIP-8 y SUPER-CHIP y 16 en XO-CHIP, y también `BNNN`, que en
+XO-CHIP puede saltar hasta `0x10FE`. `JP`, `CALL` y `LD I, NNN` siguen teniendo
+direcciones de 12 bits: arriba de `0xFFF`, en XO-CHIP, solo se llega con `F000 NNNN`.
+
+### 3.7 Errores, avisos y fin del programa
 
 El núcleo nunca tira excepciones mientras ejecuta: un programa roto detiene la máquina.
-`_fail(opcode, mensaje)` hace retroceder el `pc` a la instrucción culpable
-(`(pc - 2) & 0xFFF`, correcto también en `0xFFE` y `0xFFF`), pone `halted = true` y arma
-`error` con este formato:
+`_fail(opcode, mensaje, kind, entry, sufijo)` hace retroceder el `pc` a la instrucción
+culpable (`(pc - 2) & _mask`, correcto también en el borde de la memoria), pone
+`halted = true`, arma `error` con este formato y deja el detalle en `errorInfo`:
 
 ```
 Instrucción inválida o desconocida (opcode 0x5121 en la dirección 0x200).
 Desbordamiento de pila (stack overflow): CALL con los 16 niveles de la pila ocupados (opcode 0x2206 en la dirección 0x206).
 Subdesbordamiento de pila (stack underflow): RET sin dirección de retorno, la pila está vacía (opcode 0x00EE en la dirección 0x200).
+Instrucción inválida en CHIP-8: «LD HF, V1» (fuente grande) es de SUPER-CHIP (opcode 0xF130 en la dirección 0x20A). Elegí la plataforma SUPER-CHIP.
 ```
 
-(El opcode va con 4 dígitos y la dirección con 3, como en el desensamblador.)
+El opcode va con 4 dígitos y la dirección con 3, o con 4 en XO-CHIP ("en la dirección
+0x0050"). `errorInfo` es `{ kind, opcode, addr }`, con `kind` igual a `'invalid'`,
+`'stackOverflow'`, `'stackUnderflow'` o `'platform'`; en un error de plataforma trae además
+`needs` (la plataforma que hace falta) y `name` (qué hace la instrucción, por ejemplo
+"fuente grande"). El texto de la instrucción sale del desensamblador de la plataforma que
+la tiene. Qué pasa con cada opcode según la plataforma:
 
-| Opcode | Qué pasa |
-|---|---|
-| `5XYN` y `9XYN` con N ≠ 0 | Inválida. |
-| `8XY8`–`8XYD` y `8XYF` | Inválida. |
-| `EXNN` salvo `EX9E` y `EXA1` | Inválida. |
-| `FXNN` salvo `07 0A 15 18 1E 29 33 55 65` | Inválida. Incluye `FX30`, `FX75` y `FX85` de SUPER-CHIP. |
-| `0NNN` salvo `00E0` y `00EE` | `SYS`: se ignora, como hacen los intérpretes modernos. Incluye `00FF`, `00FE` y `00CN` de SUPER-CHIP. |
-| `2NNN` con la pila llena (16) | Desbordamiento de pila. |
-| `00EE` con la pila vacía | Subdesbordamiento de pila. |
+| Opcode | CHIP-8 | SUPER-CHIP | XO-CHIP |
+|---|---|---|---|
+| `00CN`, `00FB`, `00FC`, `00FD`, `00FE`, `00FF` | Se ignora, con aviso | Se ejecuta | Se ejecuta |
+| `00DN` | Se ignora, con aviso | Se ignora, con aviso | Se ejecuta |
+| `DXY0` | No dibuja, VF = 0, con aviso | 16×16 | 16×16 |
+| `FX30`, `FX75`, `FX85` | Error de plataforma | Se ejecuta | Se ejecuta |
+| `5XY2`, `5XY3`, `F000 NNNN`, `FN01` (N de 0 a 3), `F002`, `FX3A` | Error de plataforma | Error de plataforma | Se ejecuta |
+| Los demás `0NNN` (salvo `00E0` y `00EE`) | `SYS`: se ignora, sin aviso | Ídem | Ídem |
+| `5XYN` (N ≠ 0, 2, 3), `9XYN` (N ≠ 0), `8XY8`–`8XYD`, `8XYF`, `EXNN` salvo `9E`/`A1`, `FN01` con N > 3, `FX02` con X ≠ 0 y los demás `FXNN` | Inválida | Inválida | Inválida |
+| `2NNN` con la pila llena (16) | Desbordamiento de pila | Ídem | Ídem |
+| `00EE` con la pila vacía | Subdesbordamiento de pila | Ídem | Ídem |
+
+**El aviso** (`_ignore`) es para las instrucciones de pantalla, que en CHIP-8 tienen la
+forma de instrucciones que no hacen nada (`0NNN` y `DXYN` con N = 0): el programa sigue,
+como en un intérprete de la época, y la primera desde el último reset queda en `hint`
+(`{ opcode, addr, needs, name }`). Las demás no se pueden ignorar sin romper el programa, y
+detienen la máquina (`_unsupported`). Por qué la división: ver
+[8.26](#826-las-instrucciones-de-pantalla-de-otra-plataforma-se-ignoran).
+
+**`00FD` (`EXIT`)** detiene la máquina sin error: `halted = true`, `exited = true`,
+`error = null`, y el `pc` queda en el `00FD`.
 
 Después de detenerse, `step()` devuelve `false` sin ejecutar nada (aunque se escriba una
 instrucción válida en el `pc`) y `runFrame` devuelve 0, hasta que alguien llame a
-`reset()` o a `loadRom()`. La única excepción del núcleo es el `RangeError` de `loadRom`
-con una ROM demasiado grande. Un programa que se va del final de su código ejecuta `0000`
-(se ignora), da la vuelta a la memoria y termina deteniéndose en la fuente, con
-"opcode 0xF090 en la dirección 0x050"; el tutorial lo usa como ejemplo. Lo que hace la
-interfaz con el error: [4.10](#410-transporte-estados-y-errores).
+`reset()`, `loadRom()` o `setPlatform()`. Las únicas excepciones del núcleo son las de
+argumentos inválidos: un `RangeError` si la ROM no entra (`loadRom`, `setPlatform`) o si
+la plataforma no existe (el constructor, `setPlatform`, `disassemble`), y un `TypeError`
+si `sha1` recibe un texto. Un programa que se va del final de su
+código ejecuta `0000` (se ignora), da la vuelta a la memoria y termina deteniéndose en la
+fuente, con "opcode 0xF090 en la dirección 0x050"; el tutorial lo usa como ejemplo, y
+también muestra que con SUPER-CHIP y XO-CHIP el mismo programa termina distinto. Lo que
+hace la interfaz con el error: [4.14](#414-diagnósticos) y
+[4.15](#415-transporte-estados-y-errores).
 
 ### 3.8 El desensamblador
 
-`disassemble(opcode, quirks)` usa los mnemónicos de Cowgod, los mismos que acepta el
-ensamblador:
+`disassemble(opcode, quirks, platform, nextWord)` usa los mnemónicos de Cowgod, los mismos
+que acepta el ensamblador:
 
 | Familia | Texto |
 |---|---|
@@ -448,42 +566,119 @@ ensamblador:
 | `6XNN`, `7XNN` | `LD V1, 0x2A`, `ADD V1, 0x2A` |
 | `8XY0`–`8XYE` | `LD`, `OR`, `AND`, `XOR`, `ADD`, `SUB`, `SHR`, `SUBN`, `SHL` con `V1, V2` |
 | `ANNN`, `BNNN`, `CXNN` | `LD I, 0x300`, `JP V0, 0x2A0`, `RND V1, 0x0F` |
-| `DXYN` | `DRW V0, V1, 5` (N en decimal) |
+| `DXYN` | `DRW V0, V1, 5` (N en decimal; `DXY0` es `DRW V0, V1, 0`) |
 | `EX9E`, `EXA1` | `SKP V1`, `SKNP V1` |
 | `FX07` … `FX65` | `LD V1, DT`, `LD V1, K`, `LD DT, V1`, `LD ST, V1`, `ADD I, V1`, `LD F, V1`, `LD B, V1`, `LD [I], V1`, `LD V1, [I]` |
+| SUPER-CHIP | `SCD 3`, `SCR`, `SCL`, `EXIT`, `LOW`, `HIGH`, `LD HF, V1`, `LD R, V1`, `LD V1, R` |
+| XO-CHIP | `SCU 3`, `SAVE V1, V2`, `LOAD V1, V2`, `LD I, LONG 0x1234`, `PLANE 3`, `AUDIO`, `PITCH V1` |
 | Cualquier palabra inválida | `DW 0x5121` |
 
-Los números llevan `0x` y dígitos en mayúsculas: 2 dígitos para bytes y 3 para
-direcciones. El opcode se enmascara a 16 bits. El argumento `quirks` es opcional: con
-`quirks.jumping` activado, `BNNN` se muestra como `JP VX, 0xNNN` (con X = el primer dígito
-de NNN), que es lo que de verdad hace el salto en ese modo; sin `quirks`, el texto es el
-de siempre. El monitor le pasa `cpu.quirks` y vuelve a escribir las filas cuando el quirk
-cambia. Con el quirk `shifting` el texto de `SHR`/`SHL` no cambia (sigue mostrando VY
-aunque se ignore).
+Los números llevan `0x` y dígitos en mayúsculas: 2 dígitos para bytes, 3 para direcciones
+y 4 para la dirección de `LD I, LONG`. El opcode se enmascara a 16 bits. Los argumentos
+opcionales:
 
-`disassembleRange(memory, start, count, quirks)` devuelve `count` palabras seguidas desde
-`start`, con las direcciones dando la vuelta en `0xFFF` (una palabra puede quedar partida
-entre `0xFFF` y `0x000`).
+- `quirks`: con `quirks.jumping` activado, `BNNN` se muestra como `JP VX, 0xNNN` (con X =
+  el primer dígito de NNN), que es lo que de verdad hace el salto en ese modo. Con el
+  quirk `shifting` el texto de `SHR`/`SHL` no cambia (sigue mostrando VY aunque se
+  ignore).
+- `platform` (`'chip8'` si falta): suma los mnemónicos de esa plataforma. Una instrucción
+  que no existe en la plataforma pedida se muestra como en CHIP-8: `00FF` es
+  `SYS 0x0FF` en CHIP-8 y `HIGH` en SUPER-CHIP; `F130` es `DW 0xF130` en CHIP-8.
+- `nextWord`: la palabra que sigue, para `F000 NNNN` en XO-CHIP. Sin ella, `F000` se
+  muestra como `DW 0xF000`, así **todo texto de 2 bytes se puede volver a ensamblar**
+  (se decidió en la integración, [7.11](#711-integración-y-hallazgos-notables)). `FN01` es
+  `PLANE N` solo con N de 0 a 3.
+
+El monitor le pasa `cpu.quirks` y `cpu.platform`, y vuelve a escribir las filas cuando
+cambian el quirk `jumping`, la plataforma o los bytes de la ventana.
+
+`disassembleRange(memory, start, count, quirks, platform)` devuelve `count` instrucciones
+seguidas desde `start`, con las direcciones dando la vuelta en `0xFFF` (o en `0xFFFF` en
+XO-CHIP; una palabra puede quedar partida en el borde). En XO-CHIP, `F000 NNNN` es **una
+fila de 4 bytes** (`size: 4`, `long: NNNN`) y la siguiente empieza después.
 
 La propiedad más fuerte que tiene: **todo lo que produce se vuelve a ensamblar igual**.
 `tests/asm.test.js` pasa las 65 536 palabras posibles por `disassemble` y por el
 ensamblador y exige obtener la misma palabra; y las 4096 palabras `BNNN` también con
-`{ jumping: true }`.
+`{ jumping: true }`. `tests/asm-extendido.test.js` hace lo mismo en SUPER-CHIP y en
+XO-CHIP, incluidas las instrucciones de 4 bytes.
 
-### 3.9 Rendimiento
+### 3.9 Las plataformas
 
-Medido en esta máquina (Intel Core i5-10400, Node 22.11) con `tests/harness.js`:
+| | CHIP-8 (`chip8`) | SUPER-CHIP (`schip`) | XO-CHIP (`xochip`) |
+|---|---|---|---|
+| Instrucciones | las 35 | + 10 | + 7 |
+| Memoria (`_mask`) | 4 KB (`0xFFF`) | 4 KB (`0xFFF`) | 64 KB (`0xFFFF`) |
+| ROM más grande | 3584 bytes | 3584 bytes | 65.024 bytes |
+| Pantalla | 64×32 | 64×32 y 128×64 | 64×32 y 128×64 |
+| Planos | 1 | 1 | 2 (cuatro colores) |
+| Fuentes | `0x050` | `0x050` y `0x0A0` | `0x050` y `0x0A0` |
+| Banderas RPL | — | 16 | 16 |
+| Sonido | el beep | el beep | el beep hasta el primer `F002`; después, el patrón con su tono |
 
-| Carga | Tiempo |
-|---|---|
-| Instrucciones aritméticas, sin dibujo | unos 7 ms por millón de instrucciones |
-| Una de cada cuatro es un `DRW` de 8 filas llenas | unos 38 ms por millón |
-| `runFrame(1000)` sin dibujo | unos 8 µs por frame |
+En las tres, la pila tiene 16 niveles, I se guarda con 16 bits y los seis quirks valen
+igual: la plataforma es independiente de los quirks. Cómo está hecho cada agregado:
 
-A la velocidad máxima de la consola (IPF 1000, 60 000 instrucciones por segundo) el núcleo
-usa menos de medio milisegundo por segundo de emulación. En el navegador, el agente que
-construyó la interfaz midió unos 0,03 ms por frame a IPF 1000 sin `displayWait`, y el E2E 2
-mide entre 59,7 y 60,3 frames por segundo con cualquier IPF.
+- **Plataforma y memoria.** `_level` es la posición en `PLATFORMS` y cada instrucción
+  extendida sabe su plataforma mínima (`EXT`, con `needs` y `level`): `extendedEntry`
+  decodifica un opcode a su entrada de `EXT` y `extendedInfo` la expone. `setPlatform`
+  reemplaza la memoria solo si cambia de tamaño (SUPER-CHIP y CHIP-8 comparten 4 KB).
+- **Resolución.** `_setResolution(hires)` cambia el tamaño y borra la pantalla; el arreglo
+  `display` se reemplaza solo si cambia de tamaño, y si no, se limpia en el lugar. `HIGH` y
+  `LOW` siempre borran, aunque ya se estuviera en ese modo, y los dos planos.
+- **Planos.** Cada píxel es una máscara de 2 bits. `_planeMask()` devuelve `planes & 3` en
+  XO-CHIP y 1 en las demás. `00E0` (`_clearPlanes`), `_drawExt` y los desplazamientos
+  actúan solo sobre los planos elegidos y dejan los otros como estaban.
+- **Desplazamientos.** `_scrollRows(filas)` y `_scrollColumns(columnas)` mueven los planos
+  elegidos en píxeles de la resolución actual (también en baja: píxeles enteros); lo que
+  sale por un borde se pierde y lo que queda libre se apaga. `00C0` y `00D0` no hacen nada.
+- **Saltos sobre `F000 NNNN`.** En XO-CHIP, los saltos condicionales llaman a
+  `_skipXO(mask)`, que avanza 4 bytes si la instrucción siguiente es `F000`. (Recibe la
+  máscara como argumento: con `this._mask` en las dos ramas del salto, `step` compila a
+  un código más rápido; medido.)
+- **Banderas.** `FX75`/`FX85` copian V0..VX a `flags` y de vuelta; X puede ir hasta F
+  también en SUPER-CHIP.
+- **Audio.** `F002` copia 16 bytes a `audioPattern`, marca `audioPatternSet` y, si algo
+  cambió, `audioDirty`; `FX3A` cambia `pitch`. El núcleo no suena: la interfaz lee esos
+  campos en cada cuadro ([4.7](#47-sonido)).
+- **Huella.** `sha1(bytes)` es un SHA-1 completo en JavaScript puro, sincrónico, con
+  relleno y largo de 64 bits: `tests/platform.test.js` lo compara con `node:crypto` en
+  todos los largos de 0 a 300 bytes y en una ROM al azar de 3584 bytes.
+
+La semántica de referencia es la de **Octo** ([8.18](#818-octo-como-referencia-de-super-chip-y-xo-chip)),
+con algunas decisiones propias:
+
+| Tema | Octo | Esta consola | Por qué |
+|---|---|---|---|
+| Profundidad de la pila | 12 niveles | 16 | Lo pide la especificación de XO-CHIP y es lo que ya tenía CHIP-8 ([8.8](#88-pila-de-16-niveles-con-error-de-desbordamiento)). |
+| Dónde están las fuentes | Chica en `0x000`, grande en `0x050` | Chica en `0x050`, grande en `0x0A0` | La chica ya estaba en `0x050` ([8.7](#87-las-fuentes-en-0x050-y-0x0a0)); la grande, justo después. |
+| Forma de los dígitos grandes | Los de su estilo por defecto, más cuadrados | Los de SUPER-CHIP 1.1, iguales byte a byte a las tablas de SUPER-CHIP 1.1 que traen Octo y Cadmium (las letras A a F, de Octo) | Es la fuente de la plataforma original. |
+| `0NNN` | `0000` termina; los demás detienen con un aviso | No hacen nada | Como siempre en esta consola (`SYS`). |
+| `FN01` con N > 3 y `FX02` con X ≠ 0 | Se aceptan (`N & 3`; `FX02` es `audio`) | Inválidas | No son instrucciones en la especificación; mejor un error claro. |
+| VF después de dibujar | 0 o 1 | 0 o 1 | El SUPER-CHIP "moderno". |
+| Desplazamientos en baja resolución | Píxeles enteros | Píxeles enteros | Ídem (en la HP-48 eran medios píxeles). |
+| `00FE` y `00FF` | Borran la pantalla | Siempre borran | Ídem. |
+| Sonido antes del primer `F002` | Silencio | El beep de 440 Hz | Los programas de CHIP-8 y SUPER-CHIP no se quedan mudos ([8.27](#827-el-beep-hasta-el-primer-f002)). |
+
+El detalle, con las diferencias con SUPER-CHIP 1.1 en la HP-48, está en la
+[sección 13.3 del manual](MANUAL.md#133-las-plataformas-de-este-emulador).
+
+### 3.10 Rendimiento
+
+Medido en esta ronda en un AMD Ryzen 5 5600GT con Node 24.18, con `tests/harness.js`:
+
+| Carga | CHIP-8 | SUPER-CHIP | XO-CHIP |
+|---|---|---|---|
+| Instrucciones aritméticas, sin dibujo | 6,8 ms por millón | 6,5 ms por millón | 6,3 ms por millón |
+| Una de cada cuatro es un `DRW` de 8 filas llenas | 29,5 ms por millón | 35,9 ms por millón | 32,9 ms por millón |
+
+En la primera ronda (Intel Core i5-10400, Node 22.11) la plataforma única daba unos 7 ms
+por millón sin dibujo y 38 ms con dibujo. El agente del núcleo comparó la plataforma
+CHIP-8 antes y después de agregar las otras dos, en las mismas condiciones: unos 8,2 ms
+por millón en los dos casos. A la velocidad máxima de la consola (IPF 10.000, 600 000
+instrucciones por segundo) el núcleo usa unos 4 ms por segundo de emulación. En el
+navegador, el E2E 2 mide entre 59,7 y 60,3 frames por segundo con cualquier IPF, y en las
+corridas de esta ronda, con IPF 10.000, unas 601 900 instrucciones por segundo.
 
 ---
 
@@ -491,11 +686,17 @@ mide entre 59,7 y 60,3 frames por segundo con cualquier IPF.
 
 ### 4.1 Organización del bloque
 
-`chip8-ui` es una IIFE de unas 1450 líneas, dividida en secciones con un comentario
+`chip8-ui` es una IIFE de unas 3600 líneas, dividida en secciones con un comentario
 `// ---- nombre`. En orden: constantes, utilidades, ajustes guardados, demos incluidos,
-referencias al DOM, pantalla, estado y mensajes, carga de ROMs, control de ejecución,
-velocidad, quirks, teclado y keypad, sonido, indicadores, monitor, estante de cartuchos,
-ayuda y arrastre, bucle principal, armado de la interfaz, API de depuración y arranque.
+almacenamiento, validación de lo guardado, archivo de Octo, ajustes recordados por
+cartucho, biblioteca, referencias al DOM, pantalla, curvatura del tubo, encendido
+animado, estado y mensajes, plataforma y perfiles, carga de ROMs, control de ejecución,
+velocidad, quirks, teclado y keypad, avance rápido, controles (flechas y joystick),
+joystick (Gamepad API), pantalla completa, captura, sonido, indicadores, monitor, estante
+de cartuchos, estante «Tus cartuchos», ayuda y arrastre, bucle principal, armado de la
+interfaz, API de depuración y arranque. El comentario del principio del bloque lista los
+puntos de extensión (`applyProfile`, `applyPlatform`, `loadRomBytes`, `loadCartridge`,
+`setCartridgeColors`, `setRotation`).
 
 Las constantes que conviene conocer:
 
@@ -508,14 +709,24 @@ Las constantes que conviene conocer:
 | `DISASM_BEFORE`, `DISASM_AFTER` | 7 y 12 | Filas del desensamblado antes y después del PC. |
 | `BEEP_HZ`, `BEEP_LEVEL` | 440 y 0,22 | Frecuencia del pitido y ganancia máxima. |
 | `TAP_MS` | 120 | Duración mínima de un toque del keypad sin puntero. |
-| `STORAGE_KEY` | `'chip8-consola.ajustes'` | Clave de `localStorage`. |
+| `STORAGE_KEY`, `ROMS_KEY`, `LIBRARY_KEY` | `'chip8-consola.ajustes'`, `'chip8-consola.cartuchos'` y `'chip8-consola.biblioteca'` | Las tres claves de `localStorage` ([4.19](#419-ajustes-guardados)). |
+| `ROMS_MAX`, `ROM_SAVE_MS`, `FLAGS_CHECK_MS` | 500, 400 ms y 1000 ms | ROMs con ajustes recordados como mucho; pausa antes de guardarlos; cada cuánto se miran las banderas RPL. |
+| `LIBRARY_MAX_ITEMS`, `LIBRARY_MAX_CHARS`, `LIBRARY_PICKS` | 60, 2 500 000 y 5 | Límites de la biblioteca y cuántos van en «Tuyos:». |
+| `TURBO_FACTOR` | 4 | Ticks emulados por tick real con el avance rápido. |
+| `SHOT_WIDTH` | 640 | Ancho de la captura: 10× con 64×32, 5× con 128×64. |
+| `PAD_DEADZONE` | 0,5 | Desde dónde la palanca del joystick cuenta como una dirección. |
+| `POWER_ON_MS`, `CURVE_AMOUNT` | 700 ms y 0,07 | Duración del encendido animado; cuánto se meten las esquinas con la curvatura. |
 | `KEY_BY_CODE`, `KEYPAD_LAYOUT`, `PC_HINT` | | Mapa del teclado, orden del keypad en pantalla y la letra que se imprime en cada tecla. |
-| `QUIRK_INFO`, `PALETTES`, `SCREEN_MODES` | | Textos de los quirks, paletas y modos de pantalla. |
+| `KEYMAP_PRESETS`, `ARROW_SLOT` | | Los mapas de «Controles» y qué flecha va a qué dirección. |
+| `QUIRK_INFO`, `PALETTES`, `SCREEN_MODES`, `PLATFORM_DESC` | | Textos de los quirks, paletas, modos de pantalla y la descripción de cada plataforma. |
 
-El estado de la interfaz está en dos objetos: `settings` (lo que se guarda, ver
-[4.13](#413-ajustes-guardados)) y `state` (`romLoaded`, `romName`, `romSize`, `demoId`,
-`paused`, `errorShown`, `instr` y `pausedBeforeHalt`). Hay una sola instancia de la
-máquina, `cpu`, creada con los quirks guardados.
+El estado de la interfaz está en `settings` (lo que se guarda, ver
+[4.19](#419-ajustes-guardados): **tus últimas elecciones explícitas**) y `state`
+(`romLoaded`, `romName`, `romSize`, `demoId`, `romSha`, `romSource`, `romArchive`,
+`paused`, `errorShown`, `instr`, `pausedBeforeHalt` y `hintShown`). Lo que corre **ahora**
+puede ser distinto de `settings`, porque cada cartucho trae sus ajustes: está en
+`cpu.platform`, `cpu.quirks`, `liveIpf`, `activePalette`, `rotation` y `liveKeymap`. Hay
+una sola instancia de la máquina, `cpu`, creada con la plataforma y los quirks guardados.
 
 ### 4.2 El bucle principal
 
@@ -523,29 +734,42 @@ máquina, `cpu`, creada con los quirks guardados.
 loop(now), llamado por requestAnimationFrame en cada refresco del monitor (60, 120, 144 Hz…):
    dt = now - lastTime
    si dt < 0 o dt > 250 ms → dt = 16,67 ms           (la pestaña estuvo oculta: se descarta el atraso)
+   si hay joysticks → pollGamepads()                 (antes de correr: lo apretado vale para los ticks de este cuadro)
    si la máquina corre (hay ROM, no está en pausa ni detenida):
       acc += dt
+      burst = avance rápido apretado ? TURBO_FACTOR (4) : 1
       mientras acc ≥ 16,67 − 1,67 ms y ticks < MAX_CATCHUP (4):
-         tick():  state.instr += cpu.runFrame(ipf)
-                  syncDisplay(true)                  (pasa la pantalla al buffer de brillo)
-                  si cpu.halted → handleHalt()
+         burst veces, mientras corra:
+            tick():  state.instr += cpu.runFrame(liveIpf)
+                     si ST > 0 → soundSeen               (un beep corto suena aunque pasen varios ticks)
+                     syncDisplay(true)                   (pasa la pantalla a los buffers de brillo)
+                     si cpu.halted → handleHalt()
          acc −= 16,67 ms
       si acc ≥ 16,67 ms → acc = 0                    (no vale la pena ponerse al día)
    si no corre y la estela todavía se está apagando:
       fadeAcc a 60 Hz → syncDisplay(true), hasta que la imagen sea exactamente el framebuffer
+   si corre y pasó FLAGS_CHECK_MS → syncFlags()      (las banderas RPL de la ROM, si cambiaron)
+   si cambió la resolución → updateLevels(false)
    si needsRender → render()
-   updateIndicators()                                (LEDs, etiquetas PAUSA / ESPERANDO TECLA, pitido)
+   updateIndicators()                                (LEDs, PAUSA / ESPERANDO TECLA / ×4, el beep)
+   si cpu.hint → checkHint()                         (el aviso de una instrucción de otra plataforma)
+   syncAudioSource()                                 (el beep o el patrón de XO-CHIP)
    updateMonitor(false)                              (solo si está abierto, visible y en pantalla)
 ```
 
 - Con un acumulador y pasos fijos, la emulación va a 60 frames por segundo en un monitor
-  de 60 Hz, de 144 Hz o de 30 Hz. La simulación que hizo la revisión dio exactamente 60,00
-  tics por segundo entre 30 y 240 Hz; el límite de 4 tics por cuadro solo frena la
-  emulación por debajo de unos 15 cuadros por segundo.
+  de 60 Hz, de 144 Hz o de 30 Hz. La simulación que hizo la revisión de la primera ronda
+  dio exactamente 60,00 tics por segundo entre 30 y 240 Hz; el límite de 4 tics por
+  cuadro solo frena la emulación por debajo de unos 15 cuadros por segundo.
+- **Avance rápido.** Cada tic real corre 4 tics emulados completos, con sus timers: el
+  programa ve la misma secuencia de frames, más rápido. El tope sigue siendo de 4 tics
+  reales por cuadro y el atraso se descarta igual, así que al soltar no queda nada por
+  recuperar ([4.17](#417-comodidades)).
 - **Pestaña oculta.** Con la pestaña oculta el navegador no llama a
   `requestAnimationFrame`, así que la emulación se congela sola. Al volver no hay una
-  ráfaga para ponerse al día: `visibilitychange` suelta todas las teclas, apaga el
-  pitido y reinicia `lastTime` y `acc`, y además cualquier `dt` de más de 250 ms se
+  ráfaga para ponerse al día: `visibilitychange` suelta todas las teclas (también las del
+  joystick y el avance rápido), apaga el pitido, guarda las banderas y los ajustes
+  pendientes y reinicia `lastTime` y `acc`, y además cualquier `dt` de más de 250 ms se
   descarta. El E2E 17 lo mide con una pestaña oculta y con una congelada: 0 frames
   mientras tanto, y después 15 frames en 0,25 s y 60 en 1 s.
 - `setPaused` y la carga o el reinicio de una ROM ponen `acc` en 0, para que continuar no
@@ -554,76 +778,136 @@ loop(now), llamado por requestAnimationFrame en cada refresco del monitor (60, 1
 ### 4.3 La pantalla: de cpu.display al lienzo
 
 ```
-cpu.display  (0/1, 64×32)
-   │  updateLevels(decay): encendido → 255; apagado → brillo·150/256 (por debajo de 12 → 0)
+cpu.display  (máscara de planos 0..3 por píxel; 64×32 o 128×64)
+   │  updateLevels(decay): cada plano por su cuenta: encendido → 255; apagado → brillo·150/256 (< 12 → 0)
    ▼
-levels  (Uint8Array(2048), brillo 0..255 por píxel)
-   │  lut[brillo]: 256 colores RGBA precalculados entre el fondo y el color de la paleta (curva ^1,35)
+levels1, levels2  (Uint8Array(128·64) cada uno: el brillo de cada píxel en el plano 1 y en el 2)
+   │  si no hay nada del plano 2: lut[brillo1]                    256 colores: fondo → plano 1 (curva ^1,35)
+   │  si hay algo del plano 2:    lut2[brillo1 << 8 | brillo2]    65 536 colores: mezcla bilineal de los cuatro
    ▼
-frame32 → ImageData 64×32 → frameCanvas (lienzo fuera de pantalla)
-   │  drawImage estirado ×N con imageSmoothingEnabled = false
+frame32 → ImageData (fbW × fbH, una por tamaño) → frameCanvas (lienzo fuera de pantalla)
+   │  drawImage estirado ×N con imageSmoothingEnabled = false, con el giro (setRotationTransform)
    ▼
-#screen  (64·N × 32·N píxeles físicos)  +  patrón de scanlines (solo en modo Tubo CRT)
-   │  putImageData del mismo cuadro de 64×32
+#screen  (vw·N × vh·N píxeles físicos)  +  scanlines (solo en Tubo CRT)  +  filtro de la curvatura (si está prendida)
+   │  el mismo cuadro, con el mismo giro
    ▼
-#glow  (64×32, estirado por CSS, con blur, mix-blend-mode: screen y opacidad 0,6)
+#glow  (vw × vh, estirado por CSS, con blur, mix-blend-mode: screen y opacidad 0,6)
 ```
 
-- **Buffer de brillo.** `levels` guarda el brillo de cada píxel. Un píxel encendido
-  siempre vale 255, así que la imagen nunca muestra menos de lo que hay en el framebuffer.
-  Con persistencia, un píxel que se apaga baja a 149, 87, 50, 29, 16 y se apaga en el
-  sexto tic (unos 100 ms): eso disimula el parpadeo típico de CHIP-8, que borra y redibuja
-  con XOR. Sin persistencia, o en modo Píxeles puros, pasa directo a 0.
-- **Cuándo se dibuja.** `syncDisplay` solo recalcula `levels` si el núcleo marcó
-  `displayDirty` o si todavía hay píxeles apagándose (`fading`), y `render()` solo corre
-  si algo cambió (`needsRender`). Paso (`stepOnce`) usa `syncDisplay(false)`: la imagen
-  queda exacta, sin estela. En pausa, la estela que quedó se sigue apagando a 60 Hz hasta
-  coincidir con el framebuffer.
-- **La tabla de colores.** `buildLut(paleta)` interpola los 256 niveles entre `bg` y `on`
-  con una curva de potencia 1,35 y los empaqueta como `Uint32` según el orden de bytes de
-  la máquina (`LITTLE_ENDIAN`), así el paso por píxel es una sola asignación.
-- **Escala entera.** `resizeScreen()` elige el mayor entero N tal que 64·N y 32·N entren
-  en el 94 % del ancho y el 90 % del alto del tubo, contados en píxeles **físicos**
-  (`rect.width * devicePixelRatio`). El lienzo mide exactamente 64·N × 32·N píxeles
-  físicos y su tamaño CSS es eso dividido por `devicePixelRatio`, así cada píxel CHIP-8
-  ocupa N×N píxeles de la pantalla sin interpolar, aun con escalas fraccionarias como
-  1,25. Se recalcula con un `ResizeObserver` sobre el tubo y con `resize`. El E2E 15 lo
-  mide: con escala 1,25 el lienzo es de 768×384 (12 píxeles físicos por píxel), con 2 es de
-  1216×608 (19). El costo: a 360 px de ancho y escala 1 la imagen ocupa unos 192 px de los
-  280 del tubo.
+- **Buffers de brillo, uno por plano.** `levels1` y `levels2` guardan el brillo de cada
+  píxel en cada plano, y cada plano se apaga por su cuenta. Un píxel encendido siempre
+  vale 255, así que la imagen nunca muestra menos de lo que hay en el framebuffer. Con
+  persistencia, un píxel que se apaga baja a 149, 87, 50, 29, 16 y se apaga en el sexto
+  tic (unos 100 ms): eso disimula el parpadeo típico de CHIP-8, que borra y redibuja con
+  XOR. Sin persistencia, o en modo Píxeles puros, pasa directo a 0.
+- **Dos tablas de colores.** `buildLut(paleta)` interpola los 256 niveles entre el fondo y
+  el plano 1 con una curva de potencia 1,35 y los empaqueta como `Uint32` según el orden
+  de bytes de la máquina (`LITTLE_ENDIAN`), así el paso por píxel es una sola asignación.
+  `buildLut2(paleta)` arma, recién cuando hace falta, la tabla de dos planos: la mezcla
+  bilineal fondo·(1−a)(1−b) + plano1·a(1−b) + plano2·(1−a)b + ambos·ab, con la misma
+  corrección. Se calcula primero a lo largo del plano 1, así con b = 0 da exactamente lo
+  mismo que la tabla de un plano. Mientras el plano 2 no tiene nada (`plane2Lit`), se usa
+  la tabla de un plano: **los programas de CHIP-8 se ven exactamente como antes**.
+- **El tamaño de la imagen.** `setFrameSize(w, h)` rearma la imagen, la capa del
+  resplandor, la escala y las scanlines cuando cambia la resolución (o al pasar de la
+  pantalla de reposo, siempre de 64×32, a la del núcleo); hay una `ImageData` por tamaño,
+  así dibujar un frame no reserva memoria. El bucle mira la resolución en cada cuadro,
+  porque `cpu.display` se reemplaza al cambiarla.
+- **Cuándo se dibuja.** `syncDisplay` solo recalcula los brillos si el núcleo marcó
+  `displayDirty`, si todavía hay píxeles apagándose (`fading`) o si cambió la
+  resolución, y `render()` solo corre si algo cambió (`needsRender`). Paso (`stepOnce`)
+  usa `syncDisplay(false)`: la imagen queda exacta, sin estela. En pausa, la estela que
+  quedó se sigue apagando a 60 Hz hasta coincidir con el framebuffer.
+- **Escala entera.** `resizeScreen()` elige el mayor entero N tal que la imagen (ya girada,
+  si hay giro) entre en el 94 % del ancho y el 90 % del alto del tubo, contados en
+  píxeles **físicos** (`rect.width * devicePixelRatio`). El lienzo mide exactamente
+  N veces la imagen en píxeles físicos y su tamaño CSS es eso dividido por
+  `devicePixelRatio`, así cada píxel CHIP-8 ocupa N×N píxeles de la pantalla sin
+  interpolar, aun con escalas fraccionarias como 1,25. Se recalcula con un
+  `ResizeObserver` sobre el tubo, con `resize` y al entrar o salir de la pantalla
+  completa. El E2E 15 lo mide: con escala 1,25 el lienzo es de 768×384 (12 píxeles
+  físicos por píxel), con 2 es de 1216×608 (19).
+- **Giro.** `setRotation(grados)` (0, 90, 180 o 270, en sentido horario) gira el lienzo y
+  el resplandor con una transformación del contexto; con 90 o 270 la imagen queda
+  vertical (y en pantalla completa el tubo se para, con `is-tall`). Lo usan los juegos
+  del archivo pensados para una pantalla girada; no tiene un control propio en la
+  consola.
 - **Scanlines.** `buildScanPattern(N)` arma un patrón de 1×N con una franja oscura de
-  `round(N · 0,3)` píxeles abajo y un brillo de 1 píxel arriba, alineado con las filas
-  CHIP-8; solo si N ≥ 3. Con la paleta LCD el patrón es una grilla de píxeles en lugar
-  de líneas.
-- **Resplandor.** `#glow` es un lienzo de 64×32 que recibe el mismo `ImageData` y lo
-  estira el CSS con `filter: blur(...)` (el radio depende de la escala) y
-  `mix-blend-mode: screen`. Se apaga con la paleta LCD y en modo Píxeles puros.
-- **Paletas.** `PALETTES` define cuatro: Verde fósforo (`fosforo`, la de fábrica), Ámbar,
-  Blanco y LCD, cada una con `bg` y `on` en RGB.
-- **Pantalla de reposo.** Sin cartucho, `levels` se llena con `idleBitmap`, que dice
-  "INSERTÁ UN CARTUCHO" con una fuente propia de 3×5 dentro de un marco punteado.
+  `round(N · 0,3)` píxeles abajo y un brillo de 1 píxel arriba, alineado con las filas;
+  solo si N ≥ 3. Con la paleta LCD es una grilla de píxeles; sobre un fondo claro, más
+  suave.
+- **Resplandor.** `#glow` recibe el mismo cuadro y lo estira el CSS con
+  `filter: blur(...)` (el radio depende de la escala) y `mix-blend-mode: screen`. Se
+  apaga con la paleta LCD, con un fondo más claro que el píxel y en Píxeles puros.
+- **Pantalla de reposo.** Sin cartucho, la imagen es `idleBitmap`: "INSERTÁ UN CARTUCHO"
+  con una fuente propia de 3×5 dentro de un marco punteado, siempre de 64×32.
+- **`screenColors()`** (en `window.chip8`) devuelve los colores distintos que hay en el
+  lienzo: lo usan las pruebas E2E para comprobar paletas y planos.
 
-### 4.4 Modos de pantalla: Tubo CRT y Píxeles puros
+### 4.4 Modos de pantalla y efectos del tubo
 
 `applyScreenMode(modo)` cambia entre los dos valores de `SCREEN_MODES`:
 
 | | Tubo CRT (`'crt'`, de fábrica) | Píxeles puros (`'puro'`) |
 |---|---|---|
-| Colores en pantalla | Los 256 niveles de la tabla | Exactamente dos: el fondo y el color |
+| Colores en pantalla | Los niveles de las tablas | Exactamente los de la paleta: dos con un plano, hasta cuatro con dos |
 | Persistencia (estela) | Si el interruptor Persistencia está prendido | Nunca |
 | Scanlines | Si el interruptor Scanlines está prendido | Nunca |
+| Curvatura | Si el interruptor Curvatura está prendido (y el navegador puede) | Nunca |
+| Encendido animado | Si el interruptor está prendido | Nunca |
 | Resplandor, viñeta y reflejo | Sí | No: `.crt[data-mode="puro"]` los oculta con CSS |
-| Interruptores Scanlines y Persistencia | Habilitados | Deshabilitados, pero conservan su preferencia (`aria-pressed`) |
+| Interruptores de efectos | Habilitados | Deshabilitados, pero conservan su preferencia (`aria-pressed`) |
 
 El selector es un `role="radiogroup"` (`#screen-mode`) con dos botones `role="radio"`,
 `aria-checked` y `tabindex` itinerante: el que está marcado recibe el foco con Tab y las
 flechas cambian de modo. Al pasar a Píxeles puros se llama a `updateLevels(false)` para
-borrar la estela que hubiera. El modo se guarda en `settings.screenMode` y se lee y cambia
-desde `window.chip8.getScreenMode()` y `setScreenMode(modo)`. El E2E 18 lee el lienzo
-píxel por píxel: en modo puro hay exactamente dos colores, cero píxeles distintos de lo
-que pide `cpu.display` y ninguna estela, con las cuatro paletas.
+borrar la estela que hubiera y se corta el encendido. El modo se guarda en
+`settings.screenMode` y se lee y cambia desde `window.chip8.getScreenMode()` y
+`setScreenMode(modo)`.
 
-### 4.5 Teclado, keypad y foco
+**Curvatura.** Un filtro SVG en el bisel (`#crt-warp`: `feImage` + `feDisplacementMap` +
+un `feGaussianBlur` de menos de un píxel que suaviza los escalones) curva el lienzo y el
+resplandor con el mismo mapa. El mapa es un PNG en `data:` que arma `buildWarpMap` para
+la forma de la imagen (2:1, o 1:2 girada): en cada punto, cuánto correr la muestra (rojo:
+x; verde: y; 128 = nada), así las esquinas se meten (`CURVE_AMOUNT`, el 7 % del lado más
+largo) y los bordes se arquean. Se rearma solo si cambia la forma. `curveSupported`
+comprueba que el navegador tenga los filtros y los acepte sobre la página; si no, el
+interruptor queda deshabilitado con una explicación. Viene **apagada**
+([8.22](#822-la-curvatura-viene-apagada)) y las capturas salen siempre planas.
+
+**Encendido animado.** Al abrir la página, `playPowerOn()` muestra una capa encima del
+tubo (`#crt-power`, unos 0,7 s): una línea brillante que se abre. Es solo una capa: el
+programa ya está corriendo debajo. No aparece en Píxeles puros ni con
+`prefers-reduced-motion: reduce`; prender el interruptor la muestra una vez; un
+temporizador la saca si no llega `animationend`.
+
+### 4.5 Paletas y colores
+
+Cada paleta tiene **cuatro colores**: `bg` (el fondo), `on` (el plano 1, el píxel de
+siempre), `p2` (el plano 2) y `both` (los dos planos). `PALETTES` define cuatro: Verde
+fósforo (`fosforo`, la de fábrica), Ámbar, Blanco y LCD. Sus cuatro colores forman una
+escalera de brillo (fondo < ambos < plano 2 < plano 1, como la paleta de Octo, donde
+«ambos» es el color del contorno), con un contraste de al menos 1,8:1 entre vecinos; la
+LCD usa los verdes de la Game Boy y, para «ambos», un oliva.
+
+Además hay dos paletas especiales:
+
+- **«Personalizada»** (`'custom'`): los cuatro colores de `settings.customColors`, que se
+  eligen con cuatro `input type="color"` (Fondo, Píxel / plano 1, Plano 2 y Ambos planos)
+  que aparecen solo con esa paleta. Los cambios se ven en vivo (`input`) y se guardan al
+  confirmar (`change`).
+- **«Del cartucho»** (`'cartucho'`): los colores del cartucho cargado, si los trae (los
+  juegos del archivo). `setCartridgeColors(colores | null)` agrega o quita la opción del
+  selector; si estaba elegida y el cartucho se va, vuelve la paleta de la persona.
+
+`applyPalette(id)` aplica una paleta (arma las tablas, decide `lightScreen` comparando la
+luminancia del fondo y del píxel, y con eso el resplandor y las scanlines) sin tocar
+`settings.palette`; `choosePalette(id)` es la elección de la persona: queda en `settings`
+(salvo «Del cartucho», que nunca se guarda ahí) y, con «Ajustes por cartucho», en los
+ajustes de la ROM. Así, `activePalette` (la que se ve) puede ser la del cartucho mientras
+`settings.palette` sigue siendo la tuya.
+
+### 4.6 Teclado, keypad y foco
 
 **El mapa.** `KEY_BY_CODE` usa `KeyboardEvent.code`, la posición física de la tecla, así
 que el bloque 1-4 / Q-R / A-F / Z-V es el mismo en QWERTY, AZERTY o Dvorak:
@@ -637,55 +921,69 @@ que el bloque 1-4 / Q-R / A-F / Z-V es el mismo en QWERTY, AZERTY o Dvorak:
 ```
 
 **Atajos.** Espacio (pausa o continúa), N (un paso; se repite si se mantiene), Retroceso
-(reiniciar), H (abrir o cerrar la ayuda) y Esc (cerrar diálogos y la capa de arrastre).
-Ninguno choca con las 16 teclas.
+(reiniciar), H (abrir o cerrar la ayuda), T (avance rápido, mientras se mantiene), P
+(pantalla completa, si el navegador la tiene), G (captura) y Esc (cerrar diálogos y la
+capa de arrastre). Las **flechas** aprietan las teclas del keypad del mapa de «Controles»
+(`liveKeymap`). Ninguno choca con las 16 teclas.
 
 **Todas las fuentes de teclas se suman.** El keypad se puede tocar con el teclado físico,
-con el mouse o los dedos, con Enter o Espacio sobre una tecla enfocada, con un clic sin
-puntero (lector de pantalla, control por voz) y desde `window.chip8.pressKey`. Cada fuente
-lleva su propia cuenta (`heldCodes`, `pointerKeys`, `enterHeld`, `apiHeld` y las sueltas
-programadas de `timedReleases`) y todas pasan por `keyDown(k)`/`keyUp(k)`, que mantienen un
-contador por tecla (`holdCount`). El núcleo recibe `setKey` solo cuando el contador pasa de
-0 a 1 o de 1 a 0: soltar el mouse no suelta una tecla que el teclado sigue apretando.
+con las flechas, con el mouse o los dedos, con Enter o Espacio sobre una tecla enfocada,
+con un clic sin puntero (lector de pantalla, control por voz), con un joystick y desde
+`window.chip8.pressKey`. Cada fuente lleva su propia cuenta (`heldCodes`, `arrowKeys`,
+`pointerKeys`, `enterHeld`, `apiHeld`, las sueltas programadas de `timedReleases` y la
+máscara `gamepad.held`) y todas pasan por `keyDown(k)`/`keyUp(k)`, que mantienen un
+contador por tecla (`holdCount`). El núcleo recibe `setKey` solo cuando el contador pasa
+de 0 a 1 o de 1 a 0: soltar el mouse no suelta una tecla que el teclado sigue apretando.
 
 ```
 teclado físico (onKeyDown / onKeyUp) ────────┐
+flechas (arrowKeys, con liveKeymap) ─────────┤
 keypad con puntero (captura, varios dedos) ──┤
 keypad: Enter o Espacio sobre la tecla ──────┼──► holdCount[k] ──► cpu.setKey(k, …) solo en 0 ↔ 1
 keypad: clic sin puntero (toque de 120 ms) ──┤
+joystick (setGamepadKeys, con liveKeymap) ───┤
 window.chip8.pressKey / releaseKey ──────────┘
 ```
 
-- `releaseAllKeys()` suelta todo (y cancela las sueltas programadas) cuando la ventana
-  pierde el foco, cuando cambia la visibilidad y al abrir la ayuda.
+- Una flecha recuerda qué tecla apretó (`arrowKeys`): si el mapa cambia mientras está
+  apretada, al soltarla se suelta la misma.
+- `releaseAllKeys()` suelta todo (y cancela las sueltas programadas, el joystick y el
+  avance rápido) cuando la ventana pierde el foco, cuando cambia la visibilidad y al
+  abrir la ayuda.
 - `reset()` del núcleo limpia las teclas; `resyncKeys()` vuelve a informar las que siguen
-  apretadas después de un reinicio o de cargar una ROM.
+  apretadas después de un reinicio, un cambio de plataforma o la carga de una ROM.
 
 **`onKeyDown`**, registrado en `window`:
 
 1. Habilita el audio (es un gesto del usuario).
 2. Si hay Ctrl, Meta o Alt, no hace nada: los atajos del navegador siguen andando.
 3. Si el foco está en un campo de texto (`isTypingTarget`: `textarea`, `contenteditable`
-   o un `input` que no sea `range`, `checkbox`, `radio`, `button` ni `file`), no hace
-   nada. Así se puede escribir en el campo de IPF.
+   o un `input` que no sea `range`, `checkbox`, `radio`, `button`, `file` ni `color`), no
+   hace nada. Así se puede escribir en el campo de IPF.
 4. Con la ayuda abierta, solo H (la cierra); Esc lo maneja el `<dialog>`.
 5. Las 16 teclas mapeadas van al emulador con `preventDefault`, **aunque haya un control
    enfocado**, incluido un `<select>`: el `preventDefault` evita que la letra cambie la
    opción del selector. La repetición automática se filtra con `heldCodes`.
-6. Espacio: si el foco está en un control (`isControl`: botón, `select`, `summary`,
-   enlace, checkbox o radio, o un `role` de control), se deja la activación nativa; si no,
-   pausa o continúa.
-7. N, Retroceso, H y Esc hacen su atajo desde cualquier control que no sea de texto.
+6. Las flechas van al keypad, salvo que el foco esté en un control que las usa
+   (`usesArrows`: un `<select>`, un deslizador o un `role` como `radio`, `slider` o
+   `listbox`).
+7. Espacio: si el foco está en un control (`isControl`: botón, `select`, `summary`,
+   enlace, checkbox, radio, `input type="color"` o un `role` de control), se deja la
+   activación nativa; si no, pausa o continúa.
+8. N, Retroceso, H, T, P, G y Esc hacen su atajo desde cualquier control que no sea de
+   texto.
 
 **El modelo de foco.** Un clic con el mouse o el dedo en un botón, un chip, un interruptor,
 un radio o un enlace le saca el foco (`onPointerClick`, en `document`, cuando
 `event.detail > 0`). Así, para quien usa el mouse, Espacio siempre pausa y las letras
 siempre son el keypad. Si el foco llegó con Tab, se queda, y Espacio o Enter activan el
-control como en cualquier página. Los `<select>` (Paleta y Perfil) sueltan el foco apenas
-cambian con el mouse (`returnFocusAfterChange`); si el cambio vino de una tecla sobre el
-selector (flechas, Inicio, Fin), el foco se queda para poder seguir navegando. Si la ayuda
-se abrió con el mouse, al cerrarla el foco no vuelve al botón "?". Los detalles y el
-porqué: [8.12](#812-el-modelo-de-foco).
+control como en cualquier página. Los `<select>` (Paleta, Perfil, Plataforma, Controles y
+los seis del mapa personalizado) sueltan el foco apenas cambian con el mouse
+(`returnFocusAfterChange`); si el cambio vino de una tecla sobre el selector (flechas,
+Inicio, Fin), el foco se queda para poder seguir navegando. Los `input type="color"` hacen
+lo mismo según cómo se abrió su selector (`returnFocusAfterPick`). Si la ayuda se abrió
+con el mouse, al cerrarla el foco no vuelve al botón "?". Los detalles y el porqué:
+[8.12](#812-el-modelo-de-foco).
 
 **El keypad en pantalla** (`buildKeypad`) arma 16 botones en el orden del VIP:
 
@@ -700,13 +998,13 @@ porqué: [8.12](#812-el-modelo-de-foco).
 - Un `click` con `detail === 0` (lector de pantalla, `element.click()`) es un toque de
   120 ms.
 
-### 4.6 Sonido
+### 4.7 Sonido
 
 ```
-OscillatorNode (square, 440 Hz, arranca una vez y no se detiene)
-   → GainNode "gain"   (0 o 1: el pitido encendido o apagado, rampa setTargetAtTime de 4 ms)
-   → GainNode "master" (volumen × 0,22, rampa de 10 ms)
-   → destination
+OscillatorNode (square, 440 Hz, arranca una vez y no se detiene) ───┐   el beep, hasta el primer F002
+AudioBufferSourceNode en bucle (un período del patrón de XO-CHIP) ──┴─► GainNode "gain"   (0 o 1: rampa de 4 ms)
+                                                                     → GainNode "master" (volumen × 0,22, rampa de 10 ms)
+                                                                     → destination
 ```
 
 - **Contexto perezoso.** Los navegadores no dejan sonar nada antes de un gesto del
@@ -714,19 +1012,38 @@ OscillatorNode (square, 440 Hz, arranca una vez y no se detiene)
   `pointerup`, `touchend`, `click` (escuchados en fase de captura) o tecla, y lo reanuda si
   está suspendido en los gestos siguientes. En pantallas táctiles `pointerdown` no cuenta
   como activación, por eso se escuchan también `pointerup` y `touchend`.
-- **Cuándo suena.** `updateIndicators()` prende el pitido si la máquina corre, `ST > 0`, la
-  pestaña está visible y no está en silencio. Las rampas de `setTargetAtTime` evitan los
-  chasquidos de cortar una onda de golpe. En pausa, detenida u oculta, no suena.
-- El LED SONIDO se prende cuando corresponde pitar **aunque esté en silencio**, como aviso
-  visual.
+- **Cuándo suena.** `updateIndicators()` prende la envolvente (`gain`) si la máquina
+  corre, ST > 0 en algún tic de ese cuadro (`soundSeen`, para que un pitido corto suene
+  aunque el avance rápido corra varios tics por cuadro), la pestaña está visible y no está
+  en silencio. Las rampas de `setTargetAtTime` evitan los chasquidos. En pausa, detenida u
+  oculta, no suena. El LED SONIDO se prende cuando corresponde pitar **aunque esté en
+  silencio**, como aviso visual.
+- **El patrón de XO-CHIP.** `syncAudioSource()`, una vez por cuadro: si la ROM ejecutó un
+  `F002` desde el último reset (`cpu.audioPatternSet`), suena el patrón; si no, el beep.
+  `playPattern()` arma un buffer con un período del patrón (128 bits) a
+  `Core.patternRate(cpu.pitch)` bits por segundo, con el ritmo de muestreo del contexto:
+  cada bit se repite en las muestras que le tocan (1 = +1, 0 = −1) y se le resta el
+  promedio, así un patrón parejo (todo 0, que es como se callan los programas de XO-CHIP,
+  o todo 1) es silencio. El bucle se rearma solo cuando el núcleo avisa que algo cambió
+  (`cpu.audioDirty`); al reiniciar vuelve el beep. Entra a la misma envolvente que el
+  beep, así el silencio, el volumen, la pausa y la pestaña oculta funcionan igual.
 - El aviso del pie del tubo dice "Sonido: tocá la consola para activarlo" (titilando)
   hasta que el contexto corre, "Sonido: silenciado" o "Sonido: este navegador no tiene
   Web Audio".
 - `window.chip8.audioState()` devuelve `{ supported, state, enabled, muted, volume,
-  beeping, soundTimer }`; el E2E 12 lo usa junto con un gancho en `createGain` para leer
-  las ganancias.
+  beeping, soundTimer, pattern, patternRate }`; las pruebas E2E lo usan junto con un
+  gancho en `createGain` para leer las ganancias.
 
-### 4.7 Carga de ROMs
+### 4.8 Carga de ROMs
+
+Toda carga pasa por **`loadCartridge(bytes, nombre, opciones)`**, que calcula la huella,
+busca el demo (por `demoId` o por la huella: el mismo demo cargado desde un archivo es el
+mismo cartucho) y la entrada del archivo, resuelve los ajustes del cartucho
+([4.9](#49-ajustes-por-cartucho)) y llama a `loadRomBytes`. Las opciones dicen de dónde
+viene (`origin`: `'archivo'` desde el selector o el arrastre, `'biblioteca'`, `'demo'` o
+`'api'`): una ROM que llegó de un archivo entra a la biblioteca, una de la biblioteca pasa
+adelante, y un juego del archivo cargado desde un archivo o por la API toma el título del
+archivo. Antes de cambiar de ROM se guardan las banderas de la que se va.
 
 - **Botón "Cargar ROM".** Vacía el `input type="file"` escondido (así elegir dos veces el
   mismo archivo funciona) y lo abre. No tiene filtro `accept`: una ROM puede tener
@@ -734,21 +1051,115 @@ OscillatorNode (square, 440 Hz, arranca una vez y no se detiene)
 - **Arrastrar y soltar**, sobre cualquier parte de la página. `dragenter`/`dragleave`
   llevan una cuenta de profundidad y solo reaccionan si lo que se arrastra son archivos
   (`dataTransfer.types` incluye `Files`); se muestra la capa "Soltá el cartucho acá".
-- `loadFile(file)` rechaza un archivo vacío o de más de 3584 bytes **antes** de leerlo,
-  con un aviso; si no, lo lee con `FileReader.readAsArrayBuffer`.
-- `loadRomBytes(bytes, nombre, demoId, silencioso)` acepta `Uint8Array`, `ArrayBuffer` o
-  una lista de números; vuelve a controlar el tamaño, llama a `cpu.loadRom`, informa las
-  teclas que siguen apretadas, limpia el error, deja la máquina corriendo y actualiza la
-  ranura, el estante, el transporte y el monitor. Si la ROM se rechaza, la anterior sigue
-  corriendo.
-- Los avisos (`toast`) aparecen arriba al centro, como mucho tres a la vez, y se van solos
-  a los 4,5 s (8 s si son de error). El contenedor `#toasts` es una región `aria-live`.
+- `loadFile(file)` rechaza un archivo vacío o de más de 65.024 bytes (`MAX_ROM_ANY`)
+  **antes** de leerlo, con un aviso; si no, lo lee con `FileReader.readAsArrayBuffer`.
+- **`loadRomBytes(bytes, nombre, demoId, silencioso, { platform, minPlatform, prepare })`**
+  vuelve a controlar el tamaño y elige la plataforma: la que pide el cartucho
+  (`platform`, también una menor que la actual), la mínima del demo (`minPlatform`) o la
+  actual. **Si la ROM no entra en esa plataforma pero sí en XO-CHIP**, pasa al perfil
+  XO-CHIP completo (plataforma y quirks) y avisa: "La ROM «x» ocupa N bytes y solo entra
+  en XO-CHIP (64 KB), así que pasé al perfil XO-CHIP.". Después llama a `cpu.loadRom`,
+  informa las teclas que siguen apretadas, limpia el error y el aviso de la ROM anterior,
+  llama a `prepare()` (donde `loadCartridge` aplica los ajustes, **antes del primer
+  frame**), deja la máquina corriendo y actualiza la ranura, los estantes, el transporte,
+  la plataforma y el monitor. Si la ROM se rechaza, la anterior sigue corriendo.
+- Los avisos (`toast`) aparecen arriba al centro (en pantalla completa, adentro del
+  bisel), como mucho tres a la vez, y se van solos a los 4,5 s (8 s si son de error, 15 s
+  si traen un botón). El contenedor `#toasts` es una región `aria-live`.
 
-### 4.8 Cartuchos incluidos y selector rápido
+### 4.9 Ajustes por cartucho
+
+Con el interruptor «Ajustes por cartucho» prendido (`settings.perRom`, de fábrica),
+`resolveConfig(sha, demo)` arma los ajustes con que arranca una ROM, **campo por campo**,
+pisando cada fuente a la anterior:
+
+| Prioridad | Fuente | Qué aporta |
+|:---:|---|---|
+| 4 (base) | `settings`: tus últimas elecciones explícitas | Plataforma, quirks, IPF, paleta y controles |
+| 3 | El demo incluido | Su plataforma (`@platform`, o CHIP-8) |
+| 2 | La entrada del archivo (`archiveLookup(sha)`) | Plataforma, quirks, IPF, colores (la paleta «Del cartucho») y giro |
+| 1 (gana) | Lo recordado (`romStore.roms[sha]`) | Plataforma, quirks, IPF, paleta, giro y controles |
+
+`state.romSource` queda en `'recordado'`, `'archivo'`, `'demo'` o `'ninguno'`, y la
+segunda línea de la ranura lo dice ("531 bytes · demo incluido", "… · ajustes del
+archivo", "… · ajustes recordados"); con un juego del archivo, el `title` dice quién lo
+hizo y para qué evento. Al cargar con ajustes del archivo o recordados aparece un aviso que
+resume lo aplicado (`configSummary`: "XO-CHIP, 1.000 IPF y sus colores"); el de los
+recordados trae el botón «Olvidar ajustes».
+
+**Lo automático no cuenta como tuyo.** Las funciones que cambian ajustes
+(`applyProfile`, `applyPlatform`, `applyQuirks`, `setIpf`) reciben `auto`: la
+autoconfiguración las llama con `auto` y solo aplican; sin `auto` (un selector, un
+interruptor, el botón de un aviso o la API) es un cambio de la persona, y `userChanged()`
+lo guarda en `settings` y, con el interruptor prendido, lo recuerda para la ROM de la
+ranura (`rememberCurrent`: plataforma, quirks, IPF, paleta, giro y controles, con la hora
+en `updated`). Así una ROM nunca "contagia" sus ajustes a la siguiente. Por qué esta
+prioridad: [8.20](#820-la-prioridad-de-los-ajustes-por-cartucho).
+
+**El formato** (`localStorage['chip8-consola.cartuchos']`):
+
+```
+{ version: 1,
+  roms: { [sha1]: { name, size, platform, quirks, ipf, palette, rotation, keymap, flags?, updated } } }
+```
+
+`palette` puede ser también `'custom'` o `'cartucho'`; `keymap` es `{ preset, keys }`.
+Al leer, cada campo se valida por separado y lo roto se ignora. Los cambios se guardan
+juntos tras una pausa de `ROM_SAVE_MS` (400 ms) y, si hay más de `ROMS_MAX` (500) ROMs,
+se van las que hace más tiempo que no cambiaron.
+
+**Las banderas RPL** de cada ROM se guardan en el mismo lugar: `syncFlags()` compara
+`cpu.flags` con la última copia y, si cambiaron, las guarda, pero solo si alguna no es
+cero o si esa ROM ya tenía banderas guardadas. Se miran una vez por segundo mientras la
+ROM corre y en cada momento en que podrían perderse: al pausar, en Paso y Frame, al
+reiniciar, cuando la máquina se detiene (un juego que guarda y termina con `EXIT`), antes
+de cargar otra ROM, al apagar el interruptor, al ocultarse la pestaña y en `pagehide`
+(`persistNow`). Al cargar la ROM vuelven a `cpu.flags`. Una entrada con solo banderas no
+cuenta como ajustes recordados.
+
+**«Olvidar ajustes»** (`forgetRomSettings`) borra lo recordado y conserva las banderas
+(son la partida guardada, no un ajuste). Si la ROM de la ranura es un juego del archivo,
+vuelven en vivo los ajustes del archivo (`applyLive`); si no, quedan los de ahora y la
+próxima vez arranca con los de siempre. Apagar el interruptor (`setPerRom(false)`) vale
+desde la próxima carga: todas las ROMs usan los ajustes que estén puestos, como antes de
+que existiera esta función.
+
+### 4.10 Tus cartuchos: la biblioteca
+
+Cada ROM cargada desde un archivo entra a la biblioteca (`libraryAdd`; si ya estaba, pasa
+adelante). El formato (`localStorage['chip8-consola.biblioteca']`):
+
+```
+{ version: 1, items: [{ sha1, name, size, added, played, data }] }     data: los bytes en base64
+```
+
+Los cartuchos van ordenados por `played`, el jugado más recientemente primero. El estante
+**Tus cartuchos** los muestra a todos, con su nombre (el título del archivo si es un juego
+conocido; si no, el nombre del archivo sin la extensión), su plataforma, una etiqueta
+«recordado» o «del archivo», el tamaño y cuándo se jugó ("jugado hoy", "jugado ayer",
+"jugado hace 3 días", "jugado el 28 de octubre"). Los cinco primeros (`LIBRARY_PICKS`) van
+también como chips en la fila **Tuyos:**, debajo de la ranura y de los controles del
+demo. Un clic carga el cartucho con sus ajustes (`libraryLoad`; si sus datos están dañados,
+lo saca del estante y avisa). La × lo quita (`libraryRemove`), con un aviso que trae
+**Deshacer** (`libraryRestore`). Con el teclado, el foco vuelve al mismo botón del mismo
+cartucho después de redibujar, o a la × del cartucho que quedó en su lugar.
+
+**Los límites** ([8.21](#821-los-límites-de-la-biblioteca)): como mucho `LIBRARY_MAX_ITEMS`
+(60) cartuchos y `LIBRARY_MAX_CHARS` (2 500 000) caracteres de base64 entre todos, unos
+2,5 MB. `enforceLibraryLimits` saca lo que no entra empezando por el jugado hace más
+tiempo, y nunca el que está en la ranura. Además, cualquier escritura en `localStorage`
+que choca con el límite del navegador (`QuotaExceededError`) le hace lugar sacando de la
+biblioteca el cartucho jugado hace más tiempo y probando otra vez (`storageWrite` +
+`evictLibraryItem`): los ajustes valen más que una ROM que se puede volver a cargar. Si
+algo se va por falta de lugar, un aviso lo dice. Si el navegador no deja guardar nada
+(`storageOk` falso), el estante lo avisa y la biblioteca dura lo que dura la página.
+
+### 4.11 Cartuchos incluidos y selector rápido
 
 `CHIP8_DEMOS` se normaliza al arrancar en `demos`, una lista de
-`{ id, name, description, controls, hex, bytes }`. `buildShelf()` crea, por cada cartucho,
-dos botones que llaman a `loadDemo(id)`:
+`{ id, name, description, controls, platform, hex, bytes, sha1 }` (`platform` es
+`'chip8'` si el demo no la declara). `buildShelf()` crea, por cada cartucho, dos botones
+que llaman a `loadDemo(id)`:
 
 - una tarjeta `.cart` en el estante "Cartuchos incluidos", debajo de la consola, con el
   nombre, la descripción, los controles y la marca "En la ranura";
@@ -756,28 +1167,41 @@ dos botones que llaman a `loadDemo(id)`:
   cambiar de cartucho sin scrollear. Al lado hay un enlace "Detalles ↓" a `#shelf-title`.
 
 `updateShelfSelection()` pone `aria-pressed="true"` en la tarjeta y el chip del cartucho
-cargado. `updateSlot()` muestra en la ranura el nombre, el tamaño ("177 bytes · demo
-incluido"), un color por cartucho y, en `#cart-controls`, "Controles: ..." con los
-controles del demo; para una ROM externa esa línea se oculta. Al arrancar se carga el
-primer cartucho según `@order` (Rebote). Si no hay cartuchos, el estante muestra un
-mensaje, el selector queda oculto y la pantalla muestra "INSERTÁ UN CARTUCHO".
+cargado. `updateSlot()` muestra en la ranura el nombre, la segunda línea
+([4.9](#49-ajustes-por-cartucho)), un color por cartucho y, en `#cart-controls`,
+"Controles: ..." con los controles del demo; para una ROM externa esa línea se oculta. Al
+arrancar se carga el primer cartucho según `@order` (Rebote). Si no hay cartuchos, el
+estante muestra un mensaje, el selector queda oculto y la pantalla muestra "INSERTÁ UN
+CARTUCHO".
 
-### 4.9 Quirks y velocidad
+### 4.12 Compatibilidad: plataforma, perfil y quirks
 
-**Quirks.** Seis botones `role="switch"` con `aria-checked`, armados desde `QUIRK_INFO`
-(etiqueta corta, nombre, opcodes y descripción). Cada uno tiene `aria-describedby`
-apuntando a un texto oculto con su descripción; la línea `#quirk-hint` muestra la misma
-explicación al pasar el mouse o el foco. Un clic llama a `applyQuirks`, que actualiza
-`cpu.quirks`, los interruptores y el selector de perfil, y guarda. El cambio se aplica en
-vivo, en la instrucción siguiente.
+El grupo **Compatibilidad** tiene dos selectores, seis interruptores DIP y el interruptor
+«Ajustes por cartucho»:
 
-El selector **Perfil** tiene COSMAC VIP, SUPER-CHIP, XO-CHIP y Personalizado.
-`detectPreset()` compara los seis quirks con cada perfil: si coinciden con uno, el
-selector lo muestra; si no, muestra "Personalizado". Elegir "Personalizado" no cambia
-nada. Los perfiles:
+- **Perfil** (`#preset`): COSMAC VIP, SUPER-CHIP, XO-CHIP y Personalizado.
+  `applyProfile(id, { auto, quiet, restart })` pone la plataforma del perfil
+  (`PRESET_PLATFORM`) y sus seis quirks; si la plataforma cambia, la ROM vuelve a
+  empezar (con `restart`, vuelve a empezar igual). Si la ROM no entra en la plataforma
+  del perfil, avisa y no cambia nada. Elegir "Personalizado" no cambia nada. Por qué el
+  perfil elige también la plataforma: [8.19](#819-perfil-y-plataforma-dos-selectores).
+- **Plataforma** (`#platform`): `applyPlatform(p, { auto, quiet })` cambia solo la
+  plataforma, con `cpu.setPlatform` (la ROM vuelve a empezar; los quirks no se tocan).
+  Cada opción y el selector llevan en el `title` la descripción de la plataforma
+  (`PLATFORM_DESC`), que también aparece en la línea de ayuda del grupo.
+- **Los interruptores** (`role="switch"`, armados desde `QUIRK_INFO`: etiqueta corta,
+  nombre, opcodes y descripción, con `aria-describedby`): `applyQuirks` cambia solo los
+  quirks, en vivo, y **nunca la plataforma**.
+
+`detectPreset()` compara los seis quirks con cada perfil (solo los quirks: con quirks del
+VIP y plataforma XO-CHIP, el selector muestra COSMAC VIP); si no coinciden con ninguno,
+muestra "Personalizado". `updatePlatformUI()` actualiza el selector, la placa de la consola
+("MODELO XO-CHIP · 64 KB RAM · 128×64"), las leyendas de video y el ancho de las
+direcciones del monitor. Los perfiles:
 
 | Quirk | COSMAC VIP | SUPER-CHIP | XO-CHIP |
 |---|---|---|---|
+| Plataforma | CHIP-8 | SUPER-CHIP | XO-CHIP |
 | `vfReset` (VF=0) | sí | no | no |
 | `memory` (MEM) | sí | no | sí |
 | `shifting` (SHIFT) | no | sí | no |
@@ -785,20 +1209,44 @@ nada. Los perfiles:
 | `clipping` (CLIP) | sí | sí | no |
 | `displayWait` (VBLANK) | sí | no | no |
 
-Qué hace cada quirk y de dónde sale: [sección 11 del manual](MANUAL.md#11-quirks).
+Los quirks del perfil XO-CHIP son exactamente los de Octo por defecto: 96 de los 104
+programas del archivo los usan tal cual. Qué hace cada quirk y de dónde sale:
+[sección 11 del manual](MANUAL.md#11-quirks).
 
-**Velocidad.** `setIpf(n, origen)` ajusta la velocidad entre 1 e `IPF_MAX` (10.000) y
-sincroniza tres controles: el deslizador (`#ipf-range`, de 0 a 1000 en escala
-logarítmica: IPF = IPF_MAX^(posición/1000), redondeado), el campo numérico
-(`#ipf-input`) y los botones 7, 15, 30, 100, 500, 1000, 5000 y 10000. La línea
-`#ipf-rate` dice "≈ N instrucciones por segundo · timers a 60 Hz". El deslizador lleva
-`aria-valuetext` ("15 instrucciones por frame"). Mientras se escribe un valor fuera de
-rango, el campo queda con `aria-invalid="true"` y la línea dice "Fuera de rango (1 a
-10.000): se usa N"; se corrige al confirmar. El tope se subió de 1000 a 10.000 a pedido
-del usuario, para ROMs de la Octojam que piden miles de IPF; el costo lo mide el
-escenario 2 del E2E (ver [6.7](#67-los-escenarios-e2e)).
+### 4.13 Velocidad
 
-### 4.10 Transporte, estados y errores
+`setIpf(n, origen, auto)` ajusta la velocidad entre 1 e `IPF_MAX` (10.000) y sincroniza
+tres controles: el deslizador (`#ipf-range`, de 0 a 1000 en escala logarítmica: IPF =
+IPF_MAX^(posición/1000), redondeado), el campo numérico (`#ipf-input`) y los botones 7,
+15, 30, 100, 500, 1000, 5000 y 10000. La línea `#ipf-rate` dice "≈ N instrucciones por
+segundo · timers a 60 Hz". El deslizador lleva `aria-valuetext` ("15 instrucciones por
+frame"). Mientras se escribe un valor fuera de rango, el campo queda con
+`aria-invalid="true"` y la línea dice "Fuera de rango (1 a 10.000): se usa N"; se corrige
+al confirmar. Lo que corre es `liveIpf`, que puede ser el de la ROM; `settings.ipf` es la
+última elección de la persona. El tope se subió de 1000 a 10.000 en la primera ronda, a
+pedido del usuario, para ROMs de la Octojam que piden miles de IPF: en el archivo de la
+comunidad, dos juegos piden exactamente 10.000.
+
+### 4.14 Diagnósticos
+
+- **Una instrucción ignorada.** Cuando el núcleo deja un aviso (`cpu.hint`), `checkHint()`
+  lo muestra **una sola vez por ROM cargada** como un aviso con botón: "La ROM usó «HIGH»
+  (pasar a alta resolución (128×64)), que es de SUPER-CHIP, y la plataforma CHIP-8 la
+  ignora." y **Usar SUPER-CHIP**, que llama a `applyProfile` con el perfil de esa
+  plataforma y `restart`. Si se carga otra ROM, el aviso se va (`dismissHint`).
+- **Un error de plataforma.** `handleHalt()` ve `errorInfo.kind === 'platform'` y pone, en
+  el mensaje del tubo y al pie del monitor, el botón **Cambiar a SUPER-CHIP y reiniciar**
+  (o a XO-CHIP), que hace lo mismo.
+- **El fin del programa.** Con `cpu.exited`, el tubo muestra "FIN DEL PROGRAMA" y "La ROM
+  terminó con EXIT (00FD).", la insignia dice "Terminado", el LED RUN queda en ámbar y se
+  anuncia una vez. No es un error.
+- **Una ROM que solo entra en XO-CHIP** pasa sola al perfil XO-CHIP al cargarla, con un
+  aviso ([4.8](#48-carga-de-roms)).
+
+Los textos los cita el manual ([§11.10](MANUAL.md#1110-diagnósticos-de-plataforma)) y
+`tests/manual.test.js` comprueba que sigan siendo los de `chip8.html` y los del núcleo.
+
+### 4.15 Transporte, estados y errores
 
 Los botones Pausa/Continuar, Paso, Frame y Reiniciar llaman a `togglePause`, `stepOnce`,
 `frameOnce` y `doReset`:
@@ -807,7 +1255,7 @@ Los botones Pausa/Continuar, Paso, Frame y Reiniciar llaman a `togglePause`, `st
   no bajan. **Frame** pausa y ejecuta un `runFrame` completo con su tic.
 - `updateTransport()` deshabilita Pausa, Paso y Frame sin ROM o con la máquina detenida, y
   Reiniciar sin ROM. El botón de pausa dice "Continuar" (con el ícono de play) en pausa.
-- `computeMode()` resume el estado en uno de cinco modos, que manejan el LED RUN, la
+- `computeMode()` resume el estado en uno de seis modos, que manejan el LED RUN, la
   insignia del monitor, la etiqueta PAUSA y el atributo `data-mode` de la consola:
 
 | Modo | Insignia | LED RUN |
@@ -816,100 +1264,178 @@ Los botones Pausa/Continuar, Paso, Frame y Reiniciar llaman a `togglePause`, `st
 | `run` | Ejecutando | verde |
 | `wait` | Esperando tecla (además, la etiqueta ESPERANDO TECLA en el tubo) | verde titilando |
 | `paused` | Pausado | ámbar |
+| `exit` | Terminado (y "FIN DEL PROGRAMA" en el tubo) | ámbar |
 | `error` | Error | rojo |
 
-**Cuando la máquina se detiene** por un error, `handleHalt()`:
+**Cuando la máquina se detiene**, `handleHalt()`:
 
-1. guarda en `state.pausedBeforeHalt` si el usuario tenía la máquina en pausa (o iba de a
-   un paso) y la pausa;
+1. guarda las banderas, y en `state.pausedBeforeHalt` si el usuario tenía la máquina en
+   pausa (o iba de a un paso), y la pausa;
 2. muestra el mensaje en el tubo ("ERROR", el texto del núcleo y "Presioná Reiniciar
-   (Retroceso) para volver a empezar.") y en la línea de error del monitor;
+   (Retroceso) para volver a empezar.", más el botón de plataforma si corresponde) y en la
+   línea de error del monitor; o el fin del programa;
 3. lo anuncia **una sola vez** en la línea de estado (`#status`, `role="status"`):
    "Error: ...". No hay aviso flotante ni `role="alert"`: el mismo texto se leía tres
    veces con un lector de pantalla y el aviso tapaba el monitor.
 
 Paso o Frame no pisan ese mensaje en `#status`. **Reiniciar** después de un error vuelve
 al estado de pausa que había justo antes: si ibas de a un paso, queda en pausa en `0x200`
-y Paso sigue andando; si corría, arranca de nuevo. Ver
+y Paso sigue andando; si corría, arranca de nuevo. Un cambio de plataforma reinicia de la
+misma forma (`machineRestarted`). Ver
 [8.13](#813-reiniciar-después-de-un-error-respeta-la-pausa).
 
-### 4.11 El monitor
+### 4.16 El monitor
 
-El panel MONITOR muestra, de arriba abajo: la insignia de estado; PC, I, SP, DT, ST, IPF e
-INSTRUCCIONES (DT, ST, SP, IPF y el contador en decimal, el resto en hexadecimal); V0–VF,
-resaltando los que cambiaron; el desensamblado (20 filas: 7 antes del PC, el PC marcado con
-▶ y `aria-current`, y 12 después, con la misma paridad que el PC); la pila de 16 niveles con
-el tope marcado; 32 bytes de memoria alrededor de I (desde `((I & 0xFF8) - 8) & 0xFFF`, con
-el byte de I resaltado); y la línea de error.
+El panel MONITOR muestra, de arriba abajo: la insignia de estado; PC, I, SP, DT, ST, IPF,
+INSTRUCCIONES (DT, ST, SP, IPF y el contador en decimal, el resto en hexadecimal) y
+MÁQUINA (la plataforma, la resolución y, con XO-CHIP, los planos elegidos:
+"XO-CHIP · 128×64 · planos 1+2"); V0–VF, resaltando los que cambiaron; el desensamblado
+(20 filas: 7 antes del PC, el PC marcado con ▶ y `aria-current`, y 12 después, con la
+misma paridad que el PC); la pila de 16 niveles con el tope marcado; 32 bytes de memoria
+alrededor de I (desde `((I & ~7) - 8) & mask`, con el byte de I resaltado); y la línea de
+error, con el botón de plataforma si hace falta.
+
+- **Direcciones de 3 o 4 dígitos.** Con la memoria de 64 KB de XO-CHIP, `addrDigits` pasa
+  a 4 y `invalidateAddresses()` obliga a reescribir todo lo que muestra direcciones; el
+  panel se ensancha (`is-wide`).
+- **Filas de 4 bytes.** El desensamblado usa `disassembleRange` con la plataforma: en
+  XO-CHIP, `F000 NNNN` es una sola fila (con un `title` que la explica) y se resalta la
+  fila que **contiene** al PC.
+- **Siempre se llega a su final.** En la pantalla ancha (más de 1200 px, dos columnas) el
+  monitor va pegado arriba (`position: sticky`). Con un error y su botón mide entre 889 y
+  1024 px, más que muchas ventanas de laptop (1280×900, 1366×768): pegado a 20 px del
+  borde, su final quedaba fuera de la ventana hasta el final de la página.
+  `fitMonitor()` (con un `ResizeObserver` sobre el monitor y en cada `resize`) pone
+  `--mon-top` = mín(20, alto de la ventana − alto del monitor − 20), y el CSS usa
+  `top: var(--mon-top, 20px)`: si no entra, el monitor se pega más arriba, con su final a
+  la vista después de scrollear un poco ([7.11](#711-integración-y-hallazgos-notables)).
 
 Está pensado para no costar nada cuando no se mira:
 
 - `updateMonitor(forzar)` no hace nada si el panel está oculto (botón Ocultar/Mostrar,
   que se guarda) o si la pestaña está oculta. Tampoco si el panel quedó fuera de la vista
   (lo sigue un `IntersectionObserver`), salvo que se lo fuerce: al cargar una ROM,
-  reiniciar, detenerse por un error, volver a mostrar el panel o cuando el panel vuelve a
-  entrar en la vista. En el resto de los casos se actualiza una vez por cuadro de
-  animación, desde el bucle.
+  reiniciar, detenerse, volver a mostrar el panel o cuando el panel vuelve a entrar en la
+  vista. En el resto de los casos se actualiza una vez por cuadro de animación, desde el
+  bucle.
 - Cada elemento guarda su último valor (`el.__v`, `li.__a`, `li.__o`...) y solo se escribe
-  en el DOM lo que cambió; el desensamblado solo se recalcula cuando cambia el opcode de
-  una fila o el quirk `jumping`.
+  en el DOM lo que cambió. El desensamblado solo se recalcula si cambió el PC, la
+  plataforma, el quirk `jumping` o algún byte de la ventana (`disasmStale`, que compara
+  hasta `DISASM_ROWS * 4` bytes).
 - El resaltado de V0–VF solo se recalcula si se ejecutaron instrucciones desde la
   actualización anterior, así sobrevive mientras la máquina está en pausa entre pasos.
 
-### 4.12 La ayuda
+### 4.17 Comodidades
 
-Un `<dialog>` modal ("Manual rápido") con el mapa del teclado, los atajos, el modelo de
-foco, los cartuchos, la velocidad, la lista de quirks (armada desde `QUIRK_INFO` por
-`buildHelpQuirks`, con una línea fija que resume los perfiles), el monitor y consejos. Se
-abre con H o con "?" y se cierra con H, Esc, la ×, o un clic en el fondo. Al abrirla se
-sueltan todas las teclas.
+- **Avance rápido.** Lo sostienen cuatro fuentes (`turbo.key`, `pointer`, `button`, `api`):
+  la tecla T, el botón del bisel con el puntero (con captura), el mismo botón enfocado con
+  Espacio o Enter, y `window.chip8.setTurbo`. Mientras alguna está activa, cada tic real
+  corre `TURBO_FACTOR` (4) tics emulados ([4.2](#42-el-bucle-principal)) y en el tubo
+  aparece «×4» (solo si la máquina corre). En pausa o detenida no hace nada; se corta con
+  `releaseAllKeys` (la ventana pierde el foco, la pestaña se oculta, se abre la ayuda).
+- **Pantalla completa.** `toggleFullscreen()` usa la Fullscreen API (o la de WebKit) sobre
+  el bisel, y devuelve una promesa con el estado al que se llegó (plazo de 3 s). Con un
+  puntero grueso (`pointer: coarse`, un teléfono o una tableta), el keypad se muda adentro
+  del bisel (`has-pad`): al lado de la pantalla, o abajo con el aparato vertical. Los
+  avisos también se mudan, para verse. La escala sigue siendo entera. Sin la API (el
+  Safari del iPhone) el botón no aparece y P no hace nada.
+- **Captura.** `screenshotCanvas()` dibuja la pantalla **del núcleo**, no la del lienzo:
+  los colores exactos de la paleta, sin estela, scanlines, resplandor ni curvatura, con
+  escala entera (`SHOT_WIDTH`: 640 píxeles de ancho) y con el giro aplicado.
+  `saveScreenshot()` la baja con un `<a download>` y una URL `blob:` armada en el mismo
+  gesto, con el nombre `chip8-<cartucho>-<fecha>-<hora>.png` (`fileSlug` saca tildes y
+  símbolos). `window.chip8.screenshot()` devuelve el PNG en `data:`.
+- **Joystick.** Con un joystick conectado (`gamepadconnected`), `pollGamepads()` lo lee en
+  cada cuadro de animación con el mapeo estándar: la cruz (botones 12 a 15) y la palanca
+  izquierda (ejes 0 y 1, desde `PAD_DEADZONE`) son las direcciones; A (0) y B (1), los
+  dos botones; Start (9) pausa y continúa (en el flanco). Lo que aprietan se suma como una
+  fuente más (`setGamepadKeys`, con `liveKeymap`), de todos los joysticks. Con la ventana
+  sin foco, la pestaña oculta o la ayuda abierta no se lee nada. Avisos al conectar y
+  desconectar, y la línea `#pad-hint` dice cuál está conectado.
+- **Controles.** Un mapa es `{ preset: 'octo' | 'vip' | 'custom', keys: [6 teclas] }`
+  (arriba, abajo, izquierda, derecha, A y B). `KEYMAP_PRESETS` tiene los dos de fábrica:
+  "WASD de Octo" (`[5, 8, 7, 9, 6, 4]`) y "Teclado numérico del VIP" (`[2, 8, 4, 6, 5, 0]`).
+  Con "Personalizado" aparecen seis selectores; las teclas personalizadas se recuerdan
+  aparte (`settings.customKeys`) para volver a ellas. Como la paleta, el mapa que vale
+  (`liveKeymap`) puede ser el de la ROM, y `settings.keymap` es tu última elección.
+- **Curvatura y encendido animado**: ver [4.4](#44-modos-de-pantalla-y-efectos-del-tubo).
 
-### 4.13 Ajustes guardados
+### 4.18 La ayuda
 
-`settings` se guarda entero en `localStorage['chip8-consola.ajustes']` como JSON cada vez
-que cambia algo. Al arrancar, `loadSettings()` valida cada campo por separado y descarta
-lo que no tenga el tipo esperado:
+Un `<dialog>` modal ("Manual rápido") con el mapa del teclado, los atajos, el avance
+rápido, la pantalla completa y las capturas, el joystick y los controles, los cartuchos,
+tus cartuchos, la velocidad, la lista de quirks (armada desde `QUIRK_INFO` por
+`buildHelpQuirks`, con una línea fija que resume los perfiles), las plataformas, los
+colores, la curvatura y el encendido, los ajustes por cartucho (con el crédito del
+archivo de la comunidad), el diagnóstico, el monitor y consejos. Se abre con H o con "?" y
+se cierra con H, Esc, la ×, o un clic en el fondo. Al abrirla se sueltan todas las teclas.
+
+### 4.19 Ajustes guardados
+
+La consola usa tres claves de `localStorage`, todas leídas y escritas dentro de
+`try/catch`:
+
+| Clave | Qué guarda |
+|---|---|
+| `'chip8-consola.ajustes'` | `settings`: tus últimas elecciones (la tabla de abajo). |
+| `'chip8-consola.cartuchos'` | Los ajustes recordados y las banderas de cada ROM ([4.9](#49-ajustes-por-cartucho)). |
+| `'chip8-consola.biblioteca'` | Tus cartuchos ([4.10](#410-tus-cartuchos-la-biblioteca)). |
+
+`settings` se guarda entero cada vez que cambia algo. Al arrancar, `loadSettings()` valida
+cada campo por separado y descarta lo que no tenga el tipo esperado:
 
 | Campo | De fábrica | Validación |
 |---|---|---|
 | `ipf` | 15 | número, redondeado y limitado a 1–10.000 |
 | `quirks` | los del VIP | objeto; cada una de las seis claves, solo si es booleana |
-| `palette` | `'fosforo'` | una clave de `PALETTES` |
+| `platform` | `'chip8'` | una de `PLATFORMS` |
+| `palette` | `'fosforo'` | una clave de `PALETTES` o `'custom'` («Del cartucho» nunca se guarda acá) |
+| `customColors` | los de Verde fósforo | cuatro colores `#RRGGBB` |
 | `screenMode` | `'crt'` | `'crt'` o `'puro'` |
 | `scanlines`, `persistence` | `true` | booleano |
+| `curvature` | `false` | booleano |
+| `powerOn` | `true` | booleano |
 | `muted` | `false` | booleano |
 | `volume` | 0,6 | número finito, limitado a 0–1 |
 | `monitorOpen` | `true` | booleano |
+| `perRom` | `true` | booleano |
+| `keymap` | WASD de Octo | `'octo'`, `'vip'` o `{ preset: 'custom', keys }` con seis teclas de 0 a 15 |
+| `customKeys` | `null` | seis teclas de 0 a 15 |
 
-Cada lectura y escritura está dentro de un `try/catch`: con el almacenamiento bloqueado o
-roto, la consola arranca con los valores de fábrica y funciona igual (lo prueba el E2E 10
-inyectando un `localStorage` que tira excepciones). Un efecto que conviene tener presente
-al depurar: el perfil de quirks se recuerda entre sesiones, así que "por defecto VIP" vale
-solo para un navegador que nunca abrió la consola.
+Con el almacenamiento bloqueado o roto, la consola arranca con los valores de fábrica y
+funciona igual (lo prueba el E2E 10 inyectando un `localStorage` que tira excepciones). Un
+efecto que conviene tener presente al depurar: el perfil y la plataforma se recuerdan entre
+sesiones, y con «Ajustes por cartucho» cada ROM recuerda los suyos, así que "por defecto
+VIP" vale solo para un navegador que nunca abrió la consola.
 
-### 4.14 Accesibilidad
+### 4.20 Accesibilidad
 
 - Todo se puede manejar con el teclado; el foco visible es un contorno de 3 px
   (`:focus-visible`).
-- La pantalla es un `canvas` con `role="img"` y una etiqueta. El keypad es un grupo con una
-  etiqueta por tecla ("Tecla A (en tu teclado: Z)"). Los quirks son `role="switch"` con su
-  descripción en `aria-describedby`. Los interruptores de pantalla y sonido usan
-  `aria-pressed`. El modo de pantalla es un `radiogroup`. El monitor usa `aria-expanded` en
-  su botón y `aria-current` en la fila del PC.
+- La pantalla es un `canvas` con `role="img"` y una etiqueta que dice la plataforma y la
+  resolución. El keypad es un grupo con una etiqueta por tecla ("Tecla A (en tu teclado:
+  Z)"). Los quirks son `role="switch"` con su descripción en `aria-describedby`. Los
+  interruptores de pantalla, sonido, avance rápido, pantalla completa y «Ajustes por
+  cartucho» usan `aria-pressed`. El modo de pantalla es un `radiogroup`. Las muestras de
+  color tienen su etiqueta. El monitor usa `aria-expanded` en su botón y `aria-current` en
+  la fila del PC.
 - La línea de estado (`role="status"`, `aria-live="polite"`) anuncia lo importante: el
-  cartucho cargado, pausa, paso, reinicio, la velocidad elegida con los botones, el perfil,
-  el modo de pantalla, el silencio y los errores, una sola vez. El monitor no se anuncia:
-  cambia en cada frame.
+  cartucho cargado (y con qué ajustes), pausa, paso, reinicio, la velocidad elegida con
+  los botones, el perfil y la plataforma, el modo de pantalla, el silencio, la curvatura,
+  los controles, la pantalla completa, la captura y los errores, una sola vez. El monitor
+  no se anuncia: cambia en cada frame.
 - El keypad acepta Enter, Espacio y la activación sin puntero de los lectores de
-  pantalla ([4.5](#45-teclado-keypad-y-foco)).
+  pantalla ([4.6](#46-teclado-keypad-y-foco)).
 - Contraste: las letras de ayuda del keypad y las filas vacías de la pila se oscurecieron o
-  aclararon en la revisión (alrededor de 4,9:1 o más).
-- `prefers-reduced-motion: reduce` apaga las animaciones y transiciones.
+  aclararon en la revisión de la primera ronda (alrededor de 4,9:1 o más); los cuatro
+  colores de cada paleta tienen al menos 1,8:1 entre vecinos.
+- `prefers-reduced-motion: reduce` apaga las animaciones y transiciones, y el encendido
+  animado.
 - En pantallas de 760 px o menos el keypad queda justo debajo del tubo; en 480 px o menos
   se oculta la bajada del logo y se achican los márgenes. A 360×640, el tubo y el keypad
   entero entran en la primera vista (E2E 24).
 
-### 4.15 La API de depuración window.chip8
+### 4.21 La API de depuración window.chip8
 
 La interfaz expone `window.chip8` para depurar desde la consola del navegador y para
 `tools/e2e.js`:
@@ -918,18 +1444,39 @@ La interfaz expone `window.chip8` para depurar desde la consola del navegador y 
 |---|---|
 | `cpu` | La instancia de `Chip8` (se puede leer y escribir todo su estado). |
 | `demos` | La lista normalizada de cartuchos. |
-| `loadDemo(id)`, `loadRomBytes(bytes, nombre)` | Cargan un cartucho o bytes; devuelven `true` o `false`. |
+| `loadDemo(id)`, `loadRomBytes(bytes, nombre)` | Cargan un cartucho o bytes (con sus ajustes por cartucho); devuelven `true` o `false`. |
 | `pause()`, `resume()`, `isPaused()` | Pausa. `resume()` no hace nada con la máquina detenida; `isPaused()` es `true` también después de un error. |
 | `step()`, `frame()`, `reset()` | Como los botones: `step()` devuelve lo que devolvió `cpu.step()`, `frame()` la cantidad de instrucciones y `reset()` un booleano. |
 | `setIpf(n)`, `getIpf()` | Velocidad (se limita a 1–10.000 y devuelve el valor aplicado). |
-| `setPreset('vip' \| 'schip' \| 'xochip')` | Perfil de quirks. |
+| `setPreset('vip' \| 'schip' \| 'xochip')` | Perfil completo: plataforma y quirks. |
+| `setPlatform(p)`, `getPlatform()` | Solo la plataforma. |
 | `setScreenMode('crt' \| 'puro')`, `getScreenMode()` | Modo de pantalla. |
-| `pressKey(k)`, `releaseKey(k)` | Teclas, como una fuente más ([4.5](#45-teclado-keypad-y-foco)). |
-| `audioState()` | El estado del audio ([4.6](#46-sonido)). |
+| `setPalette(id)`, `getPalette()` | Paleta (también `'custom'` y, si existe, `'cartucho'`). |
+| `setCustomColors([fondo, plano1, plano2, ambos])` | Los cuatro colores de «Personalizada» (`'#RRGGBB'`). |
+| `setCartridgeColors(colores \| null)` | La opción «Del cartucho». |
+| `setRotation(grados)`, `getRotation()` | El giro (0, 90, 180 o 270); se recuerda para la ROM de la ranura. |
+| `screenColors()` | Los colores distintos que hay en el lienzo (`'#RRGGBB'`, ordenados). |
+| `pressKey(k)`, `releaseKey(k)` | Teclas, como una fuente más ([4.6](#46-teclado-keypad-y-foco)). |
+| `audioState()` | El estado del audio ([4.7](#47-sonido)). |
+| `romInfo()` | `{ name, size, sha1, source, archiveId }` de la ROM de la ranura, o `null`. |
+| `forgetRomSettings()` | «Olvidar ajustes» de la ROM de la ranura. |
+| `setPerRom(on)`, `getPerRom()` | El interruptor «Ajustes por cartucho». |
+| `libraryList()`, `libraryLoad(sha)`, `libraryRemove(sha)` | La biblioteca: `[{ sha1, name, size, added, played, platform, tag }]`, cargar y quitar. |
+| `archiveLookup(sha)`, `registerArchiveEntry(sha, entrada \| null)` | Busca un juego en la tabla del archivo; agrega o quita entradas mientras la página está abierta (lo usan las pruebas). |
+| `getFlags()` | Las 16 banderas RPL de la máquina. |
+| `setTurbo(on)`, `isTurbo()` | El avance rápido, como una fuente más. |
+| `toggleFullscreen()`, `isFullscreen()` | Pantalla completa (promesa con el estado al que se llegó). |
+| `screenshot()` | La captura, como PNG en `data:`. |
+| `setKeymap(mapa)`, `getKeymap()` | «Controles»: `'octo'`, `'vip'`, `'custom'` o `{ up, down, left, right, a, b }`; devuelve `{ preset, up, down, left, right, a, b }`. |
+| `gamepadState()` | `{ supported, active, connected, start, keys, up, down, left, right, a, b }`. |
+| `setCurvature(on)`, `getCurvature()` | La curvatura (no se prende si el navegador no puede). |
+| `setPowerOn(on)`, `getPowerOn()` | El encendido animado. |
 
-Un truco: en la vista previa del navegador integrado, `requestAnimationFrame` se frena
-cuando el panel está oculto; para automatizar algo ahí, mové el tiempo con `frame()` o
-`step()` en lugar de esperar.
+Las funciones que cambian ajustes cuentan como un cambio de la persona: quedan en
+`settings` y, con «Ajustes por cartucho», en los de la ROM de la ranura. Un truco: en la
+vista previa del navegador integrado, `requestAnimationFrame` se frena cuando el panel
+está oculto; para automatizar algo ahí, mové el tiempo con `frame()` o `step()` en lugar
+de esperar.
 
 ---
 
@@ -938,8 +1485,9 @@ cuando el panel está oculto; para automatizar algo ahí, mové el tiempo con `f
 ### 5.1 El ensamblador (tools/chip8asm.js)
 
 Un ensamblador de dos pasadas, sin dependencias, que usa los mismos mnemónicos que el
-desensamblador. La sintaxis completa está documentada en el comentario del principio del
-archivo y en la [parte 4.4 del tutorial](TUTORIAL.md#44-la-sintaxis-completa); en resumen:
+desensamblador, también los de SUPER-CHIP y XO-CHIP. La sintaxis completa está
+documentada en el comentario del principio del archivo y en la
+[parte 4.4 del tutorial](TUTORIAL.md#44-la-sintaxis-completa); en resumen:
 
 | Elemento | Forma |
 |---|---|
@@ -950,22 +1498,36 @@ archivo y en la [parte 4.4 del tutorial](TUTORIAL.md#44-la-sintaxis-completa); e
 | Números | `42`, `0x2A`, `$2A`, `0b00101010`, `%00101010` |
 | Expresiones | números, etiquetas y constantes con `+` y `-` |
 | Mayúsculas | indistintas en instrucciones, registros y directivas; las etiquetas sí las distinguen |
-| Nombres reservados | `V0`–`VF`, `I`, `DT`, `ST`, `K`, `F`, `B`, las instrucciones y las directivas |
+| Nombres reservados | `V0`–`VF`, `I`, `DT`, `ST`, `K`, `F`, `B`, `HF`, `R`, `LONG`, las instrucciones (también las de SUPER-CHIP y XO-CHIP: `SCD`, `SCR`, `SCL`, `EXIT`, `LOW`, `HIGH`, `SCU`, `SAVE`, `LOAD`, `PLANE`, `AUDIO`, `PITCH`) y las directivas. Un nombre que solo empieza igual (`low_x`, `saved`, `R2`) sí vale. |
+
+Las instrucciones nuevas: `SCD n`, `SCR`, `SCL`, `EXIT`, `LOW`, `HIGH`, `LD HF, Vx`,
+`LD R, Vx` y `LD Vx, R` (SUPER-CHIP); `SCU n`, `SAVE Vx, Vy`, `LOAD Vx, Vy`,
+`LD I, LONG nnnn`, `PLANE n`, `AUDIO` y `PITCH Vx` (XO-CHIP). `LD I, LONG nnnn` es la
+única de 4 bytes (`F000` y la dirección): la tabla de codificación (`TABLE`) admite un
+tamaño por patrón y una función que devuelve dos palabras. **El ensamblador no sabe para
+qué máquina es el programa**: acepta todas las instrucciones en cualquier fuente, y es el
+emulador, según la plataforma, el que las ejecuta o no (`SYS 0x0FF` sigue valiendo lo
+mismo que `HIGH`). La opción **`xochip`** (`--xo`) solo cambia hasta dónde puede llegar el
+programa: sin ella, hasta `0xFFF`; con ella, hasta `0xFFFF`. Las direcciones de 12 bits
+(`SYS`, `JP`, `CALL`, `LD I`, `JP V0`) siguen yendo de 0 a `0xFFF` en los dos casos, y
+`LD I, 0x1234` explica que para 16 bits está `LD I, LONG`. Con bytes más allá de `0xFFF`,
+el listado usa direcciones de 4 dígitos.
 
 Algunos detalles de diseño: las referencias hacia adelante funcionan (primera pasada:
 direcciones; segunda: bytes); una constante `EQU` puede usar etiquetas y constantes
 definidas más adelante, se detectan las definiciones circulares y se evalúan todas aunque
-no se usen, para informar sus errores; hay formas cortas `SHR Vx` y `SHL Vx`; `JP V0, dir` acepta
-cualquier dirección y `JP VX, dir` con X ≠ 0 (la lectura `BXNN` de SUPER-CHIP) solo si X es
-el primer dígito de la dirección; los registros y nombres especiales no admiten espacios
-adentro (`V 1` es un error) salvo `[ I ]`.
+no se usen, para informar sus errores; hay formas cortas `SHR Vx` y `SHL Vx`; `JP V0, dir`
+acepta cualquier dirección y `JP VX, dir` con X ≠ 0 (la lectura `BXNN` de SUPER-CHIP) solo
+si X es el primer dígito de la dirección; los registros y nombres especiales no admiten
+espacios adentro (`V 1` es un error) salvo `[ I ]`; `LONG` va separado del valor por un
+espacio.
 
 **API** (`require('./tools/chip8asm.js')`, o `globalThis.Chip8Asm` si se carga con un
 `<script>` en un navegador):
 
 ```js
 const { assemble, formatListing } = require('./tools/chip8asm.js');
-const { bytes, labels, listing } = assemble(fuente, { origin: 0x200 });
+const { bytes, labels, listing } = assemble(fuente, { origin: 0x200, xochip: false });
 // bytes: Uint8Array; labels: { nombre: dirección }
 // listing: una entrada por línea de la fuente: { line, addr, bytes, text }
 console.log(formatListing(listing));
@@ -977,7 +1539,7 @@ ejemplo `Línea 5: "bucle" ya estaba definido en la línea 3`.
 **Línea de comandos:**
 
 ```sh
-node tools/chip8asm.js entrada.asm [salida.ch8] [--listing]
+node tools/chip8asm.js entrada.asm [salida.ch8] [--listing] [--xo]
 node tools/chip8asm.js --help
 ```
 
@@ -1000,17 +1562,23 @@ node tools/embed-roms.js --html otro.html  # actualiza otro HTML
   y `-`), escribe `roms/<id>.ch8` si cambió y reemplaza **solo** el contenido de
   `<script id="chip8-roms">`. El resto del archivo queda idéntico byte por byte, se
   respeta el fin de línea (CRLF o LF) y correrlo dos veces seguidas no cambia nada.
-- Cada `.asm` empieza con un bloque de comentarios con cuatro etiquetas obligatorias:
+- Cada `.asm` empieza con un bloque de comentarios con cuatro etiquetas obligatorias y una
+  optativa:
 
   ```asm
   ; @name Rebote
   ; @description Una pelotita sonriente rebota por la pantalla y suena cada vez que toca un borde.
   ; @controls Ninguno: solo mirá.
   ; @order 1
+  ; @platform xochip        (optativa: chip8, schip o xochip; sin ella, CHIP-8)
   ```
 
   Los cartuchos se ordenan por `@order` (y después por `id`); el primero es el que carga
-  la consola al arrancar.
+  la consola al arrancar. Con `@platform xochip` el programa se ensambla con la opción
+  `xochip` (puede llegar a 65.024 bytes) y la entrada incrustada lleva el campo
+  `platform`, para que la consola pase a esa plataforma al cargar el demo. Las demos sin
+  la etiqueta generan exactamente el mismo bloque que antes de que existiera (lo prueba
+  `tests/roms.test.js`). Un valor desconocido, o la etiqueta vacía, es un error.
 - El bloque generado tiene este formato (los textos van con `JSON.stringify` y `<` como
   `\u003c`, ver [2.4](#24-la-regla-del-cierre-de-script)):
 
@@ -1030,28 +1598,31 @@ node tools/embed-roms.js --html otro.html  # actualiza otro HTML
 
 - `--check` lista en castellano qué está desactualizado (un `.ch8` que no coincide con su
   `.asm`, o el bloque del HTML) y sale con 1; `tests/roms.test.js` lo corre. Falla limpio,
-  con un mensaje, si falta una etiqueta, si `@order` no es un número, si falta el bloque o
-  si un programa no ensambla (con el número de línea).
+  con un mensaje, si falta una etiqueta, si `@order` no es un número, si `@platform` no
+  es válida, si falta el bloque, si un programa no ensambla (con el número de línea) o si
+  no entra en su plataforma.
 
 ### 5.3 Reglas para escribir un demo
 
-Los cinco cartuchos siguen estas reglas, y las pruebas las hacen cumplir:
+Los seis cartuchos siguen estas reglas, y las pruebas las hacen cumplir:
 
 1. **Que ande con cualquier perfil de quirks.** No leer VF después de `OR`/`AND`/`XOR`;
    usar `SHR`/`SHL` con X = Y; volver a cargar I antes de cada `LD [I], Vx` o
-   `LD Vx, [I]`; no usar `JP V0`; no depender de que un sprite se recorte o dé la vuelta
-   (quedarse adentro de la pantalla). `tests/roms.test.js` corre cada demo 600 frames con
-   los tres perfiles, y Fuente y Autotest tienen que dibujar exactamente lo mismo con los
-   tres.
+   `LD Vx, [I]` (o usar `SAVE`/`LOAD`, que nunca mueven I, en XO-CHIP); no usar `JP V0`;
+   no depender de que un sprite se recorte o dé la vuelta (quedarse adentro de la
+   pantalla). `tests/roms.test.js` corre cada demo 600 frames con los tres perfiles (en la
+   plataforma del demo), y Fuente y Autotest tienen que dibujar exactamente lo mismo con
+   los tres.
 2. **El presupuesto de `displayWait`.** Con el perfil VIP cada `DRW` cierra el frame. Un
    paso con k dibujos dura por lo menos k frames, y las instrucciones entre un dibujo y el
    siguiente tienen que entrar en el IPF. Rebote, por ejemplo, reparte el trabajo de cada
    paso entre sus dos `DRW` para que entre en 15 instrucciones por frame (alcanza con 14 en
-   el VIP y 10 en los otros perfiles).
+   el VIP y 10 en los otros perfiles); Planos hace como mucho dos `DRW` por paso y nunca el
+   sonido y el contador en el mismo paso.
 3. **Un ritmo que no dependa del IPF.** Marcar el paso con DT (`LD DT, TICK` y esperar a que
    llegue a 0), no con bucles de espera: así la velocidad es la misma a 15 que a 1000 IPF.
    Las pruebas miden las velocidades que dicen los comentarios de cada `.asm`. Con IPF 7,
-   el ajuste más lento de la consola, un paso puede no entrar en su tiempo y el demo va más
+   el botón más lento de la consola, un paso puede no entrar en su tiempo y el demo va más
    despacio; los encabezados lo dicen con números.
 4. **No ejecutar nunca datos.** Terminar en bucles (`fin: JP fin`) y poner los datos
    después del código. Las pruebas envuelven `step()` y fallan si el `pc` pasa por una
@@ -1060,27 +1631,80 @@ Los cinco cartuchos siguen estas reglas, y las pruebas las hacen cumplir:
    nunca y con algo en pantalla.
 6. **Si usa `FX0A`**, tener en cuenta que una tecla que ya estaba apretada no cuenta
    ([3.4](#34-fx0a-apretar-y-soltar)).
-7. Comentarios en castellano que expliquen qué enseña el programa, cómo está la pantalla,
+7. **Si es de SUPER-CHIP o XO-CHIP**, declararlo con `@platform`, así la consola pasa a
+   esa plataforma al cargarlo. `tests/roms.test.js` comprueba además que Planos, en una
+   plataforma menor, se detenga pidiendo la suya en lugar de seguir con datos
+   equivocados.
+8. Comentarios en castellano que expliquen qué enseña el programa, cómo está la pantalla,
    qué hace cada registro y a qué velocidad va.
 
 La [parte 5.7 del tutorial](TUTORIAL.md#57-código-que-anda-en-cualquier-intérprete) explica
 estas mismas reglas para quien escribe sus propios programas.
 
-### 5.4 Los cinco cartuchos
+### 5.4 Los seis cartuchos
 
 | `@order` | Cartucho | Bytes | Qué enseña | Notas |
 |---|---|---|---|---|
 | 1 | **Rebote** (`rebote`) | 177 | `DRW` con XOR para borrar, ritmo con DT, pitido con ST | 30 pasos por segundo desde IPF 15 (unos 19 en el VIP y 22 en los otros perfiles con IPF 7). Dibuja la pelota nueva antes de borrar la vieja: el cuadro intermedio es el XOR de las dos, una silueta de 36 de los 44 píxeles. |
 | 2 | **Teclado** (`teclado`) | 571 | `SKP`/`SKNP` para varias teclas a la vez, `FX29`, `FX55`/`FX65` y resaltar con XOR | El repaso de las 16 teclas está desenrollado (6 instrucciones por tecla, 8 estados por `FX65`): una tecla se ilumina en 7 frames como mucho a IPF 15 (13 a IPF 7). |
 | 3 | **Atrapa** (`atrapa`) | 374 | `RND`, puntaje con `FX33`/`FX65`/`FX29`, sprites movidos con un solo `DRW` de "diferencia", velocidad fraccionaria con un acumulador de 8 bits y el acarreo en VF, `FX0A` para reiniciar | 20 pasos por segundo. La caída empieza en 96/256 de píxel por paso y sube 4 por punto hasta 160/256: así el bloque tarda al menos 34 pasos en caer y la paleta, como mucho 28 en cruzar, o sea que todo bloque se puede atrapar. Cuenta como atrapado si toca la paleta en cualquier paso con y entre 26 y 28. |
-| 4 | **Autotest** (`autotest`) | 1089 | CHIP-8 probándose a sí mismo | 19 comprobaciones en una grilla de 4×5 con tilde o cruz, y un resumen. Al terminar deja **VD = 19** (pruebas hechas) y **VE = fallas**, en `fin: JP fin`: lo leen las pruebas automáticas. La prueba del temporizador se rinde a las ~2000 instrucciones si DT no cambia. Detecta, por ejemplo, una bandera de `SUBN` mal calculada con operandos iguales. No usa `JP V0` a propósito. |
+| 4 | **Autotest** (`autotest`) | 1089 | CHIP-8 probándose a sí mismo | 19 comprobaciones en una grilla de 4×5 con tilde o cruz, y un resumen. Al terminar deja **VD = 19** (pruebas hechas) y **VE = fallas**, en `fin: JP fin`: lo leen las pruebas automáticas. La prueba del temporizador se rinde a las ~2000 instrucciones si DT no cambia. No usa `JP V0` a propósito. |
 | 5 | **Fuente** (`fuente`) | 88 | La fuente incorporada con `FX29` | Los 16 dígitos en dos filas dentro de un marco. Imagen fija. |
+| 6 | **Planos** (`planos`, `@platform xochip`) | 531 | Lo nuevo de XO-CHIP: `HIGH`, dos planos y cuatro colores con `PLANE`, sprites de 16×16, la fuente grande, los cuatro desplazamientos (que corren solo los planos elegidos), `SAVE`/`LOAD` y el sonido con `AUDIO` y `PITCH` | Un disco (plano 1) se mueve con un `DRW` de diferencia de 16×16; un rombo (solo en el plano 2) se mueve **sin dibujar**, corriendo su plano; donde se pisan aparece el cuarto color. 12 pasos por segundo, una nota por pared y un contador de rebotes con la fuente grande. Va igual con los tres perfiles de 15 a 10.000 IPF (alcanza con 14 IPF con el vblank y 12 sin él). La W (tecla 5) frena al rombo. |
 
 Los encabezados de cada `.asm` documentan la pantalla, los registros y las velocidades
 medidas; la [parte 6 del tutorial](TUTORIAL.md#6-leer-un-programa-real) recorre Rebote y
-Atrapa.
+Atrapa, y la [parte 9](TUTORIAL.md#9-más-allá-de-chip-8-super-chip-y-xo-chip), Planos.
 
-### 5.5 tools/serve.js
+### 5.5 tools/archive.js
+
+La tabla de autoconfiguración sale del archivo de la comunidad de John Earnest
+(*chip8Archive*, licencia CC0 1.0): los programas de las Octojam y otros eventos, cada uno
+con las opciones con que se juega en Octo. Tres comandos:
+
+```sh
+node tools/archive.js update                 # baja el archivo y escribe data/archive.json (necesita internet)
+node tools/archive.js embed [--check] [--html otro.html]   # escribe <script id="chip8-archive">
+node tools/archive.js test [--frames N] [--sheet hoja.png] [--only id1,id2] [--json reporte.json]
+```
+
+- **`update`** baja `programs.json` y cada ROM del repositorio del archivo (a memoria: no
+  las guarda), calcula la huella SHA-1 de cada una, averigua el commit y escribe
+  `data/archive.json`: la fuente, la licencia, el commit, la fecha y, por programa, `id`,
+  título, autores, evento, fecha, plataforma, tamaño, `sha1` y las opciones de Octo tal
+  cual. Avisa si dos programas tienen la misma ROM, si uno no dice su plataforma (se toma
+  CHIP-8) o si usa algo que la consola no tiene (`vfOrderQuirks`).
+- **`embed`** convierte cada programa con `toEntry`/`fromOctoOptions` y escribe el bloque,
+  ordenado por huella; si el bloque no existe, lo agrega después de `chip8-roms`. Respeta
+  CRLF y es idempotente; con `--check` solo verifica (`tests/archive.test.js` lo corre).
+  La fuente se guarda **sin `https://`** ([8.23](#823-ninguna-dirección-de-red-en-chip8html)).
+- **`test`** corre cada juego con su configuración en el núcleo de `chip8.html` (900
+  frames, apretando teclas al azar de forma reproducible) e informa errores, salidas,
+  instrucciones ignoradas, pantallas vacías, si usó alta resolución, dos planos o audio.
+  Con `--sheet` guarda una hoja de contactos PNG (8 por fila, con borde rojo los que se
+  detuvieron con error), armada con un codificador PNG mínimo propio sobre `zlib`. Necesita
+  conexión, porque baja las ROMs a memoria.
+
+La correspondencia con las opciones de Octo:
+
+| Octo | Consola |
+|---|---|
+| `tickrate` (20 si falta) | `ipf`, limitado a 1–10.000 |
+| `logicQuirks`, `shiftQuirks`, `jumpQuirks`, `clipQuirks`, `vBlankQuirks` | `vfReset`, `shifting`, `jumping`, `clipping`, `displayWait` |
+| `loadStoreQuirks` | `memory`, **invertido** (en Octo, `true` = I no se mueve) |
+| `backgroundColor`, `fillColor`, `fillColor2`, `blendColor` (los de Octo si faltan) | `colors[0..3]`: fondo, plano 1, plano 2, ambos |
+| `screenRotation` | `rotation` (0, 90, 180 o 270) |
+| `vfOrderQuirks` | No existe en la consola (escribe VF siempre al final); se avisa. Ninguno de los 104 lo usa. |
+
+Los números de hoy (commit `761e3ff` del archivo): 104 programas, 50 de CHIP-8, 26 de
+SUPER-CHIP y 28 de XO-CHIP; 96 usan exactamente los quirks de Octo por defecto (los del
+perfil XO-CHIP); las velocidades van de 7 a 10.000 IPF. `node tools/archive.js test`
+informa que 103 de los 104 corren sin errores: *Super Square* desborda la pila en su
+pantalla de fin de partida, algo que con los 12 niveles de Octo pasaría todavía antes
+([7.11](#711-integración-y-hallazgos-notables)). El manual cita estos números y
+`tests/manual.test.js` comprueba que sigan siendo los de `data/archive.json`.
+
+### 5.6 tools/serve.js
 
 Un servidor estático de unas 50 líneas: `node tools/serve.js [puerto]` (o `npm run serve`), por
 defecto en `http://localhost:8008/`, también con la variable `PORT`. Sirve la carpeta del
@@ -1088,9 +1712,9 @@ repositorio, manda `/` a `chip8.html`, rechaza rutas que salgan de la carpeta y 
 con `Cache-Control: no-store`. La consola no lo necesita: existe para la vista previa
 y para probar por HTTP.
 
-### 5.6 tools/e2e.js
+### 5.7 tools/e2e.js
 
-Pruebas de punta a punta en un navegador de verdad, sin dependencias (unas 2050 líneas).
+Pruebas de punta a punta en un navegador de verdad, sin dependencias (unas 3300 líneas).
 Cómo está armado:
 
 ```
@@ -1102,14 +1726,27 @@ Browser         busca Chrome (y si no, Edge; o --browser / CHIP8_BROWSER), lo la
 CDP             cliente del Chrome DevTools Protocol sobre el WebSocket global de Node 22,
                 con plazo en cada comando
 Page            una pestaña por escenario: teclado real (Input.dispatchKeyEvent con code,
-                key y código virtual), mouse, toques con varios dedos, DOM.setFileInputFiles,
-                Input.dispatchDragEvent con archivos, viewport y escala, prefers-reduced-motion,
-                capturas; instrument() envuelve cpu.runFrame, step y reset para contar frames
+                key y código virtual), mouse, toques con varios dedos, archivos por
+                DOM.setFileInputFiles o por el diálogo de «Cargar ROM» interceptado
+                (Page.setInterceptFileChooserDialog), Input.dispatchDragEvent con archivos,
+                viewport, escala y toque emulados, prefers-reduced-motion, y capturas que
+                esperan a que termine el encendido animado; instrument() envuelve
+                cpu.runFrame, step y reset para contar frames
 Scenario        check(ok, descripción, detalle) e info(texto); PASA si todas las
                 comprobaciones pasan
 main()          corre los escenarios, imprime PASA / FALLA, guarda capturas y siempre
                 limpia: Browser.close, taskkill, cierra lo que quede con el perfil y lo borra
 ```
+
+Para los escenarios de la segunda ronda hay más herramientas: las ROMs de prueba se arman
+con el ensamblador del repositorio (por ejemplo, una de XO-CHIP con los cuatro colores);
+las entradas del archivo de la comunidad se registran para la prueba con
+`window.chip8.registerArchiveEntry`, así no dependen de los juegos reales; las descargas
+de la captura se reciben con `Browser.setDownloadBehavior` en la carpeta temporal y se
+decodifican con un lector de PNG propio (sobre `zlib`) para compararlas píxel por píxel con
+`cpu.display` y la paleta; los joysticks son "de mentira": `navigator.getGamepads`
+devuelve los que conecta el escenario; y `localStorage` se inspecciona para comprobar lo
+que quedó guardado.
 
 Cada escenario arranca con los ajustes de fábrica: borra el `localStorage` desde una página
 vacía del mismo origen (`Storage.clearDataForOrigin` devolvía "Internal error" en este
@@ -1125,95 +1762,110 @@ findBrowser }` para reutilizarlo. Cómo correrlo: [9.9](#99-correr-las-pruebas-e
 ### 6.1 Cómo se corren
 
 ```sh
-node --test                                   # todas las pruebas unitarias (o: npm test), ~2 s
-node --test tests/quirks.test.js              # un archivo
+node --test                                   # todas las pruebas unitarias (o: npm test), ~5 s
+node --test tests/xochip.test.js              # un archivo
 node --test --test-name-pattern="FX0A"        # por nombre
-node tools/e2e.js                             # E2E en Chrome o Edge (o: npm run e2e), ~2 min
+node tools/e2e.js                             # E2E en Chrome o Edge (o: npm run e2e), ~3 min
 node tools/e2e.js --only 1,5 --shots ../capturas   # algunos escenarios, capturas afuera del repo
 node tools/embed-roms.js --check              # ¿están al día los cartuchos incrustados?
+node tools/archive.js embed --check           # ¿está al día la tabla del archivo?
+node tools/archive.js test                    # los 104 juegos del archivo (necesita internet)
 ```
 
 Antes de dar por terminado un cambio: `node --test` y, si tocaste la interfaz,
-`node tools/e2e.js`.
+`node tools/e2e.js`. Sin `node` en el PATH, ver [9.10](#910-trabajar-sin-node-en-el-path).
 
 ### 6.2 Qué cubre cada archivo
 
 | Archivo | Qué prueba |
 |---|---|
-| `tests/instructions.test.js` | Las 35 instrucciones, un grupo por instrucción ("8XY4 ADD VX, VY"): valores normales y bordes, VF en 0 y 1, VF escrito al final con X = F, Y = F con el valor original, que no se toquen otros registros, avance del `pc` y saltos, pila anidada, `BNNN` en los dos modos, `CXNN` con un azar inyectado, `FX29` para los 16 dígitos, `FX33`, `FX55`/`FX65` con los dos modos de `memory` y la vuelta de I en `0xFFF`. |
+| `tests/instructions.test.js` | Las 35 instrucciones de CHIP-8, un grupo por instrucción ("8XY4 ADD VX, VY"): valores normales y bordes, VF en 0 y 1, VF escrito al final con X = F, Y = F con el valor original, que no se toquen otros registros, avance del `pc` y saltos, pila anidada, `BNNN` en los dos modos, `CXNN` con un azar inyectado, `FX29` para los 16 dígitos, `FX33`, `FX55`/`FX65` con los dos modos de `memory` y la vuelta de I en `0xFFF`. |
 | `tests/quirks.test.js` | Cada quirk prendido y apagado, los valores y nombres de los perfiles, que `DEFAULT_QUIRKS` sea una copia, que ningún cambio de la máquina llegue a los perfiles, la mezcla de `setQuirks`, y que un cambio entre pasos se aplique. |
-| `tests/display.test.js` | `DXYN`: XOR, bit alto a la izquierda, colisión (hasta de un píxel), N = 0, sprites que cruzan `0xFFF`, `DFF1` (VF leído como coordenada antes de escribir la bandera), vuelta de la coordenada inicial, recorte o vuelta en el borde derecho, abajo y en la esquina, `00E0`, `displayDirty` y los 16 glifos. |
+| `tests/display.test.js` | `DXYN` en CHIP-8: XOR, bit alto a la izquierda, colisión (hasta de un píxel), N = 0, sprites que cruzan `0xFFF`, `DFF1` (VF leído como coordenada antes de escribir la bandera), vuelta de la coordenada inicial, recorte o vuelta en el borde derecho, abajo y en la esquina, `00E0`, `displayDirty` y los 16 glifos. |
 | `tests/timers-keys.test.js` | `tickTimers`, un tic por `runFrame` sea cual sea el IPF, `step` sin timers, `FX15`/`FX18`/`FX07`, `setKey`, `EX9E`/`EXA1` para las 16 teclas y con VX > 15, y `FX0A`: bloquea, espera apretar y soltar, ignora una tecla que ya estaba apretada, deja correr los timers, corta el frame y `reset` la cancela. |
-| `tests/core-api.test.js` | Que `Chip8Core` sea el único global nuevo, las constantes y los bytes de la fuente, el estado inicial, `loadRom` (límite, copia, `ArrayBuffer`), `reset`, `step` y `runFrame` (valores de retorno, cortes), fetch big-endian y en direcciones impares, unos 50 opcodes inválidos, desbordes de pila y que una máquina detenida siga detenida. |
-| `tests/disasm.test.js` | El texto exacto de cada familia, las palabras inválidas como `DW`, mayúsculas y relleno, `disassembleRange` (cantidad 0, inicio impar, vuelta en `0xFFF`) y el argumento opcional `quirks`. |
-| `tests/mutation-gaps.test.js` | Los casos que dejó el mutation testing ([6.5](#65-mutation-testing)). |
-| `tests/asm.test.js` | El ensamblador: cada instrucción, `JP VX`, números, etiquetas, mayúsculas, `EQU`, `DB`/`DW`, expresiones, comentarios, el listado, cada clase de error con "Línea N: ", la ida y vuelta de las 65 536 palabras y la línea de comandos (incluidos los errores en castellano, sin stack trace). |
-| `tests/roms.test.js` | Los cartuchos: cada `.asm` ensambla idéntico a su `.ch8` y tiene sus etiquetas; `embed-roms --check` y el bloque incrustado; el propio `embed-roms.js` sobre un HTML temporal con CRLF; 600 frames por demo y perfil sin ejecutar datos; y el comportamiento de cada uno: el movimiento y las velocidades de Rebote; las 16 teclas de Teclado; en Atrapa, la paleta, que todo bloque se pueda atrapar y el reinicio con apretar y soltar; Autotest con VD = 19 y VE = 0 en cada perfil e IPF, y los núcleos saboteados que tiene que detectar; y la posición de cada glifo en Fuente. |
+| `tests/core-api.test.js` | Las constantes y los bytes de la fuente, el estado inicial, `loadRom` (límite, mensaje que sugiere XO-CHIP, copia, `ArrayBuffer`), `reset`, `step` y `runFrame` (valores de retorno, cortes), fetch big-endian y en direcciones impares, unos 50 opcodes inválidos, desbordes de pila y que una máquina detenida siga detenida. |
+| `tests/disasm.test.js` | El texto exacto de cada familia en CHIP-8, las palabras inválidas como `DW`, mayúsculas y relleno, `disassembleRange` (cantidad 0, inicio impar, vuelta en `0xFFF`) y el argumento opcional `quirks`. |
+| `tests/mutation-gaps.test.js` | Los casos que dejó el mutation testing de la primera ronda ([6.5](#65-mutation-testing)). |
+| `tests/platform.test.js` | Las plataformas: las exportaciones nuevas (congeladas), el constructor con `platform` (CHIP-8 por defecto y exactamente como antes; las fuentes en memoria según la plataforma), `setPlatform` (memoria, reinicio, banderas, errores, una ROM que no entra), los límites y mensajes de `loadRom`, los avisos (`hint`) de cada instrucción de pantalla, los errores de plataforma y `errorInfo` (con direcciones de 3 o 4 dígitos), `FN01` con N > 3 y `FX02` con X ≠ 0 inválidos, `extendedInfo` contra una tabla de referencia en las 65.536 palabras, el desensamblador por plataforma (incluido `F000` con y sin la palabra siguiente) y `disassembleRange` con filas de 4 bytes y la vuelta en `0xFFFF`, y `sha1` contra `node:crypto`. |
+| `tests/superchip.test.js` | Las instrucciones de SUPER-CHIP con la semántica de Octo, en las plataformas `schip` y `xochip`, contra una implementación de referencia mínima escrita en la prueba: `00CN`, `00FB`, `00FC`, `00FE`/`00FF`, `DXYN` en alta resolución, `DXY0` en las dos resoluciones, la fuente grande (`FX30`), las banderas (`FX75`/`FX85`), `EXIT` y `displayWait` con los dibujos nuevos. |
+| `tests/xochip.test.js` | Las de XO-CHIP, también contra una referencia propia: `5XY2`/`5XY3` (en los dos sentidos), `F000 NNNN` y los saltos condicionales que lo saltean entero, `FN01` y el dibujo en dos planos, `00E0` y los desplazamientos sobre los planos elegidos, `00DN`, el audio (`F002`, `FX3A`, `patternRate`) y la memoria de 64 KB (PC, I, accesos, `JP V0`, `CALL` y la vuelta en `0xFFFF`), y un programa completo de XO-CHIP. |
+| `tests/asm.test.js` | El ensamblador: cada instrucción de CHIP-8, `JP VX`, números, etiquetas, mayúsculas, `EQU`, `DB`/`DW`, expresiones, comentarios, el listado, cada clase de error con "Línea N: ", la ida y vuelta de las 65 536 palabras y la línea de comandos (incluidos los errores en castellano, sin stack trace). |
+| `tests/asm-extendido.test.js` | Las instrucciones de SUPER-CHIP y XO-CHIP del ensamblador, `LD I, LONG` (4 bytes), los errores nuevos, los nombres reservados nuevos, la opción `xochip`/`--xo` (hasta `0xFFFF`), el listado con direcciones de 4 dígitos y la ida y vuelta con el desensamblador de SUPER-CHIP y de XO-CHIP en todas las palabras. |
+| `tests/roms.test.js` | Los cartuchos: cada `.asm` ensambla idéntico a su `.ch8` y tiene sus etiquetas; `embed-roms --check` y el bloque incrustado; el propio `embed-roms.js` sobre un HTML temporal con CRLF, y la etiqueta `@platform`; 600 frames por demo y perfil sin ejecutar datos; y el comportamiento de cada uno: el movimiento y las velocidades de Rebote; las 16 teclas de Teclado; en Atrapa, la paleta, que todo bloque se pueda atrapar y el reinicio con apretar y soltar; Autotest con VD = 19 y VE = 0 en cada perfil e IPF, y los núcleos saboteados que tiene que detectar; la posición de cada glifo en Fuente; y en Planos, la pantalla, los planos limpios, los cuatro valores, las velocidades, el contador, el sonido, la tecla y que vaya igual con cualquier perfil e IPF. |
+| `tests/archive.test.js` | `tools/archive.js` (las opciones de Octo pasadas a los ajustes, colores, giro, eventos, `toEntry`), `data/archive.json` (fuente, licencia, commit; huellas únicas, plataformas válidas, tamaños que entran) y el bloque incrustado (al día, una entrada válida por programa, sin `</script` ni comentarios HTML, entre `chip8-roms` y `chip8-ui`, `embedInto` idempotente y con CRLF). |
 | `tests/tutorial.test.js` | El tutorial y sus ejemplos ([6.6](#66-pruebas-de-la-documentación)). |
-| `tests/manual.test.js` | El manual y los enlaces del README ([6.6](#66-pruebas-de-la-documentación)). |
-| `tests/single-file.test.js` | El contrato del archivo único: los cuatro bloques, cada uno una vez, con la etiqueta de apertura exacta y en orden; ningún `</script` ni `</style` adentro; ninguna dirección `http(s)`, `@import`, ni `src`/`href`/`url()` que no sea `data:` o `#ancla`; y que los tres bloques de código compilen. |
+| `tests/manual.test.js` | El manual, el README y este documento ([6.6](#66-pruebas-de-la-documentación)). |
+| `tests/single-file.test.js` | El contrato del archivo único: los cinco bloques, cada uno una vez, con la etiqueta de apertura exacta y en orden; ningún `</script` ni `</style` adentro; ninguna dirección `http(s)`, `@import`, ni `src`/`href`/`url()` que no sea `data:` o `#ancla`; y que los cuatro bloques de código compilen. |
 
 ### 6.3 Números actuales
 
-Medido el 27 de septiembre de 2026 con Node 22.11 (`node --test` desde la raíz):
-**797 pruebas en 136 grupos**, todas pasan y ninguna salteada, en unos 3 s.
+Medido el 6 de noviembre de 2026 con Node 24.18 (`node --test` desde la raíz):
+**1371 pruebas en 198 grupos**, todas pasan y ninguna salteada, en unos 5 s.
 
 | Archivo | Pruebas |
 |---|---|
 | `tests/instructions.test.js` | 175 |
+| `tests/superchip.test.js` | 151 |
+| `tests/platform.test.js` | 141 |
+| `tests/xochip.test.js` | 129 |
 | `tests/disasm.test.js` | 121 |
 | `tests/core-api.test.js` | 103 |
 | `tests/asm.test.js` | 96 |
-| `tests/tutorial.test.js` | 78 |
-| `tests/roms.test.js` | 71 |
+| `tests/asm-extendido.test.js` | 95 |
+| `tests/roms.test.js` | 90 |
+| `tests/tutorial.test.js` | 81 |
 | `tests/display.test.js` | 49 |
 | `tests/timers-keys.test.js` | 46 |
+| `tests/manual.test.js` | 31 |
 | `tests/quirks.test.js` | 30 |
-| `tests/manual.test.js` | 12 |
+| `tests/archive.test.js` | 17 |
 | `tests/mutation-gaps.test.js` | 12 |
 | `tests/single-file.test.js` | 4 |
-| **Total** | **797** |
+| **Total** | **1371** |
 
-Todas pasan cuando los cartuchos incrustados están al día. Las dos pruebas del grupo
-"chip8.html tiene las demos incrustadas" (`embed-roms --check` y la comparación de
-`CHIP8_DEMOS` con las fuentes) fallan a propósito si alguien cambia un `roms/*.asm` y no
-corre `node tools/embed-roms.js`.
+Todas pasan cuando los cartuchos y la tabla del archivo incrustados están al día. Las
+pruebas del grupo "chip8.html tiene las demos incrustadas" (`embed-roms --check` y la
+comparación de `CHIP8_DEMOS` con las fuentes) y la de `archive.js embed --check` fallan a
+propósito si alguien cambia un `roms/*.asm` o `data/archive.json` y no vuelve a
+incrustar.
 
-La E2E: **24 de 24 escenarios** en Chrome 154, en dos corridas de unos 2 minutos (una de
-ellas con los cartuchos recién incrustados). Algunas medidas de la primera:
-`requestAnimationFrame` a 60,0 por segundo; Rebote a 59,8 frames por segundo
-con IPF 15 y con IPF 1000 (579 instrucciones por segundo, por `displayWait`); un bucle sin
-dibujo a IPF 1000, 60,3 frames y 60 259 instrucciones por segundo; la pelota recorre 30
-píxeles en 1 s.
+Fuera de `node --test`: `node tools/archive.js test` informa que 103 de los 104 juegos del
+archivo corren sin errores ([5.5](#55-toolsarchivejs)).
 
-Cómo fue creciendo la suite:
-
-| Momento | Pruebas | Resultado |
-|---|---|---|
-| Construcción: las 6 suites del núcleo, escritas a ciegas | 515 | todas pasan (las 2 fallas de la primera corrida eran errores de las pruebas) |
-| Integración | 726 | 725 pasan, 1 salteada (el enlace a este documento, que no existía) |
-| Después del mutation testing | 738 | 737 pasan, 1 salteada |
-| Después de las correcciones de la revisión | 793 | todas pasan con los cartuchos al día |
-| Integración final | 797 | todas pasan, ninguna salteada (se sumó `tests/single-file.test.js`) |
+La E2E: **40 de 40 escenarios** ([6.7](#67-los-escenarios-e2e)) en 4 corridas completas
+seguidas, de unos 188 s cada una: los 24 de la primera ronda y 16 nuevos para las
+features de esta ronda. Algunas medidas de esas corridas: *Planos* a 60 frames por
+segundo; el avance rápido da ×4,00 instrucciones y tics de los timers; la captura es un
+PNG de 640×320; con IPF 10.000, unas 601 900 instrucciones por segundo. Y de la primera
+ronda, en Chrome 154: `requestAnimationFrame` a 60,0 por segundo; Rebote a 59,8 frames por
+segundo con IPF 15 y con IPF 1000 (579 instrucciones por segundo, por `displayWait`); un
+bucle sin dibujo a IPF 1000, 60,3 frames y 60 259 instrucciones por segundo; la pelota
+recorre 30 píxeles en 1 s.
 
 ### 6.4 Pruebas de caja negra
 
-Las seis suites del núcleo (`instructions`, `quirks`, `display`, `timers-keys`,
-`core-api` y `disasm`) las escribió un agente que **no leyó el código del núcleo**: solo
-el contrato del proyecto ([7.1](#71-primero-el-contrato)) y `tests/harness.js`. El núcleo lo
-escribió otro agente, al mismo tiempo. Así, las pruebas verifican lo que el contrato
-promete y no lo que el código hace. Donde el contrato no decía nada (por ejemplo, qué
-devuelve `step()` en la instrucción que falla, o el formato hexadecimal exacto de los
-mensajes de error), las pruebas no afirman nada, o afirman lo mínimo: que el mensaje
-contenga el opcode con 4 dígitos y la dirección con 3, sin importar mayúsculas, con una
-dirección elegida para que no sea parte del opcode. En la primera corrida contra el núcleo
-real fallaron 2 de 515, y las dos eran errores de las pruebas; ninguna afirmación se
-debilitó para que coincidiera con la implementación.
+En la primera ronda, las seis suites del núcleo (`instructions`, `quirks`, `display`,
+`timers-keys`, `core-api` y `disasm`) las escribió un agente que **no leyó el código del
+núcleo**: solo el contrato del proyecto ([7.1](#71-primero-el-contrato)) y
+`tests/harness.js`. El núcleo lo escribió otro agente, al mismo tiempo. Así, las pruebas
+verifican lo que el contrato promete y no lo que el código hace. Donde el contrato no decía
+nada (por ejemplo, qué devuelve `step()` en la instrucción que falla, o el formato
+hexadecimal exacto de los mensajes de error), las pruebas no afirman nada, o afirman lo
+mínimo. En la primera corrida contra el núcleo real fallaron 2 de 515, y las dos eran
+errores de las pruebas; ninguna afirmación se debilitó para que coincidiera con la
+implementación.
+
+En la segunda ronda se siguió la misma idea por otro camino: `tests/superchip.test.js` y
+`tests/xochip.test.js` calculan cada pantalla esperada con **implementaciones de
+referencia mínimas escritas dentro de la prueba**, independientes del núcleo, y
+`tests/platform.test.js` compara `extendedInfo` con una tabla de referencia en las 65.536
+palabras y `sha1` con `node:crypto`. Las pruebas de CHIP-8 de la primera ronda no se
+tocaron, salvo para el mensaje de `loadRom`, que ahora sugiere XO-CHIP.
 
 ### 6.5 Mutation testing
 
-Para medir si las pruebas atrapan errores de verdad, en la revisión se le metieron
-**202 errores a propósito** (mutantes) al bloque `chip8-core`, uno por vez:
+**Primera ronda.** Para medir si las pruebas atrapan errores de verdad, en la revisión se
+le metieron **202 errores a propósito** (mutantes) al bloque `chip8-core`, uno por vez:
 
 - **Método.** Una copia del repositorio por cada uno de 4 procesos en paralelo. Para cada
   mutante se reemplaza un texto exacto del núcleo (verificando antes que aparezca una sola
@@ -1227,9 +1879,8 @@ Para medir si las pruebas atrapan errores de verdad, en la revisión se le metie
   de XOR, bits al revés...); cada quirk invertido o ignorado; el azar de `CXNN`; las
   teclas y `FX0A`; `runFrame`; `tickTimers`; cada campo de `reset`; `loadRom`; `setQuirks`;
   `_fail`; y el desensamblador.
-- **Antes:** 184 de 202 muertos (91,1 %). Cuatro de esas muertes las causaba solo una
-  prueba del tutorial que compara texto (un fragmento citado del núcleo), no
-  comportamiento: contando solo pruebas de comportamiento, 180 de 202 (89,1 %).
+- **Antes:** 184 de 202 muertos (91,1 %); contando solo pruebas de comportamiento (no la
+  prueba del tutorial que compara un fragmento citado del núcleo), 180 de 202 (89,1 %).
 - **Huecos encontrados.** Diez mutantes sobrevivían y eran errores que alguien podría
   cometer de verdad; ninguna prueba se habría dado cuenta si el núcleo:
   1. multiplicara el azar por defecto por 255 (y `CXFF` nunca diera 255);
@@ -1250,49 +1901,80 @@ Para medir si las pruebas atrapan errores de verdad, en la revisión se le metie
   Ninguna encontró un error en el núcleo: todas pasaron contra el original. Lo que faltaba
   era fijar esos comportamientos.
 - **Después:** 192 de 202 muertos (95,0 %). Los 10 que sobreviven, y los 2 que solo mata la
-  prueba de texto, son **equivalentes**: no pueden cambiar el comportamiento. Por
-  ejemplo, `stack[sp-- - 1]` lee el mismo lugar que `stack[--sp]`; `(vx + vy) & 0xFF < vx`
-  es verdadero exactamente cuando `vx + vy > 255`; saltear una fila de sprite en 0 es solo
-  una optimización; cortar el bucle de columnas o de filas con `break` o con `continue` da
-  lo mismo porque x e y solo crecen; y las dos puestas a -1 de `_waitKey` son redundantes
-  entre sí. O sea: **190 de los 190 mutantes que pueden cambiar el comportamiento los mata
-  una prueba de comportamiento (100 %)**.
-- **Límites.** Solo se mutó el núcleo, no la interfaz. El programa que lo hizo quedó fuera
-  del repositorio; con la descripción de arriba se puede rehacer en una tarde.
+  prueba de texto, son **equivalentes**: no pueden cambiar el comportamiento (por
+  ejemplo, `stack[sp-- - 1]` lee el mismo lugar que `stack[--sp]`). O sea: **190 de los
+  190 mutantes que pueden cambiar el comportamiento los mata una prueba de comportamiento
+  (100 %)**.
+
+**Segunda ronda.** Con las plataformas terminadas, se le metieron **65 errores a
+propósito al código nuevo del núcleo**, y las pruebas los detectaron **a todos**.
+
+**Límites.** Solo se mutó el núcleo, no la interfaz ni las herramientas. Los programas que
+lo hicieron quedaron fuera del repositorio; con la descripción de arriba se pueden rehacer
+en una tarde.
 
 ### 6.6 Pruebas de la documentación
 
 La documentación también se prueba, para que no se aleje del código:
 
-- **`tests/manual.test.js`.** Cada bloque de código `asm` del manual se ensambla tal cual, salvo
-  los marcados como fragmento (la primera línea empieza con `; Fragmento`): a esos se les
-  agregan las etiquetas que faltan y el comentario inicial tiene que nombrarlas. Los
-  ejemplos que terminan en `fin: JP fin` se ejecutan con cada perfil y tienen que llegar a
-  ese bucle. Cada ancla interna y cada enlace al tutorial y a otros archivos tiene que
-  existir, y el índice tiene que listar cada sección numerada. Del README revisa los
-  enlaces, que la estructura del repositorio nombre archivos que existen (e incluya cada
-  `tools/*.js`) y que cada `npm run ...` sea un script de `package.json`.
+- **`tests/manual.test.js`**, sobre el manual:
+  - Cada bloque de código `asm` se ensambla tal cual, salvo los marcados como fragmento
+    (la primera línea empieza con `; Fragmento`): a esos se les agregan las etiquetas que
+    faltan y el comentario inicial tiene que nombrarlas.
+  - **La marca de plataforma.** Entre los comentarios iniciales, `; Plataforma:
+    SUPER-CHIP` o `; Plataforma: XO-CHIP` (CHIP-8 si no dice nada). Un bloque de XO-CHIP se
+    ensambla con `{ xochip: true }`, y un bloque que usa instrucciones de SUPER-CHIP o
+    XO-CHIP tiene que declarar una plataforma que las tenga.
+  - Los ejemplos que terminan en `fin: JP fin` se ejecutan en su plataforma con cada perfil
+    y tienen que llegar a ese bucle sin detenerse ni ignorar ninguna instrucción.
+  - La referencia de la sección 13.11 tiene una ficha por cada instrucción que documenta
+    el encabezado de `tools/chip8asm.js` y por cada una que reconoce el núcleo, con el
+    opcode que genera el ensamblador y la plataforma que dice `extendedInfo`.
+  - Los datos copiados del núcleo y del archivo son los de verdad: la tabla de la fuente
+    grande, los dibujos de cada glifo (cada fila es su byte), la tabla de tonos de XO-CHIP
+    (`patternRate`) y los números de `data/archive.json` (programas por plataforma, cuántos
+    usan los quirks de Octo, las velocidades, el histograma de IPF).
+  - Los textos de la consola que cita (secciones 11 y 13) están en `chip8.html`, y el
+    error y el aviso de plataforma son, palabra por palabra, los que arma el núcleo.
+  - Cada ancla interna y cada enlace al tutorial y a otros archivos existe, y el índice
+    lista cada sección numerada.
+- **`tests/manual.test.js`**, sobre el README: los enlaces (y las anclas al manual y al
+  tutorial), que la estructura del repositorio nombre archivos que existen (e incluya cada
+  `tools/*.js`), que cada `npm run ...` sea un script de `package.json`, que la tabla de
+  atajos tenga cada atajo de la ayuda de la consola y que la cantidad de archivos de
+  prueba y de escenarios E2E que dice sea la de verdad.
+- **`tests/manual.test.js`**, sobre este documento: los enlaces y anclas (propias, del
+  manual, del tutorial y del README), que la tabla de [4.21](#421-la-api-de-depuración-windowchip8)
+  nombre cada miembro de `window.chip8` y la de [3.1](#31-api-pública) cada clave de
+  `Chip8Core`, que las claves de `localStorage` que cita existan, y que la tabla de
+  [6.7](#67-los-escenarios-e2e) tenga una fila por escenario de `tools/e2e.js`, con su
+  número.
 - **`tests/tutorial.test.js`.** Cada ejemplo de `docs/ejemplos/` ensambla, su `.ch8` está
   al día y hace lo que el texto dice (pantalla exacta, teclas, velocidades, registros paso
-  a paso, el error de `11-sin-fin`). `mini-emulador.js` coincide frame a frame con el
-  núcleo. En el texto: los listados completos (primera línea `; NN-nombre.asm — `) son
-  idénticos a sus archivos; los fragmentos (`; (fragmento de RUTA)` o
-  `// (fragmento de RUTA)`) están tal cual en su archivo, **incluidos dos del núcleo**
-  (`runFrame` y `setKey` de `chip8.html`) y varios de `roms/rebote.asm` y
-  `roms/atrapa.asm`; las salidas marcadas con `<!-- salida: CMD -->` se regeneran en una
-  copia temporal y se comparan; los mensajes de error son los del ensamblador; los textos
-  y constantes de la interfaz que cita (`IPF_PRESETS = [7, 15, 30, 100, 500, 1000, 5000, 10000]`,
-  `BEEP_HZ = 440`, `MAX_CATCHUP = 4`, los nombres de los botones, el mapa del teclado...)
-  están en `chip8.html`; y los enlaces, incluido el de este documento, llevan a archivos
-  y anclas que existen.
+  a paso, el error de `11-sin-fin` en cada plataforma). Cada perfil corre en **la
+  plataforma que elige la consola** con ese perfil, así lo que cuenta el tutorial vale en
+  la consola de verdad. `mini-emulador.js` coincide frame a frame con el núcleo. En el
+  texto: los listados completos (primera línea `; NN-nombre.asm — `) son idénticos a sus
+  archivos; los fragmentos (`; (fragmento de RUTA)` o `// (fragmento de RUTA)`) están tal
+  cual en su archivo, **incluidos dos del núcleo** (`runFrame` y `setKey` de `chip8.html`)
+  y varios de `roms/rebote.asm`, `roms/atrapa.asm` y `roms/planos.asm`; las salidas
+  marcadas con `<!-- salida: CMD -->` se regeneran en una copia temporal y se comparan;
+  los mensajes de error son los del ensamblador; el machete de SUPER-CHIP y XO-CHIP
+  (`<!-- verificar: tabla-extendida -->`) tiene una fila por instrucción nueva, con el
+  opcode que da el ensamblador y la plataforma del núcleo; los números que cita (las notas
+  de Planos, los programas del archivo) son los de verdad; los textos y constantes de la
+  interfaz que cita están en `chip8.html`; y los enlaces llevan a archivos y anclas que
+  existen.
 
 Consecuencia práctica: si cambiás un texto de la interfaz, una constante, un fragmento
-citado del núcleo o de una ROM, o un mensaje del ensamblador, estas pruebas fallan y dicen
-qué actualizar en el tutorial o en el manual. Es a propósito.
+citado del núcleo o de una ROM, un mensaje del ensamblador, un miembro de `window.chip8` o
+un escenario E2E, estas pruebas fallan y dicen qué actualizar en el tutorial, en el manual,
+en el README o acá. Es a propósito.
 
 ### 6.7 Los escenarios E2E
 
-Todos usan entrada real (teclas, clics, toques, archivos y arrastre) y tiempo real:
+Todos usan entrada real (teclas, clics, toques, archivos y arrastre) y tiempo real. Los 24
+primeros son de la primera ronda; del 25 al 40, de la segunda:
 
 | # | Qué verifica |
 |---|---|
@@ -1301,7 +1983,7 @@ Todos usan entrada real (teclas, clics, toques, archivos y arrastre) y tiempo re
 | 3 | Teclado físico: las 16 teclas, con el cartucho Teclado. |
 | 4 | Keypad en pantalla: mouse, arrastrar afuera de la tecla y dos dedos a la vez. |
 | 5 | Atajos (Espacio, N, Retroceso, H, Esc) y el modelo de foco: un clic no deja el foco en el botón; con el foco puesto desde el teclado, Espacio activa el control. |
-| 6 | Carga de ROMs: selector de archivos, ROM vacía o demasiado grande (el aviso no tapa nada) y arrastrar y soltar. |
+| 6 | Carga de ROMs: selector de archivos, ROM vacía o demasiado grande (65.025 bytes; el aviso no tapa nada) y arrastrar y soltar. |
 | 7 | Cada cartucho del estante carga y corre 3 s. |
 | 8 | Atrapa: A y D mueven la paleta. |
 | 9 | Autotest con cada perfil: 19 comprobaciones y 0 fallas. |
@@ -1313,13 +1995,29 @@ Todos usan entrada real (teclas, clics, toques, archivos y arrastre) y tiempo re
 | 15 | Diseño adaptable de 360 a 1440 px y nitidez con escala 1,25 y 2. |
 | 16 | `prefers-reduced-motion` apaga parpadeos y animaciones. |
 | 17 | Pestaña congelada u oculta: al volver no se pone al día de golpe. |
-| 18 | Modo de pantalla: Tubo CRT y Píxeles puros (dos colores exactos, sin efectos, interruptores deshabilitados), se conserva al recargar y cambia con las flechas. |
+| 18 | Modo de pantalla: Tubo CRT y Píxeles puros (colores exactos, sin efectos, interruptores deshabilitados), se conserva al recargar y cambia con las flechas. |
 | 19 | Selector rápido de cartuchos bajo la ranura, a 1440×900 y sin scrollear. |
 | 20 | Selectores de perfil y paleta: después de elegir, las teclas van al CHIP-8; N, H y Retroceso funcionan; con Tab y flechas cambian de forma nativa. |
 | 21 | Keypad con el teclado: Tab hasta una tecla, Enter breve (unos 120 ms) y Espacio sostenido; `FX0A` los recibe. |
 | 22 | Error con la máquina en pausa (Reiniciar deja `0x200` en pausa) o corriendo (vuelve a correr). |
 | 23 | Ícono de la pestaña embebido: ningún pedido da 404 por HTTP. |
 | 24 | Pantalla angosta (360×640 y 375×667): el tubo y el keypad entero en la primera vista. |
+| 25 | Plataformas: cada perfil elegido con el mouse trae su plataforma (selector, placa y fila MÁQUINA del monitor), la plataforma sola no toca los quirks, y una ROM de XO-CHIP en 128×64 se ve en Píxeles puros con exactamente los cuatro colores de la paleta, cada píxel en su lugar. |
+| 26 | Una ROM de 4000 bytes pasa sola a XO-CHIP; elegir una plataforma de 4 KB (o el perfil COSMAC VIP) con esa ROM se rechaza con un aviso y el selector vuelve. |
+| 27 | Diagnóstico: la instrucción ignorada (un aviso por ROM y «Usar SUPER-CHIP»), el error de plataforma con «Cambiar a XO-CHIP y reiniciar» en el tubo y en el monitor (a 1280×900, el botón del monitor se puede llevar a la vista), y `00FD`: «FIN DEL PROGRAMA», el LED ámbar y Reiniciar. |
+| 28 | Colores: «Personalizada» cambia en vivo y se conserva al recargar; «Del cartucho» aparece con un juego del archivo y, al cargar otra ROM, se va y vuelve tu paleta. |
+| 29 | Autoconfiguración, con una entrada del archivo registrada para la prueba: plataforma, quirks, IPF, colores y giro de 270° aplicados antes del primer frame, con su aviso y la línea de la ranura; con el interruptor apagado, nada; un cambio tuyo se recuerda y «Olvidar ajustes» vuelve a los del archivo. |
+| 30 | Ajustes recordados: una ROM cargada con «Cargar ROM», cambios con el mouse, recarga, la misma ROM otra vez (aviso, ranura y valores) y «Olvidar ajustes» de la ranura. |
+| 31 | Banderas RPL: lo que guarda `FX75` sobrevive a una recarga y `FX85` lo lee. |
+| 32 | Biblioteca: «Tus cartuchos» y «Tuyos:», cargar desde los dos, recarga, quitar y «Deshacer»; con el almacenamiento roto, todo anda en memoria. |
+| 33 | Planos desde el estante: 60 frames por segundo sin errores, píxeles con los valores 1 a 3, su patrón de sonido, y W frena el rombo. |
+| 34 | Avance rápido: la T sostenida y el botón del bisel dan 4 veces más instrucciones y tics de los timers; al soltar, vuelve a 60 por segundo sin ponerse al día. |
+| 35 | Captura: G y el botón de la cámara bajan el PNG (el nombre con la fecha, los mismos bytes que `screenshot()`, los colores exactos de la paleta); en 128×64, los cuatro colores. |
+| 36 | Pantalla completa: el botón del bisel, P y Esc entran y salen, con escala entera. |
+| 37 | Joystick simulado (Gamepad API): la cruz, la palanca, A y B aprietan las teclas de «Controles», Start pausa y continúa, y desconectarlo suelta todo. |
+| 38 | Flechas y «Controles»: el mapa de Octo, el del VIP y uno personalizado (con el mouse); los controles con foco se quedan con sus flechas; el mapa de cada cartucho se recuerda al recargar. |
+| 39 | Curvatura (apagarla deja el tubo idéntico, píxel por píxel) y encendido animado (al cargar; no con `prefers-reduced-motion` ni con el interruptor apagado). |
+| 40 | Diseño con la biblioteca llena y «Controles» personalizados a la vista, a 1440, 768 y 360 px. |
 
 `node tools/e2e.js --help` imprime esta misma lista (sale del comentario del principio del
 archivo).
@@ -1327,21 +2025,28 @@ archivo).
 ### 6.8 Lo que no se verifica automáticamente
 
 - **El sonido audible.** El navegador corre con `--mute-audio`; se verifican el grafo de
-  Web Audio y sus ganancias, no que algo suene por los parlantes.
-- **Teléfonos y pantallas táctiles reales.** Los toques y el tamaño de pantalla se emulan
-  por CDP.
+  Web Audio, sus ganancias y la fuente (beep o patrón), no que algo suene por los
+  parlantes ni que las notas de XO-CHIP sean afinadas.
+- **Teléfonos, tabletas y pantallas táctiles reales.** Los toques, el puntero grueso y el
+  tamaño de pantalla se emulan por CDP.
+- **Joysticks reales.** La Gamepad API se simula; no se probó ningún control físico.
+- **La pantalla completa de verdad** en un teléfono, y el Safari del iPhone sin la API.
 - **Firefox y Safari.** Solo navegadores de la familia Chromium (Chrome y Edge). El caso
   del `AudioContext` en estado `interrupted` de iOS no está manejado.
 - **Lectores de pantalla reales** (NVDA, JAWS, VoiceOver): se verifican los atributos ARIA
   y la activación sin puntero, no lo que se escucha.
 - **El diálogo de archivos del sistema y arrastrar desde el explorador**: se simulan con
   `DOM.setFileInputFiles` y `Input.dispatchDragEvent`. La lista desplegable nativa de un
-  `<select>` no se puede cliquear en modo headless y se simula con el teclado.
-- **La apariencia.** Salvo las comprobaciones píxel por píxel del lienzo (escenarios 6 y
-  18), el aspecto se revisó mirando capturas, no con imágenes de referencia.
+  `<select>` y el selector de color no se pueden cliquear en modo headless y se simulan.
+- **La apariencia.** Salvo las comprobaciones de los colores y de los píxeles del lienzo,
+  el aspecto (la curvatura, el encendido, el resplandor) se revisó mirando capturas, no
+  con imágenes de referencia.
+- **Los juegos del archivo, jugados.** `node tools/archive.js test` los corre en Node con
+  teclas al azar y mira que no se detengan ni queden en blanco; no los juega, y no corre
+  en las pruebas comunes porque necesita internet.
 - **ROMs de pruebas de la comunidad** (por ejemplo, la suite de Timendus): no se
-  descargaron ni se corrieron; los quirks se verificaron contra su comportamiento
-  documentado.
+  descargaron ni se corrieron; los quirks y las instrucciones nuevas se verificaron contra
+  su comportamiento documentado y contra el código de Octo.
 - **La interfaz no tiene mutation testing**; solo el núcleo.
 
 ---
@@ -1349,21 +2054,21 @@ archivo).
 ## 7. Proceso de desarrollo
 
 El proyecto lo construyeron agentes de IA especializados, en fases, coordinados por un
-agente principal. Esta sección cuenta cómo, porque explica varias decisiones del código y
-de las pruebas.
+agente principal, en dos rondas. Esta sección cuenta cómo, porque explica varias
+decisiones del código y de las pruebas.
 
 ### 7.1 Primero el contrato
 
 Antes de escribir código, se fijó un **contrato compartido**, la única fuente de verdad
 para todos los agentes: un solo HTML con los bloques y sus etiquetas exactas; la API de
-`Chip8Core` (las 13 claves de [3.1](#31-api-pública)), el estado y la semántica de cada
-método (VF al final, I de 16 bits con accesos de 12, `FX0A` con apretar y soltar,
-`displayWait`, qué hace `reset`, cómo se detiene la máquina); los identificadores de los
-quirks y los perfiles; el formato del desensamblador; el formato de `CHIP8_DEMOS` y de
-las etiquetas de `roms/*.asm`; la API `window.chip8`; el mapa del teclado; la estructura
-de carpetas; y las reglas de idioma (castellano con voseo, identificadores en inglés).
-Con el contrato, cada parte se pudo construir sin esperar a las otras, y las pruebas se
-pudieron escribir sin ver la implementación.
+`Chip8Core` (las 13 claves que tenía entonces), el estado y la semántica de cada método
+(VF al final, I de 16 bits con accesos de 12, `FX0A` con apretar y soltar, `displayWait`,
+qué hace `reset`, cómo se detiene la máquina); los identificadores de los quirks y los
+perfiles; el formato del desensamblador; el formato de `CHIP8_DEMOS` y de las etiquetas de
+`roms/*.asm`; la API `window.chip8`; el mapa del teclado; la estructura de carpetas; y las
+reglas de idioma (castellano con voseo, identificadores en inglés). Con el contrato, cada
+parte se pudo construir sin esperar a las otras, y las pruebas se pudieron escribir sin
+ver la implementación.
 
 ### 7.2 Construcción en paralelo
 
@@ -1387,10 +2092,9 @@ Un agente de integración corrió `node tools/embed-roms.js`, verificó que no h
 recursos externos, que las etiquetas fueran exactas, que hubiera exactamente tres
 `</script`, que los bloques pasaran `node --check`, que el núcleo no nombrara nada del
 navegador y que los 63 `id` que busca la interfaz existieran en el marcado. Probó los cinco
-cartuchos en el navegador, escribió el `README.md` y corrigió una frase del manual (la
-§11.9, sobre cuándo el selector muestra "Personalizado"). Resultado: **726 pruebas, 725
-pasan y 1 salteada** (el enlace a este documento). No apareció ningún error del núcleo, de
-las pruebas ni de la interfaz.
+cartuchos en el navegador, escribió el `README.md` y corrigió una frase del manual.
+Resultado: **726 pruebas, 725 pasan y 1 salteada** (el enlace a este documento, que todavía
+no existía). No apareció ningún error del núcleo, de las pruebas ni de la interfaz.
 
 ### 7.4 Revisión adversarial
 
@@ -1430,13 +2134,13 @@ dueño de sus archivos:
   18 a 24. Tres corridas seguidas: 24 de 24.
 - **Documentación**: manual, tutorial, README y este documento.
 
-### 7.6 Hallazgos notables y cómo se resolvieron
+### 7.6 Hallazgos notables de la primera ronda
 
 | Id | Gravedad | Qué pasaba | Cómo se resolvió |
 |---|---|---|---|
 | ui-1 | grave | Con un `<select>` enfocado (después de elegir Perfil o Paleta con el mouse), las letras del keypad cambiaban la opción por búsqueda de texto y los atajos no andaban. | Un `select` ya no cuenta como campo de texto: las 16 teclas, N, H y Retroceso van al emulador con `preventDefault`, y el selector suelta el foco después de un cambio con el mouse. E2E 20. |
 | tut-1 | grave | El recorrido de la §7.3 del tutorial no se podía seguir: después de un error, Reiniciar ponía la máquina a correr. | `handleHalt` guarda `pausedBeforeHalt` y `doReset` lo restaura ([8.13](#813-reiniciar-después-de-un-error-respeta-la-pausa)). E2E 22. |
-| tut-2 | grave | Cambiar de perfil y apretar Retroceso o WASD no hacía nada (misma causa que ui-1). | Resuelto con ui-1. Además (tut-10), el tutorial ahora pide volver al perfil COSMAC VIP después de probar, porque el perfil queda guardado. |
+| tut-2 | grave | Cambiar de perfil y apretar Retroceso o WASD no hacía nada (misma causa que ui-1). | Resuelto con ui-1. Además, el tutorial ahora pide volver al perfil COSMAC VIP después de probar, porque el perfil queda guardado. |
 | tut-3 | grave | El tutorial decía que el cuadro intermedio de Rebote muestra la pelota "casi completa"; con XOR la parte compartida se apaga. | Texto del tutorial y comentarios de `rebote.asm` corregidos (una silueta de 36 de 44 píxeles); una prueba mide la alternancia 44/36 en el VIP. |
 | ui-2 | menor | En pausa, la estela del fósforo quedaba congelada y la imagen no coincidía con el framebuffer. | La estela sigue apagándose a 60 Hz en pausa ([4.2](#42-el-bucle-principal)). |
 | ui-4 | menor | Un error se anunciaba tres veces al lector de pantalla. | Un solo anuncio en `#status`, sin aviso flotante ni `role="alert"`. |
@@ -1444,16 +2148,11 @@ dueño de sus archivos:
 | ui-7 | menor | Las teclas del keypad no respondían a la activación de un lector de pantalla. | Un `click` sin puntero es un toque de 120 ms. E2E 21. |
 | ui-9 | menor | En un teléfono vertical el keypad quedaba debajo del pliegue. | A 760 px o menos el keypad va debajo del tubo. E2E 24. |
 | core-1 | menor | Con el quirk `jumping`, el monitor mostraba `JP V0` aunque el salto sumara VX. | `disassemble(opcode, quirks)` con quirks opcionales ([3.8](#38-el-desensamblador)). |
-| core-4 | detalle | `loadRom(ArrayBuffer)` se salteaba el control de tamaño. | Se convierte a `Uint8Array` antes de controlar. |
 | rom-2 | menor | En Atrapa, pasados 13 a 18 puntos, algunos bloques eran imposibles de alcanzar. | Velocidad +4 por punto con un tope real de 160/256 (34 pasos de caída contra 28 de cruce). |
-| rom-3 | menor | Atrapa solo miraba si atrapaste el bloque en y = 26: se lo veía tocar la paleta y costaba una vida. | Se revisa en cada paso con y entre 26 y 28. |
-| rom-4 | menor | Autotest no detectaba una bandera de `SUBN` mal calculada con operandos iguales. | Caso agregado dentro de la misma comprobación (siguen siendo 19). |
 | rom-5 | menor | Con un DT congelado, Autotest parecía colgado unos 82 s antes de informar la falla. | La espera se rinde a las ~2000 instrucciones; también detecta un DT que sube. |
 | asm-1, asm-2 | menor | La línea de comandos mostraba un stack trace de Node si la carpeta de salida no existía, y salía con 0 con argumentos de más. | Analizador de argumentos nuevo y errores del sistema de archivos explicados en castellano, con código 1. |
-| asm-4 | detalle | `V 1` o `D T` se aceptaban como registros. | Ahora es un error que dice cómo se escribe. |
 | e2e-1 | menor | Por HTTP, la consola registraba un 404 de `/favicon.ico`. | Ícono SVG embebido en una URL `data:`. E2E 23. |
 | e2e-2 | menor | El aviso de error tapaba el error del monitor y la línea de estado. | Sin aviso para los errores de ejecución; los avisos van arriba al centro. |
-| man-1, tut-5 | menor | Los enlaces a `DESARROLLO.md` estaban rotos y la prueba que debía detectarlo quedaba salteada. | Este documento; la prueba ahora corre y pasa. |
 
 Los siete refutados, y por qué:
 
@@ -1469,13 +2168,93 @@ Los siete refutados, y por qué:
 
 ### 7.7 Pedidos después de la revisión
 
-Después de la revisión, a pedido del usuario, se agregaron dos cosas a la interfaz:
+Después de la revisión, a pedido del usuario, se agregaron dos cosas a la interfaz: **el
+selector de modo de pantalla** (Tubo CRT o Píxeles puros,
+[4.4](#44-modos-de-pantalla-y-efectos-del-tubo); E2E 18) y **el selector rápido de
+cartuchos** debajo de la ranura ([4.11](#411-cartuchos-incluidos-y-selector-rápido);
+E2E 19). Ese estado, con 797 pruebas y 24 escenarios, es el commit `d40912f`.
 
-- **El selector de modo de pantalla** en "Pantalla y sonido": Tubo CRT (el de siempre) o
-  Píxeles puros ([4.4](#44-modos-de-pantalla-tubo-crt-y-píxeles-puros)). Lo cubre el E2E 18.
-- **El selector rápido de cartuchos** debajo de la ranura, con la línea de controles del
-  cartucho cargado y el enlace al estante ([4.8](#48-cartuchos-incluidos-y-selector-rápido)).
-  Lo cubre el E2E 19.
+### 7.8 Segunda ronda: el pedido y el punto de restauración
+
+Con la consola de CHIP-8 terminada, un análisis propuso nueve ampliaciones:
+**1** autoconfiguración por ROM (la tabla del archivo de la comunidad y recordar los
+ajustes de cada ROM), **2** diagnóstico de plataforma, **3** SUPER-CHIP y XO-CHIP, **4**
+colores personalizados, **5** una biblioteca de cartuchos, **6** un taller con editor,
+**7** un depurador completo, **8** estados guardados y rebobinado, y **9** comodidades
+(avance rápido, pantalla completa, captura PNG, joystick, teclas reasignables, curvatura
+del tubo y encendido animado). El usuario aprobó **1, 2, 3, 4, 5 y 9**; las otras tres
+quedaron como trabajo futuro ([9.11](#911-limitaciones-conocidas-y-trabajo-futuro)).
+
+Antes de tocar nada se hizo un **punto de restauración**: el commit `d40912f` ("Emulador
+CHIP-8 estable: consola, demos, documentación y pruebas"), a nombre del usuario, con un
+`.gitattributes` nuevo (texto con fin de línea LF y `*.ch8` como binario, para que una
+restauración deje los archivos exactamente como estaban) y un `.gitignore` para
+la configuración local de cada máquina.
+
+Esta PC no tenía Node en el PATH. En lugar de instalarlo, se usó el Node 24 que trae el
+editor Cursor, por su ruta completa ([8.24](#824-un-node-portátil-para-trabajar)); las
+pruebas pasan igual con Node 22 y con 24.
+
+### 7.9 Fases y agentes
+
+Como en la primera ronda, el trabajo se repartió en agentes especializados con **dueños
+explícitos de cada archivo**, y en fases, para que lo que se hacía en paralelo no se
+pisara:
+
+| Fase | Quién | Qué | Resultado |
+|---|---|---|---|
+| 1 | Dos agentes en paralelo | El núcleo de SUPER-CHIP y XO-CHIP (`chip8-core`, `tests/platform`, `superchip` y `xochip`) y el ensamblador (`tools/chip8asm.js`, `tests/asm-extendido.test.js`) | Las plataformas, con la semántica de Octo; 65 errores sembrados, todos detectados |
+| 2 | El agente principal | La tabla del archivo: `tools/archive.js`, `data/archive.json` (commit `761e3ff`), `tests/archive.test.js`, el quinto bloque y `tests/single-file.test.js` con cinco bloques | 1330 pruebas, todas pasan; `archive.js test`: 103 de 104 |
+| 3 | Dos agentes en paralelo | La interfaz, parte 1 (plataformas, pantalla de 128×64 con planos, colores, audio de XO-CHIP, diagnósticos, monitor) y el cartucho *Planos* (con `@platform` en `embed-roms.js`) | 1349 pruebas; 24 de 24 escenarios E2E |
+| 4 | Un agente | La interfaz, parte 2: ajustes por cartucho con su prioridad, banderas RPL por ROM, la biblioteca | 1349; 24 de 24 |
+| 5 | Dos agentes en paralelo | Las comodidades (feature 9) y el manual (la sección 13 reescrita, 11.10 y 11.11) | 1358 pruebas |
+| 6 | Dos agentes en paralelo | Los escenarios E2E nuevos (del 25 al 40), que además encontraron y corrigieron un problema del monitor ([7.11](#711-integración-y-hallazgos-notables)), y el resto de la documentación (README, tutorial, este documento y dos agregados al manual), con pruebas nuevas que la vigilan | 40 de 40 escenarios en 4 corridas seguidas; 1371 pruebas |
+
+Al final, el agente principal integra todo: `node --test`, la E2E completa,
+`node tools/archive.js test` y una revisión visual de la consola.
+
+### 7.10 Pausas e interrupciones
+
+El usuario pausó el trabajo una vez, por los tokens, y pidió retomarlo tal cual; el estado
+exacto y el plan por fases quedaron anotados para eso, y se retomó desde ahí. Más
+adelante, un límite de uso cortó a dos agentes en medio de su trabajo: se los volvió a
+lanzar desde donde habían quedado, con lo ya hecho a la vista, en lugar de empezar de
+nuevo. Dividir el trabajo en fases con dueños de archivos claros hizo que las dos cosas
+fueran baratas: cada fase dejaba la suite en verde, y un corte afectaba solo a los archivos
+de un agente.
+
+### 7.11 Integración y hallazgos notables
+
+Decisiones y correcciones de esta ronda que vale la pena conocer:
+
+| Tema | Qué pasaba o qué había que decidir | Cómo quedó |
+|---|---|---|
+| El "6" de la fuente grande | La tercera fila del 6 grande no coincidía con las tablas de SUPER-CHIP 1.1 de Octo y de Cadmium. | Se corrigió en la integración: fila 3 = `E0`. Los diez dígitos coinciden byte a byte con esas dos tablas, y el manual lo dice. |
+| La fuente del archivo con `https://` | `tests/single-file.test.js` prohíbe cualquier dirección de red dentro de `chip8.html`, y el bloque del archivo guardaba su fuente como URL. | El bloque guarda `github.com/JohnEarnest/chip8Archive`, sin el esquema ([8.23](#823-ninguna-dirección-de-red-en-chip8html)). |
+| `F000` sin su segunda palabra | `disassemble` recibe una palabra; para `F000 NNNN` hace falta la siguiente, y la ida y vuelta exige que todo texto de 2 bytes se pueda volver a ensamblar. | Sin la palabra siguiente es `DW 0xF000` ([3.8](#38-el-desensamblador)); `disassembleRange` y el monitor, que sí la tienen, muestran `LD I, LONG 0xNNNN` en una fila de 4 bytes. |
+| La línea de `--help` del tutorial | El tutorial muestra la salida real de `node tools/chip8asm.js --help`, que ganó `[--xo]`. | Actualizada; la prueba de salidas del tutorial la compara. |
+| Una ROM de 3585 bytes | Antes era un error; ahora es una ROM de XO-CHIP. | La consola pasa sola al perfil XO-CHIP y avisa; el escenario E2E 6 prueba el rechazo con 65.025 bytes. |
+| La pila de 16 niveles | Octo usa 12. | 16, como pide la especificación de XO-CHIP. *Super Square*, del archivo, desborda la pila en su pantalla final: con 12 niveles pasaría antes. Es el único de los 104 que se detiene. |
+| `FN01` con N > 3 y `FX02` con X ≠ 0 | Octo los acepta. | Opcodes inválidos ([3.9](#39-las-plataformas)). |
+| La palabra «url» y el paréntesis | La prueba del archivo único busca `url(` en todo el HTML, y la interfaz llama a `toDataURL` y `createObjectURL`. | Esas llamadas llevan un espacio antes del paréntesis (`toDataURL ('image/png')`); un comentario lo explica. |
+| El encendido animado en las capturas E2E | La capa del encendido tapaba la pantalla en las capturas de los escenarios. | `Page.shot` espera a que termine antes de capturar. |
+| El monitor más alto que la ventana | Lo encontraron los escenarios E2E nuevos: en la pantalla ancha (más de 1200 px), el monitor pegado arriba mide entre 889 y 1024 px con un error, más que una ventana de 1280×900 o 1366×768, y el botón «Cambiar a … y reiniciar» de su pie recién aparecía después de scrollear más allá de los estantes. | `top: var(--mon-top, 20px)` y `fitMonitor()`, que pega el monitor más arriba cuando no entra ([4.16](#416-el-monitor)). El E2E 27 comprueba que, a 1280×900, el botón se puede llevar a la vista. |
+| Lo automático contra lo elegido | Si lo que aplica la autoconfiguración quedara como ajuste general, la ROM siguiente arrancaría con los ajustes de otro juego. | Las funciones que cambian ajustes distinguen `auto` ([4.9](#49-ajustes-por-cartucho)). |
+| El tutorial y los perfiles | Al elegir un perfil, la consola ahora cambia también la plataforma; lo que el tutorial cuenta de cada perfil se probaba solo en la plataforma CHIP-8. | `tests/tutorial.test.js` corre cada perfil en su plataforma. Lo único que cambió fue el final de `11-sin-fin` con SUPER-CHIP (ahora se detiene en la fuente grande) y con XO-CHIP (recorre 64 KB): el tutorial lo cuenta. |
+
+### 7.12 Cómo creció la suite
+
+| Momento | Pruebas | Resultado |
+|---|---|---|
+| Construcción: las 6 suites del núcleo, escritas a ciegas | 515 | todas pasan (las 2 fallas de la primera corrida eran errores de las pruebas) |
+| Integración de la primera ronda | 726 | 725 pasan, 1 salteada (el enlace a este documento, que no existía) |
+| Después del mutation testing | 738 | 737 pasan, 1 salteada |
+| Después de las correcciones de la revisión | 793 | todas pasan con los cartuchos al día |
+| Integración final de la primera ronda (`d40912f`) | 797 | todas pasan, ninguna salteada |
+| Núcleo, ensamblador y tabla del archivo | 1330 | todas pasan |
+| Interfaz (partes 1 y 2) y *Planos* | 1349 | todas pasan |
+| Comodidades, manual e integración | 1358 | todas pasan |
+| Documentación de la segunda ronda (el tutorial en cada plataforma, las pruebas de este documento y del README) | 1371 | todas pasan |
 
 ---
 
@@ -1499,10 +2278,12 @@ Cada decisión, en formato corto: el contexto, qué se decidió y qué implica.
   necesita el DOM, Canvas y Web Audio.
 - **Decisión:** `chip8-core` no toca el DOM, la consola ni ningún global salvo
   `Chip8Core`. Todo su estado es público. La interfaz lee ese estado y le informa teclas;
-  el núcleo no sabe que existe una interfaz.
-- **Consecuencias:** las pruebas del núcleo corren en unos 2 s sin navegador; el monitor
-  lee el estado directamente. La persistencia del fósforo, el sonido y los efectos son
-  cosa de la interfaz ([8.15](#815-los-efectos-viven-en-la-interfaz)).
+  el núcleo no sabe que existe una interfaz. Ni siquiera suena: deja el patrón y el tono
+  de XO-CHIP en propiedades y la interfaz los toca.
+- **Consecuencias:** las pruebas del núcleo corren en unos segundos sin navegador; el
+  monitor lee el estado directamente; `tools/archive.js test` corre los 104 juegos del
+  archivo en Node. La persistencia del fósforo, el sonido y los efectos son cosa de la
+  interfaz ([8.15](#815-los-efectos-viven-en-la-interfaz)).
 
 ### 8.3 Mnemónicos de Cowgod
 
@@ -1510,10 +2291,12 @@ Cada decisión, en formato corto: el contexto, qué se decidió y qué implica.
   cartuchos y el tutorial.
 - **Decisión:** los mnemónicos de la referencia de Cowgod (`LD V1, 0x2A`,
   `DRW V0, V1, 5`, `LD [I], V1`...), idénticos en los dos sentidos, y `DW 0xNNNN` para las
-  palabras inválidas.
+  palabras inválidas. Para SUPER-CHIP, los de Cowgod también (`SCD`, `HIGH`, `LD HF`,
+  `LD R`); para XO-CHIP, que es posterior, nombres en el mismo estilo (`SCU`, `SAVE`,
+  `LOAD`, `LD I, LONG`, `PLANE`, `AUDIO`, `PITCH`).
 - **Consecuencias:** es el estilo que más material de la comunidad usa; lo que muestra el
-  monitor se puede copiar y volver a ensamblar, y las 65 536 palabras dan la vuelta
-  completa (prueba en `tests/asm.test.js`).
+  monitor se puede copiar y volver a ensamblar, en cualquier plataforma (prueba en
+  `tests/asm.test.js` y `tests/asm-extendido.test.js`).
 
 ### 8.4 FX0A espera apretar y soltar
 
@@ -1528,62 +2311,75 @@ Cada decisión, en formato corto: el contexto, qué se decidió y qué implica.
   [§7.4 del manual](MANUAL.md#74-esperar-una-tecla-fx0a). El keypad por teclado sostiene
   la tecla al menos 120 ms para que `FX0A` vea las dos mitades.
 
-### 8.5 I de 16 bits, accesos de 12
+### 8.5 I de 16 bits, accesos con la máscara de la memoria
 
 - **Contexto:** con `FX1E` o el avance de `FX55`/`FX65`, I puede pasar de `0xFFF`.
-- **Decisión:** I se guarda con 16 bits y cada acceso a memoria enmascara con `& 0xFFF`
-  ([3.6](#36-i-de-16-bits-y-accesos-de-12)).
+- **Decisión:** I se guarda con 16 bits y cada acceso a memoria enmascara con la máscara
+  de la plataforma: `& 0xFFF` con 4 KB, `& 0xFFFF` con 64 KB
+  ([3.6](#36-i-de-16-bits-y-direcciones-de-12-o-de-16)).
 - **Consecuencias:** se comporta como los intérpretes modernos de referencia, nunca se lee
-  fuera de la memoria y el monitor muestra el valor real de I.
+  fuera de la memoria y el monitor muestra el valor real de I. XO-CHIP no necesitó un I
+  distinto.
 
 ### 8.6 displayWait como "el DXYN cierra el frame"
 
 - **Contexto:** el VIP esperaba la interrupción de video antes de dibujar; emularlo con
   ciclos exactos exigiría medir el costo de cada instrucción.
 - **Decisión:** como mucho un `DXYN` por frame, y el `DXYN` termina el frame
-  ([3.5](#35-runframe-y-displaywait)).
+  ([3.5](#35-runframe-y-displaywait)). Valen igual los dibujos de SUPER-CHIP y XO-CHIP.
 - **Consecuencias:** simple, determinista y fácil de probar. Los programas que dibujan en
   cada vuelta van a la misma velocidad con cualquier IPF, que es el efecto que importaba.
-  No reproduce que en el VIP un sprite grande tarde más que uno chico.
+  No reproduce que en el VIP un sprite grande tarde más que uno chico, ni que SUPER-CHIP en
+  alta resolución no esperara.
 
-### 8.7 La fuente en 0x050
+### 8.7 Las fuentes en 0x050 y 0x0A0
 
 - **Contexto:** el VIP guardaba la fuente en su ROM, fuera de la RAM de los programas;
-  cada intérprete moderno la pone en algún lugar debajo de `0x200`.
-- **Decisión:** `0x050`–`0x09F`, la ubicación que se volvió costumbre entre los emuladores
-  modernos. Los programas no deberían depender de la dirección: `FX29` la calcula.
-- **Consecuencias:** ningún programa bien escrito lo nota. Uno que se sale de su código da
-  la vuelta a la memoria, llega a la fuente y se detiene con un mensaje reconocible
-  (opcode `0xF090` en la dirección `0x050`).
+  cada intérprete moderno la pone en algún lugar debajo de `0x200`. Octo pone la chica en
+  `0x000` y la grande en `0x050`.
+- **Decisión:** la chica en `0x050`–`0x09F`, la ubicación que se volvió costumbre entre los
+  emuladores modernos, y la grande de SUPER-CHIP justo después, en `0x0A0`–`0x13F`. En
+  CHIP-8 esa zona queda en cero. Los programas no deberían depender de la dirección:
+  `FX29` y `FX30` la calculan.
+- **Consecuencias:** ningún programa bien escrito lo nota, y CHIP-8 quedó exactamente como
+  antes. Uno que se sale de su código da la vuelta a la memoria, llega a la fuente y se
+  detiene con un mensaje reconocible (opcode `0xF090` en la dirección `0x050`); en
+  SUPER-CHIP puede terminar en la fuente grande.
 
 ### 8.8 Pila de 16 niveles con error de desbordamiento
 
 - **Contexto:** el intérprete del VIP tenía lugar para 12 niveles y, por lo que se sabe, no
-  controlaba el desborde; SUPER-CHIP y la mayoría de los intérpretes modernos ofrecen 16.
-- **Decisión:** 16 niveles; el 17.º `CALL` y un `RET` con la pila vacía detienen la máquina
-  con un mensaje.
+  controlaba el desborde; SUPER-CHIP y la mayoría de los intérpretes modernos ofrecen 16;
+  Octo, 12; la especificación de XO-CHIP pide 16 y que llenarla o vaciarla de más sea un
+  error.
+- **Decisión:** 16 niveles en las tres plataformas; el 17.º `CALL` y un `RET` con la pila
+  vacía detienen la máquina con un mensaje.
 - **Consecuencias:** entran todos los programas conocidos, y la recursión sin fin se
-  informa en lugar de corromper la memoria.
+  informa en lugar de corromper la memoria. El único juego del archivo que desborda la
+  pila, *Super Square*, lo haría antes en Octo.
 
 ### 8.9 Los errores detienen la máquina, no tiran excepciones
 
-- **Contexto:** una ROM cualquiera puede tener opcodes inválidos o romper la pila, y el
-  emulador no se puede caer.
-- **Decisión:** `_fail` deja la máquina detenida, con el `pc` en la instrucción culpable y
-  un mensaje en castellano con el opcode y la dirección ([3.7](#37-errores)); `0NNN` se
+- **Contexto:** una ROM cualquiera puede tener opcodes inválidos, instrucciones de otra
+  plataforma o romper la pila, y el emulador no se puede caer.
+- **Decisión:** `_fail` deja la máquina detenida, con el `pc` en la instrucción culpable,
+  un mensaje en castellano con el opcode y la dirección y un `errorInfo` que la interfaz
+  puede usar sin leer el texto ([3.7](#37-errores-avisos-y-fin-del-programa)); `0NNN` se
   ignora.
-- **Consecuencias:** el monitor muestra dónde está el problema, y el bucle de la interfaz
-  no necesita `try/catch`. La única excepción es la ROM demasiado grande en `loadRom`,
-  que la interfaz ya controla antes.
+- **Consecuencias:** el monitor muestra dónde está el problema, la interfaz ofrece el
+  botón de la plataforma que falta, y el bucle no necesita `try/catch`. Las únicas
+  excepciones son las de los argumentos inválidos (`loadRom`, `setPlatform`, `sha1`), que
+  la interfaz controla antes.
 
 ### 8.10 Escala entera con devicePixelRatio
 
-- **Contexto:** estirar 64×32 a un tamaño cualquiera deja píxeles de distinto ancho, y con
-  escalas de Windows como 125 % se ve borroso.
-- **Decisión:** el lienzo mide un múltiplo entero de 64×32 en píxeles **físicos** y se
-  dibuja sin suavizado ([4.3](#43-la-pantalla-de-cpudisplay-al-lienzo)).
-- **Consecuencias:** cada píxel CHIP-8 es un cuadrado exacto en cualquier pantalla (medido
-  con escala 1,25 y 2). En pantallas chicas con escala 1 la imagen no llena todo el tubo.
+- **Contexto:** estirar 64×32 (o 128×64) a un tamaño cualquiera deja píxeles de distinto
+  ancho, y con escalas de Windows como 125 % se ve borroso.
+- **Decisión:** el lienzo mide un múltiplo entero de la imagen en píxeles **físicos** y se
+  dibuja sin suavizado ([4.3](#43-la-pantalla-de-cpudisplay-al-lienzo)), también girada y
+  en pantalla completa.
+- **Consecuencias:** cada píxel es un cuadrado exacto en cualquier pantalla (medido con
+  escala 1,25 y 2). En pantallas chicas con escala 1 la imagen no llena todo el tubo.
 
 ### 8.11 Teclas por KeyboardEvent.code
 
@@ -1591,17 +2387,18 @@ Cada decisión, en formato corto: el contexto, qué se decidió y qué implica.
   según su posición.
 - **Decisión:** mapear por `code` (la posición física), no por `key` (el carácter).
 - **Consecuencias:** el mismo bloque en QWERTY, AZERTY o Dvorak, sin configurar nada. Los
-  atajos (N, H) también son por posición.
+  atajos (N, H, T, P, G) también son por posición.
 
 ### 8.12 El modelo de foco
 
 - **Contexto:** los atajos de una sola tecla chocan con los controles: un botón enfocado
   se activa con Espacio, un `<select>` enfocado cambia de opción con las letras. La
   revisión encontró que eso rompía el keypad y los atajos (ui-1, ui-5, tut-2).
-- **Decisión:** un clic con puntero no deja el foco en el control; un `<select>` lo suelta
-  después de un cambio con el mouse; las 16 teclas, N, H y Retroceso llegan al emulador
-  desde cualquier control que no sea de texto; Espacio y Enter sobre un control enfocado
-  con el teclado lo activan ([4.5](#45-teclado-keypad-y-foco)).
+- **Decisión:** un clic con puntero no deja el foco en el control; un `<select>` o un
+  selector de color lo suelta después de un cambio con el mouse; las 16 teclas y los
+  atajos llegan al emulador desde cualquier control que no sea de texto; Espacio y Enter
+  sobre un control enfocado con el teclado lo activan; las flechas eligen en los controles
+  que las usan y van al keypad en los demás ([4.6](#46-teclado-keypad-y-foco)).
 - **Consecuencias:** para quien usa el mouse, Espacio siempre pausa; quien navega con Tab
   tiene el comportamiento normal de la web. La excepción deliberada: si el cambio de un
   selector vino de una tecla sobre él, el foco se queda, para poder seguir con las
@@ -1622,20 +2419,21 @@ Cada decisión, en formato corto: el contexto, qué se decidió y qué implica.
   línea de estado, con dos regiones `role="alert"`: se leía tres veces y el aviso tapaba
   el monitor.
 - **Decisión:** el mensaje se ve en el tubo y en el monitor, y se anuncia una vez por
-  `#status`. Los avisos flotantes quedan para los problemas al cargar una ROM, arriba al
-  centro.
-- **Consecuencias:** una sola lectura con lector de pantalla y nada tapado. El aviso de
-  ROM rechazada, arriba, puede tapar un momento el botón "?" en pantallas anchas.
+  `#status`. Los avisos flotantes quedan para los problemas al cargar una ROM, los
+  diagnósticos y la configuración aplicada, arriba al centro.
+- **Consecuencias:** una sola lectura con lector de pantalla y nada tapado. Un aviso de
+  arriba puede tapar un momento el botón "?" en pantallas anchas.
 
 ### 8.15 Los efectos viven en la interfaz
 
 - **Contexto:** el parpadeo es inherente a CHIP-8 (borrar y redibujar con XOR); el
-  "fósforo" lo disimula, pero no es parte de la máquina.
-- **Decisión:** el núcleo solo tiene 0 y 1; la estela, las scanlines, el resplandor y los
-  modos de pantalla son de la interfaz, con un buffer de brillo aparte
-  ([4.3](#43-la-pantalla-de-cpudisplay-al-lienzo)).
-- **Consecuencias:** el framebuffer siempre es exacto para las pruebas y el monitor; los
-  efectos se pueden apagar (Píxeles puros) sin cambiar la emulación.
+  "fósforo" lo disimula, pero no es parte de la máquina. Lo mismo los colores de XO-CHIP:
+  la especificación deja la paleta a cargo del intérprete.
+- **Decisión:** el núcleo solo tiene máscaras de planos; la estela, las scanlines, el
+  resplandor, los colores, la curvatura y los modos de pantalla son de la interfaz, con un
+  buffer de brillo por plano ([4.3](#43-la-pantalla-de-cpudisplay-al-lienzo)).
+- **Consecuencias:** el framebuffer siempre es exacto para las pruebas, el monitor y las
+  capturas; los efectos se pueden apagar (Píxeles puros) sin cambiar la emulación.
 
 ### 8.16 Sin dependencias, también en las pruebas
 
@@ -1643,23 +2441,151 @@ Cada decisión, en formato corto: el contexto, qué se decidió y qué implica.
   instalan con npm y descargan su propio navegador.
 - **Decisión:** `node:test` para las pruebas unitarias y, para las E2E, un cliente propio
   del DevTools Protocol sobre el `WebSocket` global de Node 22, usando el Chrome o Edge
-  instalado.
+  instalado. Lo mismo en `tools/archive.js`: `fetch`, `node:crypto` y un codificador PNG
+  propio sobre `zlib`.
 - **Consecuencias:** `git clone` y listo: no hay `node_modules`, ni `npm install`, ni
-  descargas de cientos de megas, ni versiones que se desactualicen. El costo: solo
-  navegadores Chromium y unas 400 líneas de infraestructura propia (el servidor, lanzar el
-  navegador, limpiar procesos en Windows, la entrada de teclado y toques) que hay que
-  mantener.
+  descargas de cientos de megas, ni versiones que se desactualicen; alcanza con cualquier
+  `node` ([8.24](#824-un-node-portátil-para-trabajar)). El costo: solo navegadores
+  Chromium y unas 400 líneas de infraestructura propia que hay que mantener.
 
 ### 8.17 Quirks del VIP por defecto y perfiles detectados
 
 - **Contexto:** CHIP-8 es el intérprete del COSMAC VIP, pero muchos programas modernos se
   escribieron para SUPER-CHIP o XO-CHIP.
 - **Decisión:** el perfil de fábrica es el del VIP (`vfReset`, `memory`, `clipping` y
-  `displayWait` activados) y la velocidad, 15 IPF. Los interruptores se tocan de a uno y el
-  selector de perfil muestra el perfil que coincide, o "Personalizado".
+  `displayWait` activados), con la plataforma CHIP-8 y 15 IPF. Los interruptores se tocan
+  de a uno y el selector de perfil muestra el perfil cuyos quirks coinciden, o
+  "Personalizado".
 - **Consecuencias:** los programas clásicos andan sin tocar nada; para los modernos alcanza
-  con elegir un perfil. Como los ajustes se guardan, el perfil elegido sigue en la
-  próxima sesión.
+  con elegir un perfil, y los del archivo se configuran solos. Como los ajustes se
+  guardan, el perfil elegido sigue en la próxima sesión.
+
+### 8.18 Octo como referencia de SUPER-CHIP y XO-CHIP
+
+- **Contexto:** SUPER-CHIP 1.1 en la HP-48 hacía cosas que los programas de hoy no
+  esperan (desplazamientos de medio píxel en baja resolución, VF con la cantidad de filas
+  que chocaron, cambiar de resolución sin borrar); casi todos los juegos modernos se
+  escribieron y probaron en Octo, y la suite de Timendus toma a Octo como la referencia de
+  XO-CHIP y llama "SUPER-CHIP moderno" a lo que hace Octo.
+- **Decisión:** las instrucciones de SUPER-CHIP y XO-CHIP hacen lo que hace Octo, con las
+  decisiones propias de [3.9](#39-las-plataformas) (pila, fuentes, opcodes que Octo
+  acepta y la especificación no, el beep).
+- **Consecuencias:** los juegos del archivo andan con los ajustes con que se juegan en
+  Octo (103 de 104 sin errores). No están los comportamientos *legacy* de la HP-48: un
+  programa que dependa de ellos se ve distinto ([9.11](#911-limitaciones-conocidas-y-trabajo-futuro)).
+
+### 8.19 Perfil y Plataforma: dos selectores
+
+- **Contexto:** hasta la segunda ronda, "perfil" quería decir "seis quirks". Con las
+  plataformas aparecieron dos preguntas distintas: qué máquina es (el juego de
+  instrucciones, la memoria, la pantalla) y cómo se comporta en los detalles. Un perfil
+  "SUPER-CHIP" que no habilitara SUPER-CHIP habría sido una trampa.
+- **Decisión:** dos selectores. **Plataforma** cambia solo la máquina (y reinicia la ROM);
+  **Perfil** cambia la plataforma del perfil y sus seis quirks; los interruptores cambian
+  solo quirks. El selector de perfil sigue detectando el perfil por los quirks.
+- **Consecuencias:** un clic en un perfil deja la consola como el intérprete de verdad;
+  quien necesita una combinación rara (plataforma XO-CHIP con quirks del VIP, como hace
+  *Planos* al cargarse) la tiene. El costo: elegir un perfil puede reiniciar la ROM, y el
+  tutorial lo avisa donde propone cambiar de perfil.
+
+### 8.20 La prioridad de los ajustes por cartucho
+
+- **Contexto:** al cargar una ROM hay varias fuentes posibles de ajustes: lo que la
+  persona ya le cambió, la tabla del archivo, la plataforma del demo y los ajustes de
+  siempre. Y una fuente automática no puede "contagiar" a la ROM siguiente.
+- **Decisión:** recordado > archivo > plataforma del demo > tus últimas elecciones,
+  **campo por campo** ([4.9](#49-ajustes-por-cartucho)). Solo los cambios explícitos se
+  guardan, en `settings` y en la ROM; lo automático se aplica con `auto` y no se guarda.
+  «Olvidar ajustes» borra lo recordado (no las banderas).
+- **Consecuencias:** lo que la persona eligió para un juego siempre gana, los juegos
+  conocidos andan bien la primera vez, y una ROM desconocida arranca como la persona tiene
+  la consola. Con el interruptor apagado, la consola vuelve exactamente al comportamiento
+  de la primera ronda.
+
+### 8.21 Los límites de la biblioteca
+
+- **Contexto:** `localStorage` tiene un límite por origen (unos 5 MB en Chromium, y en
+  `file://` puede ser compartido por todos los archivos locales); las ROMs de XO-CHIP
+  pueden tener 64 KB, y en base64 un tercio más.
+- **Decisión:** como mucho 60 cartuchos y unos 2,5 MB de base64 entre todos; lo que no
+  entra se va empezando por el jugado hace más tiempo, nunca el de la ranura; y si el
+  navegador dice que no hay lugar, la biblioteca le cede espacio a los ajustes
+  ([4.10](#410-tus-cartuchos-la-biblioteca)). Un aviso dice qué se fue, y quitar a mano
+  tiene **Deshacer**.
+- **Consecuencias:** la biblioteca nunca deja a la consola sin poder guardar sus ajustes,
+  y lo que se pierde es lo más fácil de recuperar: una ROM que se vuelve a cargar desde su
+  archivo.
+
+### 8.22 La curvatura viene apagada
+
+- **Contexto:** la curvatura del tubo es linda, pero deforma la imagen (los píxeles de los
+  bordes dejan de ser cuadrados), cuesta un filtro SVG por cuadro y no todos los
+  navegadores la soportan sobre la página.
+- **Decisión:** apagada de fábrica, solo en Tubo CRT, deshabilitada con una explicación si
+  el navegador no puede, y nunca en las capturas. El encendido animado, en cambio, viene
+  prendido: no cambia la imagen y no demora al programa.
+- **Consecuencias:** la consola se ve nítida y exacta la primera vez; quien quiere el
+  efecto lo prende y queda guardado.
+
+### 8.23 Ninguna dirección de red en chip8.html
+
+- **Contexto:** la regla del archivo único es "no pide nada a la red", y la prueba más
+  simple y robusta de eso es que el archivo no contenga ninguna dirección `http(s)` ni
+  `url(...)` externa. La tabla del archivo de la comunidad necesitaba decir de dónde salió.
+- **Decisión:** `tests/single-file.test.js` prohíbe toda dirección de red, sin excepciones;
+  el bloque del archivo guarda su fuente como `github.com/JohnEarnest/chip8Archive`, sin
+  el esquema; las llamadas a `toDataURL` y `createObjectURL` llevan un espacio antes del
+  paréntesis, así la búsqueda de `url(` no las confunde; la curvatura usa un filtro en el
+  mismo documento (`url(#crt-warp)`, un ancla).
+- **Consecuencias:** cualquier dirección que se cuele hace fallar las pruebas, sin una
+  lista de excepciones que mantener. El crédito completo, con el enlace, está en la ayuda
+  (como texto), en el README y en el manual.
+
+### 8.24 Un Node portátil para trabajar
+
+- **Contexto:** la PC de la segunda ronda no tenía Node en el PATH, y las reglas de trabajo
+  eran no instalar nada.
+- **Decisión:** usar el Node que ya traía un editor instalado (Cursor), por su ruta
+  completa, para las pruebas y las herramientas; comprobar que la suite pasa con Node 22 y
+  con 24.
+- **Consecuencias:** nada que instalar ni configurar, y la documentación explica cómo
+  hacerlo ([9.10](#910-trabajar-sin-node-en-el-path)). Sin npm, se usan los comandos
+  `node ...` que hay detrás de cada script. La ruta del Node de otro programa puede
+  cambiar cuando ese programa se actualiza: conviene preferir uno de ruta estable.
+
+### 8.25 SHA-1 en JavaScript puro
+
+- **Contexto:** la autoconfiguración y los ajustes por cartucho necesitan reconocer cada
+  ROM por su huella, y las huellas del archivo son SHA-1. `crypto.subtle` es asincrónico y
+  no está disponible en `file://` (no es un contexto seguro).
+- **Decisión:** un SHA-1 sincrónico en el núcleo (`Core.sha1`), probado contra
+  `node:crypto` en todos los largos de 0 a 300 bytes.
+- **Consecuencias:** la huella se calcula igual en Node, en HTTP y desde el disco, antes
+  del primer frame, sin promesas. Para ROMs de hasta 64 KB el costo es despreciable.
+
+### 8.26 Las instrucciones de pantalla de otra plataforma se ignoran
+
+- **Contexto:** un programa de SUPER-CHIP cargado con la plataforma CHIP-8 puede usar
+  instrucciones que allá no existen. Detener la máquina siempre sería lo más estricto, pero
+  `00FE`, `00FF`, `00CN`, `00FB`, `00FC`, `00FD` y `DXY0` tienen en CHIP-8 la forma de
+  instrucciones que no hacen nada (`0NNN` y un `DXYN` sin filas), y así se comportaba un
+  intérprete de la época.
+- **Decisión:** esas se ignoran y dejan un aviso (uno por ROM, con un botón para cambiar
+  de plataforma); las demás, que no se pueden ignorar sin romper el programa, lo detienen
+  con un error que nombra la plataforma que hace falta.
+- **Consecuencias:** un juego de Octo que solo usa, por ejemplo, `00E0` y `00FF` igual se
+  puede ver en CHIP-8 (en baja resolución), y la consola dice qué le falta; ninguno sigue
+  corriendo con datos equivocados.
+
+### 8.27 El beep hasta el primer F002
+
+- **Contexto:** en XO-CHIP, el patrón de audio empieza "como lo deje el intérprete"; Octo lo
+  empieza en ceros, así que un programa que nunca ejecuta `F002` no suena.
+- **Decisión:** hasta el primer `F002` desde el último reset suena el beep de siempre;
+  desde ahí, el patrón.
+- **Consecuencias:** los programas de CHIP-8 y SUPER-CHIP no se quedan mudos con la
+  plataforma XO-CHIP (que es la que la consola elige para casi todos los juegos de Octo).
+  Un programa de XO-CHIP que carga su patrón suena igual que en Octo.
 
 ---
 
@@ -1667,33 +2593,47 @@ Cada decisión, en formato corto: el contexto, qué se decidió y qué implica.
 
 ### 9.1 Reglas de la casa
 
-- No edites `<script id="chip8-roms">` a mano: cambiá `roms/*.asm` y corré
-  `node tools/embed-roms.js`.
+- No edites `<script id="chip8-roms">` ni `<script id="chip8-archive">` a mano: cambiá
+  `roms/*.asm` y corré `node tools/embed-roms.js`, o `data/archive.json` y corré
+  `node tools/archive.js embed`.
 - No cambies las etiquetas de apertura de los bloques ni pongas `</script` adentro de un
   bloque ([2.4](#24-la-regla-del-cierre-de-script)).
-- Nada externo: ni CDN, ni fuentes, ni imágenes por URL, ni `fetch`. Si hace falta una
-  imagen, que sea una URL `data:` o se dibuje.
+- Nada externo y ninguna dirección de red: ni CDN, ni fuentes, ni imágenes por URL, ni
+  `fetch`. Si hace falta una imagen, que sea una URL `data:` o se dibuje
+  ([8.23](#823-ninguna-dirección-de-red-en-chip8html)).
 - El núcleo no toca el navegador.
+- Un cambio de ajustes que hace la consola sola va con `auto`; uno de la persona, sin
+  ([4.9](#49-ajustes-por-cartucho)).
 - Todo texto para el usuario, mensaje de error, comentario y documento, en castellano con
   voseo; los identificadores, en inglés.
 - Antes de terminar: `node --test`, y `node tools/e2e.js` si tocaste la interfaz.
-- Si cambiás un texto de la interfaz, una constante citada o un mensaje, las pruebas de la
-  documentación te van a decir qué actualizar ([6.6](#66-pruebas-de-la-documentación)).
+- Si cambiás un texto de la interfaz, una constante citada, un mensaje, un miembro de
+  `window.chip8` o un escenario E2E, las pruebas de la documentación te van a decir qué
+  actualizar ([6.6](#66-pruebas-de-la-documentación)).
 
 ### 9.2 Agregar o cambiar una instrucción
 
-1. **Núcleo:** el caso en el `switch` de `Chip8.prototype.step` (y, si dibuja, en
-   `_draw`). Respetá "VF al final" y enmascará toda dirección con `& 0xFFF`. Si un opcode
-   pasa de inválido a válido, sacalo del `default` que llama a `_invalid`.
-2. **Desensamblador:** el texto en `disassemble`.
+1. **Núcleo:** en CHIP-8, el caso en el `switch` de `Chip8.prototype.step` (y, si dibuja,
+   en `_draw`). Para SUPER-CHIP o XO-CHIP: su entrada en `EXT` (plataforma mínima y
+   nombre), su decodificación en `extendedEntry` y su comportamiento en `_op00`, `_op5`,
+   `_opF` o `_drawExt`, sin alargar el camino de CHIP-8. Respetá "VF al final" y enmascará
+   toda dirección con `_mask`. Si un opcode pasa de inválido a válido, sacalo del camino
+   que llama a `_invalid`.
+2. **Desensamblador:** el texto en `disassemble` o en `extendedText`.
 3. **Ensamblador:** el mnemónico en `MNEMONICS` y el patrón en `TABLE` de
-   `tools/chip8asm.js`, y la tabla de instrucciones del comentario del principio.
-4. **Pruebas:** un grupo en `tests/instructions.test.js`, el texto en
-   `tests/disasm.test.js`, y el ensamblador en `tests/asm.test.js`. La ida y vuelta de las
-   65 536 palabras va a fallar si el desensamblador y el ensamblador no coinciden; y
-   `tests/core-api.test.js` tiene una lista de opcodes que tienen que ser inválidos.
-5. **Documentación:** la ficha en la sección 10 del manual y, si corresponde, la tabla de
-   la parte 2.9 del tutorial.
+   `tools/chip8asm.js` (con su tamaño si no son 2 bytes), y la tabla de instrucciones del
+   comentario del principio (bajo `CHIP-8`, `SUPER-CHIP` o `XO-CHIP`: la prueba del manual
+   lee esas listas).
+4. **Pruebas:** un grupo en `tests/instructions.test.js` o en `tests/superchip.test.js` /
+   `tests/xochip.test.js`, el texto en `tests/disasm.test.js` o `tests/platform.test.js`, y
+   el ensamblador en `tests/asm.test.js` o `tests/asm-extendido.test.js`. La ida y vuelta
+   de las 65 536 palabras va a fallar si el desensamblador y el ensamblador no coinciden;
+   `tests/core-api.test.js` tiene una lista de opcodes que tienen que ser inválidos, y
+   `tests/platform.test.js` una tabla de referencia de `extendedInfo`.
+5. **Documentación:** la ficha en la sección 10 o 13.11 del manual (la prueba del manual
+   exige una ficha por instrucción, con su plataforma), el machete de la parte 2.9 o 9.1
+   del tutorial, y la tabla de [3.7](#37-errores-avisos-y-fin-del-programa) de este
+   documento.
 
 ### 9.3 Agregar un quirk
 
@@ -1701,60 +2641,59 @@ Cada decisión, en formato corto: el contexto, qué se decidió y qué implica.
    comportamiento en `step`. `setQuirks`, `copyQuirks` y `DEFAULT_QUIRKS` la toman solos.
 2. **Interfaz:** `chip8-ui` tiene **su propia copia** de `QUIRK_KEYS` (el núcleo no la
    exporta): agregala ahí y su entrada en `QUIRK_INFO` (etiqueta corta, nombre, opcodes y
-   descripción). El interruptor, la ayuda, la detección de perfil y la validación de los
-   ajustes guardados salen de esas dos listas. La línea fija "Perfiles: COSMAC VIP = 1, 2,
-   5 y 6 activados..." de `buildHelpQuirks` se actualiza a mano.
-3. **Pruebas:** en `tests/quirks.test.js`, el quirk prendido y apagado y los valores de los
-   perfiles; en `tools/e2e.js`, la función `presetQuirks` repite los perfiles.
-4. **Documentación:** la sección 11 del manual y la tabla de la parte 1.6 del tutorial. Si
+   descripción). El interruptor, la ayuda, la detección de perfil, la validación de los
+   ajustes guardados y de los recordados salen de esas dos listas. La línea fija
+   "Perfiles: COSMAC VIP = 1, 2, 5 y 6 activados..." de `buildHelpQuirks` se actualiza a
+   mano.
+3. **Archivo:** si Octo tiene la opción, su correspondencia en `fromOctoOptions` de
+   `tools/archive.js`, y `node tools/archive.js embed`.
+4. **Pruebas:** en `tests/quirks.test.js`, el quirk prendido y apagado y los valores de los
+   perfiles; en `tests/archive.test.js`, la conversión; en `tools/e2e.js`, la función
+   `presetQuirks` repite los perfiles.
+5. **Documentación:** la sección 11 del manual y la tabla de la parte 1.6 del tutorial. Si
    cambiás las etiquetas cortas (`VF=0`, `MEM`...), `tests/tutorial.test.js` lo va a
    notar.
 
-### 9.4 Hacia SUPER-CHIP
+### 9.4 Actualizar el archivo de la comunidad
 
-Hoy los perfiles SUPER-CHIP y XO-CHIP solo cambian quirks
-([§13.4 del manual](MANUAL.md#134-qué-pasa-si-cargás-una-rom-de-super-chip-o-xo-chip-acá)).
-Implementar las instrucciones de SUPER-CHIP 1.1 pide, por lo menos:
-
-- **Pantalla variable.** Alta resolución de 128×64 (`00FF`/`00FE`). Hoy `DISPLAY_WIDTH`,
-  `DISPLAY_HEIGHT`, `display`, el buffer de brillo, la `ImageData`, el patrón de scanlines
-  y `resizeScreen` suponen 64×32 fijo: habría que hacerlos depender del modo, y el tubo
-  mantiene la proporción 2:1.
-- **Instrucciones nuevas:** scroll (`00CN`, `00FB`, `00FC`), salir (`00FD`), la fuente
-  grande de 8×10 (`FX30`, con sus bytes en memoria), las banderas persistentes
-  (`FX75`/`FX85`) y los sprites de 16×16 (`DXY0`, que hoy no dibuja nada y deja VF en 0, y
-  lo fija una prueba). Hoy `00FF`, `00FE`, `00CN`, `00FB`, `00FC` y `00FD` se ignoran como
-  `SYS`, y `FX30`, `FX75` y `FX85` detienen la máquina como inválidas: esas pruebas y la ida
-  y vuelta del desensamblador van a cambiar.
-- **Perfiles.** Probablemente una opción aparte de los quirks ("modo SUPER-CHIP") que
-  habilite las instrucciones, para que el perfil CHIP-8 siga rechazando opcodes de más.
-- **Verificación.** Las ROMs de pruebas de Timendus cubren SUPER-CHIP y XO-CHIP; valdría la
-  pena correrlas (pidiendo permiso para descargarlas) y sumar sus resultados a las
-  pruebas.
+1. `node tools/archive.js update` (necesita internet): baja el archivo y reescribe
+   `data/archive.json`. Leé los avisos (ROMs repetidas, plataformas que faltan, opciones
+   que la consola no tiene).
+2. `node tools/archive.js embed`: reescribe `<script id="chip8-archive">`.
+3. `node tools/archive.js test --sheet ../hoja.png` (también necesita internet): corré los
+   juegos y mirá la hoja de contactos; un borde rojo es un juego que se detuvo.
+4. `node --test`: `tests/archive.test.js` controla los datos y el bloque, y
+   `tests/manual.test.js` los números que cita el manual (programas por plataforma,
+   cuántos usan los quirks de Octo, las velocidades y su histograma): si cambiaron,
+   actualizá las secciones 11.11 y 12.2 del manual, el README, la parte 1.7 del tutorial
+   y [5.5](#55-toolsarchivejs).
 
 ### 9.5 Agregar un demo
 
 1. Escribí `roms/<id>.asm` con las cuatro etiquetas (`@name`, `@description`, `@controls`,
-   `@order`) y las reglas de [5.3](#53-reglas-para-escribir-un-demo). El `@order` define la
-   posición en el estante; el 1 es el que arranca con la consola.
+   `@order`), `@platform` si no es de CHIP-8, y las reglas de
+   [5.3](#53-reglas-para-escribir-un-demo). El `@order` define la posición en el estante;
+   el 1 es el que arranca con la consola.
 2. `node tools/embed-roms.js`: escribe `roms/<id>.ch8` y actualiza `chip8.html`.
 3. En `tests/roms.test.js`, agregá el `id` a `DEMO_IDS` (en el orden de `@order`: la
    prueba exige `@order` = posición + 1) y un grupo con su comportamiento. Las pruebas
    generales (600 frames por perfil sin ejecutar datos) lo toman solas.
-4. Actualizá la tabla de cartuchos del README (que dice "cinco cartuchos"), la parte 1.2
-   del tutorial y [5.4](#54-los-cinco-cartuchos). Los escenarios E2E 7 (el estante) y 19
-   (los chips) recorren todos los cartuchos solos; el 19 exige además que todos los chips
-   entren en la vista a 1440×900 sin scrollear.
+4. Actualizá la tabla de cartuchos del README (que dice "seis cartuchos"), la parte 1.2
+   del tutorial (`tests/tutorial.test.js` la compara con las etiquetas `@`) y
+   [5.4](#54-los-seis-cartuchos). Los escenarios E2E que recorren el estante y los chips
+   lo toman solos; el de los chips exige además que todos entren en la vista a 1440×900
+   sin scrollear.
 
 ### 9.6 Agregar una paleta
 
-Agregá la entrada en `PALETTES` (`{ name, bg: [r, g, b], on: [r, g, b] }`) y su clave en
-`PALETTE_IDS`. La tabla de colores, el selector y la validación de los ajustes guardados
-salen de ahí. Si la paleta necesita un tratamiento especial como LCD (sin resplandor, con
-grilla en lugar de scanlines), mirá `applyPalette`, `applyScreenMode`, `buildScanPattern` y
-las reglas CSS `.crt[data-palette="lcd"]`. El escenario E2E 18 prueba el modo Píxeles puros
-con una lista fija de paletas (`['ambar', 'blanco', 'lcd', 'fosforo']`): sumala ahí. Los
-nombres de las paletas aparecen en el tutorial y en el README.
+Agregá la entrada en `PALETTES` (`{ name, bg, on, p2, both }`, cada color `[r, g, b]`) y
+su clave en `PALETTE_IDS`. Mantené la escalera de brillo (fondo < ambos < plano 2 < plano
+1) con al menos 1,8:1 de contraste entre vecinos. Las tablas de colores, el selector y la
+validación de los ajustes guardados salen de ahí. Si la paleta necesita un tratamiento
+especial como LCD (sin resplandor, con grilla en lugar de scanlines), mirá `applyPalette`,
+`updateGlow`, `buildScanPattern` y las reglas CSS `.crt[data-palette="lcd"]`. Las pruebas
+E2E de Píxeles puros recorren una lista fija de paletas: sumala ahí. Los nombres de las
+paletas aparecen en el tutorial y en el README.
 
 ### 9.7 Cambiar el mapa del teclado
 
@@ -1765,11 +2704,13 @@ El mapa está repetido en varios lugares a propósito (cada uno lo muestra o lo 
 - el diagrama `keymap-grid` y el texto oculto "Correspondencia: ..." de la ayuda, en el
   marcado;
 - `PC_KEYS` en `tools/e2e.js`;
-- los `@controls` de Teclado y Atrapa (que nombran letras);
+- los `@controls` de Teclado, Atrapa y Planos (que nombran letras);
 - el README, la parte 1.4 del tutorial (que `tests/tutorial.test.js` compara con
   `KEY_BY_CODE`) y la §7.2 del manual.
 
-Que ninguna tecla del mapa choque con N, H, Espacio o Retroceso.
+Que ninguna tecla del mapa choque con los atajos (Espacio, N, Retroceso, H, T, P, G). Los
+mapas de las flechas y el joystick están en `KEYMAP_PRESETS` y en las opciones del
+selector `#keymap` (el texto de cada opción repite las teclas; el tutorial los cita).
 
 ### 9.8 Agregar una prueba
 
@@ -1790,17 +2731,20 @@ Que ninguna tecla del mapa choque con N, H, Espacio o Retroceso.
   });
   ```
 
-  `makeCpu` acepta `{ quirks, random }` como segundo argumento. Para programas largos,
-  ensamblalos con `loadAssembler().assemble(...)`.
+  `makeCpu` acepta `{ quirks, random, platform }` como segundo argumento. Para programas
+  largos, ensamblalos con `loadAssembler().assemble(...)` (con `{ xochip: true }` si pasan
+  de `0xFFF`).
 - **De un cartucho:** en `tests/roms.test.js`, `demo(id, perfil)` crea la máquina con la
   guardia que detecta ejecución de datos, y `run(cpu, frames, ipf)` corre frames.
 - **De la documentación:** respetá las marcas de [6.6](#66-pruebas-de-la-documentación)
-  (`; Fragmento`, `; (fragmento de RUTA)`, `<!-- salida: CMD -->`).
+  (`; Fragmento`, `; Plataforma: XO-CHIP`, `; (fragmento de RUTA)`,
+  `<!-- salida: CMD -->`, `<!-- verificar: ... -->`).
 - **E2E:** en `tools/e2e.js`, `scenario(n, 'título', async (ctx, s) => { ... })`. Empezá
   con `const page = await freshApp(ctx, s)`, usá `page.keyDown`, `page.press`,
   `page.click`, `page.clickAt`, `page.ev(expresión)`, `page.waitFor(...)` y `page.shot(...)`,
   y registrá cada comprobación con `s.check(ok, 'descripción', detalle)`. Agregá una línea
-  a la lista del comentario del principio (la imprime `--help`).
+  a la lista del comentario del principio (la imprime `--help`) y una fila a la tabla de
+  [6.7](#67-los-escenarios-e2e) (la prueba de este documento la exige).
 
 ### 9.9 Correr las pruebas E2E
 
@@ -1824,22 +2768,81 @@ node tools/e2e.js --shots ../capturas   # dónde guardar las capturas
 - No escribe nada en el repositorio: las ROMs de prueba que usa van al perfil temporal, y
   las capturas, a la carpeta de `--shots` (conviene que esté fuera del repositorio).
 
-### 9.10 Limitaciones conocidas y trabajo futuro
+### 9.10 Trabajar sin Node en el PATH
 
-- **CHIP-8 clásico únicamente.** SUPER-CHIP y XO-CHIP son perfiles de quirks, sin sus
-  instrucciones ([9.4](#94-hacia-super-chip)). El audio de XO-CHIP no está.
+Cualquier `node` 22 o más nuevo sirve, sin instalarlo ni agregarlo al PATH: por ejemplo,
+el que traen algunos editores. En Windows, Cursor trae uno en
+`%LOCALAPPDATA%\Programs\cursor\resources\app\resources\helpers\node.exe`, de ruta estable
+(el de otros programas puede cambiar de carpeta cuando se actualizan). En PowerShell,
+desde la raíz del repositorio:
+
+```powershell
+$node = "$env:LOCALAPPDATA\Programs\cursor\resources\app\resources\helpers\node.exe"
+& $node --test
+& $node tools/e2e.js
+& $node tools/embed-roms.js --check
+```
+
+Sin npm, los scripts de `package.json` no andan: usá los comandos que hay detrás de cada
+uno (`node --test`, `node tools/chip8asm.js`, `node tools/embed-roms.js`,
+`node tools/archive.js`, `node tools/serve.js`, `node tools/e2e.js`). Las pruebas que
+corren comandos (las del ensamblador y del tutorial) usan `process.execPath`, así que
+funcionan con cualquier `node`.
+
+### 9.11 Limitaciones conocidas y trabajo futuro
+
+**Trabajo futuro: las tres features que quedaron afuera.**
+
+- **6. Un taller con editor.** Escribir, ensamblar y correr un programa sin salir de la
+  página. `tools/chip8asm.js` ya funciona como `<script>` y define `globalThis.Chip8Asm`,
+  así que el ensamblador entra en el HTML como un bloque más (generado, como los otros
+  dos); falta el editor, mostrar los errores en su línea, guardar los programas (la
+  biblioteca ya resuelve el almacenamiento y sus límites) y decidir cómo convive con la
+  regla de no editar los bloques generados.
+- **7. Un depurador completo.** Puntos de parada (por dirección, por instrucción, al
+  escribir memoria), ejecutar hasta el `RET`, editar registros y memoria desde el monitor,
+  y una vista de la memoria que se pueda recorrer. El núcleo ya expone todo su estado; lo
+  que falta es interfaz, y que `runFrame` pueda cortar en un punto de parada sin perder
+  velocidad (un `Set` de direcciones que se mire solo si no está vacío).
+- **8. Estados guardados y rebobinado.** Guardar y cargar el estado completo de la máquina
+  (memoria, registros, pila, timers, pantalla, planos, audio, banderas, la espera de
+  `FX0A`) y rebobinar unos segundos. Todo el estado es público y casi todo son
+  `Uint8Array`, así que una instantánea es barata; para rebobinar, un anillo de
+  instantáneas por frame (con 64 KB de memoria en XO-CHIP, conviene guardar solo las
+  diferencias). Habría que agregar `serialize`/`restore` al núcleo, con pruebas de ida y
+  vuelta.
+
+**Limitaciones conocidas.**
+
+- **SUPER-CHIP moderno, no el de la calculadora.** No están los comportamientos *legacy*
+  de SUPER-CHIP 1.1 en la HP-48: desplazamientos de medio píxel en baja resolución, VF con
+  la cantidad de filas que chocaron (y las recortadas) en alta resolución, `DXY0` de 8×16
+  en baja resolución, cambiar de resolución sin borrar, solo 8 banderas, el vblank solo en
+  baja resolución ([8.18](#818-octo-como-referencia-de-super-chip-y-xo-chip)). Un quirk o
+  una plataforma "SUPER-CHIP 1.1" los podría sumar.
+- **Sin código máquina del 1802.** `0NNN` se ignora; los programas del VIP que llaman a
+  rutinas propias en código máquina no corren.
+- **Sin fuentes de Octo.** La consola carga binarios; no entiende el lenguaje de Octo
+  (`.8o`). El ensamblador usa los mnemónicos de Cowgod.
+- **El audio de XO-CHIP** vuelve al principio del patrón cuando cambian el patrón o el
+  tono, no cuando ST llega a 0 como pide la especificación (y hace Octo); suena el beep
+  hasta el primer `F002`. `vfOrderQuirks` de Octo no existe (ningún juego del archivo lo
+  usa).
 - **El pitido** es una onda cuadrada fija de 440 Hz; no reproduce el tono del VIP mientras
   se mantiene una tecla durante `FX0A`.
 - **`displayWait` aproximado:** no cuenta ciclos, así que no reproduce que un sprite grande
   tarde más.
-- **iOS:** el estado `interrupted` del `AudioContext` no está manejado; tampoco se probó en
-  Safari ni en Firefox.
+- **Navegadores y dispositivos:** solo se probó en Chromium, con entrada simulada; el
+  estado `interrupted` del `AudioContext` de iOS no está manejado; no se probó con
+  joysticks, pantallas táctiles ni lectores de pantalla reales ([6.8](#68-lo-que-no-se-verifica-automáticamente)).
 - **El desensamblador** no refleja el quirk `shifting` (sigue mostrando VY en `SHR`/`SHL`).
-- **El aviso de ROM rechazada** aparece arriba al centro y en pantallas anchas tapa unos
-  segundos el botón "?" y el título del monitor.
+- **Los avisos** aparecen arriba al centro y en pantallas anchas pueden tapar unos segundos
+  el botón "?" y el título del monitor.
 - **A 360 px con escala 1**, la escala entera deja la imagen más chica que el tubo.
-- **No hay archivo `LICENSE`**; el README dice MIT.
-- **Ideas:** correr las ROMs de prueba de Timendus; mutation testing de la interfaz;
-  E2E en Firefox con WebDriver BiDi; un editor con el ensamblador dentro de la página
-  (`tools/chip8asm.js` ya funciona como `<script>` y define `globalThis.Chip8Asm`); puntos
-  de parada en el monitor; guardar y cargar el estado de la máquina.
+- **No hay archivo `LICENSE`**; el README dice MIT (y que los datos del archivo son CC0).
+
+**Otras ideas.** Correr las ROMs de prueba de Timendus (también las de SUPER-CHIP y
+XO-CHIP) y sumar sus resultados a las pruebas; mutation testing de la interfaz y de las
+herramientas; E2E en Firefox con WebDriver BiDi; exportar e importar la biblioteca y los
+ajustes; mostrar en el estante los datos del archivo (autores, evento) de los juegos
+conocidos; una opción para la paleta de cada juego del archivo en las capturas.

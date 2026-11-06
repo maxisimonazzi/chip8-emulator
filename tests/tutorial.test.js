@@ -20,7 +20,7 @@ const { spawnSync } = require('node:child_process');
 const { ROOT, loadCore, hexToBytes, pixel, renderAscii, loadAssembler } = require('./harness');
 
 const core = loadCore();
-const { Chip8, QUIRK_PRESETS, FONT, FONT_ADDR, disassemble } = core;
+const { Chip8, QUIRK_PRESETS, PRESET_PLATFORM, FONT, FONT_ADDR, disassemble } = core;
 const { assemble } = loadAssembler();
 const { MiniChip8 } = require(path.join(ROOT, 'docs', 'ejemplos', 'mini-emulador.js'));
 
@@ -68,11 +68,13 @@ function seeded(seed, first = []) {
   };
 }
 
-// Crea la máquina con el ejemplo cargado. Por defecto vigila que el programa
-// nunca ejecute bytes de datos.
-function machine(name, { preset = 'vip', quirks = {}, random = seeded(7), guard = true } = {}) {
+// Crea la máquina con el ejemplo cargado, como la deja la consola al elegir un perfil:
+// la plataforma de ese perfil (COSMAC VIP con CHIP-8, SUPER-CHIP con SUPER-CHIP y
+// XO-CHIP con XO-CHIP) y sus quirks. Por defecto vigila que el programa nunca ejecute
+// bytes de datos.
+function machine(name, { preset = 'vip', platform = PRESET_PLATFORM[preset], quirks = {}, random = seeded(7), guard = true } = {}) {
   const ex = example(name);
-  const cpu = new Chip8({ quirks: { ...QUIRK_PRESETS[preset].quirks, ...quirks }, random });
+  const cpu = new Chip8({ platform, quirks: { ...QUIRK_PRESETS[preset].quirks, ...quirks }, random });
   cpu.loadRom(ex.bytes);
   if (guard) {
     const step = cpu.step;
@@ -582,7 +584,7 @@ describe('ejercicio 7: sin el LD I, fantasma de mover', () => {
     assert.ok(source.includes('mover:\n' + line), 'mover tiene que empezar con LD I, fantasma');
     const broken = assemble(source.replace('mover:\n' + line, 'mover:\n'));
     for (const preset of PRESETS) {
-      const cpu = new Chip8({ quirks: QUIRK_PRESETS[preset].quirks, random: seeded(3) });
+      const cpu = new Chip8({ platform: PRESET_PLATFORM[preset], quirks: QUIRK_PRESETS[preset].quirks, random: seeded(3) });
       cpu.loadRom(broken.bytes);
       run(cpu, 40);
       const coin = [cpu.V[8], cpu.V[9]];
@@ -703,16 +705,23 @@ describe('09-contador-con-bug y 10-contador', () => {
 });
 
 describe('11-sin-fin: el programa al que le falta el final', () => {
-  it('con COSMAC VIP y XO-CHIP se detiene en la fuente con "instrucción inválida"', () => {
-    for (const preset of ['vip', 'xochip']) {
-      const cpu = machine('11-sin-fin.asm', { preset, guard: false });
-      let frames = 0;
-      while (!cpu.halted && frames < 1000) { cpu.runFrame(15); frames++; }
-      assert.equal(cpu.error, 'Instrucción inválida o desconocida (opcode 0xF090 en la dirección 0x050).');
-      assert.equal(cpu.pc, 0x050);
-      assert.ok(frames > 90 && frames < 100, frames + ' cuadros');
-      assertScreen(cpu, [{ x: 29, y: 13, rows: FANTASMA }]);
-    }
+  it('con COSMAC VIP se detiene en la fuente con "instrucción inválida"', () => {
+    const cpu = machine('11-sin-fin.asm', { guard: false });
+    let frames = 0;
+    while (!cpu.halted && frames < 1000) { cpu.runFrame(15); frames++; }
+    assert.equal(cpu.error, 'Instrucción inválida o desconocida (opcode 0xF090 en la dirección 0x050).');
+    assert.equal(cpu.pc, 0x050);
+    assert.ok(frames > 90 && frames < 100, frames + ' cuadros');
+    assertScreen(cpu, [{ x: 29, y: 13, rows: FANTASMA }]);
+  });
+
+  it('con XO-CHIP recorre los 64 KB vacíos (más de medio minuto) y se detiene en la misma fuente, en 0x0050', () => {
+    const cpu = machine('11-sin-fin.asm', { preset: 'xochip', guard: false });
+    let frames = 0;
+    while (!cpu.halted && frames < 5000) { cpu.runFrame(15); frames++; }
+    assert.equal(cpu.error, 'Instrucción inválida o desconocida (opcode 0xF090 en la dirección 0x0050).');
+    assert.ok(frames > 1800 && frames < 2700, frames + ' cuadros');
+    assertScreen(cpu, [{ x: 29, y: 13, rows: FANTASMA }]);
   });
 
   it('los bytes del sprite se leen como ADD V8, 0xFC y JP V0, 0x4FC', () => {
@@ -723,14 +732,18 @@ describe('11-sin-fin: el programa al que le falta el final', () => {
     assert.equal(disassemble(word(0x20C)), 'JP V0, 0x4FC');
   });
 
-  it('con SUPER-CHIP el salto va a 0x4FC + V4 y termina con la pila desbordada', () => {
+  it('con SUPER-CHIP el salto va a 0x4FC + V4 (impar) y termina en la fuente grande, que esa plataforma guarda en 0x0A0', () => {
     const cpu = machine('11-sin-fin.asm', { preset: 'schip', guard: false });
     for (let i = 0; i < 7; i++) cpu.step();
     assert.equal(cpu.pc, 0x4FC + 29);
+    const visited = new Set();
     let steps = 0;
-    while (!cpu.halted && steps < 200000) { cpu.step(); steps++; }
+    while (!cpu.halted && steps < 200000) { visited.add(cpu.pc); cpu.step(); steps++; }
     assert.ok(cpu.halted);
-    assert.match(cpu.error, /^Desbordamiento de pila/);
+    assert.equal(cpu.error, 'Instrucción inválida o desconocida (opcode 0xFFC3 en la dirección 0x10A).');
+    // Pasó por la fuente chica (0x050-0x09F) y se detuvo adentro de la grande (0x0A0-0x13F).
+    assert.ok([...visited].some((pc) => pc >= 0x050 && pc < 0x0A0), 'no pasó por la fuente chica');
+    assert.ok(cpu.pc >= core.BIG_FONT_ADDR && cpu.pc < core.BIG_FONT_ADDR + core.BIG_FONT.length);
   });
 });
 
@@ -807,7 +820,7 @@ describe('roms/rebote.asm, como lo cuenta la sección 6.1', () => {
 
   it('la silueta aparece en la mitad de los cuadros con el VIP, en uno de cada cinco sin espera a 15 IPF y nunca desde 30', () => {
     function fraction(preset, ipf) {
-      const cpu = new Chip8({ quirks: QUIRK_PRESETS[preset].quirks });
+      const cpu = new Chip8({ platform: PRESET_PLATFORM[preset], quirks: QUIRK_PRESETS[preset].quirks });
       cpu.loadRom(rom('rebote.asm').bytes);
       run(cpu, 60, ipf);
       let sil = 0;
@@ -827,7 +840,7 @@ describe('roms/rebote.asm, como lo cuenta la sección 6.1', () => {
 
   it('30 pasos por segundo desde 15 IPF, y unos 19 con el VIP a 7 IPF', () => {
     function stepsPerSecond(preset, ipf) {
-      const cpu = new Chip8({ quirks: QUIRK_PRESETS[preset].quirks });
+      const cpu = new Chip8({ platform: PRESET_PLATFORM[preset], quirks: QUIRK_PRESETS[preset].quirks });
       cpu.loadRom(rom('rebote.asm').bytes);
       run(cpu, 30, ipf);
       let steps = 0;
@@ -968,6 +981,9 @@ describe('docs/ejemplos/mini-emulador.js', () => {
 //     una por una (la de cartuchos, contra las etiquetas @ de roms/*.asm).
 //   - <!-- verificar: rebote-xor --> antes de un ```text: las tres pelotas del
 //     primer paso de roms/rebote.asm (antes, entre los dos DRW y después).
+//   - <!-- verificar: tabla-extendida -->: el machete de SUPER-CHIP y XO-CHIP (9.1)
+//     tiene una fila por cada instrucción nueva del núcleo; el ensamblador convierte
+//     cada mnemónico en su opcode y la columna Plataforma es la que dice el núcleo.
 
 function readTutorial() {
   return fs.readFileSync(TUTORIAL_PATH, 'utf8');
@@ -1061,8 +1077,8 @@ function linksOf(md) {
   return out;
 }
 
-// Copia las herramientas y los ejemplos a una carpeta temporal para correr los
-// comandos del tutorial sin escribir nada en el repositorio.
+// Copia las herramientas, los ejemplos y las fuentes de los cartuchos a una carpeta
+// temporal para correr los comandos del tutorial sin escribir nada en el repositorio.
 let sandbox = null;
 function commandSandbox() {
   if (!sandbox) {
@@ -1072,6 +1088,10 @@ function commandSandbox() {
     fs.mkdirSync(path.join(sandbox, 'docs', 'ejemplos'), { recursive: true });
     for (const f of fs.readdirSync(EJEMPLOS)) {
       fs.copyFileSync(path.join(EJEMPLOS, f), path.join(sandbox, 'docs', 'ejemplos', f));
+    }
+    fs.mkdirSync(path.join(sandbox, 'roms'));
+    for (const f of fs.readdirSync(ROMS).filter((n) => n.endsWith('.asm'))) {
+      fs.copyFileSync(path.join(ROMS, f), path.join(sandbox, 'roms', f));
     }
   }
   return sandbox;
@@ -1347,6 +1367,71 @@ describe('docs/TUTORIAL.md', () => {
     assert.ok(md.includes('sobran ' + (n.fall - n.paddle) + ' pasos'));
   });
 
+  it('el machete de SUPER-CHIP y XO-CHIP (9.1): una fila por instrucción nueva, con su opcode y su plataforma', () => {
+    const lines = md.split('\n');
+    const start = lines.indexOf('<!-- verificar: tabla-extendida -->');
+    assert.ok(start >= 0, 'falta la marca <!-- verificar: tabla-extendida -->');
+    const rows = [];
+    for (let i = start + 1; i < lines.length && lines[i].startsWith('|'); i++) {
+      const m = /^\| `([^`]+)` \| `([^`]+)` \| ([^|]+?) \| .+ \|$/.exec(lines[i]);
+      if (m) rows.push({ opcode: m[1], syntax: m[2], platform: m[3] });
+    }
+    // Un caso concreto de cada forma: VX, VY, N y NNNN pasan a V1, V2, 3 y 0x1234.
+    const words = (bytes) => {
+      const out = [];
+      for (let i = 0; i < bytes.length; i += 2) out.push(((bytes[i] << 8) | bytes[i + 1]).toString(16).toUpperCase().padStart(4, '0'));
+      return out.join(' ');
+    };
+    const names = new Set();
+    for (const r of rows) {
+      const text = r.syntax.replace(/\bVX\b/g, 'V1').replace(/\bVY\b/g, 'V2').replace(/\bNNNN\b/g, '0x1234').replace(/\bN\b/g, '3');
+      const opcode = r.opcode.replace('NNNN', '1234').replace(/X/g, '1').replace(/Y/g, '2').replace(/N/g, '3');
+      assert.equal(words(assemble(text, { xochip: true }).bytes), opcode, r.syntax + ' (' + r.opcode + ')');
+      const info = core.extendedInfo(parseInt(opcode.slice(0, 4), 16));
+      assert.ok(info, r.opcode + ' no es una instrucción de SUPER-CHIP ni de XO-CHIP');
+      assert.equal(r.platform, core.PLATFORM_INFO[info.needs].label, r.opcode + ': plataforma');
+      names.add(info.name);
+    }
+    // Todas las del núcleo, una vez cada una.
+    const core17 = new Set();
+    for (let w = 0; w <= 0xFFFF; w++) {
+      const info = core.extendedInfo(w);
+      if (info) core17.add(info.name);
+    }
+    assert.equal(rows.length, core17.size, 'filas del machete');
+    assert.deepEqual([...names].sort(), [...core17].sort());
+    const prose = md.replace(/\s+/g, ' ');
+    assert.ok(prose.includes('Lo nuevo son ' + core17.size + ' instrucciones más'));
+    assert.ok(prose.includes('Las ' + core17.size + ' que agregan SUPER-CHIP y XO-CHIP'));
+  });
+
+  it('los números de Planos (parte 9) y del archivo de la comunidad (1.7) son los de verdad', () => {
+    const prose = md.replace(/\s+/g, ' ');
+    const equ = (name) => {
+      const m = new RegExp('^' + name + '\\s+EQU\\s+(\\d+)', 'm').exec(rom('planos.asm').source);
+      assert.ok(m, 'falta ' + name + ' EQU en roms/planos.asm');
+      return Number(m[1]);
+    };
+    // El patrón de Planos repite su ciclo cada 16 bits (4 prendidos y 12 apagados).
+    const patron = rom('planos.asm').source.match(/^(?:patron:)?\s+DB %11110000, %00000000, %11110000, %00000000$/gm) || [];
+    assert.equal(patron.length, 4, 'el patrón de roms/planos.asm cambió');
+    const pitch = equ('TONO_A_IZQ'); // la pared de la izquierda del disco
+    assert.equal(pitch, 115);
+    const rate = Math.round(core.patternRate(pitch));
+    assert.ok(prose.includes('unos ' + rate + ' bits por segundo'), 'bits por segundo con PITCH ' + pitch);
+    assert.ok(prose.includes(rate + ' / 16 da **' + Math.round(core.patternRate(pitch) / 16) + ' Hz**'));
+    assert.ok(prose.includes(rate + ' / 32 da unos **' + Math.round(core.patternRate(pitch) / 32) + ' Hz**'));
+    assert.equal(core.patternRate(64), 4000);
+    assert.equal(core.patternRate(64 + 48), 8000);
+    // Un paso cada TICK cuadros: 12 por segundo (lo dice el comentario citado en 9.2).
+    assert.equal(60 / equ('TICK'), 12);
+    // El archivo de la comunidad: la cantidad de programas.
+    const programs = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'archive.json'), 'utf8')).programs;
+    const claims = [...prose.matchAll(/\b(\d+) programas del archivo\b/g)];
+    assert.ok(claims.length > 0, 'el tutorial no dice cuántos programas tiene el archivo');
+    for (const m of claims) assert.equal(Number(m[1]), programs.length, m[0]);
+  });
+
   it('con BXNN, el monitor y el ensamblador van y vuelven (4.7 y 7.3)', () => {
     const jumping = { ...QUIRK_PRESETS.vip.quirks, jumping: true };
     assert.equal(disassemble(0xB300, jumping), 'JP V3, 0x300');
@@ -1366,11 +1451,19 @@ describe('docs/TUTORIAL.md', () => {
     assert.ok(md.includes('**' + executed + ' instrucciones**'));
     assert.ok(md.includes(cpu.error));
     assert.ok(md.includes('1410 instrucciones'));
-    // Y con SUPER-CHIP se detiene "medio minuto después", a 15 IPF.
+    // Con el perfil SUPER-CHIP (y su plataforma) se detiene casi al mismo tiempo, pero en la
+    // fuente grande; con XO-CHIP, "más de medio minuto" después, a 15 IPF. El texto cita los
+    // dos errores tal cual.
     const s = machine('11-sin-fin.asm', { preset: 'schip', guard: false });
     let frames = 0;
     while (!s.halted && frames < 5000) { s.runFrame(15); frames++; }
-    assert.ok(frames > 1500 && frames < 2100, frames + ' cuadros');
+    assert.ok(frames < 120, 'SUPER-CHIP: ' + frames + ' cuadros');
+    assert.ok(md.includes(s.error), 'el tutorial no cita el error con SUPER-CHIP: ' + s.error);
+    const x = machine('11-sin-fin.asm', { preset: 'xochip', guard: false });
+    frames = 0;
+    while (!x.halted && frames < 5000) { x.runFrame(15); frames++; }
+    assert.ok(frames > 1800 && frames < 2700, 'XO-CHIP: ' + frames + ' cuadros');
+    assert.ok(md.includes(x.error), 'el tutorial no cita el error con XO-CHIP: ' + x.error);
   });
 
   it('los textos y valores de la consola que cita están en chip8.html', () => {
@@ -1389,6 +1482,26 @@ describe('docs/TUTORIAL.md', () => {
       'Modo de pantalla', 'Tubo CRT', 'Píxeles puros', 'Incluidos:', 'Detalles ↓', "'Controles: '",
       "'En pausa.'", "'Reiniciado'", "' (en pausa).'", "'Paso: PC = 0x'",
       '.disasm li.is-pc .d-mark::before { content: "\\25B6"', '@media (max-width: 760px)',
+      // Compatibilidad, ajustes por cartucho y tus cartuchos (1.3, 1.6 y 1.7).
+      '>Compatibilidad<', '>Plataforma</label>', '>Perfil</label>', '>Ajustes por cartucho<',
+      "' · ajustes del archivo'", "' · ajustes recordados'", '>Olvidar ajustes<', "label: 'Olvidar ajustes'",
+      '>Tus cartuchos<', '>Tuyos:<', "label: 'Deshacer'",
+      'LIBRARY_MAX_ITEMS = 60', 'LIBRARY_MAX_CHARS = 2500000', 'LIBRARY_PICKS = 5',
+      // Pantalla, colores y efectos (1.8).
+      "CUSTOM_NAME = 'Personalizada', CARTRIDGE_NAME = 'Del cartucho'",
+      '<span>Fondo</span>', '<span>Píxel / plano&nbsp;1</span>', '<span>Plano 2</span>', '<span>Ambos planos</span>',
+      '>Curvatura</button>', '>Encendido animado</button>', "'Video ' + fbW + ' × ' + fbH",
+      // Controles: flechas y joystick (1.9).
+      '>Flechas y joystick</label>', "octo: { name: 'WASD de Octo', keys: [0x5, 0x8, 0x7, 0x9, 0x6, 0x4] }",
+      "vip: { name: 'Teclado numérico del VIP', keys: [0x2, 0x8, 0x4, 0x6, 0x5, 0x0] }",
+      // Atajos y comodidades (1.10).
+      'TURBO_FACTOR = 4', '>×4<', 'SHOT_WIDTH = 640', "return 'chip8-' + fileSlug(",
+      "case 'KeyT':", "case 'KeyP':", "case 'KeyG':",
+      // Monitor, estados y diagnósticos (1.11, 1.12 y 9.1).
+      '>MÁQUINA<', "PLANES_TEXT = ['sin planos', 'plano 1', 'plano 2', 'planos 1+2']",
+      "badge: 'Terminado'", "'FIN DEL PROGRAMA'", "label: 'Usar ' + needed",
+      "'Cambiar a ' + platformLabel(platform) + ' y reiniciar'",
+      "'MODELO ' + platformLabel(p)", "' KB RAM'",
     ];
     for (const s of quoted) assert.ok(html.includes(s), 'chip8.html ya no contiene: ' + s);
     // El mapa del teclado del diagrama de la sección 1.4.
