@@ -51,12 +51,19 @@
 //     del README), que la tabla de window.chip8 (4.21) nombre cada miembro de la API,
 //     que la de 3.1 nombre cada clave de Chip8Core, que las claves de localStorage que
 //     cita existan, que la tabla de 6.2 tenga cada tests/*.test.js y que la de 6.7
-//     tenga una fila por escenario de tools/e2e.js, en orden.
+//     tenga una fila por escenario de tools/e2e.js, en orden. Además, lo que cuenta de
+//     los estados guardados: la tabla de 3.11 nombra cada campo de saveState, el
+//     ejemplo de la compresión (marcado con <!-- verificar: compresion -->) y los
+//     tamaños son los que da encodeState, y los topes del rebobinado son los de
+//     RewindBuffer y de la interfaz; la tabla de constantes de 4.1 tiene los valores
+//     de chip8.html; la de 4.19, cada campo de los ajustes guardados (loadSettings);
+//     los atajos de 4.6 y de 9.7 son los de la ayuda; y la tabla de 6.3 nombra cada
+//     archivo de prueba y suma bien.
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { ROOT, loadCore, loadAssembler } = require('./harness');
+const { ROOT, loadCore, loadAssembler, loadDemos, hexToBytes } = require('./harness');
 
 const {
   Chip8, QUIRK_PRESETS, PLATFORMS, PLATFORM_INFO, BIG_FONT, BIG_FONT_ADDR, extendedInfo, patternRate,
@@ -767,5 +774,162 @@ describe('docs/DESARROLLO.md', () => {
     assert.ok(numbers.length >= 24, 'escenarios en tools/e2e.js: ' + numbers.length);
     const rows = [...section('6.7').matchAll(/^\| (\d+) \| /gm)].map((m) => Number(m[1]));
     assert.deepEqual(rows, numbers, 'las filas de la tabla de 6.7 no son los escenarios de tools/e2e.js');
+  });
+
+  // Una constante de la interfaz (var NOMBRE = valor;), evaluada.
+  function uiConst(name) {
+    const m = new RegExp('\\bvar ' + name + ' = ([^;]+);').exec(html);
+    assert.ok(m, 'chip8.html ya no define ' + name);
+    return Function('"use strict"; return (' + m[1] + ');')();
+  }
+  // Los atajos de la tabla de la ayuda de la consola: Espacio, N, ..., ↑ (las flechas), Esc.
+  function helpShortcuts() {
+    const table = /<table class="shortcuts">([^]*?)<\/table>/.exec(html);
+    assert.ok(table, 'no encontré la tabla de atajos de la ayuda en chip8.html');
+    const keys = [...table[1].matchAll(/<tr><th><kbd>([^<]+)<\/kbd>/g)].map((m) => m[1]);
+    assert.ok(keys.length >= 10, 'atajos de la ayuda: ' + keys.length);
+    return keys;
+  }
+  const asWord = (text, word) => new RegExp('(^|[\\s(*])' + word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '([\\s),.*]|$)').test(text);
+
+  it('la tabla de 3.11 nombra cada campo de saveState, y los tamaños del texto son los de encodeState', () => {
+    const { encodeState } = loadCore();
+    const text = section('3.11');
+    const prose = text.replace(/\s+/g, ' ');
+    const fresh = new Chip8().saveState();
+    for (const k of Object.keys(fresh)) assert.match(text, new RegExp('`' + k + '`'), 'la tabla de 3.11 no nombra el campo «' + k + '»');
+    const size = (platform) => encodeState(new Chip8({ platform }).saveState()).length;
+    assert.ok(prose.includes('un CHIP-8 recién creado ocupa ' + size('chip8') + ' y un XO-CHIP, ' + size('xochip')),
+      'recién creados: ' + size('chip8') + ' y ' + size('xochip'));
+    // Los cartuchos, como los deja la consola de fábrica: perfil COSMAC VIP, 15 IPF, 10 s.
+    const sizes = {};
+    for (const d of loadDemos()) {
+      const cpu = new Chip8({ platform: d.platform || 'chip8', random: () => 0 });
+      cpu.loadRom(hexToBytes(d.hex));
+      for (let f = 0; f < 600; f++) cpu.runFrame(15);
+      sizes[d.id] = { name: d.name, platform: d.platform || 'chip8', size: encodeState(cpu.saveState()).length };
+    }
+    const chip8 = Object.values(sizes).filter((s) => s.platform === 'chip8').sort((a, b) => a.size - b.size);
+    const small = chip8[0], big = chip8[chip8.length - 1];
+    assert.ok(prose.includes('de ' + small.size + ' (' + small.name + ') a ' + big.size + ' (' + big.name + '), y *Planos*, ' + sizes.planos.size),
+      'cartuchos: ' + JSON.stringify(sizes));
+    const full = new Chip8({ platform: 'xochip' });
+    full.memory.fill(0x55);
+    const fullText = encodeState(full.saveState());
+    assert.ok(prose.includes('sin un solo cero, ' + spanishInt(fullText.length) + ' (la memoria sola, en base64, son ' +
+      spanishInt(JSON.parse(fullText).memory.length) + ')'));
+    // Las rachas de ceros sueltos: el peor caso posible no llega a 150.000 caracteres ni al tope de la interfaz.
+    const worst = new Chip8({ platform: 'xochip' });
+    worst.loadRom([0x00, 0xFF, 0x12, 0x02]); // HIGH: la pantalla de 128×64
+    worst.step();
+    for (let i = 0; i < worst.memory.length; i += 2) worst.memory[i] = 0xAA;
+    for (let i = 0; i < worst.display.length; i += 2) worst.display[i] = 3;
+    const worstSize = encodeState(worst.saveState()).length;
+    assert.ok(worstSize < 150000 && worstSize < uiConst('STATE_TEXT_MAX'), 'el peor caso ocupa ' + worstSize);
+    assert.ok(prose.includes('no llega a 150.000 caracteres, debajo del tope de ' + spanishInt(uiConst('STATE_TEXT_MAX'))));
+  });
+
+  it('el ejemplo de la compresión de 3.11 es el que da encodeState', () => {
+    const { encodeState } = loadCore();
+    const lines = md.split('\n');
+    const at = lines.indexOf('<!-- verificar: compresion -->');
+    assert.ok(at >= 0 && lines[at + 1] === '```', 'falta el bloque marcado con <!-- verificar: compresion -->');
+    const [shown, note] = lines[at + 2].split(/\s{3,}/);
+    const state = new Chip8().saveState();
+    state.memory.fill(0);
+    state.memory[0x200] = 7;
+    state.memory[0x204] = 9;
+    const json = JSON.parse(encodeState(state));
+    const packed = [...Buffer.from(json.memory, 'base64')].map((b) => hex(b, 2));
+    assert.deepEqual(shown.split(/\s+/), packed, 'la memoria comprimida del ejemplo');
+    // Las rachas y su largo en base 128 (LEB128 sin signo).
+    const leb = (n) => {
+      const out = [];
+      for (; n >= 0x80; n >>>= 7) out.push(hex((n & 0x7F) | 0x80, 2));
+      out.push(hex(n, 2));
+      return out.join(' ');
+    };
+    const runs = [0x200, 3, state.memory.length - 0x205];
+    assert.equal(note, runs.map((n, i) => (i === runs.length - 1 ? 'y ' : '') + n + ' = ' + leb(n)).join(', ').replace(', y', ' y') + ' en base 128');
+    const prose = section('3.11').replace(/\s+/g, ' ');
+    assert.ok(prose.includes('(' + runs[0] + ' ceros, el 7, ' + runs[1] + ' ceros, el 9 y ' + runs[2] + ' ceros)'));
+    assert.ok(prose.includes('`"memory":"' + json.memory + '"`'), 'el texto de la memoria: ' + json.memory);
+    const empty = JSON.parse(encodeState(new Chip8().saveState())).display;
+    assert.ok(prose.includes('`"display":"' + empty + '"`'), 'el texto de una pantalla vacía: ' + empty);
+    assert.ok(prose.includes('(2048 ceros: `' + [...Buffer.from(empty, 'base64')].map((b) => hex(b, 2)).join(' ') + '`)'));
+  });
+
+  it('los topes del rebobinado que cita son los de RewindBuffer y los de la interfaz', () => {
+    const { RewindBuffer } = loadCore();
+    const prose = md.replace(/\s+/g, ' ');
+    const rb = new RewindBuffer();
+    const MB = 1024 * 1024;
+    const frames = uiConst('REWIND_FRAMES'), maxBytes = uiConst('REWIND_MAX_BYTES');
+    assert.ok(prose.includes('de fábrica, ' + rb.maxEntries + ' fotos y ' + rb.maxBytes / MB + ' MB'), 'los valores por defecto de RewindBuffer');
+    assert.ok(prose.includes('la interfaz usa ' + frames + ' y ' + maxBytes / MB + ' MB'));
+    assert.ok(prose.includes(frames + ' fotos (' + frames / 60 + ' s) y ' + maxBytes / MB + ' MB entre todas'));
+  });
+
+  it('la tabla de constantes de 4.1 tiene los valores de chip8.html', () => {
+    const rows = new Map(tableAfter(section('4.1'), '| Constante | Valor | Para qué |').map((r) => [r[0], r[1]]));
+    const list = (a) => '`[' + a.map((s) => "'" + s + "'").join(', ') + ']`';
+    const want = [
+      ['`STATE_SLOTS`, `STATE_TEXT_MAX`', list(uiConst('STATE_SLOTS')) + ' y ' + spanishInt(uiConst('STATE_TEXT_MAX'))],
+      ['`STATE_TAG_MS`, `STATE_TIMES_MS`', uiConst('STATE_TAG_MS') + ' ms y ' + uiConst('STATE_TIMES_MS') / 1000 + ' s'],
+      ['`REWIND_FRAMES`, `REWIND_MAX_BYTES`', uiConst('REWIND_FRAMES') + ' y ' + uiConst('REWIND_MAX_BYTES') / (1024 * 1024) + ' MB'],
+      ['`REWIND_STEP`, `REWIND_HOLD_MS`', uiConst('REWIND_STEP') + ' y ' + uiConst('REWIND_HOLD_MS') + ' ms'],
+      ['`TURBO_FACTOR`', String(uiConst('TURBO_FACTOR'))],
+      ['`SHOT_WIDTH`', String(uiConst('SHOT_WIDTH'))],
+      ['`ROMS_MAX`, `ROM_SAVE_MS`, `FLAGS_CHECK_MS`', uiConst('ROMS_MAX') + ', ' + uiConst('ROM_SAVE_MS') + ' ms y ' + uiConst('FLAGS_CHECK_MS') + ' ms'],
+      ['`LIBRARY_MAX_ITEMS`, `LIBRARY_MAX_CHARS`, `LIBRARY_PICKS`',
+        uiConst('LIBRARY_MAX_ITEMS') + ', ' + String(uiConst('LIBRARY_MAX_CHARS')).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' y ' + uiConst('LIBRARY_PICKS')],
+    ];
+    for (const [names, value] of want) {
+      assert.ok(rows.has(names), 'la tabla de 4.1 no tiene la fila ' + names);
+      assert.equal(rows.get(names), value, names);
+    }
+  });
+
+  it('la tabla de 4.19 tiene cada campo de los ajustes guardados (loadSettings)', () => {
+    const m = /function loadSettings\(\) \{\s*var s = \{([^]*?)\};/.exec(html);
+    assert.ok(m, 'no encontré los ajustes de fábrica de loadSettings en chip8.html');
+    const fields = [...m[1].replace(/\/\/.*$/gm, '').matchAll(/(\w+):/g)].map((x) => x[1]);
+    assert.ok(fields.includes('rewind') && fields.length >= 15, 'campos: ' + fields.join(', '));
+    const rows = tableAfter(section('4.19'), '| Campo | De fábrica | Validación |').map((r) => r[0]);
+    for (const f of fields) {
+      assert.ok(rows.some((cell) => cell.split(', ').includes('`' + f + '`')), 'la tabla de 4.19 no tiene el campo «' + f + '»');
+    }
+  });
+
+  it('los atajos de 4.6 y de 9.7 son los de la ayuda de la consola', () => {
+    const keys = helpShortcuts();
+    const atajos = /\*\*Atajos\.\*\*([^]*?)\n\n/.exec(section('4.6'));
+    assert.ok(atajos, 'falta el párrafo **Atajos.** en 4.6');
+    const text = atajos[1].replace(/\s+/g, ' ');
+    for (const k of keys) {
+      const word = k === '↑' ? 'flechas' : k;
+      assert.ok(asWord(text, word), 'el párrafo de los atajos de 4.6 no nombra «' + word + '»');
+    }
+    // 9.7: las teclas del mapa no pueden chocar con ningún atajo de letra, Espacio o Retroceso.
+    const clash = /choque con los atajos \(([^)]*)\)/.exec(section('9.7').replace(/\s+/g, ' '));
+    assert.ok(clash, 'falta la lista de atajos de 9.7');
+    for (const k of keys.filter((k) => k !== '↑' && k !== 'Esc')) {
+      assert.ok(asWord(clash[1], k), 'la lista de atajos de 9.7 no nombra «' + k + '»');
+    }
+  });
+
+  it('la tabla de 6.3 tiene cada archivo de prueba y su total suma bien', () => {
+    const text = section('6.3');
+    const rows = tableAfter(text, '| Archivo | Pruebas |');
+    const files = fs.readdirSync(path.join(ROOT, 'tests')).filter((n) => n.endsWith('.test.js')).map((n) => '`tests/' + n + '`');
+    const counts = new Map(rows.filter((r) => r[0].startsWith('`')).map((r) => [r[0], Number(r[1])]));
+    assert.deepEqual([...counts.keys()].sort(), files.sort(), 'los archivos de la tabla de 6.3');
+    const total = rows.find((r) => r[0] === '**Total**');
+    assert.ok(total, 'falta la fila del total');
+    const sum = [...counts.values()].reduce((a, b) => a + b, 0);
+    assert.equal(Number(total[1].replace(/\*/g, '')), sum, 'el total de la tabla de 6.3');
+    const said = /\*\*(\d+) pruebas en (\d+) grupos\*\*/.exec(text);
+    assert.ok(said, 'la sección 6.3 no dice cuántas pruebas hay');
+    assert.equal(Number(said[1]), sum, 'el total que dice el texto de 6.3');
   });
 });

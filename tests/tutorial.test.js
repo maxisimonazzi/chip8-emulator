@@ -11,6 +11,10 @@
 //    escritos a mano desensamblan a lo que dice la tabla, las salidas de la
 //    línea de comandos son las que se obtienen de verdad, los mensajes de
 //    error son los del ensamblador y los enlaces al manual existen.
+// 4. Lo que cuenta de la consola sale de chip8.html: los textos que cita, la tabla
+//    de atajos (1.10, contra la de la ayuda), los números de los estados y del
+//    rebobinado (1.13, de las constantes de la interfaz) y el recorrido de la 7.4
+//    con B, que se repite en el núcleo con un RewindBuffer como lo usa la interfaz.
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -1425,11 +1429,134 @@ describe('docs/TUTORIAL.md', () => {
     assert.equal(core.patternRate(64 + 48), 8000);
     // Un paso cada TICK cuadros: 12 por segundo (lo dice el comentario citado en 9.2).
     assert.equal(60 / equ('TICK'), 12);
-    // El archivo de la comunidad: la cantidad de programas.
+    // El archivo de la comunidad: la cantidad de programas, que es también la de ROMs de
+    // roms/archivo/ (1.7 y el ejercicio 9 de 10.1).
     const programs = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'archive.json'), 'utf8')).programs;
-    const claims = [...prose.matchAll(/\b(\d+) programas del archivo\b/g)];
-    assert.ok(claims.length > 0, 'el tutorial no dice cuántos programas tiene el archivo');
+    const roms = fs.readdirSync(path.join(ROOT, 'roms', 'archivo')).filter((f) => f.endsWith('.ch8'));
+    assert.equal(roms.length, programs.length, 'roms/archivo/ no tiene una ROM por programa del archivo');
+    const claims = [...prose.matchAll(/\b(\d+) (?:programas|ROMs) del archivo\b/g)];
+    assert.ok(claims.filter((m) => /ROMs/.test(m[0])).length >= 2, 'el tutorial no dice cuántas ROMs hay en roms/archivo/');
+    assert.ok(claims.length > 2, 'el tutorial no dice cuántos programas tiene el archivo');
     for (const m of claims) assert.equal(Number(m[1]), programs.length, m[0]);
+  });
+
+  it('la tabla de atajos (1.10) tiene cada atajo de la ayuda de la consola', () => {
+    const html = fs.readFileSync(path.join(ROOT, 'chip8.html'), 'utf8');
+    const table = /<table class="shortcuts">([^]*?)<\/table>/.exec(html);
+    assert.ok(table, 'no encontré la tabla de atajos de la ayuda en chip8.html');
+    const keys = [...table[1].matchAll(/<tr><th><kbd>([^<]+)<\/kbd>/g)].map((m) => m[1]);
+    assert.ok(keys.length >= 10, 'atajos de la ayuda: ' + keys.length);
+    const lines = md.split('\n');
+    const start = lines.indexOf('| Botón | Atajo | Qué hace |');
+    assert.ok(start >= 0, 'no encontré la tabla de la sección 1.10');
+    const cells = [];
+    for (let i = start + 2; i < lines.length && lines[i].startsWith('|'); i++) cells.push(lines[i].split('|')[2].trim());
+    // Las flechas de la ayuda (↑ ↓ ← →) son la fila "Flechas" del tutorial.
+    for (const k of keys.map((k) => (k === '↑' ? 'Flechas' : k))) {
+      assert.ok(cells.some((c) => c === k || c.startsWith(k + ',')), 'falta el atajo «' + k + '» en la tabla de la sección 1.10');
+    }
+  });
+
+  // Las constantes de la interfaz (var NOMBRE = valor;), evaluadas.
+  const uiConst = (() => {
+    const html = fs.readFileSync(path.join(ROOT, 'chip8.html'), 'utf8');
+    return (name) => {
+      const m = new RegExp('\\bvar ' + name + ' = ([^;]+);').exec(html);
+      assert.ok(m, 'chip8.html ya no define ' + name);
+      return Function('"use strict"; return (' + m[1] + ');')();
+    };
+  })();
+  const WORDS = ['cero', 'una', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve', 'diez'];
+
+  it('los números de los estados y del rebobinado (1.13) son los de chip8.html', () => {
+    const prose = md.replace(/\s+/g, ' ');
+    const frames = uiConst('REWIND_FRAMES'), maxBytes = uiConst('REWIND_MAX_BYTES');
+    const step = uiConst('REWIND_STEP'), turbo = uiConst('TURBO_FACTOR'), slots = uiConst('STATE_SLOTS');
+    assert.ok(prose.includes('se queda con los últimos ' + frames / 60 + ' segundos'), 'los segundos del rebobinado (REWIND_FRAMES = ' + frames + ')');
+    assert.ok(prose.includes('al doble de velocidad: ' + WORDS[step] + ' frames por cada frame real (con **T** también apretada, ' +
+      WORDS[step * turbo] + ')'), 'la velocidad del rebobinado (REWIND_STEP = ' + step + ', TURBO_FACTOR = ' + turbo + ')');
+    assert.equal(step, 2, 'el texto dice "al doble de velocidad"');
+    assert.deepEqual(slots, ['rapido', '1', '2', '3', '4']);
+    assert.ok(prose.includes('tiene ' + WORDS[slots.length] + ' ranuras: **Rápido** y de la **Ranura 1** a la **Ranura ' + (slots.length - 1) + '**'));
+    // "Como mínimo, unos N" segundos: el peor caso es XO-CHIP en alta resolución con las 256
+    // páginas de la memoria distintas en cada foto, con los topes de la interfaz.
+    const worst = (hires) => {
+      const cpu = new Chip8({ platform: 'xochip' });
+      if (hires) {
+        cpu.loadRom([0x00, 0xFF, 0x12, 0x02]); // HIGH y un salto a sí mismo
+        cpu.step();
+      }
+      const rb = new core.RewindBuffer({ maxEntries: frames, maxBytes });
+      for (let i = 0; i < 1000; i++) {
+        for (let a = 0; a < cpu.memory.length; a += 256) cpu.memory[a] = i & 0xFF;
+        rb.push(cpu);
+      }
+      assert.ok(rb.bytes <= maxBytes);
+      return rb.length / 60;
+    };
+    const least = Math.floor(Math.min(worst(false), worst(true)));
+    assert.ok(least < frames / 60, 'el tope de memoria tendría que dejar menos segundos que REWIND_FRAMES');
+    assert.ok(prose.includes('(como mínimo, unos ' + least + ')'), 'el mínimo de segundos del rebobinado es ' + least);
+  });
+
+  it('volver atrás con B en 11-sin-fin (7.4): un frame, los Pasos hasta el error y el principio', () => {
+    const prose = md.replace(/\s+/g, ' ');
+    const hex3 = (n) => n.toString(16).toUpperCase().padStart(3, '0');
+    const step = uiConst('REWIND_STEP');
+    // La interfaz: una foto al cargar la ROM (rewindRestart) y otra después de cada frame
+    // (tick), también la del frame que se detiene.
+    const cpu = machine('11-sin-fin.asm', { guard: false });
+    const rb = new core.RewindBuffer({ maxEntries: uiConst('REWIND_FRAMES'), maxBytes: uiConst('REWIND_MAX_BYTES') });
+    rb.push(cpu);
+    while (!cpu.halted) {
+      cpu.runFrame(15);
+      rb.push(cpu);
+    }
+    const error = cpu.error;
+    // 1. Un toque de B con la máquina detenida: la foto más nueva es el presente y se
+    // descarta; se carga la anterior, que vuelve al buffer como la más nueva (rewindBack(1)).
+    rb.pop();
+    cpu.loadState(rb.pop());
+    rb.push(cpu);
+    assert.ok(!cpu.halted);
+    assert.ok(prose.includes('*Rebobinado: volviste 1 frame atrás (en pausa, PC = 0x' + hex3(cpu.pc) + ').*'),
+      'el primer toque de B deja el PC en 0x' + hex3(cpu.pc));
+    // 2. Paso a paso hasta la instrucción que falla, y un Paso más.
+    let steps = 0;
+    while (cpu.pc !== 0x050) {
+      assert.ok(cpu.step(), 'Paso ' + (steps + 1) + ' no ejecutó nada');
+      steps++;
+    }
+    assert.ok(prose.includes('A los ' + steps + ' Pasos llega a `0x050`'), steps + ' Pasos hasta 0x050');
+    assert.ok(prose.includes('las ' + steps + ' instrucciones que había ejecutado en ese frame'));
+    assert.equal(disassemble((cpu.memory[0x050] << 8) | cpu.memory[0x051]), 'DW 0xF090');
+    assert.ok(prose.includes('`DW 0xF090`'));
+    cpu.step();
+    assert.ok(cpu.halted);
+    assert.equal(cpu.error, error, 'el mismo error de antes');
+    // 3. Mantener B: Paso dejó de ser la foto más nueva, así que el primer paso vuelve a la
+    // del principio del frame; después, REWIND_STEP frames por tic hasta la más vieja.
+    let back = 0, ticks = 0;
+    cpu.loadState(rb.pop());
+    rb.push(cpu);
+    back++;
+    while (rb.length > 1) {
+      rb.pop();
+      let state = null;
+      for (let k = 0; k < step && rb.length; k++) {
+        state = rb.pop();
+        back++;
+      }
+      cpu.loadState(state);
+      rb.push(cpu);
+      ticks++;
+    }
+    assert.equal(cpu.pc, 0x200, 'la foto más vieja es la de la carga');
+    const secs = String(Math.round(back / 60 * 10) / 10).replace('.', ',');
+    assert.ok(prose.includes('*Rebobinado: volviste ' + secs + ' s atrás (en pausa, PC = 0x200).*'), back + ' frames: ' + secs + ' s');
+    const seconds = uiConst('REWIND_HOLD_MS') / 1000 + ticks / 60;
+    assert.ok(seconds > 1 && seconds < 1.5, 'mantener B hasta el principio tarda ' + seconds.toFixed(2) + ' s ("en poco más de un segundo")');
+    assert.ok(prose.includes('en poco más de un segundo'));
   });
 
   it('con BXNN, el monitor y el ensamblador van y vuelven (4.7 y 7.3)', () => {
@@ -1502,6 +1629,13 @@ describe('docs/TUTORIAL.md', () => {
       "badge: 'Terminado'", "'FIN DEL PROGRAMA'", "label: 'Usar ' + needed",
       "'Cambiar a ' + platformLabel(platform) + ' y reiniciar'",
       "'MODELO ' + platformLabel(p)", "' KB RAM'",
+      // Estados guardados y rebobinado (1.1, 1.10, 1.13 y 7.4).
+      '<h2 class="section-print">Estados</h2>', "'Rápido' : 'Ranura ' + id", "'VACÍA'", "'DAÑADO'",
+      "slotButton('save', 'Guardar'", "slotButton('load', 'Cargar'", "slotButton('delete', 'Borrar'",
+      "flashStateTag('GUARDADO')", "flashStateTag('CARGADO')", "'recién'", "'hace ' + Math.floor(secs / 60) + ' min'",
+      "'ayer ' + hm", "'Podés volver hasta ' + s + ' s.'", '>Rebobinado</button>', 'id="btn-rewind"',
+      "case 'KeyI':", "case 'KeyU':", "case 'KeyB':", "'Rebobinado: volviste '", "(f === 1 ? ' frame' : ' frames')",
+      "' (en pausa, PC = 0x'",
     ];
     for (const s of quoted) assert.ok(html.includes(s), 'chip8.html ya no contiene: ' + s);
     // El mapa del teclado del diagrama de la sección 1.4.
@@ -1546,7 +1680,7 @@ describe('docs/TUTORIAL.md', () => {
       files.add(file);
       assert.ok(fs.existsSync(path.join(ROOT, 'docs', file)), 'enlace roto: ' + link + ' (docs/' + file + ' no existe)');
     }
-    for (const f of ['MANUAL.md', 'DESARROLLO.md', '../README.md', 'ejemplos/']) {
+    for (const f of ['MANUAL.md', 'DESARROLLO.md', '../README.md', 'ejemplos/', '../roms/archivo/LEEME.md']) {
       assert.ok(files.has(f), 'el tutorial tendría que enlazar ' + f);
     }
   });

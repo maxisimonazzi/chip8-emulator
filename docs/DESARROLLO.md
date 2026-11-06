@@ -11,8 +11,10 @@ como está en el repositorio.
 
 Los nombres de funciones, variables y archivos que aparecen acá existen en el código; si
 cambiás alguno, buscalo también en este documento. Algunos (la API de `window.chip8`,
-las claves de `Chip8Core`, las de `localStorage` y la lista de escenarios E2E) los
-controla `tests/manual.test.js` ([6.6](#66-pruebas-de-la-documentación)).
+las claves de `Chip8Core`, las de `localStorage`, los campos de los ajustes guardados,
+los atajos, las constantes y el formato de los estados guardados, y la lista de
+escenarios E2E) los controla `tests/manual.test.js`
+([6.6](#66-pruebas-de-la-documentación)).
 
 ## Índice
 
@@ -33,7 +35,7 @@ controla `tests/manual.test.js` ([6.6](#66-pruebas-de-la-documentación)).
 ### 1.1 Qué es y qué hay en el repositorio
 
 Un emulador de CHIP-8, SUPER-CHIP y XO-CHIP que corre en el navegador desde **un solo
-archivo HTML**, `chip8.html` (unos 338 KB y 6200 líneas), **sin dependencias**: no pide
+archivo HTML**, `chip8.html` (unos 409 KB y 7700 líneas), **sin dependencias**: no pide
 nada a la red, no usa bibliotecas, fuentes ni imágenes externas, y ni siquiera contiene
 una dirección `http(s)`. Se abre con doble clic (`file://`) o por HTTP. Todo lo que ve el
 usuario, los mensajes de error, los comentarios y la documentación están en castellano
@@ -42,14 +44,15 @@ rioplatense (voseo); los identificadores del código, en inglés.
 ```
 chip8.html              la consola: estilos, marcado, núcleo, cartuchos, tabla del archivo e interfaz
 roms/*.asm, *.ch8       fuentes y binarios de los seis cartuchos incluidos
+roms/archivo/           las 104 ROMs del archivo de la comunidad (CC0) y su índice, LEEME.md
 data/archive.json       los 104 programas del archivo de la comunidad: huella, plataforma y opciones de Octo
 tools/chip8asm.js       ensamblador (módulo de Node, script de navegador y línea de comandos)
 tools/embed-roms.js     ensambla roms/*.asm y los incrusta en chip8.html
-tools/archive.js        baja el archivo de la comunidad, lo incrusta en chip8.html y prueba sus juegos
+tools/archive.js        baja el archivo de la comunidad y sus ROMs, lo incrusta en chip8.html y prueba sus juegos
 tools/serve.js          servidor estático mínimo (http://localhost:8008/)
 tools/e2e.js            pruebas de punta a punta en Chrome o Edge, por DevTools Protocol
 tests/harness.js        saca los bloques <script> de chip8.html y los evalúa en Node
-tests/*.test.js         pruebas con node:test (17 archivos)
+tests/*.test.js         pruebas con node:test (18 archivos)
 docs/MANUAL.md          manual de referencia de CHIP-8, SUPER-CHIP y XO-CHIP
 docs/TUTORIAL.md        tutorial, con sus ejemplos en docs/ejemplos/
 docs/DESARROLLO.md      este documento
@@ -59,10 +62,10 @@ package.json            scripts test, asm, roms, archive, serve y e2e; sin depen
 ```
 
 Hace falta Node.js 22 o más nuevo para las herramientas y las pruebas (se usa `node:test`
-y, en `tools/e2e.js`, el `WebSocket` global de Node 22); en esta ronda se trabajó con Node
-24 y las pruebas pasan con 22 y con 24. No hace falta que esté en el PATH
-([9.10](#910-trabajar-sin-node-en-el-path)). El emulador en sí no necesita nada: solo un
-navegador moderno.
+y, en `tools/e2e.js`, el `WebSocket` global de Node 22); desde la segunda ronda se trabaja
+con Node 24 (en esa ronda se comprobó que las pruebas pasan con 22 y con 24). No hace
+falta que esté en el PATH ([9.10](#910-trabajar-sin-node-en-el-path)). El emulador en sí
+no necesita nada: solo un navegador moderno.
 
 ### 1.2 Requisitos originales y dónde se cumplen
 
@@ -88,7 +91,7 @@ está implementado cada uno y qué lo verifica. Los números de "E2E" son escena
 | Monitor de depuración con pausa, paso y reinicio | `updateMonitor`, `togglePause`, `stepOnce`, `frameOnce`, `doReset` y `disassembleRange` ([4.16](#416-el-monitor)) | `tests/disasm.test.js`; E2E 5, 13, 14 y 22 |
 | Demos originales | `roms/*.asm` → `tools/embed-roms.js` → `<script id="chip8-roms">`; estante y selector rápido ([5.4](#54-los-seis-cartuchos)) | `tests/roms.test.js`; E2E 7, 8, 9 y 19 |
 | Pruebas de cada instrucción | `tests/*.test.js` con `node:test` ([6](#6-pruebas)) | `node --test` |
-| Verificación en un navegador de verdad | `tools/e2e.js` ([5.7](#57-toolse2ejs)) | 40 escenarios con entrada real ([6.7](#67-los-escenarios-e2e)) |
+| Verificación en un navegador de verdad | `tools/e2e.js` ([5.7](#57-toolse2ejs)) | 50 escenarios con entrada real ([6.7](#67-los-escenarios-e2e)) |
 | Manual, tutorial y documentación de desarrollo | `docs/MANUAL.md`, `docs/TUTORIAL.md` y este documento | `tests/manual.test.js` y `tests/tutorial.test.js` (ejemplos, fragmentos, textos citados y enlaces) |
 
 ### 1.3 La segunda ronda: features 1 a 5 y 9
@@ -107,9 +110,26 @@ cada una y qué la verifica:
 | **9. Comodidades**: avance rápido, pantalla completa, captura PNG, joystick, controles reasignables, curvatura y encendido animado | Avance rápido (`TURBO_FACTOR`), `toggleFullscreen`, `screenshotCanvas`, `pollGamepads`, `KEYMAP_PRESETS` y `liveKeymap`, `buildWarpMap` (curvatura) y `playPowerOn` ([4.17](#417-comodidades)) | E2E 34 (avance rápido), 35 (captura), 36 (pantalla completa), 37 (joystick simulado), 38 (flechas y «Controles»), 39 (curvatura y encendido animado) y 40 (el diseño con «Controles» a la vista) |
 
 Las features 6 (un taller con editor), 7 (un depurador completo) y 8 (estados guardados y
-rebobinado) quedaron para más adelante ([9.11](#911-limitaciones-conocidas-y-trabajo-futuro)).
+rebobinado) quedaron para más adelante. La 8 se hizo en la tercera ronda
+([1.4](#14-la-tercera-ronda-feature-8)); la 6 y la 7 siguen como trabajo futuro
+([9.11](#911-limitaciones-conocidas-y-trabajo-futuro)).
 
-### 1.4 Requisitos no funcionales
+### 1.4 La tercera ronda: feature 8
+
+La tercera ronda hizo la feature 8, sumó al repositorio las ROMs del archivo de la
+comunidad y reconstruyó la historia de git por tareas
+([7.12](#712-tercera-ronda-el-pedido-y-la-historia-de-git)):
+
+| Feature | Dónde está | Cómo se verifica |
+|---|---|---|
+| **8. Estados guardados y rebobinado**: cinco ranuras por cartucho (la rápida, con I y U, y cuatro más) y volver atrás en el tiempo manteniendo B | Núcleo ([3.11](#311-estados-guardados-y-rebobinado)): `saveState`, `loadState`, `encodeState`, `decodeState`, `STATE_VERSION` y `RewindBuffer`, fuera de `step` y de `runFrame`; interfaz ([4.22](#422-estados-guardados-y-rebobinado)): el grupo «Estados» (`buildStateSlots`, `saveToSlot`, `loadFromSlot`, `deleteSlot`, `restoreSlot` y `stateStore`, en `'chip8-consola.estados'`), el rebobinado (`rewindBuf`, `rewindPush`, `rewindBack`, `rewindTick`, `setRewindEnabled`), `machineStateLoaded`, los atajos I, U y B y el botón ⏪ del bisel | `tests/estados.test.js` (105 pruebas: guardar y cargar en otra máquina sigue igual frame a frame en las tres plataformas, 54 validaciones, el formato de texto y `RewindBuffer`); `tests/manual.test.js` y `tests/tutorial.test.js` (las constantes, los atajos, el ejemplo del formato y los números que citan este documento y el tutorial); E2E 41 a 50 |
+| **Las ROMs del archivo en el repositorio** (no era una feature numerada) | `roms/archivo/`, que arma `node tools/archive.js download` ([5.5](#55-toolsarchivejs)) | `tests/archive.test.js` (3 pruebas nuevas: una ROM por programa, con su huella y su tamaño; ningún archivo de más; el índice `LEEME.md` al día); `node tools/archive.js test`, ahora sin conexión |
+
+`step` y `runFrame` no cambiaron: el rendimiento del núcleo sigue siendo el de
+[3.10](#310-rendimiento). La foto del rebobinado la toma la interfaz después de cada
+frame, con `rewindBuf.push(cpu)`, fuera de `runFrame`.
+
+### 1.5 Requisitos no funcionales
 
 | Requisito | Cómo se cumple | Cómo se verifica |
 |---|---|---|
@@ -118,9 +138,9 @@ rebobinado) quedaron para más adelante ([9.11](#911-limitaciones-conocidas-y-tr
 | Un programa roto no rompe el emulador | La máquina se detiene con un mensaje ([3.7](#37-errores-avisos-y-fin-del-programa)) | `tests/core-api.test.js` (unos 50 opcodes inválidos, pila); `tests/platform.test.js` (errores de plataforma); E2E 14 y 22 |
 | Se puede manejar solo con el teclado y con lector de pantalla | ARIA, modelo de foco, activación sin puntero ([4.20](#420-accesibilidad)) | E2E 5, 20 y 21 |
 | Pantallas chicas y táctiles | Diseño adaptable (760 y 480 px), keypad con punteros y varios dedos, el keypad al lado en pantalla completa | E2E 4, 15 y 24 |
-| Los ajustes se recuerdan | `localStorage` con validación campo por campo, en tres claves ([4.19](#419-ajustes-guardados)) | E2E 10 (también con un `localStorage` que tira excepciones) y 18 |
+| Los ajustes se recuerdan | `localStorage` con validación campo por campo, en cuatro claves: también los estados guardados ([4.19](#419-ajustes-guardados)) | E2E 10 (también con un `localStorage` que tira excepciones), 18, 43 y 48 (sin almacenamiento, sin lugar y con un estado dañado) |
 | Respeta "reducir movimiento" | `@media (prefers-reduced-motion: reduce)`; sin encendido animado | E2E 16 |
-| 60 frames por segundo estables | Acumulador de 60 Hz, sin asignar memoria por frame | E2E 2 (entre 59,7 y 60,3 frames por segundo en las corridas registradas) |
+| 60 frames por segundo estables | Acumulador de 60 Hz. Lo único que se reserva en cada frame es la foto del rebobinado: la pantalla, 80 bytes de registros y las páginas de memoria que cambiaron ([3.11](#311-estados-guardados-y-rebobinado)) | E2E 2 (entre 59,7 y 60,3 frames por segundo en las corridas registradas) y 50 (con XO-CHIP a 1000 IPF, tomando una foto por frame y rebobinando, exige entre 55 y 66 cuadros por segundo) |
 | La plataforma CHIP-8 no se vuelve más lenta ni cambia | El camino de CHIP-8 de `step` quedó igual de corto: lo nuevo vive en funciones aparte ([3.3](#33-buscar-decodificar-ejecutar)); la pantalla de un solo plano usa la tabla de colores de siempre | Las pruebas de CHIP-8 de la primera ronda siguen pasando (solo cambió el mensaje de `loadRom`, que ahora sugiere XO-CHIP); `tests/platform.test.js` (CHIP-8 por defecto, exactamente como antes, y el desensamblador de siempre en las 65.536 palabras); la medición de [3.10](#310-rendimiento) |
 
 ---
@@ -135,13 +155,13 @@ rebobinado) quedaron para más adelante ([9.11](#911-limitaciones-conocidas-y-tr
 chip8.html
 ├── <head>
 │   ├── <link rel="icon" href="data:image/svg+xml,...">    ícono embebido: ningún pedido de red
-│   └── <style id="chip8-style">      ~975 líneas   carcasa, CRT, keypad, panel, monitor, ayuda
+│   └── <style id="chip8-style">     ~1030 líneas   carcasa, CRT, keypad, panel, estados, monitor, ayuda
 └── <body>
-    ├── <main class="desk" id="app">   ~380 líneas   consola, panel, estantes, monitor, avisos, ayuda
-    ├── <script id="chip8-core">      ~1085 líneas   núcleo puro        → globalThis.Chip8Core
+    ├── <main class="desk" id="app">   ~400 líneas   consola, panel, estantes, monitor, avisos, ayuda
+    ├── <script id="chip8-core">      ~1825 líneas   núcleo puro        → globalThis.Chip8Core
     ├── <script id="chip8-roms">        ~45 líneas   GENERADO           → globalThis.CHIP8_DEMOS
     ├── <script id="chip8-archive">    ~110 líneas   GENERADO           → globalThis.CHIP8_ARCHIVE
-    └── <script id="chip8-ui">        ~3595 líneas   interfaz y bucle   → window.chip8
+    └── <script id="chip8-ui">        ~4265 líneas   interfaz y bucle   → window.chip8
 ```
 
 Quién usa a quién:
@@ -159,7 +179,8 @@ Quién usa a quién:
 ```
 
 - **`chip8-core`** es el emulador y nada más: no toca el DOM, la consola del navegador ni
-  ningún global salvo `globalThis.Chip8Core`. Por eso corre igual en Node. Ver
+  ningún global salvo `globalThis.Chip8Core`. Por eso corre igual en Node. Incluye los
+  estados guardados y el buffer del rebobinado, que también son código puro. Ver
   [3](#3-el-núcleo-chip8-core).
 - **`chip8-roms`** lo escribe `tools/embed-roms.js`: una lista de objetos con el nombre,
   la descripción, los controles, la plataforma (si no es CHIP-8) y los bytes en
@@ -171,8 +192,9 @@ Quién usa a quién:
   los quirks, los cuatro colores y el giro. Tampoco se edita a mano. Ver
   [5.5](#55-toolsarchivejs).
 - **`chip8-ui`** es todo lo demás: pantalla, keypad, controles, monitor, sonido, ajustes
-  por cartucho, biblioteca, comodidades y el bucle principal. Solo lee `Chip8Core`,
-  `CHIP8_DEMOS` y `CHIP8_ARCHIVE`. Ver [4](#4-la-interfaz-chip8-ui).
+  por cartucho, biblioteca, comodidades, estados guardados, rebobinado y el bucle
+  principal. Solo lee `Chip8Core`, `CHIP8_DEMOS` y `CHIP8_ARCHIVE`. Ver
+  [4](#4-la-interfaz-chip8-ui).
 
 El núcleo y la interfaz están escritos en JavaScript de estilo ES5 (`var`, funciones y
 prototipos, dentro de una IIFE con `'use strict'`). Las herramientas y las pruebas usan
@@ -198,8 +220,9 @@ sincrónica:
 2. `chip8-roms` define `globalThis.CHIP8_DEMOS`.
 3. `chip8-archive` define `globalThis.CHIP8_ARCHIVE`.
 4. `chip8-ui` ya encuentra el DOM armado y los tres globales. Lee los ajustes guardados,
-   la biblioteca y los ajustes recordados por cartucho; arma el keypad, el monitor, los
-   estantes y los controles; aplica la paleta, el modo de pantalla y la plataforma;
+   la biblioteca, los ajustes recordados por cartucho y los estados guardados; arma el
+   keypad, el monitor, los estantes, los controles y las ranuras de «Estados»; aplica la
+   paleta, el modo de pantalla, la plataforma y el interruptor «Rebobinado»;
    carga el primer cartucho (Rebote, con sus ajustes); anuncia "Cartucho «Rebote» en
    marcha. Tocá H para ver la ayuda."; muestra el encendido animado encima de la imagen
    y arranca el bucle con `requestAnimationFrame`.
@@ -276,11 +299,12 @@ de las ROMs se calcula con un SHA-1 escrito en JavaScript puro (`Core.sha1`), po
 El mapa de la curvatura y las capturas se arman con `canvas.toDataURL`, y la captura se
 baja con un `<a download>` y una URL `blob:`, que también andan desde el disco.
 
-Los ajustes, los ajustes por cartucho y la biblioteca se guardan en `localStorage`, que
-también funciona en `file://`; y si el navegador no lo deja usar, cada acceso está
-envuelto en `try/catch` y la consola sigue andando con lo que tiene en memoria (el estante
-«Tus cartuchos» lo avisa). El escenario E2E 1 abre la página por HTTP y por `file://` y
-exige cero excepciones y cero errores de consola en los dos casos.
+Los ajustes, los ajustes por cartucho, la biblioteca y los estados guardados se guardan
+en `localStorage`, que también funciona en `file://`; y si el navegador no lo deja usar,
+cada acceso está envuelto en `try/catch` y la consola sigue andando con lo que tiene en
+memoria (el estante «Tus cartuchos» y el grupo «Estados» lo avisan). El escenario E2E 1
+abre la página por HTTP y por `file://` y exige cero excepciones y cero errores de
+consola en los dos casos.
 
 ---
 
@@ -311,10 +335,10 @@ El bloque define un único global, `globalThis.Chip8Core`, con 28 claves:
 | `extendedInfo(opcode)` | `{ needs, name }` de una instrucción de SUPER-CHIP o XO-CHIP (la plataforma mínima que la tiene y qué hace), o `null`. |
 | `sha1(bytes)` | La huella SHA-1 de una ROM: 40 dígitos hexadecimales en minúscula. Acepta `Uint8Array`, listas de números o `ArrayBuffer`; un texto es un `TypeError`. |
 | `patternRate(pitch)` | La velocidad del patrón de audio de XO-CHIP en bits por segundo: 4000 × 2^((pitch − 64) / 48). |
-| `STATE_VERSION` | `1`: la versión del formato de los estados guardados. |
+| `STATE_VERSION` | `1`: la versión del formato de los estados guardados ([3.11](#311-estados-guardados-y-rebobinado)). |
 | `encodeState(estado)` | Un estado (`saveState()`) como texto JSON compacto: los arreglos en base64 y la memoria y la pantalla con las corridas de ceros comprimidas. Un estado típico ocupa de 1 a 4 KB. |
 | `decodeState(texto)` | La vuelta: valida todo y tira un `Error` que empieza con "Estado inválido: " si algo no cierra. |
-| `RewindBuffer({ maxEntries, maxBytes })` | El buffer del rebobinado: `push(cpu)`, `pop()`, `peek()`, `clear()`, `length` y `bytes`. Guarda la memoria en páginas de 256 bytes y reusa las que no cambiaron desde la foto anterior. |
+| `RewindBuffer({ maxEntries, maxBytes })` | El buffer del rebobinado (de fábrica, 600 fotos y 32 MB): `push(cpu)`, `pop()`, `peek()`, `clear()`, `length` y `bytes`. Guarda la memoria en páginas de 256 bytes y reusa las que no cambiaron desde la foto anterior. |
 
 `new Chip8({ platform, quirks, random })` acepta tres opciones: `platform` (`'chip8'` si
 falta; una desconocida es un `RangeError`: "Plataforma desconocida: "x" (tiene que ser
@@ -371,6 +395,11 @@ Hay campos internos: `_level` (0, 1 o 2: la posición de la plataforma en `PLATF
 tecla de `FX0A`), `_waitKey` (la tecla elegida durante la espera, `-1` si todavía
 ninguna), `_drew` (`true` si la última instrucción ejecutada fue un `DXYN`) y `_hinted`
 (ya se dejó un aviso desde el último reset).
+
+`saveState()` saca una foto de todo esto, salvo lo que es de la sesión y no de la
+máquina (`rom`, `keys`, `random` y `hint`) y las marcas `_drew`, `displayDirty` y
+`audioDirty`; `_level` y `_mask` salen de la plataforma
+([3.11](#311-estados-guardados-y-rebobinado)).
 
 ### 3.3 Buscar, decodificar, ejecutar
 
@@ -549,13 +578,16 @@ detienen la máquina (`_unsupported`). Por qué la división: ver
 
 Después de detenerse, `step()` devuelve `false` sin ejecutar nada (aunque se escriba una
 instrucción válida en el `pc`) y `runFrame` devuelve 0, hasta que alguien llame a
-`reset()`, `loadRom()` o `setPlatform()`. Las únicas excepciones del núcleo son las de
-argumentos inválidos: un `RangeError` si la ROM no entra (`loadRom`, `setPlatform`) o si
-la plataforma no existe (el constructor, `setPlatform`, `disassemble`), y un `TypeError`
-si `sha1` recibe un texto. Un programa que se va del final de su
-código ejecuta `0000` (se ignora), da la vuelta a la memoria y termina deteniéndose en la
-fuente, con "opcode 0xF090 en la dirección 0x050"; el tutorial lo usa como ejemplo, y
-también muestra que con SUPER-CHIP y XO-CHIP el mismo programa termina distinto. Lo que
+`reset()`, `loadRom()`, `setPlatform()` o `loadState()`. Las únicas excepciones del
+núcleo son las de argumentos inválidos: un `RangeError` si la ROM no entra (`loadRom`,
+`setPlatform`, y `loadState` si no entra en la plataforma del estado), si la plataforma
+no existe (el constructor, `setPlatform`, `disassemble`) o si `RewindBuffer` recibe
+límites inválidos; un `TypeError` si `sha1` recibe un texto; y un `Error` que empieza con
+"Estado inválido: " si `loadState`, `encodeState` o `decodeState` reciben un estado que
+no cierra ([3.11](#311-estados-guardados-y-rebobinado)). Un programa que se va del final
+de su código ejecuta `0000` (se ignora), da la vuelta a la memoria y termina deteniéndose
+en la fuente, con "opcode 0xF090 en la dirección 0x050"; el tutorial lo usa como ejemplo,
+y también muestra que con SUPER-CHIP y XO-CHIP el mismo programa termina distinto. Lo que
 hace la interfaz con el error: [4.14](#414-diagnósticos) y
 [4.15](#415-transporte-estados-y-errores).
 
@@ -671,7 +703,7 @@ El detalle, con las diferencias con SUPER-CHIP 1.1 en la HP-48, está en la
 
 ### 3.10 Rendimiento
 
-Medido en esta ronda en un AMD Ryzen 5 5600GT con Node 24.18, con `tests/harness.js`:
+Medido en la segunda ronda en un AMD Ryzen 5 5600GT con Node 24.18, con `tests/harness.js`:
 
 | Carga | CHIP-8 | SUPER-CHIP | XO-CHIP |
 |---|---|---|---|
@@ -684,7 +716,157 @@ CHIP-8 antes y después de agregar las otras dos, en las mismas condiciones: uno
 por millón en los dos casos. A la velocidad máxima de la consola (IPF 10.000, 600 000
 instrucciones por segundo) el núcleo usa unos 4 ms por segundo de emulación. En el
 navegador, el E2E 2 mide entre 59,7 y 60,3 frames por segundo con cualquier IPF, y en las
-corridas de esta ronda, con IPF 10.000, unas 601 900 instrucciones por segundo.
+corridas de la segunda ronda, con IPF 10.000, unas 601 900 instrucciones por segundo. Los
+estados guardados de la tercera ronda no tocaron `step` ni `runFrame`, así que estos
+números siguen valiendo; lo que cuestan las fotos del rebobinado está en
+[3.11](#311-estados-guardados-y-rebobinado).
+
+### 3.11 Estados guardados y rebobinado
+
+Son cuatro piezas, al final del bloque y fuera de `step` y de `runFrame`, así que el
+camino caliente no cambió:
+
+| Pieza | Qué hace |
+|---|---|
+| `cpu.saveState()` | Una foto completa de la máquina: un objeto común con arreglos propios. |
+| `cpu.loadState(estado)` | Vuelve a una foto sin reiniciar: desde ahí la máquina sigue exactamente como habría seguido la original. |
+| `encodeState(estado)`, `decodeState(texto)` | La foto como texto JSON compacto, para guardarla, y la vuelta, que valida todo. |
+| `RewindBuffer` | Una pila de fotos, una por frame, que comparte las páginas de memoria que no cambiaron. |
+
+**El estado.** `saveState()` devuelve estos campos, en este orden, y todos los arreglos son
+copias nuevas (la máquina puede seguir sin tocar la foto):
+
+| Campos | Qué guardan |
+|---|---|
+| `version`, `platform`, `quirks` | `STATE_VERSION` (1), la plataforma y una copia de los seis quirks. |
+| `memory` | La memoria entera: 4096 bytes, o 65.536 en XO-CHIP. |
+| `V`, `I`, `pc`, `stack`, `sp` | Los registros y la pila (`Uint16Array(16)`). |
+| `delayTimer`, `soundTimer` | DT y ST. |
+| `hires`, `displayWidth`, `displayHeight`, `display`, `planes` | La pantalla: la resolución, las máscaras de planos de cada píxel y los planos elegidos con `FN01`. |
+| `flags` | Las 16 banderas RPL. |
+| `audioPattern`, `audioPatternSet`, `pitch` | El sonido de XO-CHIP. |
+| `waitingForKey`, `waitReg`, `waitKey` | La espera de `FX0A`: si hay una, qué registro recibe la tecla y qué tecla se apretó durante la espera y todavía no se soltó (`-1`: ninguna). |
+| `halted`, `exited`, `error`, `errorInfo` | La máquina detenida por un error o terminada con `EXIT`, con su mensaje y su detalle. |
+| `hinted` | Ya se avisó una instrucción ignorada desde el último reset: después de cargar el estado, no se vuelve a avisar. |
+
+No guarda la ROM (`rom`), las teclas, `hint` ni la función `random`: son de la sesión, no
+de la máquina. Por eso un estado sirve con su ROM (la interfaz los guarda por la huella de
+la ROM, [4.22](#422-estados-guardados-y-rebobinado)), y después de cargarlo `CXNN` da otros
+números, salvo que `random` sea determinista y se restaure aparte, como hacen las pruebas.
+
+**Cargar.** `loadState(estado)` primero valida el estado entero con `checkState`, la misma
+función que usa `encodeState`: ante cualquier problema tira un `Error` que empieza con
+"Estado inválido: " y la máquina queda intacta, sin soltar siquiera las teclas (lo
+comprueban las 54 validaciones de `tests/estados.test.js`). Si la ROM cargada no entra en
+la plataforma del estado, tira un `RangeError` ("La ROM cargada ocupa N bytes y con la
+plataforma X del estado el máximo es M: no se cargó el estado.") y tampoco cambia nada.
+Después copia todo: cambia la plataforma y, si cambia de tamaño, la memoria; **pone los
+quirks del estado** (los de la máquina que lo carga se pisan); reemplaza el arreglo de la
+pantalla solo si cambia de tamaño, como `_setResolution`; pasa los enteros por `| 0`, así
+un `-0` del JSON no queda como número con coma; borra `hint`, suelta todas las teclas, deja
+`_drew` en `false` y `displayDirty` y `audioDirty` en `true`. **No reinicia ni toca
+`rom`**: un `reset()` posterior vuelve a empezar la ROM del cartucho.
+
+Las teclas son el único cabo suelto. `loadState` las suelta todas y quien llama tiene que
+volver a avisar, con `setKey(k, true)`, las que siguen apretadas (la interfaz lo hace con
+`resyncKeys`). Si entre ellas está `waitKey`, soltarla termina la espera de `FX0A` igual
+que en la original; si no está, la espera termina cuando esa tecla se apriete y se suelte.
+Las tres pruebas de `FX0A` de `tests/estados.test.js` fijan los tres casos.
+
+**El texto.** `encodeState` arma un JSON sin espacios que empieza con
+`"format":"chip8-state"` (así `decodeState` reconoce un texto que no es un estado de esta
+consola) y sigue con los mismos campos:
+
+- los números, los booleanos, `error`, `quirks` y `errorInfo` van tal cual;
+- `V`, `flags` y `audioPattern` van en base64 (16 bytes cada uno), y `stack` también: 32
+  bytes, cada entrada en dos, con el byte alto primero;
+- `memory` y `display` van **comprimidos** y después en base64.
+
+La compresión solo achica las rachas de ceros, que son casi toda la memoria de un programa
+chico y casi toda la pantalla: cada byte distinto de cero se copia tal cual, y una racha
+de N ceros seguidos (N ≥ 1) se escribe como un 0 seguido de N en base 128 (LEB128 sin
+signo: 7 bits por byte, los más bajos primero, con el bit alto en 1 cuando sigue otro
+byte). Por ejemplo, una memoria de CHIP-8 con un 7 en `0x200`, un 9 en `0x204` y el resto
+en cero (512 ceros, el 7, 3 ceros, el 9 y 3579 ceros) queda en diez bytes:
+
+<!-- verificar: compresion -->
+```
+00 80 04  07  00 03  09  00 FB 1B      512 = 80 04, 3 = 03 y 3579 = FB 1B en base 128
+```
+
+En el texto es `"memory":"AIAEBwADCQD7Gw=="`, y una pantalla de 64×32 vacía (2048 ceros:
+`00 80 10`) es `"display":"AIAQ"` (`tests/manual.test.js` comprueba el ejemplo). El peor
+caso son los ceros sueltos entre bytes que no son cero: cada uno ocupa dos bytes y el total
+crece un 50 %. Aun así, el estado más grande posible (los 64 KB de XO-CHIP y la pantalla
+de 128×64, los dos con ceros sueltos) no llega a 150.000 caracteres, debajo del tope de
+200.000 con que la interfaz acepta un estado guardado (`STATE_TEXT_MAX`).
+
+Los tamaños, en caracteres: un CHIP-8 recién creado ocupa 742 y un XO-CHIP, 955; los
+cartuchos de CHIP-8 incluidos, después de 10 s con el perfil COSMAC VIP a 15 IPF, de 1344
+(Rebote) a 4193 (Autotest), y *Planos*, 3037; un XO-CHIP con los 64 KB sin un solo cero,
+88.011 (la memoria sola, en base64, son 87.384). `tests/manual.test.js` los vuelve a
+medir.
+
+**La validación.** `decodeState` revisa, en orden: que reciba un texto con JSON válido y
+que sea un objeto; `format`, `version` y `platform`; `hires`, del que depende el tamaño de
+la pantalla; el base64 de cada arreglo (estricto: solo el alfabeto estándar, un largo
+múltiplo de 4 y `=` solo al final) y el largo de cada uno después de descomprimir (una
+racha que se pasa, que queda cortada, de largo 0 o con más de 4 bytes en base 128 es un
+error); y al final `checkState` sobre el objeto armado: cada campo presente y con su
+tipo, su rango y su largo. Por ejemplo, enteros sin coma, la memoria del tamaño de la
+plataforma, `hires` falso en CHIP-8, la pantalla del tamaño de su resolución con píxeles
+de 0 a 1 (de 0 a 3 en XO-CHIP), `planes` en 1 fuera de XO-CHIP y un `errorInfo` con un
+`kind` conocido y una dirección dentro de la memoria. Los mensajes dicen qué campo y qué
+valor: "Estado inválido: memory tiene 4096 bytes y tiene que tener 65536 (la memoria de
+XO-CHIP).". Los campos que no conoce se ignoran, y las claves de más de `quirks` y de
+`errorInfo` se descartan. Una prueba cambia el texto al azar 400 veces: cada vez, o sale un
+estado que se puede cargar, o un "Estado inválido".
+
+**El buffer del rebobinado.** `new RewindBuffer({ maxEntries, maxBytes })` (de fábrica,
+600 fotos y 32 MB; la interfaz usa 1800 y 48 MB) es una pila de fotos: `push(cpu)` agrega
+una; `pop()` saca la más nueva y la devuelve como un estado completo, listo para
+`loadState` (o `null` si no hay); `peek()` la devuelve sin sacarla, con arreglos propios;
+`clear()` las descarta; `length` dice cuántas hay y `bytes`, cuánta memoria retienen. Si
+después de un `push` hay más de `maxEntries` fotos o más de `maxBytes` bytes, se descartan
+las más viejas, pero siempre queda la última. Una foto es más barata que un `saveState()`:
+
+- La memoria va en **páginas de 256 bytes** (16 en 4 KB, 256 en 64 KB). `push` la recorre
+  una sola vez, de a 4 bytes (con una vista `Int32Array` sobre el mismo buffer), y compara
+  cada página con la misma página de la foto anterior: si es igual, **reusa el arreglo** de
+  esa foto; si no, la copia. Las páginas guardadas no se modifican nunca, así que
+  compartirlas es seguro.
+- La pantalla se copia entera (2048 u 8192 bytes); V, las banderas, el patrón de audio y la
+  pila van juntos en 80 bytes (`small`); los quirks, en seis bits; el resto son números y
+  booleanos.
+- `pop` rearma el estado completo (`snapshotState`): una memoria nueva con sus páginas, la
+  pila de 16 bits y los quirks como objeto. La pantalla de la foto que sale se entrega sin
+  copiarla.
+
+**La cuenta de los bytes.** Cada foto cuenta lo que reservó: 256 por cada página nueva, la
+pantalla, los 80 de `small` y 8 por cada referencia de su tabla de páginas. Cada página la
+cuenta la foto **más vieja** que la usa: cuando se descarta la más vieja, las páginas que
+compartía con la siguiente siguen en uso y pasan a la cuenta de la siguiente. Así `bytes`
+es exacta para ese modelo (las pruebas la siguen foto por foto, también al descartar y al
+mezclar `push` y `pop`), pero no incluye lo que el motor de JavaScript agrega por cada
+objeto y cada arreglo, del orden de cien bytes: el uso real es algo mayor. La lista de
+fotos tiene un índice de comienzo y se compacta de vez en cuando, así que descartar la más
+vieja es O(1) amortizado.
+
+Con los límites de la interfaz, medido con `tests/harness.js`:
+
+| Programa | Bytes por foto | 30 s de rebobinado |
+|---|---|---|
+| Un cartucho de CHIP-8 a 15 IPF | 2258 en promedio: 2048 de pantalla, 80, 128 de tabla y alguna página | 3,9 MB |
+| *Planos* (XO-CHIP, 128×64) a 1000 IPF | unos 10.400: 8192 de pantalla, 80, 2048 de tabla y alguna página | 17,8 MB |
+| XO-CHIP con las 256 páginas distintas en cada frame | 69.712 en 64×32 y 75.856 en 128×64 | No entran: los 48 MB alcanzan para 721 o 663 fotos, 12 u 11 s |
+
+**El tiempo**, en la PC de [3.10](#310-rendimiento), con la prueba de rendimiento de
+`tests/estados.test.js`: un `push` tarda entre 3 y 5 µs en CHIP-8, unos 18 µs en XO-CHIP
+con *Planos* y entre 125 y 140 µs en el peor caso de XO-CHIP (todas las páginas
+cambiadas); un `pop` con su `loadState`, menos de 20 µs en CHIP-8 y unos 50 µs en XO-CHIP.
+Un frame dura 16,67 ms. Por qué este diseño y no otro:
+[8.28](#828-el-formato-de-los-estados-json-con-los-ceros-comprimidos) y
+[8.29](#829-el-rebobinado-una-foto-por-frame-con-páginas-compartidas).
 
 ---
 
@@ -692,17 +874,19 @@ corridas de esta ronda, con IPF 10.000, unas 601 900 instrucciones por segundo.
 
 ### 4.1 Organización del bloque
 
-`chip8-ui` es una IIFE de unas 3600 líneas, dividida en secciones con un comentario
+`chip8-ui` es una IIFE de unas 4270 líneas, dividida en secciones con un comentario
 `// ---- nombre`. En orden: constantes, utilidades, ajustes guardados, demos incluidos,
 almacenamiento, validación de lo guardado, archivo de Octo, ajustes recordados por
-cartucho, biblioteca, referencias al DOM, pantalla, curvatura del tubo, encendido
-animado, estado y mensajes, plataforma y perfiles, carga de ROMs, control de ejecución,
-velocidad, quirks, teclado y keypad, avance rápido, controles (flechas y joystick),
-joystick (Gamepad API), pantalla completa, captura, sonido, indicadores, monitor, estante
-de cartuchos, estante «Tus cartuchos», ayuda y arrastre, bucle principal, armado de la
-interfaz, API de depuración y arranque. El comentario del principio del bloque lista los
-puntos de extensión (`applyProfile`, `applyPlatform`, `loadRomBytes`, `loadCartridge`,
-`setCartridgeColors`, `setRotation`).
+cartucho, biblioteca, estados guardados (el almacenamiento), referencias al DOM,
+pantalla, curvatura del tubo, encendido animado, estado y mensajes, plataforma y
+perfiles, carga de ROMs, control de ejecución, velocidad, quirks, teclado y keypad,
+avance rápido, rebobinado, controles (flechas y joystick), joystick (Gamepad API),
+pantalla completa, captura, sonido, indicadores, monitor, estante de cartuchos, estante
+«Tus cartuchos», estados guardados (las ranuras), ayuda y arrastre, bucle principal,
+armado de la interfaz, API de depuración y arranque. El comentario del principio del
+bloque lista los puntos de extensión (`applyProfile`, `applyPlatform`, `loadRomBytes`,
+`loadCartridge`, `setCartridgeColors`, `setRotation`) y resume los estados guardados y
+el rebobinado.
 
 Las constantes que conviene conocer:
 
@@ -722,6 +906,10 @@ Las constantes que conviene conocer:
 | `SHOT_WIDTH` | 640 | Ancho de la captura: 10× con 64×32, 5× con 128×64. |
 | `PAD_DEADZONE` | 0,5 | Desde dónde la palanca del joystick cuenta como una dirección. |
 | `POWER_ON_MS`, `CURVE_AMOUNT` | 700 ms y 0,07 | Duración del encendido animado; cuánto se meten las esquinas con la curvatura. |
+| `STATE_SLOTS`, `STATE_TEXT_MAX` | `['rapido', '1', '2', '3', '4']` y 200.000 | Las cinco ranuras de estados de cada cartucho; el largo máximo de un estado en texto que se acepta al leer lo guardado. |
+| `STATE_TAG_MS`, `STATE_TIMES_MS` | 1500 ms y 30 s | Cuánto se ve «GUARDADO» o «CARGADO» en la pantalla; cada cuánto se ponen al día los "hace 5 min" de las ranuras. |
+| `REWIND_FRAMES`, `REWIND_MAX_BYTES` | 1800 y 48 MB | Lo que guarda el rebobinado como mucho: una foto por frame, 30 s, y lo que pueden retener entre todas. |
+| `REWIND_STEP`, `REWIND_HOLD_MS` | 2 y 350 ms | Frames que vuelve cada tic real (por `TURBO_FACTOR` con T); en pausa, cuánto esperar después del primer frame antes de seguir rebobinando. |
 | `KEY_BY_CODE`, `KEYPAD_LAYOUT`, `PC_HINT` | | Mapa del teclado, orden del keypad en pantalla y la letra que se imprime en cada tecla. |
 | `KEYMAP_PRESETS`, `ARROW_SLOT` | | Los mapas de «Controles» y qué flecha va a qué dirección. |
 | `QUIRK_INFO`, `PALETTES`, `SCREEN_MODES`, `PLATFORM_DESC` | | Textos de los quirks, paletas, modos de pantalla y la descripción de cada plataforma. |
@@ -733,6 +921,9 @@ El estado de la interfaz está en `settings` (lo que se guarda, ver
 puede ser distinto de `settings`, porque cada cartucho trae sus ajustes: está en
 `cpu.platform`, `cpu.quirks`, `liveIpf`, `activePalette`, `rotation` y `liveKeymap`. Hay
 una sola instancia de la máquina, `cpu`, creada con la plataforma y los quirks guardados.
+Los estados guardados viven en `stateStore` y el rebobinado en `rewindBuf` (el
+`Core.RewindBuffer`) y `rewind` (qué lo mantiene apretado y en qué anda):
+[4.22](#422-estados-guardados-y-rebobinado).
 
 ### 4.2 El bucle principal
 
@@ -741,13 +932,19 @@ loop(now), llamado por requestAnimationFrame en cada refresco del monitor (60, 1
    dt = now - lastTime
    si dt < 0 o dt > 250 ms → dt = 16,67 ms           (la pestaña estuvo oculta: se descarta el atraso)
    si hay joysticks → pollGamepads()                 (antes de correr: lo apretado vale para los ticks de este cuadro)
-   si la máquina corre (hay ROM, no está en pausa ni detenida):
+   si está rebobinando y pasó la espera de REWIND_HOLD_MS:
+      la máquina no corre (acc = 0); rewind.acc += dt
+      mientras rewind.acc ≥ 16,67 − 1,67 ms y ticks < MAX_CATCHUP (4):
+         rewindTick():  rewindBack(REWIND_STEP, ×TURBO_FACTOR con T) y syncDisplay(true)
+         rewind.acc −= 16,67 ms
+   si no, si la máquina corre (hay ROM, no está en pausa ni detenida):
       acc += dt
       burst = avance rápido apretado ? TURBO_FACTOR (4) : 1
       mientras acc ≥ 16,67 − 1,67 ms y ticks < MAX_CATCHUP (4):
          burst veces, mientras corra:
             tick():  state.instr += cpu.runFrame(liveIpf)
                      si ST > 0 → soundSeen               (un beep corto suena aunque pasen varios ticks)
+                     rewindPush()                        (la foto de este frame, para el rebobinado)
                      syncDisplay(true)                   (pasa la pantalla a los buffers de brillo)
                      si cpu.halted → handleHalt()
          acc −= 16,67 ms
@@ -759,8 +956,9 @@ loop(now), llamado por requestAnimationFrame en cada refresco del monitor (60, 1
    si needsRender → render()
    updateIndicators()                                (LEDs, PAUSA / ESPERANDO TECLA / ×4, el beep)
    si cpu.hint → checkHint()                         (el aviso de una instrucción de otra plataforma)
-   syncAudioSource()                                 (el beep o el patrón de XO-CHIP)
+   syncAudioSource()                                 (el beep o el patrón de XO-CHIP; nada mientras se rebobina)
    updateMonitor(false)                              (solo si está abierto, visible y en pantalla)
+   updateRewindInfo(false)                           («Podés volver hasta N s.», solo si cambió el número)
 ```
 
 - Con un acumulador y pasos fijos, la emulación va a 60 frames por segundo en un monitor
@@ -771,15 +969,19 @@ loop(now), llamado por requestAnimationFrame en cada refresco del monitor (60, 1
   programa ve la misma secuencia de frames, más rápido. El tope sigue siendo de 4 tics
   reales por cuadro y el atraso se descarta igual, así que al soltar no queda nada por
   recuperar ([4.17](#417-comodidades)).
+- **Rebobinado.** Mientras se rebobina, la máquina no corre: cada tic real de 60 Hz vuelve
+  `REWIND_STEP` (2) frames, o 8 con T, con el mismo tope de 4 tics por cuadro. Cada tic de
+  emulación deja su foto, también con el avance rápido (cuatro por tic real) y mientras
+  `FX0A` espera una tecla ([4.22](#422-estados-guardados-y-rebobinado)).
 - **Pestaña oculta.** Con la pestaña oculta el navegador no llama a
   `requestAnimationFrame`, así que la emulación se congela sola. Al volver no hay una
   ráfaga para ponerse al día: `visibilitychange` suelta todas las teclas (también las del
-  joystick y el avance rápido), apaga el pitido, guarda las banderas y los ajustes
-  pendientes y reinicia `lastTime` y `acc`, y además cualquier `dt` de más de 250 ms se
-  descarta. El E2E 17 lo mide con una pestaña oculta y con una congelada: 0 frames
+  joystick, el avance rápido y el rebobinado), apaga el pitido, guarda las banderas y los
+  ajustes pendientes y reinicia `lastTime` y `acc`, y además cualquier `dt` de más de
+  250 ms se descarta. El E2E 17 lo mide con una pestaña oculta y con una congelada: 0 frames
   mientras tanto, y después 15 frames en 0,25 s y 60 en 1 s.
-- `setPaused` y la carga o el reinicio de una ROM ponen `acc` en 0, para que continuar no
-  ejecute frames atrasados.
+- `setPaused`, la carga o el reinicio de una ROM y el final de un rebobinado ponen `acc`
+  en 0, para que continuar no ejecute frames atrasados.
 
 ### 4.3 La pantalla: de cpu.display al lienzo
 
@@ -928,9 +1130,10 @@ que el bloque 1-4 / Q-R / A-F / Z-V es el mismo en QWERTY, AZERTY o Dvorak:
 
 **Atajos.** Espacio (pausa o continúa), N (un paso; se repite si se mantiene), Retroceso
 (reiniciar), H (abrir o cerrar la ayuda), T (avance rápido, mientras se mantiene), P
-(pantalla completa, si el navegador la tiene), G (captura) y Esc (cerrar diálogos y la
-capa de arrastre). Las **flechas** aprietan las teclas del keypad del mapa de «Controles»
-(`liveKeymap`). Ninguno choca con las 16 teclas.
+(pantalla completa, si el navegador la tiene), G (captura), I (guardar el estado en la
+ranura rápida), U (cargar la ranura rápida), B (rebobinar, mientras se mantiene) y Esc
+(cerrar diálogos y la capa de arrastre). Las **flechas** aprietan las teclas del keypad
+del mapa de «Controles» (`liveKeymap`). Ninguno choca con las 16 teclas.
 
 **Todas las fuentes de teclas se suman.** El keypad se puede tocar con el teclado físico,
 con las flechas, con el mouse o los dedos, con Enter o Espacio sobre una tecla enfocada,
@@ -953,11 +1156,12 @@ window.chip8.pressKey / releaseKey ──────────┘
 
 - Una flecha recuerda qué tecla apretó (`arrowKeys`): si el mapa cambia mientras está
   apretada, al soltarla se suelta la misma.
-- `releaseAllKeys()` suelta todo (y cancela las sueltas programadas, el joystick y el
-  avance rápido) cuando la ventana pierde el foco, cuando cambia la visibilidad y al
-  abrir la ayuda.
-- `reset()` del núcleo limpia las teclas; `resyncKeys()` vuelve a informar las que siguen
-  apretadas después de un reinicio, un cambio de plataforma o la carga de una ROM.
+- `releaseAllKeys()` suelta todo (y cancela las sueltas programadas, el joystick, el
+  avance rápido y el rebobinado) cuando la ventana pierde el foco, cuando cambia la
+  visibilidad y al abrir la ayuda.
+- `reset()` y `loadState()` del núcleo limpian las teclas; `resyncKeys()` vuelve a
+  informar las que siguen apretadas después de un reinicio, un cambio de plataforma, la
+  carga de una ROM o la de un estado (también en cada paso del rebobinado).
 
 **`onKeyDown`**, registrado en `window`:
 
@@ -976,8 +1180,10 @@ window.chip8.pressKey / releaseKey ──────────┘
 7. Espacio: si el foco está en un control (`isControl`: botón, `select`, `summary`,
    enlace, checkbox, radio, `input type="color"` o un `role` de control), se deja la
    activación nativa; si no, pausa o continúa.
-8. N, Retroceso, H, T, P, G y Esc hacen su atajo desde cualquier control que no sea de
-   texto.
+8. N, Retroceso, H, T, P, G, I, U, B y Esc hacen su atajo desde cualquier control que no
+   sea de texto. Los que actúan una vez (Espacio, Retroceso, H, P, G, I y U) no se repiten
+   si la tecla queda apretada; N sí, un paso por repetición; T y B duran mientras se
+   mantienen y se sueltan en `onKeyUp`.
 
 **El modelo de foco.** Un clic con el mouse o el dedo en un botón, un chip, un interruptor,
 un radio o un enlace le saca el foco (`onPointerClick`, en `document`, cuando
@@ -1020,10 +1226,10 @@ AudioBufferSourceNode en bucle (un período del patrón de XO-CHIP) ──┴─
   como activación, por eso se escuchan también `pointerup` y `touchend`.
 - **Cuándo suena.** `updateIndicators()` prende la envolvente (`gain`) si la máquina
   corre, ST > 0 en algún tic de ese cuadro (`soundSeen`, para que un pitido corto suene
-  aunque el avance rápido corra varios tics por cuadro), la pestaña está visible y no está
-  en silencio. Las rampas de `setTargetAtTime` evitan los chasquidos. En pausa, detenida u
-  oculta, no suena. El LED SONIDO se prende cuando corresponde pitar **aunque esté en
-  silencio**, como aviso visual.
+  aunque el avance rápido corra varios tics por cuadro), la pestaña está visible, no está
+  en silencio y no se está rebobinando. Las rampas de `setTargetAtTime` evitan los
+  chasquidos. En pausa, detenida, oculta o rebobinando, no suena. El LED SONIDO se prende
+  cuando corresponde pitar **aunque esté en silencio**, como aviso visual.
 - **El patrón de XO-CHIP.** `syncAudioSource()`, una vez por cuadro: si la ROM ejecutó un
   `F002` desde el último reset (`cpu.audioPatternSet`), suena el patrón; si no, el beep.
   `playPattern()` arma un buffer con un período del patrón (128 bits) a
@@ -1033,6 +1239,9 @@ AudioBufferSourceNode en bucle (un período del patrón de XO-CHIP) ──┴─
   o todo 1) es silencio. El bucle se rearma solo cuando el núcleo avisa que algo cambió
   (`cpu.audioDirty`); al reiniciar vuelve el beep. Entra a la misma envolvente que el
   beep, así el silencio, el volumen, la pausa y la pestaña oculta funcionan igual.
+  Mientras se rebobina, `syncAudioSource()` no cambia nada: como `loadState` deja
+  `audioDirty` en `true`, el patrón de la foto a la que se llegó se arma una vez, al
+  soltar.
 - El aviso del pie del tubo dice "Sonido: tocá la consola para activarlo" (titilando)
   hasta que el contexto corre, "Sonido: silenciado" o "Sonido: este navegador no tiene
   Web Audio".
@@ -1288,7 +1497,9 @@ Paso o Frame no pisan ese mensaje en `#status`. **Reiniciar** después de un err
 al estado de pausa que había justo antes: si ibas de a un paso, queda en pausa en `0x200`
 y Paso sigue andando; si corría, arranca de nuevo. Un cambio de plataforma reinicia de la
 misma forma (`machineRestarted`). Ver
-[8.13](#813-reiniciar-después-de-un-error-respeta-la-pausa).
+[8.13](#813-reiniciar-después-de-un-error-respeta-la-pausa). Cargar un estado o
+rebobinar desde un error también limpia el mensaje, pero con su propia regla para la
+pausa ([4.22](#422-estados-guardados-y-rebobinado)).
 
 ### 4.16 El monitor
 
@@ -1335,10 +1546,12 @@ Está pensado para no costar nada cuando no se mira:
 
 - **Avance rápido.** Lo sostienen cuatro fuentes (`turbo.key`, `pointer`, `button`, `api`):
   la tecla T, el botón del bisel con el puntero (con captura), el mismo botón enfocado con
-  Espacio o Enter, y `window.chip8.setTurbo`. Mientras alguna está activa, cada tic real
+  Espacio o Enter, y `window.chip8.setTurbo`. El botón se arma con `bindHoldButton`, el
+  mismo que usa el botón ⏪ del rebobinado. Mientras alguna está activa, cada tic real
   corre `TURBO_FACTOR` (4) tics emulados ([4.2](#42-el-bucle-principal)) y en el tubo
-  aparece «×4» (solo si la máquina corre). En pausa o detenida no hace nada; se corta con
-  `releaseAllKeys` (la ventana pierde el foco, la pestaña se oculta, se abre la ayuda).
+  aparece «×4» (solo si la máquina corre o rebobina: con B, el rebobinado va cuatro veces
+  más rápido). En pausa o detenida no hace nada; se corta con `releaseAllKeys` (la
+  ventana pierde el foco, la pestaña se oculta, se abre la ayuda).
 - **Pantalla completa.** `toggleFullscreen()` usa la Fullscreen API (o la de WebKit) sobre
   el bisel, y devuelve una promesa con el estado al que se llegó (plazo de 3 s). Con un
   puntero grueso (`pointer: coarse`, un teléfono o una tableta), el keypad se muda adentro
@@ -1369,7 +1582,8 @@ Está pensado para no costar nada cuando no se mira:
 ### 4.18 La ayuda
 
 Un `<dialog>` modal ("Manual rápido") con el mapa del teclado, los atajos, el avance
-rápido, la pantalla completa y las capturas, el joystick y los controles, los cartuchos,
+rápido, la pantalla completa y las capturas, los estados guardados y el rebobinado, el
+joystick y los controles, los cartuchos,
 tus cartuchos, la velocidad, la lista de quirks (armada desde `QUIRK_INFO` por
 `buildHelpQuirks`, con una línea fija que resume los perfiles), las plataformas, los
 colores, la curvatura y el encendido, los ajustes por cartucho (con el crédito del
@@ -1378,7 +1592,7 @@ se cierra con H, Esc, la ×, o un clic en el fondo. Al abrirla se sueltan todas 
 
 ### 4.19 Ajustes guardados
 
-La consola usa tres claves de `localStorage`, todas leídas y escritas dentro de
+La consola usa cuatro claves de `localStorage`, todas leídas y escritas dentro de
 `try/catch`:
 
 | Clave | Qué guarda |
@@ -1386,7 +1600,7 @@ La consola usa tres claves de `localStorage`, todas leídas y escritas dentro de
 | `'chip8-consola.ajustes'` | `settings`: tus últimas elecciones (la tabla de abajo). |
 | `'chip8-consola.cartuchos'` | Los ajustes recordados y las banderas de cada ROM ([4.9](#49-ajustes-por-cartucho)). |
 | `'chip8-consola.biblioteca'` | Tus cartuchos ([4.10](#410-tus-cartuchos-la-biblioteca)). |
-| `'chip8-consola.estados'` | Los estados guardados de cada ROM: `{ version: 1, roms: { [sha1]: { name, slots: { rapido, "1"…"4": { date, text } } } } }`, con `text` = `Chip8Core.encodeState(cpu.saveState())`. |
+| `'chip8-consola.estados'` | Los estados guardados de cada ROM: `{ version: 1, roms: { [sha1]: { name, slots: { rapido, "1"…"4": { date, text } } } } }`, con `text` = `Chip8Core.encodeState(cpu.saveState())` ([4.22](#422-estados-guardados-y-rebobinado)). |
 
 `settings` se guarda entero cada vez que cambia algo. Al arrancar, `loadSettings()` valida
 cada campo por separado y descarta lo que no tenga el tipo esperado:
@@ -1408,6 +1622,7 @@ cada campo por separado y descarta lo que no tenga el tipo esperado:
 | `perRom` | `true` | booleano |
 | `keymap` | WASD de Octo | `'octo'`, `'vip'` o `{ preset: 'custom', keys }` con seis teclas de 0 a 15 |
 | `customKeys` | `null` | seis teclas de 0 a 15 |
+| `rewind` | `true` | booleano: el interruptor «Rebobinado» |
 
 Con el almacenamiento bloqueado o roto, la consola arranca con los valores de fábrica y
 funciona igual (lo prueba el E2E 10 inyectando un `localStorage` que tira excepciones). Un
@@ -1422,15 +1637,19 @@ VIP" vale solo para un navegador que nunca abrió la consola.
 - La pantalla es un `canvas` con `role="img"` y una etiqueta que dice la plataforma y la
   resolución. El keypad es un grupo con una etiqueta por tecla ("Tecla A (en tu teclado:
   Z)"). Los quirks son `role="switch"` con su descripción en `aria-describedby`. Los
-  interruptores de pantalla, sonido, avance rápido, pantalla completa y «Ajustes por
-  cartucho» usan `aria-pressed`. El modo de pantalla es un `radiogroup`. Las muestras de
-  color tienen su etiqueta. El monitor usa `aria-expanded` en su botón y `aria-current` en
-  la fila del PC.
+  interruptores de pantalla, sonido, avance rápido, rebobinado (el botón ⏪ y el
+  interruptor «Rebobinado», descrito por la línea "Podés volver hasta N s."), pantalla
+  completa y «Ajustes por cartucho» usan `aria-pressed`. El modo de pantalla es un
+  `radiogroup`. Las muestras de color tienen su etiqueta. Cada ranura de «Estados» es un
+  `role="group"` con el nombre de la ranura, su pantallita es `aria-hidden` y sus botones
+  dicen qué hacen ("Guardar el estado de la máquina en la ranura rápida (I)"). El monitor
+  usa `aria-expanded` en su botón y `aria-current` en la fila del PC.
 - La línea de estado (`role="status"`, `aria-live="polite"`) anuncia lo importante: el
   cartucho cargado (y con qué ajustes), pausa, paso, reinicio, la velocidad elegida con
   los botones, el perfil y la plataforma, el modo de pantalla, el silencio, la curvatura,
-  los controles, la pantalla completa, la captura y los errores, una sola vez. El monitor
-  no se anuncia: cambia en cada frame.
+  los controles, la pantalla completa, la captura, los estados guardados y cargados,
+  cuánto se rebobinó (al soltar) y los errores, una sola vez. El monitor no se anuncia:
+  cambia en cada frame, también mientras se rebobina.
 - El keypad acepta Enter, Espacio y la activación sin puntero de los lectores de
   pantalla ([4.6](#46-teclado-keypad-y-foco)).
 - Contraste: las letras de ayuda del keypad y las filas vacías de la pila se oscurecieron o
@@ -1488,7 +1707,128 @@ Las funciones que cambian ajustes cuentan como un cambio de la persona: quedan e
 `settings` y, con «Ajustes por cartucho», en los de la ROM de la ranura. Un truco: en la
 vista previa del navegador integrado, `requestAnimationFrame` se frena cuando el panel
 está oculto; para automatizar algo ahí, mové el tiempo con `frame()` o `step()` en lugar
-de esperar.
+de esperar. Los miembros de los estados y del rebobinado, en cambio, no cambian ajustes:
+cargar un estado o rebobinar nunca cuenta como una elección de la persona
+([4.22](#422-estados-guardados-y-rebobinado)).
+
+### 4.22 Estados guardados y rebobinado
+
+El grupo **Estados**, el último del panel, tiene las cinco ranuras del cartucho de la
+ranura (`STATE_SLOTS`: la rápida y de la 1 a la 4), el interruptor «Rebobinado» con la
+línea "Podés volver hasta N s." y una línea de ayuda (`#states-hint`). El rebobinado se
+maneja con B, con el botón ⏪ del bisel y con `window.chip8.setRewinding`. Nada de esto
+cuenta como un cambio de ajustes de la persona: cargar un estado o rebobinar no pasa por
+`userChanged` ni toca `settings`; solo el interruptor se guarda, en `settings.rewind`.
+
+**El almacenamiento.** `localStorage['chip8-consola.estados']`:
+
+```
+{ version: 1, roms: { [sha1]: { name, slots: { rapido | '1'..'4': { date, text } } } } }
+```
+
+`text` es `Core.encodeState(cpu.saveState())` ([3.11](#311-estados-guardados-y-rebobinado))
+y `name`, el nombre de la ROM cuando se guardó (lo usa el aviso de Borrar). Al arrancar,
+`loadStateStore()` valida la estructura: `version` 1, claves que sean huellas SHA-1 (se
+pasan a minúscula) y, en cada ranura, una fecha válida y un texto de 2 a `STATE_TEXT_MAX`
+caracteres que empiece con `{`; lo que no cumple se ignora. Cada texto se decodifica
+entero, con `Core.decodeState`, recién cuando hace falta: para su pantallita o al
+cargarlo. Si no se puede, la ranura dice «DAÑADO», su `title` explica por qué y Cargar
+avisa el error; el estado no se borra solo.
+
+`writeStateStore()` escribe todos los estados de una vez (sin ninguno, borra la clave) y
+devuelve `'ok'`, `'memoria'` (el navegador no deja guardar: `storageOk` es falso),
+`'lleno'` (`QuotaExceededError`) o `'error'`. **A diferencia de los ajustes, no le saca
+lugar a la biblioteca** ([4.10](#410-tus-cartuchos-la-biblioteca)): elegir entre un estado
+y un cartucho guardado es cosa de la persona. `commitStates()` avisa: sin lugar, "No hay
+más lugar en este navegador: el estado queda solo hasta que cierres la página. Para hacer
+lugar, borrá estados viejos o cartuchos de «Tus cartuchos»."; sin almacenamiento, una sola
+vez por sesión. Lo que no entró queda en memoria (`statesUnsaved`, que la línea de ayuda
+menciona) y se vuelve a intentar con el próximo cambio.
+
+**Las ranuras.** `buildStateSlots()` arma cinco grupos, cada uno con su pantallita, su
+nombre, cuándo se guardó y los botones Guardar, Cargar y Borrar (los dos últimos, solo con
+un estado; si el foco del teclado estaba en uno que se deshabilita, pasa a Guardar). La
+pantallita es un `<canvas>` del tamaño de la pantalla del estado (64×32 o 128×64) que
+`drawThumb` pinta con los colores de la paleta activa y que el CSS agranda sin suavizar,
+con escala entera en píxeles físicos, como la pantalla (`sizeThumb`, con un
+`ResizeObserver`); `paintThumbs()` la repinta cuando cambia la paleta. Cuándo se guardó lo
+dice `savedWhen` ("recién", "hace 5 min", "hoy 09:40", "ayer 18:20", "28 de octubre", con
+el año si no es este), que se pone al día cada `STATE_TIMES_MS`. `renderStates()` muestra
+las ranuras del cartucho que se carga; sin cartucho, el grupo muestra solo la explicación.
+
+- **Guardar** (`saveToSlot`, también con I): `Core.encodeState(cpu.saveState())` con la
+  máquina como esté (no hace falta pausar: es una copia), la fecha y el nombre de la ROM.
+  Anuncia "Estado guardado en la ranura rápida." y muestra «GUARDADO» en el tubo durante
+  `STATE_TAG_MS`.
+- **Cargar** (`loadFromSlot`, también con U): `cpu.loadState(Core.decodeState(text))`
+  dentro de un `try/catch` (si falla, un aviso y nada cambia); después,
+  `machineStateLoaded(true, false)`, `rewindRestart()` y el monitor al día. Anuncia de
+  cuándo era el estado ("Estado de la ranura rápida cargado (guardado recién).") y, si
+  estaba detenido, qué hacer; muestra «CARGADO».
+- **Borrar** (`deleteSlot`): el aviso trae «Deshacer» (`restoreSlot`), que devuelve el
+  estado solo si la ranura sigue vacía.
+
+**Después de cargar.** `machineStateLoaded(exact, stay)` pone la interfaz al día **sin
+reiniciar nada**. Actualiza el selector de plataforma, la placa y el monitor
+(`updatePlatformUI`) y los interruptores de quirks (`refreshQuirkUI`), sin guardarlos en
+`settings` ni en los ajustes del cartucho; vuelve a avisar las teclas que siguen apretadas
+(`resyncKeys`: así `FX0A` termina igual que en la original); si había un error en
+pantalla, lo limpia; y si el estado cargado está detenido, `handleHalt()` muestra su error
+o «FIN DEL PROGRAMA». La pausa no cambia, salvo cuando se sale de un error o del fin del
+programa: una ranura vuelve a la pausa que había antes de detenerse (como Reiniciar) y el
+rebobinado (`stay`) deja la máquina en pausa. Con `exact`, la pantalla muestra ese frame
+tal cual, sin estela. Como los quirks van en cada foto, rebobinar más allá de un cambio de
+los interruptores DIP también los vuelve atrás, en la máquina y en los interruptores, sin
+tocar lo que quedó guardado como elección de la persona.
+
+**El rebobinado.** `tick()` llama a `rewindPush()` después de cada frame emulado; con el
+interruptor apagado no guarda nada. `rewindRestart()` vacía el buffer y deja solo la foto
+del presente: al cargar una ROM o un estado, al reiniciar y al cambiar de plataforma
+(`machineRestarted`), y al prender el interruptor. No se puede rebobinar más allá de esos
+momentos, aunque `RewindBuffer` acepte fotos de distintas plataformas.
+`updateRewindInfo()` reescribe "Podés volver hasta N s." solo cuando cambia la cantidad
+de segundos.
+
+Lo mantienen apretado cuatro fuentes (`rewind.key`, `pointer`, `button` y `api`: B, el
+botón ⏪ con el puntero, el mismo botón enfocado con Espacio o Enter, y `setRewinding`),
+como el avance rápido, y `syncRewind()` empieza o termina según lo que esté apretado:
+
+- `rewindStart()`: si la máquina corre, vuelve `REWIND_STEP` frames enseguida; si está en
+  pausa o detenida, vuelve **un** frame y espera `REWIND_HOLD_MS` antes de seguir, así un
+  toque es exactamente un frame. Calla el sonido y muestra «⏪».
+- En cada tic real, el bucle llama a `rewindTick()`, que llama a
+  `rewindBack(REWIND_STEP × (T ? TURBO_FACTOR : 1))`. `rewindBack(n)` saca n fotos, carga
+  solo la última y llama a `machineStateLoaded(false, true)`.
+- `rewind.top` dice que la foto más nueva es el presente (no se ejecutó nada desde que se
+  tomó): al rebobinar se descarta primero, así cada paso es de frames enteros. Paso
+  ejecuta una instrucción y lo apaga: después de unos Pasos, B vuelve al principio de ese
+  frame.
+- La foto que se cargó **vuelve al buffer** como la más nueva. Así, si la máquina avanza
+  desde ahí (corriendo o con Frame), volver otra vez pasa por ella y no se saltea ningún
+  frame ([7.13](#713-tercera-ronda-estados-guardados-y-rebobinado)).
+- `rewindStop()`, al soltar: `acc = 0` (la máquina sigue desde ahí, sin ponerse al día) y
+  un anuncio con lo que se volvió, en frames o en segundos desde 60 frames: "Rebobinado:
+  volviste 1 frame atrás (en pausa, PC = 0x038)." o, si no había más, "No hay más para
+  rebobinar: este es el momento más viejo que quedó guardado.".
+
+**Con la pausa, los errores y el avance rápido.** Rebobinar no cambia la pausa: una
+máquina en pausa sigue en pausa, y una que corría sigue corriendo al soltar. Desde un
+error o desde el fin del programa, en cambio, queda **en pausa** en el frame de antes,
+para mirarlo; Frame o Paso vuelven a llegar al error (E2E 46). Con T, el rebobinado va
+cuatro veces más rápido (8 frames por tic) y «×4» se ve también mientras se rebobina.
+Corriendo con T, cada tic real deja cuatro fotos: los 30 s de `REWIND_FRAMES` son de tiempo
+emulado, 7,5 s de tiempo real a ×4.
+
+**Lo que no se guarda ni se rebobina.** La ROM: cada estado es de la ROM de su huella, y
+las ranuras de una ROM no se ven con otra. Las teclas apretadas. El generador de azar
+(`Math.random`): después de cargar un estado o de rebobinar, `RND` da otros números y el
+programa puede tomar otro camino. Los ajustes de la interfaz: IPF, paleta, giro,
+controles y modo de pantalla quedan como estén. El contador INSTRUCCIONES del monitor,
+que sigue sumando. Y el propio buffer del rebobinado, que se pierde al recargar la página.
+Las banderas RPL, en cambio, son parte de la máquina y vuelven con ella: con «Ajustes por
+cartucho», la próxima mirada de `syncFlags` guarda las del estado como las de la ROM
+([8.28](#828-el-formato-de-los-estados-json-con-los-ceros-comprimidos)). Lo prueban los
+escenarios E2E 41 a 50 ([6.7](#67-los-escenarios-e2e)).
 
 ---
 
@@ -1672,11 +2012,12 @@ Atrapa, y la [parte 9](TUTORIAL.md#9-más-allá-de-chip-8-super-chip-y-xo-chip),
 
 La tabla de autoconfiguración sale del archivo de la comunidad de John Earnest
 (*chip8Archive*, licencia CC0 1.0): los programas de las Octojam y otros eventos, cada uno
-con las opciones con que se juega en Octo. Tres comandos:
+con las opciones con que se juega en Octo. Cuatro comandos:
 
 ```sh
 node tools/archive.js update                 # baja el archivo y escribe data/archive.json (necesita internet)
 node tools/archive.js embed [--check] [--html otro.html]   # escribe <script id="chip8-archive">
+node tools/archive.js download               # baja las ROMs a roms/archivo/ y escribe su LEEME.md
 node tools/archive.js test [--frames N] [--sheet hoja.png] [--only id1,id2] [--json reporte.json]
 ```
 
@@ -1690,12 +2031,29 @@ node tools/archive.js test [--frames N] [--sheet hoja.png] [--only id1,id2] [--j
   ordenado por huella; si el bloque no existe, lo agrega después de `chip8-roms`. Respeta
   CRLF y es idempotente; con `--check` solo verifica (`tests/archive.test.js` lo corre).
   La fuente se guarda **sin `https://`** ([8.23](#823-ninguna-dirección-de-red-en-chip8html)).
+- **`download`** baja a `roms/archivo/<id>.ch8` cada ROM que falte o que no coincida con
+  su huella (las que ya están bien no se vuelven a bajar), comprueba la huella SHA-1 de
+  cada una contra `data/archive.json` (si una cambió, falla con un error que pide correr
+  `update`), avisa si en la carpeta hay archivos que no son del archivo y escribe el
+  índice, `roms/archivo/LEEME.md` (`buildReadme`). Necesita conexión solo para las que
+  faltan.
 - **`test`** corre cada juego con su configuración en el núcleo de `chip8.html` (900
   frames, apretando teclas al azar de forma reproducible) e informa errores, salidas,
   instrucciones ignoradas, pantallas vacías, si usó alta resolución, dos planos o audio.
   Con `--sheet` guarda una hoja de contactos PNG (8 por fila, con borde rojo los que se
-  detuvieron con error), armada con un codificador PNG mínimo propio sobre `zlib`. Necesita
-  conexión, porque baja las ROMs a memoria.
+  detuvieron con error), armada con un codificador PNG mínimo propio sobre `zlib`. Usa las
+  ROMs de `roms/archivo/` (`localOrFetch`) y baja a memoria solo las que falten o no
+  coincidan con su huella: con la carpeta completa anda sin conexión, y los 104 juegos
+  corren en menos de un segundo. Sale con código 1 si algún juego se detuvo con un error.
+
+**`roms/archivo/`** tiene las 104 ROMs del archivo tal como estaban en su commit
+`761e3ff` (925 KB entre todas). El archivo es de dominio público (CC0), así que se pueden
+repartir con el repositorio, y con ellas cualquiera puede probar la autoconfiguración sin
+salir a buscarlas. `LEEME.md` las presenta y tiene una tabla ordenada por título: el
+juego, un enlace al archivo, la plataforma, la velocidad (IPF), los autores (sin el texto
+de ejemplo de la plantilla del archivo, "your name here", que traen 11 programas) y el
+evento. No se edita a mano: `tests/archive.test.js` exige una ROM por programa, con su
+huella y su tamaño, ningún archivo de más y el índice idéntico al que arma `buildReadme`.
 
 La correspondencia con las opciones de Octo:
 
@@ -1726,7 +2084,7 @@ y para probar por HTTP.
 
 ### 5.7 tools/e2e.js
 
-Pruebas de punta a punta en un navegador de verdad, sin dependencias (unas 3300 líneas).
+Pruebas de punta a punta en un navegador de verdad, sin dependencias (unas 4200 líneas).
 Cómo está armado:
 
 ```
@@ -1760,6 +2118,17 @@ decodifican con un lector de PNG propio (sobre `zlib`) para compararlas píxel p
 devuelve los que conecta el escenario; y `localStorage` se inspecciona para comprobar lo
 que quedó guardado.
 
+Los de la tercera ronda suman algunas más: comparan, píxel por píxel, cada pantallita de
+«Estados» con la pantalla del estado guardado pintada con la paleta, y el lienzo y el
+monitor con `cpu.display` después de cargar un estado; envuelven `runFrame` para grabar
+una huella de la máquina en cada frame de la primera pasada, y así comprueban que cada
+momento al que se vuelve rebobinando es exactamente uno de esos y que, al soltar, los
+frames que siguen son los mismos que la primera vez; reescriben la fecha de un estado en
+`localStorage` para ver "hace 5 min" y "ayer 18:20" después de recargar; llenan el
+`localStorage` de verdad hasta el `QuotaExceededError` y meten un estado dañado; y, en el
+escenario 50, miden los huecos entre cuadros de `requestAnimationFrame` (el promedio y el
+percentil 95) mientras se corre y se rebobina con XO-CHIP a 1000 IPF.
+
 Cada escenario arranca con los ajustes de fábrica: borra el `localStorage` desde una página
 vacía del mismo origen (`Storage.clearDataForOrigin` devolvía "Internal error" en este
 Chrome). Los escenarios miden con tiempo real (dejan correr `requestAnimationFrame`), no
@@ -1777,11 +2146,12 @@ findBrowser }` para reutilizarlo. Cómo correrlo: [9.9](#99-correr-las-pruebas-e
 node --test                                   # todas las pruebas unitarias (o: npm test), ~5 s
 node --test tests/xochip.test.js              # un archivo
 node --test --test-name-pattern="FX0A"        # por nombre
-node tools/e2e.js                             # E2E en Chrome o Edge (o: npm run e2e), ~3 min
+node tools/e2e.js                             # E2E en Chrome o Edge (o: npm run e2e), unos minutos
 node tools/e2e.js --only 1,5 --shots ../capturas   # algunos escenarios, capturas afuera del repo
 node tools/embed-roms.js --check              # ¿están al día los cartuchos incrustados?
 node tools/archive.js embed --check           # ¿está al día la tabla del archivo?
-node tools/archive.js test                    # los 104 juegos del archivo (necesita internet)
+node tools/archive.js test                    # los 104 juegos del archivo, con las ROMs de roms/archivo/
+node tools/archive.js download                # baja a roms/archivo/ las ROMs que falten (necesita internet)
 ```
 
 Antes de dar por terminado un cambio: `node --test` y, si tocaste la interfaz,
@@ -1805,7 +2175,7 @@ Antes de dar por terminado un cambio: `node --test` y, si tocaste la interfaz,
 | `tests/asm-extendido.test.js` | Las instrucciones de SUPER-CHIP y XO-CHIP del ensamblador, `LD I, LONG` (4 bytes), los errores nuevos, los nombres reservados nuevos, la opción `xochip`/`--xo` (hasta `0xFFFF`), el listado con direcciones de 4 dígitos y la ida y vuelta con el desensamblador de SUPER-CHIP y de XO-CHIP en todas las palabras. |
 | `tests/roms.test.js` | Los cartuchos: cada `.asm` ensambla idéntico a su `.ch8` y tiene sus etiquetas; `embed-roms --check` y el bloque incrustado; el propio `embed-roms.js` sobre un HTML temporal con CRLF, y la etiqueta `@platform`; 600 frames por demo y perfil sin ejecutar datos; y el comportamiento de cada uno: el movimiento y las velocidades de Rebote; las 16 teclas de Teclado; en Atrapa, la paleta, que todo bloque se pueda atrapar y el reinicio con apretar y soltar; Autotest con VD = 19 y VE = 0 en cada perfil e IPF, y los núcleos saboteados que tiene que detectar; la posición de cada glifo en Fuente; y en Planos, la pantalla, los planos limpios, los cuatro valores, las velocidades, el contador, el sonido, la tecla y que vaya igual con cualquier perfil e IPF. |
 | `tests/archive.test.js` | `tools/archive.js` (las opciones de Octo pasadas a los ajustes, colores, giro, eventos, `toEntry`), `data/archive.json` (fuente, licencia, commit; huellas únicas, plataformas válidas, tamaños que entran), las ROMs de `roms/archivo/` (una por programa, con su huella y su tamaño, y el índice `LEEME.md` al día) y el bloque incrustado (al día, una entrada válida por programa, sin `</script` ni comentarios HTML, entre `chip8-roms` y `chip8-ui`, `embedInto` idempotente y con CRLF). |
-| `tests/estados.test.js` | Los estados guardados y el rebobinado: guardar a mitad de un programa y cargar en otra máquina sigue igual frame a frame (timers, `CALL`/`RET`, `FX0A`, SUPER-CHIP, XO-CHIP con dos planos, audio y memoria de 64 KB, máquinas detenidas y terminadas); `loadState` cambia de plataforma sin recargar la ROM; unas 54 validaciones que dejan la máquina intacta; el formato de texto (ida y vuelta, tamaños, cada error); y `RewindBuffer` (orden, páginas compartidas, límites, `clear`). |
+| `tests/estados.test.js` | Los estados guardados y el rebobinado: guardar a mitad de un programa y cargar en otra máquina sigue igual frame a frame (timers, `CALL`/`RET`, `FX0A`, SUPER-CHIP, XO-CHIP con dos planos, audio y memoria de 64 KB, máquinas detenidas y terminadas); `loadState` cambia de plataforma sin recargar la ROM; 54 validaciones que dejan la máquina intacta; el formato de texto (ida y vuelta, también con estados al azar; la compresión en los bordes de la base 128; tamaños; cada error; 400 textos cambiados al azar); y `RewindBuffer` (orden, páginas compartidas y la cuenta exacta de los bytes, límites, `clear`, cambios de plataforma entre fotos, `push` y `pop` intercalados y el rendimiento). |
 | `tests/tutorial.test.js` | El tutorial y sus ejemplos ([6.6](#66-pruebas-de-la-documentación)). |
 | `tests/manual.test.js` | El manual, el README y este documento ([6.6](#66-pruebas-de-la-documentación)). |
 | `tests/single-file.test.js` | El contrato del archivo único: los cinco bloques, cada uno una vez, con la etiqueta de apertura exacta y en orden; ningún `</script` ni `</style` adentro; ninguna dirección `http(s)`, `@import`, ni `src`/`href`/`url()` que no sea `data:` o `#ancla`; y que los cuatro bloques de código compilen. |
@@ -1813,7 +2183,7 @@ Antes de dar por terminado un cambio: `node --test` y, si tocaste la interfaz,
 ### 6.3 Números actuales
 
 Medido el 6 de noviembre de 2026 con Node 24.18 (`node --test` desde la raíz):
-**1371 pruebas en 198 grupos**, todas pasan y ninguna salteada, en unos 5 s.
+**1489 pruebas en 207 grupos**, todas pasan y ninguna salteada, en unos 5 s.
 
 | Archivo | Pruebas |
 |---|---|
@@ -1822,34 +2192,37 @@ Medido el 6 de noviembre de 2026 con Node 24.18 (`node --test` desde la raíz):
 | `tests/platform.test.js` | 141 |
 | `tests/xochip.test.js` | 129 |
 | `tests/disasm.test.js` | 121 |
+| `tests/estados.test.js` | 105 |
 | `tests/core-api.test.js` | 103 |
 | `tests/asm.test.js` | 96 |
 | `tests/asm-extendido.test.js` | 95 |
 | `tests/roms.test.js` | 90 |
-| `tests/tutorial.test.js` | 81 |
+| `tests/tutorial.test.js` | 84 |
 | `tests/display.test.js` | 49 |
 | `tests/timers-keys.test.js` | 46 |
-| `tests/manual.test.js` | 31 |
+| `tests/manual.test.js` | 38 |
 | `tests/quirks.test.js` | 30 |
-| `tests/archive.test.js` | 17 |
+| `tests/archive.test.js` | 20 |
 | `tests/mutation-gaps.test.js` | 12 |
 | `tests/single-file.test.js` | 4 |
-| **Total** | **1371** |
+| **Total** | **1489** |
 
-Todas pasan cuando los cartuchos y la tabla del archivo incrustados están al día. Las
-pruebas del grupo "chip8.html tiene las demos incrustadas" (`embed-roms --check` y la
-comparación de `CHIP8_DEMOS` con las fuentes) y la de `archive.js embed --check` fallan a
-propósito si alguien cambia un `roms/*.asm` o `data/archive.json` y no vuelve a
-incrustar.
+Todas pasan cuando los cartuchos y la tabla del archivo incrustados están al día y
+`roms/archivo/` está completa. Las pruebas del grupo "chip8.html tiene las demos
+incrustadas" (`embed-roms --check` y la comparación de `CHIP8_DEMOS` con las fuentes), la
+de `archive.js embed --check` y las de `roms/archivo/` fallan a propósito si alguien
+cambia un `roms/*.asm` o `data/archive.json` y no vuelve a incrustar o a bajar las ROMs.
 
 Fuera de `node --test`: `node tools/archive.js test` informa que 103 de los 104 juegos del
 archivo corren sin errores ([5.5](#55-toolsarchivejs)).
 
-La E2E: **40 de 40 escenarios** ([6.7](#67-los-escenarios-e2e)) en 4 corridas completas
-seguidas, de unos 188 s cada una: los 24 de la primera ronda y 16 nuevos para las
-features de esta ronda. Algunas medidas de esas corridas: *Planos* a 60 frames por
-segundo; el avance rápido da ×4,00 instrucciones y tics de los timers; la captura es un
-PNG de 640×320; con IPF 10.000, unas 601 900 instrucciones por segundo. Y de la primera
+La E2E: **50 de 50 escenarios** ([6.7](#67-los-escenarios-e2e)) en tres corridas
+seguidas, al terminar la interfaz de la tercera ronda: los 24 de la primera ronda, los 16
+de la segunda y 10 nuevos para los estados guardados y el rebobinado. En la segunda ronda,
+los 40 de entonces pasaron en 4 corridas completas seguidas, de unos 188 s cada una;
+algunas medidas de esas corridas: *Planos* a 60 frames por segundo; el avance rápido da
+×4,00 instrucciones y tics de los timers; la captura es un PNG de 640×320; con IPF 10.000,
+unas 601 900 instrucciones por segundo. Y de la primera
 ronda, en Chrome 154: `requestAnimationFrame` a 60,0 por segundo; Rebote a 59,8 frames por
 segundo con IPF 15 y con IPF 1000 (579 instrucciones por segundo, por `displayWait`); un
 bucle sin dibujo a IPF 1000, 60,3 frames y 60 259 instrucciones por segundo; la pelota
@@ -1874,6 +2247,15 @@ referencia mínimas escritas dentro de la prueba**, independientes del núcleo, 
 `tests/platform.test.js` compara `extendedInfo` con una tabla de referencia en las 65.536
 palabras y `sha1` con `node:crypto`. Las pruebas de CHIP-8 de la primera ronda no se
 tocaron, salvo para el mensaje de `loadRom`, que ahora sugiere XO-CHIP.
+
+En la tercera ronda, la referencia de `tests/estados.test.js` es la máquina misma: una
+corre N frames, guarda su estado y sigue M frames más; otra, nueva y con la misma ROM,
+carga el estado y corre los mismos M frames, y las dos tienen que coincidir frame por
+frame en todo lo que se ve desde afuera (pantalla, registros, pila, timers, sonido,
+banderas, memoria, la espera de tecla y los errores). Así la prueba no necesita saber
+cómo se guarda un estado para saber si quedó bien guardado. La cuenta de los bytes de
+`RewindBuffer` se compara con una cuenta propia de las páginas que cambiaron entre dos
+memorias.
 
 ### 6.5 Mutation testing
 
@@ -1961,7 +2343,21 @@ La documentación también se prueba, para que no se aleje del código:
   nombre cada miembro de `window.chip8` y la de [3.1](#31-api-pública) cada clave de
   `Chip8Core`, que las claves de `localStorage` que cita existan, y que la tabla de
   [6.7](#67-los-escenarios-e2e) tenga una fila por escenario de `tools/e2e.js`, con su
-  número.
+  número. Y además, desde la tercera ronda:
+  - la tabla de [3.11](#311-estados-guardados-y-rebobinado) nombra cada campo de
+    `saveState`; el ejemplo de la compresión (el bloque marcado con
+    `<!-- verificar: compresion -->`, con sus rachas en base 128 y su texto en base64) y
+    los tamaños que cita (los estados recién creados, los cartuchos después de 10 s, la
+    memoria sin ceros y el peor caso) son los que da `encodeState`; y los topes del
+    rebobinado son los de `RewindBuffer` y los de la interfaz;
+  - la tabla de constantes de [4.1](#41-organización-del-bloque) tiene los valores de
+    `chip8.html` (las de los estados, el rebobinado, el avance rápido, la captura, los
+    ajustes por cartucho y la biblioteca), y la de [4.19](#419-ajustes-guardados), cada
+    campo de los ajustes guardados de `loadSettings`;
+  - los atajos de [4.6](#46-teclado-keypad-y-foco) y la lista de
+    [9.7](#97-cambiar-el-mapa-del-teclado) tienen cada atajo de la tabla de la ayuda;
+  - la tabla de [6.3](#63-números-actuales) nombra cada archivo de prueba y su total suma
+    bien (los números de cada archivo no se comprueban: hay que volver a contarlos).
 - **`tests/tutorial.test.js`.** Cada ejemplo de `docs/ejemplos/` ensambla, su `.ch8` está
   al día y hace lo que el texto dice (pantalla exacta, teclas, velocidades, registros paso
   a paso, el error de `11-sin-fin` en cada plataforma). Cada perfil corre en **la
@@ -1975,19 +2371,28 @@ La documentación también se prueba, para que no se aleje del código:
   los mensajes de error son los del ensamblador; el machete de SUPER-CHIP y XO-CHIP
   (`<!-- verificar: tabla-extendida -->`) tiene una fila por instrucción nueva, con el
   opcode que da el ensamblador y la plataforma del núcleo; los números que cita (las notas
-  de Planos, los programas del archivo) son los de verdad; los textos y constantes de la
-  interfaz que cita están en `chip8.html`; y los enlaces llevan a archivos y anclas que
-  existen.
+  de Planos, los programas del archivo y las ROMs de `roms/archivo/`) son los de verdad;
+  los textos y constantes de la interfaz que cita están en `chip8.html`; y los enlaces
+  llevan a archivos y anclas que existen (tiene que enlazar el manual, este documento, el
+  README, los ejemplos y el índice de `roms/archivo/`). Desde la tercera ronda, además: la
+  tabla de atajos de la parte 1.10 tiene cada atajo de la ayuda; los números de la parte
+  1.13 (los segundos del rebobinado, su velocidad con y sin T, las ranuras y el mínimo de
+  segundos con la memoria de XO-CHIP cambiando entera, que calcula con `RewindBuffer`)
+  salen de las constantes de la interfaz; y el recorrido con B de la parte 7.4 sobre
+  `11-sin-fin` se repite en el núcleo, con un `RewindBuffer` usado como lo usa la
+  interfaz: el PC después del primer toque, los Pasos hasta el error y los segundos hasta
+  el principio.
 
-Consecuencia práctica: si cambiás un texto de la interfaz, una constante, un fragmento
-citado del núcleo o de una ROM, un mensaje del ensamblador, un miembro de `window.chip8` o
-un escenario E2E, estas pruebas fallan y dicen qué actualizar en el tutorial, en el manual,
-en el README o acá. Es a propósito.
+Consecuencia práctica: si cambiás un texto de la interfaz, una constante, un atajo, un
+campo de los ajustes o del estado, un fragmento citado del núcleo o de una ROM, un mensaje
+del ensamblador, un miembro de `window.chip8` o un escenario E2E, estas pruebas fallan y
+dicen qué actualizar en el tutorial, en el manual, en el README o acá. Es a propósito.
 
 ### 6.7 Los escenarios E2E
 
 Todos usan entrada real (teclas, clics, toques, archivos y arrastre) y tiempo real. Los 24
-primeros son de la primera ronda; del 25 al 40, de la segunda:
+primeros son de la primera ronda; del 25 al 40, de la segunda; del 41 al 50, de la
+tercera:
 
 | # | Qué verifica |
 |---|---|
@@ -2065,8 +2470,14 @@ archivo).
   el aspecto (la curvatura, el encendido, el resplandor) se revisó mirando capturas, no
   con imágenes de referencia.
 - **Los juegos del archivo, jugados.** `node tools/archive.js test` los corre en Node con
-  teclas al azar y mira que no se detengan ni queden en blanco; no los juega, y no corre
-  en las pruebas comunes porque necesita internet.
+  teclas al azar y mira que no se detengan ni queden en blanco; no los juega. Desde que las
+  ROMs están en `roms/archivo/` corre sin conexión, pero sigue afuera de `node --test`:
+  informa 103 de 104 (*Super Square* se detiene) y sale con código 1.
+- **Los estados en otros navegadores.** El tope de `localStorage` se probó en Chrome
+  (E2E 48, con un `QuotaExceededError` de verdad); el de Firefox o Safari, no. Lo que
+  ocupa el rebobinado en el navegador es algo más que `rewindInfo().bytes`, que no cuenta
+  lo que el motor de JavaScript agrega por objeto ([3.11](#311-estados-guardados-y-rebobinado)),
+  y no se midió.
 - **ROMs de pruebas de la comunidad** (por ejemplo, la suite de Timendus): no se
   descargaron ni se corrieron; los quirks y las instrucciones nuevas se verificaron contra
   su comportamiento documentado y contra el código de Octo.
@@ -2077,8 +2488,9 @@ archivo).
 ## 7. Proceso de desarrollo
 
 El proyecto lo construyeron agentes de IA especializados, en fases, coordinados por un
-agente principal, en dos rondas. Esta sección cuenta cómo, porque explica varias
-decisiones del código y de las pruebas.
+agente principal, en tres rondas. Esta sección cuenta cómo, porque explica varias
+decisiones del código y de las pruebas. La historia de git sigue esas mismas etapas, un
+commit por tarea ([7.12](#712-tercera-ronda-el-pedido-y-la-historia-de-git)).
 
 ### 7.1 Primero el contrato
 
@@ -2195,7 +2607,9 @@ Después de la revisión, a pedido del usuario, se agregaron dos cosas a la inte
 selector de modo de pantalla** (Tubo CRT o Píxeles puros,
 [4.4](#44-modos-de-pantalla-y-efectos-del-tubo); E2E 18) y **el selector rápido de
 cartuchos** debajo de la ranura ([4.11](#411-cartuchos-incluidos-y-selector-rápido);
-E2E 19). Ese estado, con 797 pruebas y 24 escenarios, es el commit `d40912f`.
+E2E 19). La integración final cerró la ronda con 797 pruebas y 24 escenarios, todos en
+verde (commit `19d1dcd`). Más tarde, el mismo día y también a pedido del usuario, el tope
+de la velocidad subió de 1000 a 10.000 IPF, con la guía para las ROMs lentas (`0dcd7ec`).
 
 ### 7.8 Segunda ronda: el pedido y el punto de restauración
 
@@ -2208,11 +2622,15 @@ colores personalizados, **5** una biblioteca de cartuchos, **6** un taller con e
 del tubo y encendido animado). El usuario aprobó **1, 2, 3, 4, 5 y 9**; las otras tres
 quedaron como trabajo futuro ([9.11](#911-limitaciones-conocidas-y-trabajo-futuro)).
 
-Antes de tocar nada se hizo un **punto de restauración**: el commit `d40912f` ("Emulador
-CHIP-8 estable: consola, demos, documentación y pruebas"), a nombre del usuario, con un
-`.gitattributes` nuevo (texto con fin de línea LF y `*.ch8` como binario, para que una
-restauración deje los archivos exactamente como estaban) y un `.gitignore` para
-la configuración local de cada máquina.
+Antes de tocar nada se hizo un **punto de restauración**: un commit a nombre del usuario
+con todo lo de la primera ronda, un `.gitattributes` nuevo (texto con fin de línea LF y
+`*.ch8` como binario, para que una restauración deje los archivos exactamente como
+estaban) y un `.gitignore` para la configuración local de cada máquina. Era el primer
+commit del repositorio (`d40912f`, "Emulador CHIP-8 estable: consola, demos,
+documentación y pruebas"). Al reconstruir la historia en la tercera ronda, su lugar lo
+tomó `63ad959` ("Punto de restauración: .gitattributes y .gitignore"), con el mismo
+contenido menos un archivo de configuración local de la vista previa, que no era parte
+del proyecto ([7.12](#712-tercera-ronda-el-pedido-y-la-historia-de-git)).
 
 Esta PC no tenía Node en el PATH. En lugar de instalarlo, se usó el Node 24 que trae el
 editor Cursor, por su ruta completa ([8.24](#824-un-node-portátil-para-trabajar)); las
@@ -2248,7 +2666,7 @@ de un agente.
 
 ### 7.11 Integración y hallazgos notables
 
-Decisiones y correcciones de esta ronda que vale la pena conocer:
+Decisiones y correcciones de la segunda ronda que vale la pena conocer:
 
 | Tema | Qué pasaba o qué había que decidir | Cómo quedó |
 |---|---|---|
@@ -2265,19 +2683,89 @@ Decisiones y correcciones de esta ronda que vale la pena conocer:
 | Lo automático contra lo elegido | Si lo que aplica la autoconfiguración quedara como ajuste general, la ROM siguiente arrancaría con los ajustes de otro juego. | Las funciones que cambian ajustes distinguen `auto` ([4.9](#49-ajustes-por-cartucho)). |
 | El tutorial y los perfiles | Al elegir un perfil, la consola ahora cambia también la plataforma; lo que el tutorial cuenta de cada perfil se probaba solo en la plataforma CHIP-8. | `tests/tutorial.test.js` corre cada perfil en su plataforma. Lo único que cambió fue el final de `11-sin-fin` con SUPER-CHIP (ahora se detiene en la fuente grande) y con XO-CHIP (recorre 64 KB): el tutorial lo cuenta. |
 
-### 7.12 Cómo creció la suite
+### 7.12 Tercera ronda: el pedido y la historia de git
 
-| Momento | Pruebas | Resultado |
+La tercera ronda hizo tres cosas: la feature 8, estados guardados y rebobinado, que había
+quedado pendiente ([1.4](#14-la-tercera-ronda-feature-8)); las ROMs del archivo de la
+comunidad dentro del repositorio, con el comando `download` ([5.5](#55-toolsarchivejs));
+y una historia de git que se pueda leer, **un commit por tarea**. El repositorio se va a
+publicar en `github.com/maxisimonazzi/chip8-emulator`.
+
+**La historia, reconstruida.** Hasta entonces el repositorio tenía un solo commit, el punto
+de restauración (`d40912f`, [7.8](#78-segunda-ronda-el-pedido-y-el-punto-de-restauración)),
+con toda la primera ronda adentro, y la segunda ronda estaba sin commitear. Ahora tiene 28
+commits para todo lo anterior a la tercera ronda, más los de la tercera:
+
+| Etapa | Commits | Cuántos |
 |---|---|---|
-| Construcción: las 6 suites del núcleo, escritas a ciegas | 515 | todas pasan (las 2 fallas de la primera corrida eran errores de las pruebas) |
-| Integración de la primera ronda | 726 | 725 pasan, 1 salteada (el enlace a este documento, que no existía) |
-| Después del mutation testing | 738 | 737 pasan, 1 salteada |
-| Después de las correcciones de la revisión | 793 | todas pasan con los cartuchos al día |
-| Integración final de la primera ronda (`d40912f`) | 797 | todas pasan, ninguna salteada |
-| Núcleo, ensamblador y tabla del archivo | 1330 | todas pasan |
-| Interfaz (partes 1 y 2) y *Planos* | 1349 | todas pasan |
-| Comodidades, manual e integración | 1358 | todas pasan |
-| Documentación de la segunda ronda (el tutorial en cada plataforma, las pruebas de este documento y del README) | 1371 | todas pasan |
+| Primera ronda, el 27 de septiembre de 2026 (todavía no existía el repositorio) | De `ed60649` ("Andamiaje: scripts de npm, harness de pruebas y servidor local") a `0dcd7ec` ("Velocidad hasta 10.000 instrucciones por frame y guía para ROMs lentas") | 20 |
+| El punto de restauración, el 4 de noviembre | `63ad959` ("Punto de restauración: .gitattributes y .gitignore") | 1 |
+| Segunda ronda, el 5 y el 6 de noviembre | De `12243d9` ("Núcleo: plataformas SUPER-CHIP y XO-CHIP con la semántica de Octo") a `67a4e9c` ("Documentación de SUPER-CHIP, XO-CHIP y las features nuevas") | 7 |
+| Tercera ronda, el 6 de noviembre | `1a906fc` ("ROMs del archivo de la comunidad en roms/archivo y comando download"), `1607c38` ("Núcleo: estados guardados y buffer de rebobinado") y `eb8e176` ("Interfaz: estados guardados y rebobinado"), y después la documentación | 3 y la documentación |
+
+La primera ronda era la parte delicada, porque cuando se hizo no había repositorio. Se
+reconstruyó **a partir de las transcripciones de las sesiones**: en una copia aparte se volvieron a
+aplicar, en orden, cada `Write` y cada `Edit` que registran, y se volvieron a correr los 78
+comandos de consola que cambiaron archivos (`sed`, scripts descartables, `embed-roms`, el
+ensamblador, copias). Dos controles independientes dicen que salió bien: el resultado
+coincide **byte por byte** con el viejo punto de restauración (los 59 archivos de
+`d40912f`), y las 122 lecturas de archivos que registran las transcripciones (lo que vio
+cada agente al abrir un archivo) coinciden línea por línea con el archivo reconstruido en
+ese momento.
+
+Cada commit intermedio conserva **los resultados de las pruebas que tuvo de verdad**: no
+se "emprolijaron". `650db04` (la integración de la primera ronda) pasa 725 de 726, con una
+salteada hasta que existiera este documento; `199b896` deja cuatro en rojo hasta que se
+pongan al día el bloque de cartuchos y el tutorial; `1d966d0` todavía tiene en rojo las dos
+del bloque de cartuchos, que arregla `19d1dcd`. Los de la segunda ronda y los de esta
+pasan todas ([7.14](#714-cómo-creció-la-suite)).
+
+Para correr las pruebas de un commit anterior a `63ad959` en Windows, sacalo con fin de
+línea LF: esos commits no tienen `.gitattributes`, y con `core.autocrlf` prendido los
+archivos salen con CRLF y fallan las pruebas que comparan texto (18 en `19d1dcd`, que con
+LF pasa entera). Por ejemplo, desde la raíz y con una carpeta de destino que ya exista:
+
+```sh
+git -c core.autocrlf=false archive 19d1dcd | tar -x -C ../chip8-19d1dcd
+```
+
+### 7.13 Tercera ronda: estados guardados y rebobinado
+
+Como en las otras rondas, el trabajo se repartió entre agentes con dueños explícitos de
+cada archivo:
+
+| Tarea | Qué | Resultado |
+|---|---|---|
+| Las ROMs del archivo (`1a906fc`) | `node tools/archive.js download`, `roms/archivo/` con su `LEEME.md`, `archive.js test` con las copias locales y 3 pruebas nuevas | 1374 pruebas, todas pasan |
+| El núcleo de los estados (`1607c38`) | `saveState`, `loadState`, `encodeState`, `decodeState` y `RewindBuffer` ([3.11](#311-estados-guardados-y-rebobinado)), `tests/estados.test.js` y la API en este documento | 1479 pruebas, todas pasan; `step` y `runFrame` sin cambios |
+| La interfaz de los estados (`eb8e176`) | El grupo «Estados», los atajos I, U y B, el botón ⏪, el rebobinado y los escenarios E2E 41 a 50 ([4.22](#422-estados-guardados-y-rebobinado)) | 1479 pruebas; 50 de 50 escenarios en tres corridas seguidas |
+| La documentación | El README, y el tutorial, el manual y este documento al día, con pruebas nuevas que los vigilan ([6.6](#66-pruebas-de-la-documentación)) | 1489 pruebas, todas pasan |
+
+Mientras se construía la interfaz aparecieron dos errores, y los dos se corrigieron antes
+del commit:
+
+| Qué pasaba | Cómo quedó |
+|---|---|
+| Rebobinar un frame, avanzar uno con Frame y volver a rebobinar se salteaba un frame: la foto que se acababa de cargar ya había salido del buffer, así que el segundo B saltaba a la anterior. | La foto cargada vuelve al buffer como la más nueva (`rewindBack`), así volver otra vez pasa por ella. E2E 46: en pausa, un toque de B vuelve exactamente un frame y Frame avanza uno. |
+| Rebobinar desde un error volvía a la pausa que había antes del error, como Reiniciar: si la máquina corría, al soltar B seguía corriendo y chocaba enseguida con el mismo error. | Rebobinar desde un error o desde el fin del programa deja la máquina en pausa en el frame de antes (`machineStateLoaded` con `stay`), para mirar qué pasó. E2E 46. |
+
+### 7.14 Cómo creció la suite
+
+| Momento | Commit | Pruebas | Resultado |
+|---|---|---|---|
+| Construcción: las 6 suites del núcleo, escritas a ciegas | `be73167` | 515 | todas pasan (las 2 fallas de la primera corrida eran errores de las pruebas) |
+| Integración de la primera ronda | `650db04` | 726 | 725 pasan, 1 salteada (el enlace a este documento, que no existía) |
+| Después del mutation testing | `f1d2a6b` | 738 | 737 pasan, 1 salteada |
+| Después de las correcciones de la revisión | `1d966d0` | 793 | 791 pasan; las 2 del bloque de cartuchos esperan a que se vuelvan a incrustar |
+| Integración final de la primera ronda | `19d1dcd` (y el árbol de `63ad959`) | 797 | todas pasan, ninguna salteada |
+| Núcleo, ensamblador y tabla del archivo | `fdbd469` | 1330 | todas pasan |
+| Interfaz (partes 1 y 2) y *Planos* | de `580e3d7` a `9e49c4b` | 1349 | todas pasan |
+| Comodidades, manual e integración | — | 1358 | todas pasan (ningún commit guarda este momento: los cambios del manual quedaron en `67a4e9c`) |
+| Documentación de la segunda ronda (el tutorial en cada plataforma, las pruebas de este documento y del README) | `67a4e9c` | 1371 | todas pasan |
+| Las ROMs del archivo en el repositorio | `1a906fc` | 1374 | todas pasan |
+| Núcleo de los estados guardados | `1607c38` | 1479 | todas pasan |
+| Interfaz de los estados guardados y el rebobinado | `eb8e176` | 1479 | todas pasan |
+| Documentación de la tercera ronda (los atajos, las constantes, el formato y los números de los estados en este documento y en el tutorial) | — | 1489 | todas pasan |
 
 ---
 
@@ -2391,8 +2879,9 @@ Cada decisión, en formato corto: el contexto, qué se decidió y qué implica.
   ignora.
 - **Consecuencias:** el monitor muestra dónde está el problema, la interfaz ofrece el
   botón de la plataforma que falta, y el bucle no necesita `try/catch`. Las únicas
-  excepciones son las de los argumentos inválidos (`loadRom`, `setPlatform`, `sha1`), que
-  la interfaz controla antes.
+  excepciones son las de los argumentos inválidos (`loadRom`, `setPlatform`, `sha1`, y
+  los estados: `loadState`, `encodeState`, `decodeState`), que la interfaz controla antes
+  o atrapa: un estado que no se puede cargar es un aviso, y la máquina sigue como estaba.
 
 ### 8.10 Escala entera con devicePixelRatio
 
@@ -2410,7 +2899,7 @@ Cada decisión, en formato corto: el contexto, qué se decidió y qué implica.
   según su posición.
 - **Decisión:** mapear por `code` (la posición física), no por `key` (el carácter).
 - **Consecuencias:** el mismo bloque en QWERTY, AZERTY o Dvorak, sin configurar nada. Los
-  atajos (N, H, T, P, G) también son por posición.
+  atajos (N, H, T, P, G, I, U, B) también son por posición.
 
 ### 8.12 El modelo de foco
 
@@ -2610,6 +3099,78 @@ Cada decisión, en formato corto: el contexto, qué se decidió y qué implica.
   plataforma XO-CHIP (que es la que la consola elige para casi todos los juegos de Octo).
   Un programa de XO-CHIP que carga su patrón suena igual que en Octo.
 
+### 8.28 El formato de los estados: JSON con los ceros comprimidos
+
+- **Contexto:** un estado se guarda en `localStorage`, que guarda texto, y el navegador da
+  unos 5 MB por origen, compartidos con los ajustes y la biblioteca. La memoria de XO-CHIP
+  son 64 KB: en base64, 87.384 caracteres por estado, aunque casi todos sean ceros. Además,
+  un estado guardado puede volver roto, y cargarlo no puede romper la máquina.
+- **Decisión:** JSON común, con los arreglos chicos en base64 y la memoria y la pantalla con
+  las rachas de ceros comprimidas (un 0 y el largo en base 128) antes del base64
+  ([3.11](#311-estados-guardados-y-rebobinado)), sin bibliotecas
+  ([8.16](#816-sin-dependencias-también-en-las-pruebas)); `"format"` y `version` al
+  principio; y todo se valida antes de tocar la máquina. Sobre el contenido, tres reglas:
+  - **La ROM no va adentro.** El estado es la máquina, no el cartucho: la interfaz lo
+    guarda por la huella de la ROM y `loadState` no toca `rom`. Así un estado ocupa de 1 a
+    4 KB, y no 64 KB más, y Reiniciar después de cargarlo vuelve a empezar el cartucho de
+    siempre.
+  - **Los quirks vuelven con el estado.** Son parte de cómo se comporta la máquina: un
+    estado guardado con los quirks de SUPER-CHIP y cargado con los del VIP seguiría
+    distinto que el original. La interfaz los muestra sin anotarlos como una elección de
+    la persona.
+  - **Las banderas RPL también vuelven.** Son 16 bytes de la máquina que el juego lee
+    como parte de su partida: cargar un estado sin ellas mezclaría dos momentos.
+- **Consecuencias:** un estado típico ocupa de 1 a 4 KB, se puede leer con cualquier
+  editor, y uno roto da un mensaje que dice qué campo está mal. A cambio, un compresor
+  general como deflate dejaría el texto más chico; un estado no sirve sin su ROM; y cargar
+  un estado viejo, o rebobinar, **borra un récord** que el juego guardó después (con
+  «Ajustes por cartucho», la próxima mirada de `syncFlags` lo deja así guardado). Cambiar
+  el formato obliga a pensar en lo que ya está guardado: `decodeState` exige la versión 1 y
+  cada campo, así que un campo o un quirk nuevo deja «DAÑADO» todo lo guardado antes
+  ([9.2](#92-agregar-o-cambiar-una-instrucción)).
+
+### 8.29 El rebobinado: una foto por frame con páginas compartidas
+
+- **Contexto:** volver atrás frame por frame necesita el estado de cada frame. Una foto
+  entera de XO-CHIP ocupa unos 70 KB, así que 30 s serían más de 120 MB. Y la foto se toma
+  60 veces por segundo (240 con el avance rápido): tiene que costar poco.
+- **Decisión:** una foto por frame emulado, después de `runFrame`, con la memoria en
+  páginas de 256 bytes que se comparten con la foto anterior si no cambiaron
+  ([3.11](#311-estados-guardados-y-rebobinado)). Dos topes, el que llegue primero: 1800
+  fotos (30 s) y 48 MB entre todas; siempre queda la última. Se vuelve al doble de la
+  velocidad real (2 frames por tic, 8 con T), así 30 s de juego se recorren en 15. En
+  pausa, un toque es un frame exacto, para depurar.
+- **Consecuencias:** un juego de CHIP-8 guarda sus 30 s en unos 4 MB, y *Planos* en unos
+  18; solo un programa que reescribe casi toda su memoria de 64 KB en cada frame se queda
+  en unos 11 o 12 segundos. Una foto cuesta de 3 a 18 µs (unos 130 en el peor caso), lejos
+  de los 16,67 ms de un frame, y el E2E 50 exige unos 60 fps (entre 55 y 66) tomando fotos
+  y rebobinando con XO-CHIP a 1000 IPF. Como cada paso del rebobinado carga una foto entera, la máquina
+  siempre queda en un frame exacto, y al soltar sigue igual que la primera vez (salvo
+  `RND`, porque el azar no se guarda). No se puede volver a la mitad de un frame: después
+  de unos Pasos, B vuelve al principio de ese frame. El pasado se pierde al reiniciar,
+  cargar otra ROM o un estado, cambiar de plataforma o recargar la página.
+
+### 8.30 La historia de git, reconstruida desde las transcripciones
+
+- **Contexto:** la primera ronda se hizo antes de que existiera el repositorio y la
+  segunda quedó sin commitear: toda la historia era un commit con la primera ronda
+  entera. Quien lea el repositorio publicado no podría seguir cómo se construyó ni qué
+  pruebas pasaban en cada momento.
+- **Decisión:** reconstruir la historia, un commit por tarea. La primera ronda, volviendo
+  a aplicar en una copia aparte cada `Write` y cada `Edit` de las transcripciones y los 78
+  comandos de consola que cambiaron archivos; la segunda y la tercera, repartiendo su
+  trabajo por tarea. Cada commit queda como estuvo de verdad, con sus pruebas en rojo si
+  las tenía. Y dos controles antes de aceptar el resultado: el árbol igual byte por byte
+  al punto de restauración (59 archivos) y las 122 lecturas de archivos de las
+  transcripciones iguales a los archivos reconstruidos en ese momento
+  ([7.12](#712-tercera-ronda-el-pedido-y-la-historia-de-git)).
+- **Consecuencias:** `git log` cuenta el proceso de la sección 7 commit por commit, y
+  cualquier commit muestra el código como estaba, con las pruebas que pasaban entonces
+  (algunas en rojo, a propósito). Los hashes cambiaron: `d40912f` ya no está en la
+  historia (su lugar lo tomó `63ad959`), y los que cita este documento son los de la
+  historia nueva. Los commits anteriores a `63ad959` no tienen `.gitattributes`: en
+  Windows hay que sacarlos con LF para que pasen sus pruebas.
+
 ---
 
 ## 9. Cómo extender
@@ -2626,7 +3187,11 @@ Cada decisión, en formato corto: el contexto, qué se decidió y qué implica.
   ([8.23](#823-ninguna-dirección-de-red-en-chip8html)).
 - El núcleo no toca el navegador.
 - Un cambio de ajustes que hace la consola sola va con `auto`; uno de la persona, sin
-  ([4.9](#49-ajustes-por-cartucho)).
+  ([4.9](#49-ajustes-por-cartucho)). Cargar un estado o rebobinar no es ninguna de las
+  dos cosas: no toca `settings` ni los ajustes del cartucho
+  ([4.22](#422-estados-guardados-y-rebobinado)).
+- Lo que se agregue al estado de la máquina va también a los estados guardados (el paso 6
+  de [9.2](#92-agregar-o-cambiar-una-instrucción)).
 - Todo texto para el usuario, mensaje de error, comentario y documento, en castellano con
   voseo; los identificadores, en inglés.
 - Antes de terminar: `node --test`, y `node tools/e2e.js` si tocaste la interfaz.
@@ -2657,6 +3222,15 @@ Cada decisión, en formato corto: el contexto, qué se decidió y qué implica.
    exige una ficha por instrucción, con su plataforma), el machete de la parte 2.9 o 9.1
    del tutorial, y la tabla de [3.7](#37-errores-avisos-y-fin-del-programa) de este
    documento.
+6. **Si la instrucción agrega estado a la máquina** (un registro, un modo, un arreglo),
+   sumalo a los estados guardados ([3.11](#311-estados-guardados-y-rebobinado)): a
+   `saveState`, a `checkState` (con su rango y su mensaje), a `loadState`, al texto de
+   `encodeState` y `decodeState`, a la foto de `RewindBuffer.push` y a `snapshotState`, y
+   a `STATE_KEYS` de `tests/estados.test.js`, con una prueba de ida y vuelta que lo use.
+   Pensá en lo que ya está guardado en los navegadores: `decodeState` exige cada campo y
+   la versión 1, así que un campo nuevo deja «DAÑADO» todo estado guardado antes, salvo
+   que `decodeState` le ponga un valor por defecto o que `STATE_VERSION` suba y aprenda a
+   leer la versión vieja.
 
 ### 9.3 Agregar un quirk
 
@@ -2676,6 +3250,10 @@ Cada decisión, en formato corto: el contexto, qué se decidió y qué implica.
 5. **Documentación:** la sección 11 del manual y la tabla de la parte 1.6 del tutorial. Si
    cambiás las etiquetas cortas (`VF=0`, `MEM`...), `tests/tutorial.test.js` lo va a
    notar.
+6. **Estados guardados:** un quirk nuevo es un campo más de `quirks` en cada estado, y
+   `checkState` lo exige: los estados guardados antes quedan «DAÑADO» (mirá el paso 6 de
+   [9.2](#92-agregar-o-cambiar-una-instrucción)). `RewindBuffer` guarda los quirks como
+   bits de `QUIRK_KEYS` y no necesita cambios.
 
 ### 9.4 Actualizar el archivo de la comunidad
 
@@ -2683,13 +3261,17 @@ Cada decisión, en formato corto: el contexto, qué se decidió y qué implica.
    `data/archive.json`. Leé los avisos (ROMs repetidas, plataformas que faltan, opciones
    que la consola no tiene).
 2. `node tools/archive.js embed`: reescribe `<script id="chip8-archive">`.
-3. `node tools/archive.js test --sheet ../hoja.png` (también necesita internet): corré los
-   juegos y mirá la hoja de contactos; un borde rojo es un juego que se detuvo.
-4. `node --test`: `tests/archive.test.js` controla los datos y el bloque, y
-   `tests/manual.test.js` los números que cita el manual (programas por plataforma,
-   cuántos usan los quirks de Octo, las velocidades y su histograma): si cambiaron,
-   actualizá las secciones 11.11 y 12.2 del manual, el README, la parte 1.7 del tutorial
-   y [5.5](#55-toolsarchivejs).
+3. `node tools/archive.js download` (necesita internet): baja a `roms/archivo/` las ROMs
+   nuevas o cambiadas y reescribe `LEEME.md`. Si un programa salió del archivo, borrá su
+   `.ch8` a mano: el comando avisa qué archivos sobran.
+4. `node tools/archive.js test --sheet ../hoja.png`: corré los juegos y mirá la hoja de
+   contactos; un borde rojo es un juego que se detuvo.
+5. `node --test`: `tests/archive.test.js` controla los datos, `roms/archivo/` y el
+   bloque, y `tests/manual.test.js` los números que cita el manual (programas por
+   plataforma, cuántos usan los quirks de Octo, las velocidades y su histograma): si
+   cambiaron, actualizá las secciones 11.11 y 12.2 del manual, el README, las partes 1.7 y
+   10.1 del tutorial (`tests/tutorial.test.js` compara cuántos programas dice con
+   `data/archive.json` y con `roms/archivo/`) y [5.5](#55-toolsarchivejs).
 
 ### 9.5 Agregar un demo
 
@@ -2701,8 +3283,8 @@ Cada decisión, en formato corto: el contexto, qué se decidió y qué implica.
 3. En `tests/roms.test.js`, agregá el `id` a `DEMO_IDS` (en el orden de `@order`: la
    prueba exige `@order` = posición + 1) y un grupo con su comportamiento. Las pruebas
    generales (600 frames por perfil sin ejecutar datos) lo toman solas.
-4. Actualizá la tabla de cartuchos del README (que dice "seis cartuchos"), la parte 1.2
-   del tutorial (`tests/tutorial.test.js` la compara con las etiquetas `@`) y
+4. Actualizá el README (que dice "seis cartuchos" y los presenta), la parte 1.2 del
+   tutorial (`tests/tutorial.test.js` la compara con las etiquetas `@`) y
    [5.4](#54-los-seis-cartuchos). Los escenarios E2E que recorren el estante y los chips
    lo toman solos; el de los chips exige además que todos entren en la vista a 1440×900
    sin scrollear.
@@ -2716,7 +3298,8 @@ validación de los ajustes guardados salen de ahí. Si la paleta necesita un tra
 especial como LCD (sin resplandor, con grilla en lugar de scanlines), mirá `applyPalette`,
 `updateGlow`, `buildScanPattern` y las reglas CSS `.crt[data-palette="lcd"]`. Las pruebas
 E2E de Píxeles puros recorren una lista fija de paletas: sumala ahí. Los nombres de las
-paletas aparecen en el tutorial y en el README.
+paletas aparecen en la parte 1.8 del tutorial, que `tests/tutorial.test.js` compara con
+`chip8.html`.
 
 ### 9.7 Cambiar el mapa del teclado
 
@@ -2731,9 +3314,13 @@ El mapa está repetido en varios lugares a propósito (cada uno lo muestra o lo 
 - el README, la parte 1.4 del tutorial (que `tests/tutorial.test.js` compara con
   `KEY_BY_CODE`) y la §7.2 del manual.
 
-Que ninguna tecla del mapa choque con los atajos (Espacio, N, Retroceso, H, T, P, G). Los
-mapas de las flechas y el joystick están en `KEYMAP_PRESETS` y en las opciones del
-selector `#keymap` (el texto de cada opción repite las teclas; el tutorial los cita).
+Que ninguna tecla del mapa choque con los atajos (Espacio, N, Retroceso, H, T, P, G, I, U
+y B). Los mapas de las flechas y el joystick están en `KEYMAP_PRESETS` y en las opciones
+del selector `#keymap` (el texto de cada opción repite las teclas; el tutorial los cita).
+Un atajo nuevo va en `onKeyDown` (y en `onKeyUp` si se mantiene), en la tabla de atajos
+de la ayuda, en la del README, en la de la parte 1.10 del tutorial y en
+[4.6](#46-teclado-keypad-y-foco): las pruebas de la documentación comparan las tres
+últimas con la de la ayuda.
 
 ### 9.8 Agregar una prueba
 
@@ -2814,7 +3401,9 @@ funcionan con cualquier `node`.
 
 ### 9.11 Limitaciones conocidas y trabajo futuro
 
-**Trabajo futuro: las tres features que quedaron afuera.**
+**Trabajo futuro: las dos features que quedan.** De las tres que quedaron afuera de la
+segunda ronda, la 8 (estados guardados y rebobinado) se hizo en la tercera
+([1.4](#14-la-tercera-ronda-feature-8)).
 
 - **6. Un taller con editor.** Escribir, ensamblar y correr un programa sin salir de la
   página. `tools/chip8asm.js` ya funciona como `<script>` y define `globalThis.Chip8Asm`,
@@ -2826,14 +3415,26 @@ funcionan con cualquier `node`.
   escribir memoria), ejecutar hasta el `RET`, editar registros y memoria desde el monitor,
   y una vista de la memoria que se pueda recorrer. El núcleo ya expone todo su estado; lo
   que falta es interfaz, y que `runFrame` pueda cortar en un punto de parada sin perder
-  velocidad (un `Set` de direcciones que se mire solo si no está vacío).
-- **8. Estados guardados y rebobinado.** Guardar y cargar el estado completo de la máquina
-  (memoria, registros, pila, timers, pantalla, planos, audio, banderas, la espera de
-  `FX0A`) y rebobinar unos segundos. Todo el estado es público y casi todo son
-  `Uint8Array`, así que una instantánea es barata; para rebobinar, un anillo de
-  instantáneas por frame (con 64 KB de memoria en XO-CHIP, conviene guardar solo las
-  diferencias). Habría que agregar `serialize`/`restore` al núcleo, con pruebas de ida y
-  vuelta.
+  velocidad (un `Set` de direcciones que se mire solo si no está vacío). El rebobinado ya
+  da una parte: volver de a un frame exacto y avanzar con Paso
+  ([4.22](#422-estados-guardados-y-rebobinado)).
+
+**Ideas que salieron con los estados guardados.**
+
+- **Exportar e importar estados.** Bajar un estado como archivo y cargarlo en otro
+  navegador, o pasárselo a alguien. El texto de `encodeState` ya es JSON y `decodeState`
+  ya valida todo lo que entra; falta decidir cómo se asocia el archivo a su ROM (la huella
+  podría ir adentro).
+- **Una lista de todos los estados guardados**, de todos los cartuchos, para ver cuánto
+  ocupan y borrar los viejos sin cargar cada ROM. Hoy «Estados» muestra solo los del
+  cartucho de la ranura, y el aviso de "No hay más lugar" no tiene adónde mandarte.
+- **El giro en las pantallitas.** `drawThumb` dibuja la pantalla del estado sin girar: con
+  un juego del archivo que usa la pantalla girada, la pantallita no coincide con el tubo.
+- **Explorar el archivo desde la consola.** Elegir uno de los 104 juegos de
+  `roms/archivo/` en una lista, con su título, sus autores y su evento, sin ir a buscar el
+  archivo. Choca con el archivo único: `chip8.html` no puede leer esa carpeta (no usa
+  `fetch`, y desde `file://` no podría), y llevar las ROMs adentro le sumaría unos 1,2 MB
+  de base64.
 
 **Limitaciones conocidas.**
 
@@ -2855,6 +3456,12 @@ funcionan con cualquier `node`.
   se mantiene una tecla durante `FX0A`.
 - **`displayWait` aproximado:** no cuenta ciclos, así que no reproduce que un sprite grande
   tarde más.
+- **Los estados no guardan el azar.** Después de cargar un estado o de rebobinar, `RND` da
+  otros números: un juego que lo usa puede seguir distinto que la primera vez.
+- **Los estados son de una ROM y de un navegador.** Se guardan por la huella de la ROM
+  (si cambiás un byte de tu programa, sus estados quedan con la versión anterior), no se
+  pueden pasar a otro navegador y se pierden si se borran los datos del sitio. El pasado
+  del rebobinado se pierde al recargar la página.
 - **Navegadores y dispositivos:** solo se probó en Chromium, con entrada simulada; el
   estado `interrupted` del `AudioContext` de iOS no está manejado; no se probó con
   joysticks, pantallas táctiles ni lectores de pantalla reales ([6.8](#68-lo-que-no-se-verifica-automáticamente)).
@@ -2867,5 +3474,6 @@ funcionan con cualquier `node`.
 **Otras ideas.** Correr las ROMs de prueba de Timendus (también las de SUPER-CHIP y
 XO-CHIP) y sumar sus resultados a las pruebas; mutation testing de la interfaz y de las
 herramientas; E2E en Firefox con WebDriver BiDi; exportar e importar la biblioteca y los
-ajustes; mostrar en el estante los datos del archivo (autores, evento) de los juegos
-conocidos; una opción para la paleta de cada juego del archivo en las capturas.
+ajustes (como los estados, arriba); mostrar en el estante los datos del archivo (autores,
+evento) de los juegos conocidos; una opción para la paleta de cada juego del archivo en las
+capturas.

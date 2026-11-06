@@ -2634,6 +2634,13 @@ debajo de los incluidos, con la que jugaste por última vez primero; las cinco m
 recientes aparecen también en la fila **Tuyos:**, debajo de la ranura. Entran hasta 60
 ROMs y unos 2,5 MB entre todas, y quedan guardadas en este navegador.
 
+Los **estados guardados** también son de cada ROM: las cinco ranuras del grupo
+**Estados** (la rápida, con **I** y **U**, y cuatro más) se guardan por la huella del
+cartucho, y otra ROM no las ve. Cargar un estado, o rebobinar con **B**, vuelve la máquina
+entera a ese momento, timers (DT y ST) y banderas RPL incluidos: un récord que el juego
+guardó después se pierde. Cómo se usan, en la
+[parte 1.13 del tutorial](TUTORIAL.md#113-estados-guardados-y-rebobinado).
+
 ### 11.12 Otras diferencias con el VIP que no son configurables
 
 | Tema | COSMAC VIP | Este emulador |

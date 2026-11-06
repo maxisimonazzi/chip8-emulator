@@ -36,7 +36,8 @@ leé [DESARROLLO.md](DESARROLLO.md). La portada del proyecto es el [README](../R
 ### Qué vas a aprender
 
 - A usar la consola: cargar programas, tocar el teclado, cambiar la velocidad, la
-  plataforma y los quirks, y leer el monitor de depuración.
+  plataforma y los quirks, guardar la partida y volver atrás en el tiempo, y leer el
+  monitor de depuración.
 - Cómo es la máquina CHIP-8 por dentro: memoria, registros, pila, timers, pantalla y
   teclado.
 - A escribir un programa **a mano, byte por byte**, en hexadecimal, y a entender cada
@@ -45,7 +46,7 @@ leé [DESARROLLO.md](DESARROLLO.md). La portada del proyecto es el [README](../R
 - A construir un juego en seis etapas, cada una un programa completo que podés correr:
   sprites, teclado, tiempo, choques, puntaje y sonido.
 - A leer programas ajenos y a **encontrar errores** con el monitor, instrucción por
-  instrucción.
+  instrucción, volviendo atrás en el tiempo cuando te pasaste.
 - Cómo funciona un emulador: el ciclo de buscar, decodificar y ejecutar, los timers a
   60 Hz, el dibujo con XOR. Hay un emulador mínimo, de menos de 200 líneas, para leer
   y correr.
@@ -62,8 +63,8 @@ leé [DESARROLLO.md](DESARROLLO.md). La portada del proyecto es el [README](../R
 - **[Node.js](https://nodejs.org/)** para el ensamblador (partes 4 y 5, y los
   ejercicios de la 9) y para el emulador mínimo (parte 8). No hay que instalar paquetes: todo el proyecto usa solo
   lo que trae Node. Los tests se corren con Node 22 o más nuevo. Si en tu computadora
-  `node` no anda pero tenés un editor que trae el suyo, mirá la
-  [nota del README](../README.md#sin-node-en-el-path).
+  `node` no anda pero tenés un editor que trae el suyo, mirá
+  [cómo usarlo](DESARROLLO.md#910-trabajar-sin-node-en-el-path).
 - Este repositorio. Todos los comandos de la terminal se escriben **parado en la
   carpeta raíz del proyecto** (la que tiene `chip8.html`). Las rutas usan `/`, que
   funciona igual en PowerShell que en Linux y macOS.
@@ -112,8 +113,8 @@ local, corré `node tools/serve.js` (o `npm run serve`) y entrá a
 Vas a ver una consolita beige con estas partes:
 
 - Arriba, la **pantalla** (un monitor de tubo, de fósforo verde) y dos luces: **RUN** y
-  **SONIDO**. El botón **?** abre la ayuda. Al pie del tubo hay tres botoncitos: el
-  avance rápido, la captura y la pantalla completa (sección 1.10).
+  **SONIDO**. El botón **?** abre la ayuda. Al pie del tubo hay cuatro botoncitos: el
+  rebobinado (⏪), el avance rápido, la captura y la pantalla completa (sección 1.10).
 - Debajo de la pantalla, el **cartucho**: qué programa está cargado y cuánto ocupa, el
   botón **Cargar ROM** y, justo abajo, la fila **Incluidos:**, con un botón por cada
   programa de demostración (sección 1.2). Cuando cargues ROMs tuyas, aparece también la
@@ -125,9 +126,10 @@ Vas a ver una consolita beige con estas partes:
   teléfono, o una ventana de menos de unos 760 píxeles de ancho) todo va en una sola
   columna: el keypad queda pegado debajo de la pantalla, para que los dos entren
   juntos, y el cartucho y los botones de ejecución bajan después.
-- El **panel de control**, en cuatro grupos: **Velocidad**, **Pantalla y sonido**,
-  **Compatibilidad** (la plataforma, el perfil y los interruptores de quirks) y
-  **Controles** (las flechas y el joystick).
+- El **panel de control**, en cinco grupos: **Velocidad**, **Pantalla y sonido**,
+  **Compatibilidad** (la plataforma, el perfil y los interruptores de quirks),
+  **Controles** (las flechas y el joystick) y **Estados** (las partidas guardadas y el
+  rebobinado).
 - Debajo de la consola, dos estantes: **Cartuchos incluidos**, con la descripción y los
   controles de cada programa de demostración, y **Tus cartuchos**, con las ROMs que
   vayas cargando.
@@ -330,6 +332,12 @@ dos cosas:
   recordado: si es un juego del archivo, vuelven los del archivo; si no, la próxima vez
   arranca con tus ajustes de siempre.
 
+**Las ROMs del archivo vienen con el proyecto.** Las 104 ROMs del archivo están en la
+carpeta [`roms/archivo/`](../roms/archivo/LEEME.md) del repositorio (el archivo es de
+dominio público, licencia CC0), con un índice, `LEEME.md`, que dice de cada juego la
+plataforma, la velocidad, quién lo hizo y para qué evento. Cargá cualquiera con
+**Cargar ROM** (o arrastrala) y mirá cómo la consola se configura sola.
+
 Una ROM que la consola no conoce y que nunca usaste arranca con tus últimos ajustes; un
 cartucho incluido, con su plataforma. Lo que la consola aplica sola no cuenta como una
 elección tuya: no cambia tus ajustes ni queda recordado. También se recuerdan, para cada
@@ -429,9 +437,12 @@ un selector, un deslizador o el modo de pantalla.
 | **Paso** | N | Ejecuta **una sola instrucción**. Si estaba corriendo, primero la pausa. |
 | **Frame** | | Ejecuta **un frame**: hasta IPF instrucciones y un tic de los timers. También pausa. |
 | **Reiniciar** | Retroceso | Reinicia la máquina y vuelve a cargar el mismo programa. Si estaba en pausa, sigue en pausa; si estaba corriendo, arranca. Después de un error, vuelve a como estaba justo antes del error: si ibas con Paso o con Frame, queda en pausa; si corría, arranca de nuevo. |
+| Rebobinar, ⏪ (al pie del tubo) | B, mantenida | Mientras lo mantenés apretado, la máquina vuelve atrás en el tiempo, frame por frame, al doble de velocidad, y en la pantalla aparece «⏪». Al soltar, sigue desde ahí. En pausa, un toque vuelve un frame (sección 1.13). |
 | Avance rápido (al pie del tubo) | T, mantenida | Mientras lo mantenés apretado, la máquina corre 4 veces más rápido, timers incluidos, y en la pantalla aparece «×4». Al soltar, vuelve a la velocidad de siempre. En pausa no hace nada. |
 | Pantalla completa (al pie del tubo) | P | La pantalla ocupa todo el monitor, siempre con píxeles enteros; en un teléfono, el keypad va al lado. Para volver, P o Esc. Si el navegador no tiene pantalla completa, como el del iPhone, el botón no aparece. |
 | Captura (al pie del tubo) | G | Baja una imagen PNG de la pantalla, con los colores exactos de la paleta y sin los efectos del tubo, de 640 × 320 (cada píxel, un cuadrado de 10 × 10, o de 5 × 5 en alta resolución). El archivo se llama `chip8-`, el nombre del cartucho y la fecha y la hora. |
+| **Guardar** de la ranura **Rápido** (en Estados) | I | Guarda el estado de la máquina en la ranura rápida (sección 1.13). |
+| **Cargar** de la ranura **Rápido** (en Estados) | U | Vuelve al estado de la ranura rápida. |
 | **?** | H | Abre o cierra la ayuda. |
 | | Flechas | Aprietan las teclas del keypad que elegiste en Controles (sección 1.9). |
 | | Esc | Cierra la ayuda o sale de la pantalla completa. |
@@ -439,11 +450,12 @@ un selector, un deslizador o el modo de pantalla.
 Un detalle importante para depurar: **Paso no hace correr el tiempo**. Los timers
 bajan una vez por frame, así que con Paso quedan congelados; con Frame, o
 con Continuar, vuelven a bajar. El avance rápido, en cambio, corre frames enteros: el
-programa va más rápido pero ve el tiempo pasar igual que siempre.
+programa va más rápido pero ve el tiempo pasar igual que siempre. Y el rebobinado vuelve
+de a frames enteros, con los timers como estaban en cada uno (sección 1.13).
 
 Y uno sobre el foco: los botones que tocás con el mouse no se quedan con el foco, así
 que Espacio siempre pausa. Si en cambio llegás a un botón o a un interruptor con Tab,
-Espacio y Enter lo activan (no pausan); las teclas del keypad, N, H, T, P, G y
+Espacio y Enter lo activan (no pausan); las teclas del keypad, N, H, T, P, G, I, U, B y
 Retroceso siguen yendo a la consola.
 
 ### 1.11 El monitor
@@ -497,6 +509,73 @@ Si es de las que no se pueden ignorar, la máquina se detiene con un error que d
 plataforma hace falta, y el mensaje trae el botón **Cambiar a XO-CHIP y reiniciar** (o a
 SUPER-CHIP). Los detalles, en el
 [manual, sección 11.10](MANUAL.md#1110-diagnósticos-de-plataforma).
+
+### 1.13 Estados guardados y rebobinado
+
+Un **estado guardado** es una foto de la máquina entera en un momento: la memoria, los
+registros, la pila, los dos timers, la pantalla, el sonido y las banderas. Volver a un
+estado deja la máquina exactamente como estaba, y desde ahí sigue igual que la primera
+vez. (No tiene nada que ver con los estados de la sección anterior, que dicen qué está
+haciendo la máquina: estos son partidas guardadas.)
+
+**Las ranuras.** El grupo **Estados**, el último del panel, tiene cinco ranuras: **Rápido**
+y de la **Ranura 1** a la **Ranura 4**. Cada una muestra en chiquito la pantalla del
+momento que guardaste, con los colores de tu paleta, y cuándo la guardaste (*recién*,
+*hace 5 min*, *ayer 18:20*); una vacía dice *VACÍA*. Las manejás con sus botones
+**Guardar**, **Cargar** y **Borrar**, y el aviso de Borrar trae **Deshacer**. La ranura
+rápida se maneja además con el teclado, sin sacar las manos del juego: **I** guarda y
+**U** carga. Al guardar, la pantalla muestra un momento *GUARDADO*; al cargar, *CARGADO*.
+
+**Son de cada cartucho.** Las ranuras son del cartucho que tenés puesto: cada ROM,
+reconocida por su huella (sección 1.7), tiene las suyas, y otra ROM no las ve. Quedan
+guardadas en tu navegador aunque cierres la página. Si el navegador no deja guardar datos,
+o se quedó sin lugar, duran hasta que la cierres, y la consola te avisa. Si un estado
+guardado se dañó, su ranura dice *DAÑADO* y no se puede cargar.
+
+**Cargar no reinicia nada** y no toca la pausa: si la máquina estaba en pausa, queda en
+pausa en ese momento, con ese frame en la pantalla y en el monitor; si corría, sigue
+corriendo desde ahí. Si el estado se guardó con otra plataforma o con otros quirks, la
+consola pasa a esos, pero no los anota como una elección tuya. La velocidad (IPF), la
+paleta y los controles no viajan con el estado: quedan como los tengas. Un estado que
+guardaste con la máquina detenida por un error, o terminada con `EXIT`, vuelve con su
+mensaje.
+
+**El rebobinado.** Mientras la máquina corre, la consola saca una foto en cada frame y se
+queda con los últimos 30 segundos. Mantené apretada la **B** (o el botón ⏪ del pie del
+tubo, con el mouse o con el dedo) y la máquina vuelve atrás en el tiempo, frame por frame,
+al doble de velocidad: dos frames por cada frame real (con **T** también apretada, ocho).
+En la pantalla aparece «⏪» y el monitor muestra cada momento. Cuando soltás, la máquina
+sigue desde ahí como si nada: el programa no se entera de que volviste.
+
+Mientras rebobinás, la máquina no corre: no se ejecuta ninguna instrucción, los timers no
+bajan y no suena nada. Pero cada foto tiene sus DT y ST, así que **los timers vuelven
+atrás con todo lo demás**: si volvés a un momento en que DT valía 20, al soltar vale 20 y
+sigue bajando desde ahí, y si ST todavía no había llegado a 0, el pitido vuelve a sonar
+cuando la máquina sigue.
+
+**Las banderas también vuelven.** Las banderas donde algunos juegos de SUPER-CHIP y
+XO-CHIP guardan el récord o la partida (sección 1.7) son parte de la foto: si rebobinás, o
+cargás un estado, hasta antes de que el juego guardara un récord, el récord también se
+pierde.
+
+**En pausa también anda.** Con la máquina en pausa, un toque de **B** vuelve exactamente
+un frame, y **Frame** avanza uno: podés ir y venir por un momento difícil de a un frame. Si
+la mantenés, después de un instante sigue volviendo, y la máquina queda en pausa. Después
+de un error o del fin del programa, rebobinar te lleva a antes y deja la máquina en pausa,
+para que mires qué pasó: en la [sección 7.4](#74-volver-atrás-con-b) lo vas a usar para
+depurar.
+
+**Hasta dónde.** Debajo de las ranuras, *Podés volver hasta N s.* te dice cuánto pasado hay
+guardado. Vuelve a cero cuando cargás otro cartucho o un estado, cuando reiniciás y cuando
+cambiás de plataforma: no se puede volver más allá de esos momentos. Con los juegos de
+XO-CHIP que reescriben casi toda su memoria de 64 KB en cada frame entran menos segundos
+(como mínimo, unos 11), porque las fotos tienen un tope de memoria. Si no usás el
+rebobinado, apagá el interruptor **Rebobinado**: la consola deja de sacar fotos y **B** no
+hace nada.
+
+Una salvedad: el azar no se guarda. Si el programa usa `RND`, al seguir desde un estado
+cargado o desde un momento al que rebobinaste, los números que salgan pueden ser otros, y
+el juego, tomar otro camino.
 
 ---
 
@@ -2531,6 +2610,7 @@ dentro, instrucción por instrucción, hasta encontrarlos.
    El listado del ensamblador (`--listing`) te dice en qué dirección está cada línea.
 3. **Llevá la máquina hasta ahí.** Pausá (Espacio), reiniciá (Retroceso: sigue en
    pausa) y avanzá con **Paso** (N) de a una instrucción, o con **Frame** de a un frame.
+   Si te pasaste, **B** vuelve atrás de a un frame (sección 7.4).
 4. **Compará** lo que esperabas con lo que muestra el monitor. Los registros que
    cambian se resaltan: con Paso, ves exactamente qué tocó cada instrucción.
 
@@ -2718,6 +2798,8 @@ estaba corriendo cuando se detuvo, Reiniciar la pone a correr otra vez (sección
 3. **Retroceso** otra vez: como ahora estaba en pausa, queda en pausa en `0x200`. La
    línea de estado dice *Reiniciado (en pausa).*
 
+(Con el rebobinado hay un camino más corto, y sin apuro: lo vas a ver en la sección 7.4.)
+
 Ahora avanzá con Paso (N):
 
 1. Las 5 primeras instrucciones dibujan el fantasmita. El PC queda en `0x20A`... que
@@ -2759,7 +2841,31 @@ Instrucción inválida o desconocida (opcode 0xF090 en la dirección 0x0050).
 
 El mismo error de programación, tres síntomas distintos según el intérprete.
 
-### 7.4 Los errores que detienen la máquina
+### 7.4 Volver atrás con B
+
+El rebobinado de la [sección 1.13](#113-estados-guardados-y-rebobinado) también sirve para
+depurar: te deja volver a justo antes de un error y mirarlo con Paso, sin empezar de nuevo.
+Probalo con `11-sin-fin.ch8`, con el perfil COSMAC VIP y 15 IPF: cargalo y esperá a que se
+detenga con el error de la fuente. Entonces:
+
+1. **Tocá B una vez** (apretala y soltala enseguida). La máquina vuelve **un frame**, al
+   momento en que empezó el frame del error, y queda en pausa: el cartel de error se va y
+   la línea de estado dice *Rebobinado: volviste 1 frame atrás (en pausa, PC = 0x038).*
+2. **Avanzá con Paso (N).** El PC sube de a 2 por los ceros (`SYS 0x000`): `0x03A`,
+   `0x03C`... A los 12 Pasos llega a `0x050`, y el DESENSAMBLADO marca ahí la instrucción
+   que no existe, `DW 0xF090`. Un Paso más y la máquina se detiene con el mismo error de
+   antes.
+3. **Mantené B.** La máquina vuelve dos frames por cada frame real, y en poco más de un
+   segundo llega al momento más viejo que guardó la consola, que en este programa es el
+   principio: *Rebobinado: volviste 1,6 s atrás (en pausa, PC = 0x200).* Desde ahí, con
+   Paso, podés hacer el recorrido de la sección 7.3 sin las tres teclas del principio.
+
+Fijate en el paso 1: la máquina no volvió una instrucción sino un frame entero, las 12
+instrucciones que había ejecutado en ese frame antes de chocar. El rebobinado guarda una
+foto por frame, no por instrucción. Si avanzás con Paso y te pasaste, un toque de B te
+devuelve al principio de ese frame.
+
+### 7.5 Los errores que detienen la máquina
 
 La máquina se detiene en tres casos, y el mensaje siempre dice la instrucción y su
 dirección. Probalos con estos programitas de una línea:
@@ -2794,7 +2900,7 @@ más en la pila, hasta llenar los 16 lugares.
 El tercero, *instrucción inválida*, ya lo viste: casi siempre es la CPU ejecutando
 datos.
 
-### 7.5 Lista de errores comunes
+### 7.6 Lista de errores comunes
 
 - **`SKP` por `SKNP`, `SE` por `SNE`.** Todas "saltean la siguiente": pensá siempre en
   qué caso se **ejecuta** la línea de abajo.
@@ -2854,6 +2960,13 @@ class MiniChip8 {
 `Uint8Array` es un arreglo de bytes: cada elemento guarda un número de 0 a 255 y, si le
 asignás algo más grande, se queda con los 8 bits de abajo. Es justo cómo se comportan
 los registros de CHIP-8, así que las cuentas "dan la vuelta" solas.
+
+Que toda la máquina entre en unas pocas variables tiene otra ventaja: guardar la partida
+es copiarlas. Eso hacen los estados guardados y el rebobinado de la consola
+([sección 1.13](#113-estados-guardados-y-rebobinado)): una copia de la memoria, los
+registros, la pila, los timers y la pantalla (y, en el núcleo de verdad, de lo que
+agregan SUPER-CHIP y XO-CHIP). No hace falta copiar las teclas, que son de quien juega,
+ni la ROM: el programa ya está en la memoria.
 
 ### 8.2 Buscar, decodificar, ejecutar
 
@@ -3100,10 +3213,10 @@ directamente desde el disco. Adentro tiene seis partes:
 |---|---|
 | `<style id="chip8-style">` | Todo el aspecto de la consola. |
 | El HTML del `<body>` | La consola, el panel, los estantes de cartuchos, el monitor y la ayuda. |
-| `<script id="chip8-core">` | El núcleo del emulador: la clase `Chip8` con sus tres plataformas, los quirks, las dos fuentes, el desensamblador y la huella SHA-1 de las ROMs. No toca la página, así que también corre en Node. |
+| `<script id="chip8-core">` | El núcleo del emulador: la clase `Chip8` con sus tres plataformas, los quirks, las dos fuentes, el desensamblador, la huella SHA-1 de las ROMs, los estados guardados (como objeto y como texto) y el buffer del rebobinado. No toca la página, así que también corre en Node. |
 | `<script id="chip8-roms">` | Los cartuchos incluidos. Lo genera `tools/embed-roms.js` a partir de `roms/*.asm`: no se edita a mano. |
 | `<script id="chip8-archive">` | La tabla del archivo de la comunidad: los ajustes de cada juego conocido, por su huella. Lo genera `tools/archive.js` a partir de `data/archive.json`: tampoco se edita a mano. |
-| `<script id="chip8-ui">` | La interfaz: pantalla, keypad, controles, monitor, sonido, los ajustes por cartucho, tus cartuchos y el bucle principal. |
+| `<script id="chip8-ui">` | La interfaz: pantalla, keypad, controles, monitor, sonido, los ajustes por cartucho, tus cartuchos, las ranuras de estados, el rebobinado y el bucle principal. |
 
 Alrededor están las herramientas (`tools/chip8asm.js`, el ensamblador;
 `tools/embed-roms.js`, que ensambla las demos y las incrusta; `tools/archive.js`, que
@@ -3415,7 +3528,8 @@ final de `inicio`, cambiá `LD VC, 0` por `LD V0, R` y `LD VC, V0`. Y para que e
 muestre ese valor desde el principio, cambiá `LD VE, 0` por `LD I, nuevo`, `LD B, VC` y
 `LD VE, 3`: el contador se pone al día solo, un dígito por paso, como cuando hay un
 rebote. Las banderas sobreviven a Reiniciar y, con **Ajustes por cartucho**, la consola
-las guarda para tu ROM: el récord sigue ahí aunque cierres la página.
+las guarda para tu ROM: el récord sigue ahí aunque cierres la página. Eso sí, rebobinar o
+cargar un estado las vuelve atrás con el resto de la máquina (sección 1.13).
 
 </details>
 
@@ -3539,10 +3653,11 @@ te sirve para comprobar que no rompiste nada.
 
 **9. ROMs de otros.** Conseguí ROMs de dominio público y cargalas. Las del archivo de la
 comunidad de John Earnest ([chip8Archive](https://github.com/JohnEarnest/chip8Archive),
-licencia CC0) la consola las reconoce y las configura sola: mirá en el aviso y en la
-ranura qué les puso, cambiá algo y fijate cómo **Olvidar ajustes** las devuelve a su
-lugar. Con las demás (hay muchas en los enlaces de abajo), probá vos cuáles necesitan
-otro perfil o más IPF.
+licencia CC0) ya las tenés: son las 104 ROMs del archivo de
+[`roms/archivo/`](../roms/archivo/LEEME.md), y la consola las reconoce y las configura
+sola. Elegí una en el índice, cargala, mirá en el aviso y en la ranura qué le puso, cambiá
+algo y fijate cómo **Olvidar ajustes** la devuelve a su lugar. Con las demás (hay muchas
+en los enlaces de abajo), probá vos cuáles necesitan otro perfil o más IPF.
 
 ### 10.2 Próximos pasos
 
