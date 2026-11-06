@@ -18,10 +18,15 @@
  *       Escribe la tabla en <script id="chip8-archive"> de chip8.html (si el bloque no existe, lo
  *       agrega después de <script id="chip8-roms">). Con --check no escribe nada: sale con 1 si
  *       el bloque embebido no está al día.
+ *   node tools/archive.js download
+ *       Baja las ROMs del archivo a roms/archivo/<id>.ch8 (las que ya están y coinciden con su
+ *       huella no se vuelven a bajar) y escribe roms/archivo/LEEME.md, el índice de los juegos.
+ *       Necesita conexión a internet.
  *   node tools/archive.js test [--frames N] [--sheet hoja.png] [--only id1,id2] [--json reporte.json]
  *       Corre cada juego del archivo con su configuración, apretando teclas al azar (de forma
  *       reproducible), y reporta errores, salidas y pantallas vacías. Con --sheet guarda una hoja de
- *       contactos PNG con la pantalla final de cada juego. Necesita conexión (baja las ROMs a memoria).
+ *       contactos PNG con la pantalla final de cada juego. Usa las ROMs de roms/archivo/ y, si
+ *       falta alguna, la baja a memoria.
  *
  * Correspondencia con las opciones de Octo (los valores por defecto de Octo valen cuando el
  * archivo no trae la opción):
@@ -44,6 +49,8 @@ const zlib = require('node:zlib');
 const ROOT = path.resolve(__dirname, '..');
 const DATA_PATH = path.join(ROOT, 'data', 'archive.json');
 const HTML_PATH = path.join(ROOT, 'chip8.html');
+const ROMS_DIR = path.join(ROOT, 'roms', 'archivo');
+const README_NAME = 'LEEME.md';
 const REPO = 'JohnEarnest/chip8Archive';
 const BRANCH = 'master';
 const RAW = `https://raw.githubusercontent.com/${REPO}/${BRANCH}/`;
@@ -216,6 +223,81 @@ function sha1(bytes) {
 
 async function fetchRom(id) {
   return fetchBuffer(`${RAW}roms/${encodeURIComponent(id)}.ch8`);
+}
+
+// La ROM de roms/archivo/ si está y coincide con su huella; si no, la baja a memoria.
+async function localOrFetch(p) {
+  const file = path.join(ROMS_DIR, p.id + '.ch8');
+  if (fs.existsSync(file)) {
+    const rom = fs.readFileSync(file);
+    if (sha1(rom) === p.sha1) return rom;
+  }
+  return fetchRom(p.id);
+}
+
+// ------------------------------------------------------------------ roms/archivo/
+
+const PLATFORM_LABEL = { chip8: 'CHIP-8', schip: 'SUPER-CHIP', xochip: 'XO-CHIP' };
+const mdCell = (s) => String(s).replace(/\|/g, '\\|');
+// 11 programas del archivo traen de autor el texto de ejemplo de la plantilla.
+const realAuthors = (list) => (list || []).filter((a) => !/^your name here$/i.test(a.trim()));
+
+// El índice de roms/archivo/: de dónde salen las ROMs y la tabla de juegos.
+function buildReadme(data) {
+  const rows = data.programs.slice()
+    .sort((a, b) => a.title.localeCompare(b.title, 'es', { sensitivity: 'base' }) || a.id.localeCompare(b.id))
+    .map((p) => {
+      const e = toEntry(p);
+      const authors = realAuthors(p.authors).join(', ') || '—';
+      return `| ${mdCell(e.title)} | [\`${p.id}.ch8\`](${encodeURIComponent(p.id)}.ch8) | ${PLATFORM_LABEL[e.platform]} | ${e.ipf} | ${mdCell(authors)} | ${mdCell(e.event || '—')} |`;
+    });
+  const counts = Object.keys(PLATFORM_LABEL)
+    .map((k) => `${data.programs.filter((p) => toEntry(p).platform === k).length} de ${PLATFORM_LABEL[k]}`)
+    .join(', ');
+  return [
+    '# ROMs del archivo de la comunidad',
+    '',
+    `Son las ${data.programs.length} ROMs del [archivo de John Earnest](${data.source}) (${counts}),`,
+    `tal como estaban en su commit \`${String(data.commit).slice(0, 7)}\`. El archivo entero es de dominio`,
+    'público ([CC0](https://creativecommons.org/publicdomain/zero/1.0/)): se pueden copiar, modificar y repartir.',
+    '',
+    'Cargalas en la consola con «Cargar ROM» o arrastrándolas. La consola las reconoce por su huella',
+    'SHA-1 y se configura sola con la plataforma, la velocidad (IPF), los quirks y los colores que usa',
+    'el archivo; la columna IPF de abajo es la velocidad que les da.',
+    '',
+    'Esta carpeta la arma `node tools/archive.js download`: no la edites a mano.',
+    '',
+    '| Juego | Archivo | Plataforma | IPF | Autores | Evento |',
+    '|---|---|---|---:|---|---|',
+    ...rows,
+    '',
+  ].join('\n');
+}
+
+async function cmdDownload() {
+  const data = readData();
+  fs.mkdirSync(ROMS_DIR, { recursive: true });
+  let fresh = 0, kept = 0, bytes = 0;
+  await mapLimit(data.programs, 8, async (p) => {
+    const file = path.join(ROMS_DIR, p.id + '.ch8');
+    if (fs.existsSync(file) && sha1(fs.readFileSync(file)) === p.sha1) {
+      kept++;
+      bytes += p.size;
+      return;
+    }
+    const rom = await fetchRom(p.id);
+    if (sha1(rom) !== p.sha1) {
+      throw new Error(`La ROM de ${p.id} ya no coincide con data/archive.json: el archivo cambió, corré "node tools/archive.js update".`);
+    }
+    fs.writeFileSync(file, rom);
+    fresh++;
+    bytes += rom.length;
+  });
+  const known = new Set(data.programs.map((p) => p.id + '.ch8').concat(README_NAME));
+  const extra = fs.readdirSync(ROMS_DIR).filter((f) => !known.has(f));
+  fs.writeFileSync(path.join(ROMS_DIR, README_NAME), buildReadme(data));
+  console.log(`roms/archivo: ${fresh} bajadas, ${kept} ya estaban (${data.programs.length} ROMs, ${(bytes / 1024).toFixed(0)} KB) y ${README_NAME} al día.`);
+  if (extra.length) console.warn(`  Atención: hay archivos que no son del archivo: ${extra.join(', ')}`);
 }
 
 // ------------------------------------------------------------------ comandos
@@ -428,7 +510,7 @@ async function cmdTest(args) {
   const programs = data.programs.filter((p) => !only || only.has(p.id));
   const frames = Number(args.frames) || 900;
   console.log(`Probando ${programs.length} programas, ${frames} frames cada uno…`);
-  const roms = await mapLimit(programs, 8, (p) => fetchRom(p.id));
+  const roms = await mapLimit(programs, 8, (p) => localOrFetch(p));
   const entries = programs.map(toEntry);
   const results = [];
   programs.forEach((p, i) => {
@@ -475,7 +557,7 @@ function parseArgs(argv) {
   return args;
 }
 
-const USAGE = 'Uso: node tools/archive.js update | embed [--html <ruta>] [--check] | test [--frames N] [--sheet hoja.png] [--only id1,id2] [--json reporte.json]';
+const USAGE = 'Uso: node tools/archive.js update | embed [--html <ruta>] [--check] | download | test [--frames N] [--sheet hoja.png] [--only id1,id2] [--json reporte.json]';
 
 async function main(argv) {
   let args;
@@ -490,6 +572,7 @@ async function main(argv) {
   try {
     if (cmd === 'update') await cmdUpdate();
     else if (cmd === 'embed') cmdEmbed(args);
+    else if (cmd === 'download') await cmdDownload();
     else if (cmd === 'test') await cmdTest(args);
     else if (cmd === '--help' || cmd === undefined) console.log(USAGE);
     else throw new Error(`Comando desconocido: ${cmd}`);
@@ -502,4 +585,4 @@ async function main(argv) {
 
 if (require.main === module) main(process.argv.slice(2));
 
-module.exports = { fromOctoOptions, normalizeColor, formatEvent, toEntry, buildBlock, embedInto, findBlock, encodePng, OCTO_DEFAULTS, BLOCK_ID, HEADER, DATA_PATH };
+module.exports = { fromOctoOptions, normalizeColor, formatEvent, toEntry, buildBlock, embedInto, findBlock, encodePng, buildReadme, OCTO_DEFAULTS, BLOCK_ID, HEADER, DATA_PATH, ROMS_DIR, README_NAME };

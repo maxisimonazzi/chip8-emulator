@@ -139,6 +139,34 @@ describe('data/archive.json', () => {
   });
 });
 
+describe('roms/archivo: las ROMs del archivo', () => {
+  const crypto = require('node:crypto');
+  const data = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'archive.json'), 'utf8'));
+  const dir = archive.ROMS_DIR;
+
+  it('hay una ROM por programa, idéntica a la del archivo (misma huella SHA-1 y tamaño)', () => {
+    for (const p of data.programs) {
+      const file = path.join(dir, p.id + '.ch8');
+      assert.ok(fs.existsSync(file), `falta roms/archivo/${p.id}.ch8 (corré "node tools/archive.js download")`);
+      const rom = fs.readFileSync(file);
+      assert.equal(rom.length, p.size, p.id);
+      assert.equal(crypto.createHash('sha1').update(rom).digest('hex'), p.sha1, p.id);
+    }
+  });
+
+  it('no tiene archivos que no sean del archivo, salvo su LEEME.md', () => {
+    const known = new Set(data.programs.map((p) => p.id + '.ch8').concat(archive.README_NAME));
+    assert.deepEqual(fs.readdirSync(dir).filter((f) => !known.has(f)), []);
+  });
+
+  it('LEEME.md está al día con data/archive.json y no muestra el autor de ejemplo de la plantilla', () => {
+    const readme = fs.readFileSync(path.join(dir, archive.README_NAME), 'utf8');
+    assert.equal(readme, archive.buildReadme(data));
+    assert.ok(!/your name here/i.test(readme));
+    for (const p of data.programs) assert.ok(readme.includes(`[\`${p.id}.ch8\`](${encodeURIComponent(p.id)}.ch8)`), p.id);
+  });
+});
+
 describe('bloque <script id="chip8-archive"> de chip8.html', () => {
   it('está al día con data/archive.json (node tools/archive.js embed --check)', () => {
     execFileSync(process.execPath, [path.join(ROOT, 'tools', 'archive.js'), 'embed', '--check'], { cwd: ROOT, stdio: 'pipe' });
