@@ -1394,6 +1394,10 @@
  * siempre en CHIP-8, y la primera deja un aviso en `hint`; las demás detienen la
  * máquina con un error que nombra la plataforma necesaria (errorInfo.kind ===
  * 'platform').
+ *
+ * Estados guardados: cpu.saveState() y cpu.loadState(estado), Chip8Core.encodeState y
+ * decodeState (el estado como texto) y Chip8Core.RewindBuffer (rebobinado). Están al
+ * final, en «Estados guardados y rebobinado».
  */
 (function () {
   'use strict';
@@ -2422,6 +2426,738 @@
     return 4000 * Math.pow(2, (pitch - 64) / 48);
   }
 
+  /*
+   * ------------------------------------------------------------------------
+   * Estados guardados y rebobinado
+   * ------------------------------------------------------------------------
+   * Nada de esto corre dentro de step ni de runFrame: el camino caliente no cambia.
+   *
+   * cpu.saveState() devuelve una foto completa de la máquina: un objeto común con copias
+   * de todo (los arreglos son nuevos), así la máquina puede seguir sin tocar la foto.
+   *   version          1 (Chip8Core.STATE_VERSION)
+   *   platform         'chip8', 'schip' o 'xochip'
+   *   quirks           { vfReset, memory, shifting, jumping, clipping, displayWait }
+   *   memory           Uint8Array con la memoria entera: 4096 bytes, o 65536 en XO-CHIP
+   *   V                Uint8Array(16)
+   *   I                0..0xFFFF
+   *   pc               0..0xFFF, o 0..0xFFFF en XO-CHIP
+   *   stack, sp        Uint16Array(16) y 0..16
+   *   delayTimer       0..255
+   *   soundTimer       0..255
+   *   hires            booleano (siempre false en CHIP-8)
+   *   displayWidth     64 y 32, o 128 y 64 con hires
+   *   displayHeight
+   *   display          Uint8Array(displayWidth × displayHeight), fila por fila: máscaras de
+   *                    planos, de 0 a 3 en XO-CHIP y 0 o 1 en las otras
+   *   planes           0..3 en XO-CHIP; siempre 1 en las otras
+   *   flags            Uint8Array(16): las banderas de FX75/FX85
+   *   audioPattern     Uint8Array(16)
+   *   audioPatternSet  booleano
+   *   pitch            0..255
+   *   waitingForKey    booleano: un FX0A está esperando una tecla
+   *   waitReg          0..15: el registro X de ese FX0A
+   *   waitKey          -1..15: la tecla que se apretó durante la espera y todavía no se
+   *                    soltó (-1: ninguna); la espera termina cuando se suelta esa tecla
+   *   halted, exited   booleanos
+   *   error            texto o null
+   *   errorInfo        copia de { kind, opcode, addr, needs?, name? }, o null
+   *   hinted           booleano: ya se avisó una instrucción ignorada (hint no se vuelve a
+   *                    llenar hasta el próximo reset)
+   * No guarda la ROM (cpu.rom), las teclas, hint ni la función random: son de la sesión, no
+   * de la máquina. Después de cargar un estado, CXNN da lo mismo que en la original solo si
+   * random es determinista y se restaura aparte.
+   *
+   * cpu.loadState(estado) primero valida el estado entero: ante cualquier problema lanza un
+   * Error que empieza con «Estado inválido: » y la máquina queda como estaba. Después lo
+   * copia: cambia de plataforma (y de memoria) si hace falta, pero no resetea ni toca
+   * cpu.rom, así que un reset() posterior vuelve a empezar la ROM del cartucho. También
+   * borra hint, suelta todas las teclas y deja displayDirty y audioDirty en true. La
+   * interfaz tiene que volver a avisar con setKey(k, true) las teclas que siguen apretadas:
+   * si entre ellas está waitKey, soltarla termina la espera igual que en la original (si no
+   * está, la espera termina cuando esa tecla se apriete y se suelte). Desde ahí la máquina
+   * sigue exactamente como habría seguido la original. Si la ROM cargada no entra en la
+   * memoria de la plataforma del estado, lanza un RangeError y tampoco cambia nada.
+   */
+  var STATE_VERSION = 1;
+  var STATE_FORMAT = 'chip8-state'; // el campo "format" del estado en texto
+  var ERROR_KINDS = ['invalid', 'platform', 'stackOverflow', 'stackUnderflow'];
+
+  function badState(message) {
+    return new Error('Estado inválido: ' + message);
+  }
+
+  // Un valor cualquiera, para los mensajes de error (sin volcar objetos ni textos largos).
+  function shownValue(value) {
+    switch (typeof value) {
+      case 'string': return '"' + (value.length > 40 ? value.slice(0, 40) + '...' : value) + '"';
+      case 'object': break;
+      case 'function': return 'una función';
+      case 'symbol': return 'un símbolo';
+      default: return String(value); // número, booleano, undefined o bigint
+    }
+    if (value === null) return 'null';
+    if (Array.isArray(value)) return 'una lista';
+    var type = Object.prototype.toString.call(value).slice(8, -1);
+    return type === 'Object' ? 'un objeto' : 'un ' + type;
+  }
+
+  // holder[key], o un error si falta. prefix nombra el objeto que lo contiene: 'quirks.' o
+  // 'errorInfo.' ('' para los campos del estado).
+  function stateField(holder, key, prefix) {
+    var value = holder[key];
+    if (value === undefined) throw badState('falta el campo ' + prefix + key + '.');
+    return value;
+  }
+
+  function checkBoolean(holder, key, prefix) {
+    var value = stateField(holder, key, prefix);
+    if (typeof value !== 'boolean') throw badState(prefix + key + ' tiene que ser true o false (es ' + shownValue(value) + ').');
+  }
+
+  // Un entero de min a max (con digits, el rango se muestra en hexadecimal).
+  function checkInteger(holder, key, prefix, min, max, digits) {
+    var value = stateField(holder, key, prefix);
+    if (typeof value !== 'number' || !(value >= min && value <= max) || Math.floor(value) !== value) {
+      throw badState(prefix + key + ' tiene que ser un entero de ' +
+        (digits ? hex(min, digits) + ' a ' + hex(max, digits) : min + ' a ' + max) + ' (es ' + shownValue(value) + ').');
+    }
+  }
+
+  // Un arreglo tipado del tipo y el largo justos.
+  function checkArray(holder, key, type, length, unit, detail) {
+    var value = stateField(holder, key, '');
+    if (Object.prototype.toString.call(value) !== '[object ' + type + ']') {
+      throw badState(key + ' tiene que ser un ' + type + ' (es ' + shownValue(value) + ').');
+    }
+    if (value.length !== length) {
+      throw badState(key + ' tiene ' + value.length + ' ' + unit + ' y tiene que tener ' + length + (detail || '') + '.');
+    }
+  }
+
+  // version y platform, lo primero que se mira (en el objeto y en el texto). Devuelve el nivel.
+  function checkHeader(holder) {
+    var version = stateField(holder, 'version', '');
+    if (version !== STATE_VERSION) {
+      throw badState('versión desconocida: ' + shownValue(version) + ' (este emulador lee la versión ' + STATE_VERSION + ').');
+    }
+    var platform = stateField(holder, 'platform', '');
+    var level = platformLevel(platform);
+    if (level < 0) throw badState('plataforma desconocida: ' + shownValue(platform) + ' (tiene que ser chip8, schip o xochip).');
+    return level;
+  }
+
+  function checkErrorInfo(info, mask, digits) {
+    if (info === null) return;
+    if (typeof info !== 'object' || Array.isArray(info)) {
+      throw badState('errorInfo tiene que ser un objeto o null (es ' + shownValue(info) + ').');
+    }
+    var kind = stateField(info, 'kind', 'errorInfo.');
+    if (ERROR_KINDS.indexOf(kind) < 0) {
+      throw badState('errorInfo.kind desconocido: ' + shownValue(kind) + ' (tiene que ser ' + ERROR_KINDS.join(', ') + ').');
+    }
+    checkInteger(info, 'opcode', 'errorInfo.', 0, 0xFFFF, 4);
+    checkInteger(info, 'addr', 'errorInfo.', 0, mask, digits);
+    if (info.needs !== undefined && platformLevel(info.needs) < 0) {
+      throw badState('errorInfo.needs tiene que ser chip8, schip o xochip (es ' + shownValue(info.needs) + ').');
+    }
+    if (info.name !== undefined && typeof info.name !== 'string') {
+      throw badState('errorInfo.name tiene que ser un texto (es ' + shownValue(info.name) + ').');
+    }
+  }
+
+  // Valida un estado entero sin modificarlo; devuelve el nivel de su plataforma.
+  function checkState(state) {
+    if (state === null || typeof state !== 'object' || Array.isArray(state)) {
+      throw badState('tiene que ser un objeto (es ' + shownValue(state) + ').');
+    }
+    var level = checkHeader(state);
+    var info = PLATFORM_INFO[PLATFORMS[level]];
+    var mask = info.memorySize - 1, digits = level === 2 ? 4 : 3;
+    var quirks = stateField(state, 'quirks', '');
+    if (quirks === null || typeof quirks !== 'object') throw badState('quirks tiene que ser un objeto (es ' + shownValue(quirks) + ').');
+    for (var q = 0; q < QUIRK_KEYS.length; q++) checkBoolean(quirks, QUIRK_KEYS[q], 'quirks.');
+    checkArray(state, 'memory', 'Uint8Array', info.memorySize, 'bytes', ' (la memoria de ' + info.label + ')');
+    checkArray(state, 'V', 'Uint8Array', 16, 'bytes');
+    checkInteger(state, 'I', '', 0, 0xFFFF, 4);
+    checkInteger(state, 'pc', '', 0, mask, digits);
+    checkArray(state, 'stack', 'Uint16Array', STACK_SIZE, 'entradas');
+    checkInteger(state, 'sp', '', 0, STACK_SIZE);
+    checkInteger(state, 'delayTimer', '', 0, 255);
+    checkInteger(state, 'soundTimer', '', 0, 255);
+    checkBoolean(state, 'hires', '');
+    if (state.hires && level === 0) throw badState('hires tiene que ser false en CHIP-8: la alta resolución es de SUPER-CHIP y XO-CHIP.');
+    var width = state.hires ? HIRES_WIDTH : DISPLAY_WIDTH;
+    var height = state.hires ? HIRES_HEIGHT : DISPLAY_HEIGHT;
+    var givenWidth = stateField(state, 'displayWidth', ''), givenHeight = stateField(state, 'displayHeight', '');
+    if (givenWidth !== width || givenHeight !== height) {
+      throw badState('displayWidth × displayHeight es ' + shownValue(givenWidth) + ' × ' + shownValue(givenHeight) +
+        ' y con hires = ' + state.hires + ' tiene que ser ' + width + ' × ' + height + '.');
+    }
+    checkArray(state, 'display', 'Uint8Array', width * height, 'píxeles', ' (' + width + ' × ' + height + ')');
+    var display = state.display, top = level === 2 ? 3 : 1;
+    for (var p = 0; p < display.length; p++) {
+      if (display[p] > top) {
+        throw badState('el píxel (' + p % width + ', ' + Math.floor(p / width) + ') de display vale ' + display[p] +
+          ' y en ' + info.label + ' tiene que ser de 0 a ' + top + '.');
+      }
+    }
+    if (level === 2) {
+      checkInteger(state, 'planes', '', 0, 3);
+    } else if (stateField(state, 'planes', '') !== 1) {
+      throw badState('planes tiene que ser 1 en ' + info.label + ', donde no hay planos (es ' + shownValue(state.planes) + ').');
+    }
+    checkArray(state, 'flags', 'Uint8Array', FLAG_COUNT, 'bytes');
+    checkArray(state, 'audioPattern', 'Uint8Array', 16, 'bytes');
+    checkBoolean(state, 'audioPatternSet', '');
+    checkInteger(state, 'pitch', '', 0, 255);
+    checkBoolean(state, 'waitingForKey', '');
+    checkInteger(state, 'waitReg', '', 0, 15);
+    checkInteger(state, 'waitKey', '', -1, 15);
+    checkBoolean(state, 'halted', '');
+    checkBoolean(state, 'exited', '');
+    var error = stateField(state, 'error', '');
+    if (error !== null && typeof error !== 'string') throw badState('error tiene que ser un texto o null (es ' + shownValue(error) + ').');
+    checkErrorInfo(stateField(state, 'errorInfo', ''), mask, digits);
+    checkBoolean(state, 'hinted', '');
+    return level;
+  }
+
+  function copyErrorInfo(info) {
+    if (!info) return null;
+    var copy = { kind: info.kind, opcode: info.opcode, addr: info.addr };
+    if (info.needs !== undefined) copy.needs = info.needs;
+    if (info.name !== undefined) copy.name = info.name;
+    return copy;
+  }
+
+  Chip8.prototype.saveState = function () {
+    return {
+      version: STATE_VERSION,
+      platform: this.platform,
+      quirks: copyQuirks(this.quirks),
+      memory: this.memory.slice(),
+      V: this.V.slice(),
+      I: this.I,
+      pc: this.pc,
+      stack: this.stack.slice(),
+      sp: this.sp,
+      delayTimer: this.delayTimer,
+      soundTimer: this.soundTimer,
+      hires: this.hires,
+      displayWidth: this.displayWidth,
+      displayHeight: this.displayHeight,
+      display: this.display.slice(),
+      planes: this.planes,
+      flags: this.flags.slice(),
+      audioPattern: this.audioPattern.slice(),
+      audioPatternSet: this.audioPatternSet,
+      pitch: this.pitch,
+      waitingForKey: this.waitingForKey,
+      waitReg: this._waitReg,
+      waitKey: this._waitKey,
+      halted: this.halted,
+      exited: this.exited,
+      error: this.error,
+      errorInfo: copyErrorInfo(this.errorInfo),
+      hinted: this._hinted
+    };
+  };
+
+  Chip8.prototype.loadState = function (state) {
+    var level = checkState(state);
+    var platform = PLATFORMS[level], info = PLATFORM_INFO[platform];
+    if (this.rom.length > info.maxRomSize) {
+      throw new RangeError('La ROM cargada ocupa ' + this.rom.length + ' bytes y con la plataforma ' + info.label +
+        ' del estado el máximo es ' + info.maxRomSize + ': no se cargó el estado.');
+    }
+    // Validado: de acá en adelante nada falla. Los enteros pasan por | 0 para que un -0
+    // del JSON no se guarde como número con coma en los campos que usa step.
+    this.platform = platform;
+    this._level = level;
+    if (this.memory.length !== info.memorySize) this.memory = new Uint8Array(info.memorySize);
+    this._mask = info.memorySize - 1;
+    this.memory.set(state.memory);
+    for (var q = 0; q < QUIRK_KEYS.length; q++) this.quirks[QUIRK_KEYS[q]] = state.quirks[QUIRK_KEYS[q]];
+    this.V.set(state.V);
+    this.I = state.I | 0;
+    this.pc = state.pc | 0;
+    this.stack.set(state.stack);
+    this.sp = state.sp | 0;
+    this.delayTimer = state.delayTimer | 0;
+    this.soundTimer = state.soundTimer | 0;
+    // Como en _setResolution: el arreglo de la pantalla se reemplaza solo si cambia el tamaño.
+    if (this.display.length !== state.display.length) this.display = new Uint8Array(state.display.length);
+    this.display.set(state.display);
+    this.hires = state.hires;
+    this.displayWidth = state.displayWidth | 0;
+    this.displayHeight = state.displayHeight | 0;
+    this.planes = state.planes | 0;
+    this.flags.set(state.flags);
+    this.audioPattern.set(state.audioPattern);
+    this.audioPatternSet = state.audioPatternSet;
+    this.pitch = state.pitch | 0;
+    this.waitingForKey = state.waitingForKey;
+    this._waitReg = state.waitReg | 0;
+    this._waitKey = state.waitKey | 0;
+    this.halted = state.halted;
+    this.exited = state.exited;
+    this.error = state.error;
+    this.errorInfo = copyErrorInfo(state.errorInfo);
+    this._hinted = state.hinted;
+    this.hint = null;
+    this.keys.fill(0);
+    this._drew = false;
+    this.displayDirty = true;
+    this.audioDirty = true;
+  };
+
+  /*
+   * Estado en texto: Chip8Core.encodeState(estado) -> texto y Chip8Core.decodeState(texto)
+   * -> estado. El texto es un JSON compacto (sin espacios) con los mismos campos que el
+   * objeto y además "format": "chip8-state" al principio:
+   *   - los números, los booleanos, error, quirks y errorInfo van tal cual;
+   *   - V, flags y audioPattern van en base64 (16 bytes cada uno);
+   *   - stack va en base64: 32 bytes, cada entrada en 2 con el byte alto primero;
+   *   - memory y display van comprimidos y después en base64. La compresión solo achica
+   *     las rachas de ceros: cada byte distinto de 0 se copia tal cual y una racha de N
+   *     ceros seguidos (N >= 1) se escribe como un 0 seguido de N en base 128 (LEB128 sin
+   *     signo: 7 bits por byte, primero los más bajos, con el bit alto en 1 cuando sigue
+   *     otro byte). Por ejemplo, [7, 0, 0, 0, 9] queda [7, 0, 3, 9] y 300 ceros quedan
+   *     [0, 0xAC, 0x02].
+   * Una memoria de XO-CHIP casi vacía ocupa unos pocos bytes en vez de 87 KB de base64.
+   * decodeState valida todo (el JSON, el base64, los largos después de descomprimir, los
+   * campos que faltan y los rangos de los valores) y ante cualquier problema lanza un Error
+   * que empieza con «Estado inválido: ». encodeState valida el estado de la misma forma.
+   */
+  var BASE64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  var BASE64_CODES = (function () {
+    var codes = new Int8Array(128).fill(-1);
+    for (var i = 0; i < 64; i++) codes[BASE64.charCodeAt(i)] = i;
+    return codes;
+  })();
+
+  function toBase64(bytes) {
+    var out = '', n = bytes.length, i = 0, v;
+    for (; i + 2 < n; i += 3) {
+      v = (bytes[i] << 16) | (bytes[i + 1] << 8) | bytes[i + 2];
+      out += BASE64.charAt(v >> 18) + BASE64.charAt((v >> 12) & 63) + BASE64.charAt((v >> 6) & 63) + BASE64.charAt(v & 63);
+    }
+    if (i < n) { // quedan 1 o 2 bytes
+      v = (bytes[i] << 16) | (i + 1 < n ? bytes[i + 1] << 8 : 0);
+      out += BASE64.charAt(v >> 18) + BASE64.charAt((v >> 12) & 63) + (i + 1 < n ? BASE64.charAt((v >> 6) & 63) : '=') + '=';
+    }
+    return out;
+  }
+
+  // base64 estricto: solo el alfabeto estándar, largo múltiplo de 4 y "=" solo al final.
+  function fromBase64(text, key) {
+    if (typeof text !== 'string') throw badState(key + ' tiene que ser un texto en base64 (es ' + shownValue(text) + ').');
+    var n = text.length;
+    if (n % 4 !== 0) throw badState(key + ' no es base64 válido: tiene ' + n + ' caracteres y el largo tiene que ser múltiplo de 4.');
+    var pad = n === 0 || text.charAt(n - 1) !== '=' ? 0 : text.charAt(n - 2) === '=' ? 2 : 1;
+    var out = new Uint8Array(n / 4 * 3 - pad);
+    var o = 0, v = 0;
+    for (var i = 0; i < n - pad; i++) {
+      var code = text.charCodeAt(i);
+      var digit = code < 128 ? BASE64_CODES[code] : -1;
+      if (digit < 0) throw badState(key + ' no es base64 válido: tiene «' + text.charAt(i) + '» en la posición ' + i + '.');
+      v = (v << 6) | digit;
+      if ((i & 3) === 3) { // 4 caracteres = 3 bytes (el Uint8Array se queda con los 8 bits bajos)
+        out[o++] = v >> 16;
+        out[o++] = v >> 8;
+        out[o++] = v;
+        v = 0;
+      }
+    }
+    if (pad === 1) { // 3 caracteres = 18 bits = 2 bytes
+      out[o++] = v >> 10;
+      out[o] = v >> 2;
+    } else if (pad === 2) { // 2 caracteres = 12 bits = 1 byte
+      out[o] = v >> 4;
+    }
+    return out;
+  }
+
+  // Comprime las rachas de ceros (el formato está arriba). Devuelve una lista de bytes.
+  function packZeros(bytes) {
+    var out = [], n = bytes.length, i = 0;
+    while (i < n) {
+      if (bytes[i] !== 0) {
+        out.push(bytes[i++]);
+        continue;
+      }
+      var start = i;
+      while (i < n && bytes[i] === 0) i++;
+      var run = i - start;
+      out.push(0);
+      while (run >= 0x80) {
+        out.push((run & 0x7F) | 0x80);
+        run >>>= 7;
+      }
+      out.push(run);
+    }
+    return out;
+  }
+
+  // Lo contrario de packZeros: tiene que dar exactamente `length` bytes.
+  function unpackZeros(packed, length, key) {
+    var out = new Uint8Array(length), n = packed.length, i = 0, o = 0;
+    var tooLong = key + ' descomprimida pasa de los ' + length + ' bytes que tiene que tener.';
+    while (i < n) {
+      var b = packed[i++];
+      if (b !== 0) {
+        if (o === length) throw badState(tooLong);
+        out[o++] = b;
+        continue;
+      }
+      var run = 0, scale = 1, c;
+      do {
+        if (i === n) throw badState(key + ': la compresión termina en medio de una racha de ceros.');
+        if (scale > 0x200000) throw badState(key + ': una racha de ceros tiene un largo de más de 4 bytes.');
+        c = packed[i++];
+        run += (c & 0x7F) * scale;
+        scale *= 0x80;
+      } while (c & 0x80);
+      if (run === 0) throw badState(key + ': una racha de ceros tiene largo 0.');
+      if (run > length - o) throw badState(tooLong);
+      o += run; // el arreglo nuevo ya está en cero
+    }
+    if (o !== length) throw badState(key + ' descomprimida tiene ' + o + ' bytes y tiene que tener ' + length + '.');
+    return out;
+  }
+
+  // Un campo en base64 que tiene que dar exactamente `length` bytes.
+  function base64Field(data, key, length) {
+    var bytes = fromBase64(stateField(data, key, ''), key);
+    if (bytes.length !== length) throw badState(key + ' tiene ' + bytes.length + ' bytes y tiene que tener ' + length + '.');
+    return bytes;
+  }
+
+  function encodeState(state) {
+    checkState(state);
+    var stack = new Uint8Array(STACK_SIZE * 2);
+    for (var i = 0; i < STACK_SIZE; i++) {
+      stack[2 * i] = state.stack[i] >> 8;
+      stack[2 * i + 1] = state.stack[i];
+    }
+    return JSON.stringify({
+      format: STATE_FORMAT,
+      version: STATE_VERSION,
+      platform: state.platform,
+      quirks: copyQuirks(state.quirks),
+      I: state.I,
+      pc: state.pc,
+      sp: state.sp,
+      delayTimer: state.delayTimer,
+      soundTimer: state.soundTimer,
+      hires: state.hires,
+      displayWidth: state.displayWidth,
+      displayHeight: state.displayHeight,
+      planes: state.planes,
+      audioPatternSet: state.audioPatternSet,
+      pitch: state.pitch,
+      waitingForKey: state.waitingForKey,
+      waitReg: state.waitReg,
+      waitKey: state.waitKey,
+      halted: state.halted,
+      exited: state.exited,
+      hinted: state.hinted,
+      error: state.error,
+      errorInfo: copyErrorInfo(state.errorInfo),
+      V: toBase64(state.V),
+      stack: toBase64(stack),
+      flags: toBase64(state.flags),
+      audioPattern: toBase64(state.audioPattern),
+      memory: toBase64(packZeros(state.memory)),
+      display: toBase64(packZeros(state.display))
+    });
+  }
+
+  function decodeState(text) {
+    if (typeof text !== 'string') throw badState('se esperaba un texto (es ' + shownValue(text) + ').');
+    var data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      throw badState('el texto no es JSON válido.');
+    }
+    if (data === null || typeof data !== 'object' || Array.isArray(data)) {
+      throw badState('el JSON tiene que ser un objeto (es ' + shownValue(data) + ').');
+    }
+    if (data.format !== STATE_FORMAT) {
+      throw badState(data.format === undefined ? 'falta el campo format: no es un estado guardado de esta consola.' :
+        'format tiene que ser "' + STATE_FORMAT + '" (es ' + shownValue(data.format) + ').');
+    }
+    var level = checkHeader(data);
+    var info = PLATFORM_INFO[PLATFORMS[level]];
+    checkBoolean(data, 'hires', ''); // de hires depende el tamaño de la pantalla
+    var pixels = data.hires ? HIRES_WIDTH * HIRES_HEIGHT : DISPLAY_WIDTH * DISPLAY_HEIGHT;
+    var stackBytes = base64Field(data, 'stack', STACK_SIZE * 2);
+    var stack = new Uint16Array(STACK_SIZE);
+    for (var i = 0; i < STACK_SIZE; i++) stack[i] = (stackBytes[2 * i] << 8) | stackBytes[2 * i + 1];
+    var state = {
+      version: STATE_VERSION,
+      platform: PLATFORMS[level],
+      quirks: data.quirks,
+      memory: unpackZeros(fromBase64(stateField(data, 'memory', ''), 'memory'), info.memorySize, 'memory'),
+      V: base64Field(data, 'V', 16),
+      I: data.I,
+      pc: data.pc,
+      stack: stack,
+      sp: data.sp,
+      delayTimer: data.delayTimer,
+      soundTimer: data.soundTimer,
+      hires: data.hires,
+      displayWidth: data.displayWidth,
+      displayHeight: data.displayHeight,
+      display: unpackZeros(fromBase64(stateField(data, 'display', ''), 'display'), pixels, 'display'),
+      planes: data.planes,
+      flags: base64Field(data, 'flags', FLAG_COUNT),
+      audioPattern: base64Field(data, 'audioPattern', 16),
+      audioPatternSet: data.audioPatternSet,
+      pitch: data.pitch,
+      waitingForKey: data.waitingForKey,
+      waitReg: data.waitReg,
+      waitKey: data.waitKey,
+      halted: data.halted,
+      exited: data.exited,
+      error: data.error,
+      errorInfo: data.errorInfo,
+      hinted: data.hinted
+    };
+    checkState(state);
+    state.quirks = copyQuirks(state.quirks);       // sin campos de más
+    state.errorInfo = copyErrorInfo(state.errorInfo);
+    return state;
+  }
+
+  /*
+   * Rebobinado: new Chip8Core.RewindBuffer({ maxEntries = 600, maxBytes = 32 MB }).
+   *   push(cpu)  guarda una foto del estado actual de la máquina.
+   *   pop()      saca la foto más reciente y la devuelve como un estado completo, listo
+   *              para cpu.loadState (null si no hay ninguna).
+   *   peek()     la misma foto sin sacarla (con arreglos propios: modificarlos no cambia
+   *              la foto guardada); null si no hay ninguna.
+   *   clear()    descarta todas.
+   *   length     cuántas fotos hay.
+   *   bytes      cuánta memoria ocupan, aproximadamente (ver abajo).
+   * Cuando hay más de maxEntries fotos o más de maxBytes bytes, se descartan las más
+   * viejas (siempre queda al menos la última).
+   *
+   * La memoria se guarda en páginas de 256 bytes. Una página igual a la misma página de la
+   * foto anterior reusa el arreglo de esa foto (las páginas guardadas no se modifican
+   * nunca), así que una foto en la que cambiaron pocos bytes cuesta solo las páginas que
+   * cambiaron, más una copia de la pantalla y de los campos chicos. push recorre la memoria
+   * una sola vez (compara de a 4 bytes) y copia la pantalla una vez: no reserva nada por
+   * byte, solo por página que cambió.
+   *
+   * bytes es una aproximación de la memoria que retienen las fotos: cada foto cuenta los
+   * datos que reservó (256 por página nueva, la pantalla y 80 de V, stack, flags y
+   * audioPattern) más 8 por cada referencia de su tabla de páginas. Cuando se descarta la
+   * foto más vieja, las páginas que compartía con la siguiente siguen en uso y pasan a
+   * contarse en esa. No cuenta lo que el motor de JavaScript agrega por cada objeto y cada
+   * arreglo (del orden de cien bytes), así que el uso real es algo mayor.
+   */
+  var PAGE_SIZE = 256;
+  var PAGE_WORDS = PAGE_SIZE >> 2;
+  var SMALL_BYTES = 80;   // V (16) + flags (16) + audioPattern (16) + stack (16 × 2)
+  var POINTER_BYTES = 8;  // una referencia de la tabla de páginas
+
+  function quirkBits(quirks) {
+    var bits = 0;
+    for (var i = 0; i < QUIRK_KEYS.length; i++) if (quirks[QUIRK_KEYS[i]]) bits |= 1 << i;
+    return bits;
+  }
+
+  function quirksFromBits(bits) {
+    var quirks = {};
+    for (var i = 0; i < QUIRK_KEYS.length; i++) quirks[QUIRK_KEYS[i]] = (bits & (1 << i)) !== 0;
+    return quirks;
+  }
+
+  function RewindBuffer(options) {
+    options = options || {};
+    var maxEntries = options.maxEntries == null ? 600 : options.maxEntries;
+    var maxBytes = options.maxBytes == null ? 32 * 1024 * 1024 : options.maxBytes;
+    if (typeof maxEntries !== 'number' || !(maxEntries >= 1) || Math.floor(maxEntries) !== maxEntries) {
+      throw new RangeError('maxEntries tiene que ser un entero mayor que 0 (es ' + shownValue(maxEntries) + ').');
+    }
+    if (typeof maxBytes !== 'number' || !(maxBytes > 0)) {
+      throw new RangeError('maxBytes tiene que ser un número mayor que 0 (es ' + shownValue(maxBytes) + ').');
+    }
+    this.maxEntries = maxEntries;
+    this.maxBytes = maxBytes;
+    this._entries = [];  // las fotos, de la más vieja a la más nueva, desde _head
+    this._head = 0;
+    this._bytes = 0;
+    this._memory = null; // la última memoria que se guardó y su vista de a 4 bytes
+    this._words = null;
+  }
+
+  Object.defineProperty(RewindBuffer.prototype, 'length', {
+    get: function () { return this._entries.length - this._head; }
+  });
+
+  Object.defineProperty(RewindBuffer.prototype, 'bytes', {
+    get: function () { return this._bytes; }
+  });
+
+  RewindBuffer.prototype.push = function (cpu) {
+    var memory = cpu.memory;
+    if (memory !== this._memory) {
+      this._memory = memory;
+      this._words = (memory.byteOffset & 3) === 0 ? new Int32Array(memory.buffer, memory.byteOffset, memory.length >> 2) : null;
+    }
+    // Una memoria sin alinear (el núcleo nunca arma una así) se copia para poder leerla de a 4 bytes.
+    var words = this._words || new Int32Array(new Uint8Array(memory).buffer);
+    var pageCount = words.length / PAGE_WORDS;
+    var entries = this._entries;
+    var last = entries.length > this._head ? entries[entries.length - 1] : null;
+    var previous = last !== null && last.pages.length === pageCount ? last.pages : null;
+    var pages = new Array(pageCount), fresh = 0;
+    for (var p = 0, base = 0; p < pageCount; p++, base += PAGE_WORDS) {
+      if (previous !== null) {
+        var old = previous[p], w = 0;
+        while (w < PAGE_WORDS && old[w] === words[base + w]) w++;
+        if (w === PAGE_WORDS) {
+          pages[p] = old;
+          continue;
+        }
+      }
+      pages[p] = words.slice(base, base + PAGE_WORDS);
+      fresh++;
+    }
+    var small = new Uint8Array(SMALL_BYTES), stack = cpu.stack;
+    small.set(cpu.V, 0);
+    small.set(cpu.flags, 16);
+    small.set(cpu.audioPattern, 32);
+    for (var s = 0; s < STACK_SIZE; s++) {
+      small[48 + 2 * s] = stack[s] >> 8;
+      small[49 + 2 * s] = stack[s];
+    }
+    var display = cpu.display.slice();
+    var entry = {
+      platform: cpu.platform,
+      quirks: quirkBits(cpu.quirks),
+      I: cpu.I,
+      pc: cpu.pc,
+      sp: cpu.sp,
+      delayTimer: cpu.delayTimer,
+      soundTimer: cpu.soundTimer,
+      hires: cpu.hires,
+      displayWidth: cpu.displayWidth,
+      displayHeight: cpu.displayHeight,
+      planes: cpu.planes,
+      audioPatternSet: cpu.audioPatternSet,
+      pitch: cpu.pitch,
+      waitingForKey: cpu.waitingForKey,
+      waitReg: cpu._waitReg,
+      waitKey: cpu._waitKey,
+      halted: cpu.halted,
+      exited: cpu.exited,
+      error: cpu.error,
+      errorInfo: copyErrorInfo(cpu.errorInfo),
+      hinted: cpu._hinted,
+      pages: pages,
+      small: small,
+      display: display,
+      bytes: fresh * PAGE_SIZE + display.length + SMALL_BYTES + pageCount * POINTER_BYTES
+    };
+    entries.push(entry);
+    this._bytes += entry.bytes;
+    while (this.length > this.maxEntries || (this._bytes > this.maxBytes && this.length > 1)) this._dropOldest();
+  };
+
+  RewindBuffer.prototype._dropOldest = function () {
+    var entries = this._entries;
+    var oldest = entries[this._head];
+    entries[this._head++] = null;
+    this._bytes -= oldest.bytes;
+    if (this._head < entries.length) {
+      // Las páginas que la foto siguiente comparte con la que se va siguen en uso: desde
+      // ahora se cuentan en la siguiente (cada página la cuenta la foto más vieja que la usa).
+      var next = entries[this._head], kept = 0;
+      if (next.pages.length === oldest.pages.length) {
+        for (var p = 0; p < oldest.pages.length; p++) if (next.pages[p] === oldest.pages[p]) kept++;
+      }
+      next.bytes += kept * PAGE_SIZE;
+      this._bytes += kept * PAGE_SIZE;
+    }
+    if (this._head === entries.length) {
+      entries.length = 0;
+      this._head = 0;
+    } else if (this._head >= 64 && this._head * 2 >= entries.length) {
+      this._entries = entries.slice(this._head); // compacta de vez en cuando: O(1) amortizado
+      this._head = 0;
+    }
+  };
+
+  // Arma un estado completo (el formato de saveState) con una foto. Con `own`, la foto ya
+  // salió del buffer y su pantalla se entrega sin copiarla.
+  function snapshotState(entry, own) {
+    var pages = entry.pages, small = entry.small;
+    var memory = new Uint8Array(pages.length * PAGE_SIZE);
+    var words = new Int32Array(memory.buffer);
+    for (var p = 0; p < pages.length; p++) words.set(pages[p], p * PAGE_WORDS);
+    var stack = new Uint16Array(STACK_SIZE);
+    for (var s = 0; s < STACK_SIZE; s++) stack[s] = (small[48 + 2 * s] << 8) | small[49 + 2 * s];
+    return {
+      version: STATE_VERSION,
+      platform: entry.platform,
+      quirks: quirksFromBits(entry.quirks),
+      memory: memory,
+      V: small.slice(0, 16),
+      I: entry.I,
+      pc: entry.pc,
+      stack: stack,
+      sp: entry.sp,
+      delayTimer: entry.delayTimer,
+      soundTimer: entry.soundTimer,
+      hires: entry.hires,
+      displayWidth: entry.displayWidth,
+      displayHeight: entry.displayHeight,
+      display: own ? entry.display : entry.display.slice(),
+      planes: entry.planes,
+      flags: small.slice(16, 32),
+      audioPattern: small.slice(32, 48),
+      audioPatternSet: entry.audioPatternSet,
+      pitch: entry.pitch,
+      waitingForKey: entry.waitingForKey,
+      waitReg: entry.waitReg,
+      waitKey: entry.waitKey,
+      halted: entry.halted,
+      exited: entry.exited,
+      error: entry.error,
+      errorInfo: copyErrorInfo(entry.errorInfo),
+      hinted: entry.hinted
+    };
+  }
+
+  RewindBuffer.prototype.pop = function () {
+    var entries = this._entries;
+    if (entries.length === this._head) return null;
+    var entry = entries.pop();
+    this._bytes -= entry.bytes;
+    if (entries.length === this._head) {
+      entries.length = 0;
+      this._head = 0;
+    }
+    return snapshotState(entry, true);
+  };
+
+  RewindBuffer.prototype.peek = function () {
+    var entries = this._entries;
+    return entries.length === this._head ? null : snapshotState(entries[entries.length - 1], false);
+  };
+
+  RewindBuffer.prototype.clear = function () {
+    this._entries = [];
+    this._head = 0;
+    this._bytes = 0;
+    this._memory = null;
+    this._words = null;
+  };
+
   globalThis.Chip8Core = {
     Chip8: Chip8,
     QUIRK_PRESETS: QUIRK_PRESETS,
@@ -2446,7 +3182,11 @@
     disassembleRange: disassembleRange,
     extendedInfo: extendedInfo,
     sha1: sha1,
-    patternRate: patternRate
+    patternRate: patternRate,
+    STATE_VERSION: STATE_VERSION,
+    encodeState: encodeState,
+    decodeState: decodeState,
+    RewindBuffer: RewindBuffer
   };
 })();
 </script>

@@ -288,7 +288,7 @@ exige cero excepciones y cero errores de consola en los dos casos.
 
 ### 3.1 API pública
 
-El bloque define un único global, `globalThis.Chip8Core`, con 24 claves:
+El bloque define un único global, `globalThis.Chip8Core`, con 28 claves:
 
 | Clave | Valor |
 |---|---|
@@ -311,6 +311,10 @@ El bloque define un único global, `globalThis.Chip8Core`, con 24 claves:
 | `extendedInfo(opcode)` | `{ needs, name }` de una instrucción de SUPER-CHIP o XO-CHIP (la plataforma mínima que la tiene y qué hace), o `null`. |
 | `sha1(bytes)` | La huella SHA-1 de una ROM: 40 dígitos hexadecimales en minúscula. Acepta `Uint8Array`, listas de números o `ArrayBuffer`; un texto es un `TypeError`. |
 | `patternRate(pitch)` | La velocidad del patrón de audio de XO-CHIP en bits por segundo: 4000 × 2^((pitch − 64) / 48). |
+| `STATE_VERSION` | `1`: la versión del formato de los estados guardados. |
+| `encodeState(estado)` | Un estado (`saveState()`) como texto JSON compacto: los arreglos en base64 y la memoria y la pantalla con las corridas de ceros comprimidas. Un estado típico ocupa de 1 a 4 KB. |
+| `decodeState(texto)` | La vuelta: valida todo y tira un `Error` que empieza con "Estado inválido: " si algo no cierra. |
+| `RewindBuffer({ maxEntries, maxBytes })` | El buffer del rebobinado: `push(cpu)`, `pop()`, `peek()`, `clear()`, `length` y `bytes`. Guarda la memoria en páginas de 256 bytes y reusa las que no cambiaron desde la foto anterior. |
 
 `new Chip8({ platform, quirks, random })` acepta tres opciones: `platform` (`'chip8'` si
 falta; una desconocida es un `RangeError`: "Plataforma desconocida: "x" (tiene que ser
@@ -325,6 +329,8 @@ Métodos:
 | `loadRom(bytes)` | Acepta un `Uint8Array`, una lista de números o un `ArrayBuffer`. Si no entra en la plataforma tira un `RangeError`: en CHIP-8 y SUPER-CHIP, "La ROM ocupa N bytes y el máximo es 3584 (de 0x200 a 0xFFF)." y, si entraría en 64 KB, además "Con la plataforma XO-CHIP (64 KB) entra."; en XO-CHIP, "La ROM ocupa N bytes y el máximo es 65024 (de 0x200 a 0xFFFF).". Si entra, la copia (los números se truncan a 8 bits) y llama a `reset()`. |
 | `setPlatform(plataforma)` | Cambia de plataforma y reinicia con la misma ROM (las banderas se conservan; la memoria se reemplaza solo si cambia de tamaño). La misma plataforma no hace nada. Si la ROM cargada no entra en la nueva, tira un `RangeError` ("La ROM cargada ocupa N bytes y con la plataforma X el máximo es M: no se cambió la plataforma.") y no cambia nada. |
 | `setQuirks(parcial)` | Copia solo las seis claves conocidas, convertidas a booleanos. `null` o `undefined` no hacen nada. |
+| `saveState()` | Una foto completa de la máquina: plataforma, quirks, memoria, registros, pila, timers, pantalla, planos, banderas, audio, la espera de `FX0A` y el estado detenido o terminado. Son copias: la máquina sigue sin tocarla. No incluye la ROM, las teclas ni el generador de azar. |
+| `loadState(estado)` | Vuelve a una foto. Valida todo antes de cambiar nada ("Estado inválido: …"), cambia la plataforma y la memoria si hace falta, restaura los quirks, suelta las teclas y no reinicia ni toca la ROM: la máquina sigue exactamente desde ese momento. |
 | `tickTimers()` | Baja DT y ST en uno, sin pasar de cero. |
 | `setKey(tecla, apretada)` | Informa una tecla (se usa `tecla & 0xF`). Solo actúa si el estado cambia de verdad; resuelve `FX0A` ([3.4](#34-fx0a-apretar-y-soltar)). |
 | `step()` | Ejecuta una instrucción. No toca los timers. Devuelve `true` si ejecutó algo y `false` si la máquina está detenida, esperando una tecla o si la instrucción era inválida. |
@@ -1792,7 +1798,8 @@ Antes de dar por terminado un cambio: `node --test` y, si tocaste la interfaz,
 | `tests/asm.test.js` | El ensamblador: cada instrucción de CHIP-8, `JP VX`, números, etiquetas, mayúsculas, `EQU`, `DB`/`DW`, expresiones, comentarios, el listado, cada clase de error con "Línea N: ", la ida y vuelta de las 65 536 palabras y la línea de comandos (incluidos los errores en castellano, sin stack trace). |
 | `tests/asm-extendido.test.js` | Las instrucciones de SUPER-CHIP y XO-CHIP del ensamblador, `LD I, LONG` (4 bytes), los errores nuevos, los nombres reservados nuevos, la opción `xochip`/`--xo` (hasta `0xFFFF`), el listado con direcciones de 4 dígitos y la ida y vuelta con el desensamblador de SUPER-CHIP y de XO-CHIP en todas las palabras. |
 | `tests/roms.test.js` | Los cartuchos: cada `.asm` ensambla idéntico a su `.ch8` y tiene sus etiquetas; `embed-roms --check` y el bloque incrustado; el propio `embed-roms.js` sobre un HTML temporal con CRLF, y la etiqueta `@platform`; 600 frames por demo y perfil sin ejecutar datos; y el comportamiento de cada uno: el movimiento y las velocidades de Rebote; las 16 teclas de Teclado; en Atrapa, la paleta, que todo bloque se pueda atrapar y el reinicio con apretar y soltar; Autotest con VD = 19 y VE = 0 en cada perfil e IPF, y los núcleos saboteados que tiene que detectar; la posición de cada glifo en Fuente; y en Planos, la pantalla, los planos limpios, los cuatro valores, las velocidades, el contador, el sonido, la tecla y que vaya igual con cualquier perfil e IPF. |
-| `tests/archive.test.js` | `tools/archive.js` (las opciones de Octo pasadas a los ajustes, colores, giro, eventos, `toEntry`), `data/archive.json` (fuente, licencia, commit; huellas únicas, plataformas válidas, tamaños que entran) y el bloque incrustado (al día, una entrada válida por programa, sin `</script` ni comentarios HTML, entre `chip8-roms` y `chip8-ui`, `embedInto` idempotente y con CRLF). |
+| `tests/archive.test.js` | `tools/archive.js` (las opciones de Octo pasadas a los ajustes, colores, giro, eventos, `toEntry`), `data/archive.json` (fuente, licencia, commit; huellas únicas, plataformas válidas, tamaños que entran), las ROMs de `roms/archivo/` (una por programa, con su huella y su tamaño, y el índice `LEEME.md` al día) y el bloque incrustado (al día, una entrada válida por programa, sin `</script` ni comentarios HTML, entre `chip8-roms` y `chip8-ui`, `embedInto` idempotente y con CRLF). |
+| `tests/estados.test.js` | Los estados guardados y el rebobinado: guardar a mitad de un programa y cargar en otra máquina sigue igual frame a frame (timers, `CALL`/`RET`, `FX0A`, SUPER-CHIP, XO-CHIP con dos planos, audio y memoria de 64 KB, máquinas detenidas y terminadas); `loadState` cambia de plataforma sin recargar la ROM; unas 54 validaciones que dejan la máquina intacta; el formato de texto (ida y vuelta, tamaños, cada error); y `RewindBuffer` (orden, páginas compartidas, límites, `clear`). |
 | `tests/tutorial.test.js` | El tutorial y sus ejemplos ([6.6](#66-pruebas-de-la-documentación)). |
 | `tests/manual.test.js` | El manual, el README y este documento ([6.6](#66-pruebas-de-la-documentación)). |
 | `tests/single-file.test.js` | El contrato del archivo único: los cinco bloques, cada uno una vez, con la etiqueta de apertura exacta y en orden; ningún `</script` ni `</style` adentro; ninguna dirección `http(s)`, `@import`, ni `src`/`href`/`url()` que no sea `data:` o `#ancla`; y que los cuatro bloques de código compilen. |

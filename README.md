@@ -238,7 +238,7 @@ de Node). Desde la raíz del repositorio:
 node --test        # o: npm test
 ```
 
-Son **1371 pruebas** en 17 archivos (`tests/*.test.js`) y pasan todas, en unos 5
+Son **1479 pruebas** en 18 archivos (`tests/*.test.js`) y pasan todas, en unos 5
 segundos. Cargan el núcleo del emulador directamente desde `chip8.html` (el bloque
 `<script id="chip8-core">`) y cubren:
 
