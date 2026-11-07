@@ -1132,7 +1132,8 @@ que el bloque 1-4 / Q-R / A-F / Z-V es el mismo en QWERTY, AZERTY o Dvorak:
 
 **Atajos.** Espacio (pausa o continúa), N (un paso; se repite si se mantiene), O (paso por
 encima de un CALL), K (salir de la subrutina), Retroceso
-(reiniciar), H (abrir o cerrar la ayuda), T (avance rápido, mientras se mantiene), P
+(reiniciar), H (abrir o cerrar la ayuda), L (abrir o cerrar el archivo de la comunidad),
+T (avance rápido, mientras se mantiene), P
 (pantalla completa, si el navegador la tiene), G (captura), Y (abrir o cerrar el Taller), I
 (guardar el estado en la ranura rápida), U (cargar la ranura rápida), B (rebobinar, mientras
 se mantiene) y Esc (cerrar diálogos y la capa de arrastre). Las **flechas** aprietan las teclas del keypad
@@ -1698,6 +1699,9 @@ La interfaz expone `window.chip8` para depurar desde la consola del navegador y 
 | `setPerRom(on)`, `getPerRom()` | El interruptor «Ajustes por cartucho». |
 | `libraryList()`, `libraryLoad(sha)`, `libraryRemove(sha)` | La biblioteca: `[{ sha1, name, size, added, played, platform, tag }]`, cargar y quitar. |
 | `archiveLookup(sha)`, `registerArchiveEntry(sha, entrada \| null)` | Busca un juego en la tabla del archivo; agrega o quita entradas mientras la página está abierta (lo usan las pruebas). |
+| `archiveRomBytes(sha)` | Los bytes de un juego del archivo (embebidos en `CHIP8_ARCHIVE.data`): promesa con un `Uint8Array` nuevo, o `null` si esa huella no es del archivo; se rechaza si el navegador no puede descomprimir o si la ROM está dañada. |
+| `archiveLoad(sha)` | Carga un juego del archivo como un clic en su tarjeta: promesa con `true` o `false`. |
+| `archiveOpen()`, `archiveClose()`, `archiveView()` | La ventana «Archivo de la comunidad»; `archiveView()` dice si está abierta, la búsqueda, los filtros, el orden, los juegos que muestra (`shown`, sus huellas en orden), la tarjeta activa y cuántas miniaturas están hechas. |
 | `getFlags()` | Las 16 banderas RPL de la máquina. |
 | `setTurbo(on)`, `isTurbo()` | El avance rápido, como una fuente más. |
 | `toggleFullscreen()`, `isFullscreen()` | Pantalla completa (promesa con el estado al que se llegó). |
@@ -2197,7 +2201,7 @@ Antes de dar por terminado un cambio: `node --test` y, si tocaste la interfaz,
 ### 6.3 Números actuales
 
 Medido el 6 de noviembre de 2026 con Node 24.18 (`node --test` desde la raíz):
-**1557 pruebas en 221 grupos**, todas pasan y ninguna salteada, en unos 5 s.
+**1566 pruebas en 222 grupos**, todas pasan y ninguna salteada, en unos 5 s.
 
 | Archivo | Pruebas |
 |---|---|
@@ -2217,12 +2221,12 @@ Medido el 6 de noviembre de 2026 con Node 24.18 (`node --test` desde la raíz):
 | `tests/depurador.test.js` | 41 |
 | `tests/manual.test.js` | 38 |
 | `tests/quirks.test.js` | 30 |
-| `tests/archive.test.js` | 20 |
+| `tests/archive.test.js` | 29 |
 | `tests/asm-bloque.test.js` | 18 |
 | `tests/mutation-gaps.test.js` | 12 |
 | `tests/taller.test.js` | 9 |
 | `tests/single-file.test.js` | 4 |
-| **Total** | **1557** |
+| **Total** | **1566** |
 
 Todas pasan cuando los cartuchos y la tabla del archivo incrustados están al día y
 `roms/archivo/` está completa. Las pruebas del grupo "chip8.html tiene las demos
@@ -2478,6 +2482,11 @@ tercera:
 | 63 | El desensamblado que se recorre (rueda, «Ir a», Av Pág, datos como DB) y el monitor en 1440, 768 y 360 px con cada pestaña. |
 | 64 | Los puntos de corte por cartucho y fuera del estado; el mapa y la traza al reiniciar, al cargar un estado y al rebobinar; la pestaña se recuerda. |
 | 65 | 60 fps a 10.000 IPF con un punto de corte puesto y con Planos en cada pestaña del monitor. |
+| 66 | Archivo de la comunidad: el botón del estante y L abren la ventana con los 104 juegos y sus datos; buscar, filtrar por plataforma y por evento o año, ordenar y «Mostrar todos»; las teclas no llegan a la consola; Esc, L, × y el fondo la cierran. |
+| 67 | Un clic o Enter cargan el juego con los ajustes del archivo, la ventana se cierra, la pantalla queda a la vista y el juego corre; flechas, Inicio, Fin y AvPág; «En la ranura», «en tus cartuchos» y «ajustes recordados»; también por `file://`. |
+| 68 | Las 104 ROMs embebidas se descomprimen en el navegador a su huella SHA-1; una dañada, un navegador sin `DecompressionStream` o una página sin las ROMs avisan claro y la consola sigue andando. |
+| 69 | Miniaturas solo de las tarjetas a la vista, idénticas a correr la ROM aparte (colores y giro); mientras se hacen, la consola sigue a 60 fps con 10.000 IPF. |
+| 70 | Diseño de la ventana a 1440, 768 y 360 px: sin scroll horizontal, filtros enteros, tarjetas que no se pisan, miniaturas de escala entera y foco visible. |
 
 `node tools/e2e.js --help` imprime esta misma lista (sale del comentario del principio del
 archivo).
@@ -3346,8 +3355,8 @@ El mapa está repetido en varios lugares a propósito (cada uno lo muestra o lo 
 - el README, la parte 1.4 del tutorial (que `tests/tutorial.test.js` compara con
   `KEY_BY_CODE`) y la §7.2 del manual.
 
-Que ninguna tecla del mapa choque con los atajos (Espacio, N, O, K, Retroceso, H, T, P, G,
-Y, I, U y B). Los mapas de las flechas y el joystick están en `KEYMAP_PRESETS` y en las opciones
+Que ninguna tecla del mapa choque con los atajos (Espacio, N, O, K, Retroceso, H, L, T, P,
+G, Y, I, U y B). Los mapas de las flechas y el joystick están en `KEYMAP_PRESETS` y en las opciones
 del selector `#keymap` (el texto de cada opción repite las teclas; el tutorial los cita).
 Un atajo nuevo va en `onKeyDown` (y en `onKeyUp` si se mantiene), en la tabla de atajos
 de la ayuda, en la del README, en la de la parte 1.10 del tutorial y en

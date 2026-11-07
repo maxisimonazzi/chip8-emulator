@@ -447,6 +447,7 @@ un selector, un deslizador o el modo de pantalla.
 | **Guardar** de la ranura **Rápido** (en Estados) | I | Guarda el estado de la máquina en la ranura rápida (sección 1.13). |
 | **Cargar** de la ranura **Rápido** (en Estados) | U | Vuelve al estado de la ranura rápida. |
 | **?** | H | Abre o cierra la ayuda. |
+| **Archivo** (en el título del estante de cartuchos) | L | Abre o cierra el archivo de la comunidad: los juegos de la Octojam, para cargarlos con un clic. |
 | | Flechas | Aprietan las teclas del keypad que elegiste en Controles (sección 1.9). |
 | | Esc | Cierra la ayuda o sale de la pantalla completa. |
 

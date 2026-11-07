@@ -7,7 +7,8 @@
  * Cada programa del archivo trae las opciones con las que se juega en Octo: velocidad, quirks,
  * colores y rotación de la pantalla. Esta herramienta las pasa a los ajustes de la consola y las
  * embebe en chip8.html, indexadas por la huella SHA-1 de cada ROM: cuando cargás una ROM conocida,
- * la consola se configura sola.
+ * la consola se configura sola. También embebe los bytes de cada ROM (los de roms/archivo/), para
+ * que la ventana del archivo de la consola los cargue con un clic, aun abierta desde file://.
  *
  * Uso:
  *   node tools/archive.js update
@@ -15,9 +16,14 @@
  *       no se guardan), calcula la huella SHA-1 de cada una y escribe data/archive.json.
  *       Necesita conexión a internet.
  *   node tools/archive.js embed [--html <ruta>] [--check]
- *       Escribe la tabla en <script id="chip8-archive"> de chip8.html (si el bloque no existe, lo
- *       agrega después de <script id="chip8-roms">). Con --check no escribe nada: sale con 1 si
- *       el bloque embebido no está al día.
+ *       Escribe la tabla y las ROMs en <script id="chip8-archive"> de chip8.html (si el bloque no
+ *       existe, lo agrega después de <script id="chip8-roms">). Las ROMs salen de roms/archivo/ y
+ *       cada una tiene que tener la huella SHA-1 y el tamaño de data/archive.json. Al final del
+ *       bloque, CHIP8_ARCHIVE.data guarda cada ROM por su huella, comprimida por separado con
+ *       deflate (formato zlib, el 'deflate' de DecompressionStream) y en base64url sin relleno. Lo
+ *       que ya está embebido y se descomprime a los bytes correctos se deja como está: así el
+ *       resultado no depende de la versión de zlib. Con --check no escribe nada: sale con 1 si la
+ *       tabla o los bytes de alguna ROM no están al día.
  *   node tools/archive.js download
  *       Baja las ROMs del archivo a roms/archivo/<id>.ch8 (las que ya están y coinciden con su
  *       huella no se vuelven a bajar) y escribe roms/archivo/LEEME.md, el índice de los juegos.
@@ -55,7 +61,9 @@ const REPO = 'JohnEarnest/chip8Archive';
 const BRANCH = 'master';
 const RAW = `https://raw.githubusercontent.com/${REPO}/${BRANCH}/`;
 const BLOCK_ID = 'chip8-archive';
-const HEADER = '/* GENERADO por tools/archive.js a partir de data/archive.json — no editar a mano. */';
+const HEADER = '/* GENERADO por tools/archive.js a partir de data/archive.json y de roms/archivo/ — no editar a mano. */';
+const DATA_HEADER = '/* Los bytes de cada ROM, por su huella: deflate (formato zlib) en base64url. La consola descomprime solo la que se pide. */';
+const DATA_OPEN = 'globalThis.CHIP8_ARCHIVE.data = {';
 
 const IPF_MIN = 1;
 const IPF_MAX = 10000;
@@ -143,8 +151,12 @@ function jsLiteral(value) {
     .replace(/>/g, '\\u003e')
 }
 
-function buildBlock(data, eol = '\n') {
-  const programs = data.programs.slice().sort((a, b) => a.sha1.localeCompare(b.sha1));
+const bySha = (a, b) => a.sha1.localeCompare(b.sha1);
+
+// El bloque entero: primero la tabla (legible, una línea por juego) y al final, aparte, los bytes de
+// cada ROM. packed: { [sha1]: texto de packRom } con una entrada por programa.
+function buildBlock(data, packed = {}, eol = '\n') {
+  const programs = data.programs.slice().sort(bySha);
   const lines = [
     '',
     HEADER,
@@ -159,7 +171,13 @@ function buildBlock(data, eol = '\n') {
     const comma = i < programs.length - 1 ? ',' : '';
     lines.push(`    ${jsLiteral(p.sha1)}: ${jsLiteral(toEntry(p))}${comma}`);
   });
-  lines.push('  }', '};', '');
+  lines.push('  }', '};', DATA_HEADER, DATA_OPEN);
+  programs.forEach((p, i) => {
+    const text = packed[p.sha1];
+    if (typeof text !== 'string' || !B64URL_RE.test(text)) throw new Error(`Faltan los bytes comprimidos de ${p.id} (${p.sha1})`);
+    lines.push(`  ${jsLiteral(p.sha1)}: "${text}"${i < programs.length - 1 ? ',' : ''}`);
+  });
+  lines.push('};', '');
   return lines.join(eol);
 }
 
@@ -173,16 +191,102 @@ function findBlock(html, id) {
   return { start, bodyStart, end, close: end + '</script>'.length };
 }
 
-// Devuelve el HTML con el bloque del archivo al día (lo agrega si no existe).
-function embedInto(html, data) {
+// Devuelve el HTML con el bloque del archivo al día (lo agrega si no existe). roms: { [sha1]: bytes }
+// con la ROM de cada programa (readRoms). Lo que ya estaba embebido y sigue siendo correcto se conserva.
+function embedInto(html, data, roms = {}) {
   const eol = html.includes('\r\n') ? '\r\n' : '\n';
-  const content = buildBlock(data, eol);
+  const content = buildBlock(data, packRoms(data, roms, readPacked(html)), eol);
   const block = findBlock(html, BLOCK_ID);
   if (block) return html.slice(0, block.bodyStart) + content + html.slice(block.end);
-  const roms = findBlock(html, 'chip8-roms');
-  if (!roms) throw new Error('chip8.html no tiene <script id="chip8-roms">: no sé dónde agregar el bloque del archivo');
+  const demos = findBlock(html, 'chip8-roms');
+  if (!demos) throw new Error('chip8.html no tiene <script id="chip8-roms">: no sé dónde agregar el bloque del archivo');
   const insert = `${eol}<script id="${BLOCK_ID}">${content}</script>`;
-  return html.slice(0, roms.close) + insert + html.slice(roms.close);
+  return html.slice(0, demos.close) + insert + html.slice(demos.close);
+}
+
+// ------------------------------------------------------------------ bytes de las ROMs
+// Cada ROM va comprimida por separado (así la consola descomprime solo la que se pide) con deflate en
+// formato zlib, el que entiende DecompressionStream('deflate') del navegador, y en base64url sin
+// relleno: el texto no tiene "/", "+", "=", "<" ni ">", así que nunca forma un comentario //, una
+// dirección, un atributo ni un cierre de etiqueta.
+const B64URL_RE = /^[A-Za-z0-9_-]*$/;
+
+function packRom(bytes) {
+  return zlib.deflateSync(Buffer.from(bytes), { level: 9 }).toString('base64url');
+}
+
+// Los bytes de un texto de packRom (tira un error si no es base64url o no es deflate válido).
+function unpackRom(text) {
+  if (typeof text !== 'string' || !B64URL_RE.test(text) || text.length % 4 === 1) throw new Error('no es base64url');
+  return zlib.inflateSync(Buffer.from(text, 'base64url'));
+}
+
+// La ROM de cada programa, de roms/archivo/<id>.ch8, verificada contra su tamaño y su huella de
+// data/archive.json: { [sha1]: Buffer }. Si falta alguna o no coincide, tira un error que dice cuáles.
+function readRoms(data, dir = ROMS_DIR) {
+  const roms = {}, missing = [], wrong = [];
+  for (const p of data.programs) {
+    const file = path.join(dir, p.id + '.ch8');
+    if (!fs.existsSync(file)) { missing.push(p.id + '.ch8'); continue; }
+    const rom = fs.readFileSync(file);
+    if (rom.length !== p.size || sha1(rom) !== p.sha1) {
+      wrong.push(`${p.id}.ch8 (${rom.length} bytes y huella ${sha1(rom).slice(0, 7)}; data/archive.json dice ${p.size} bytes y ${p.sha1.slice(0, 7)})`);
+      continue;
+    }
+    roms[p.sha1] = rom;
+  }
+  const list = (a) => a.slice(0, 5).join(', ') + (a.length > 5 ? ` y ${a.length - 5} más` : '');
+  if (missing.length) {
+    throw new Error(`Faltan ROMs en roms/archivo/: ${list(missing)}. Corré "node tools/archive.js download".`);
+  }
+  if (wrong.length) {
+    throw new Error(`Las ROMs de roms/archivo/ no son las de data/archive.json: ${list(wrong)}. Corré "node tools/archive.js download".`);
+  }
+  return roms;
+}
+
+// Los textos comprimidos de cada programa: el que ya estaba (previous) si todavía se descomprime a la
+// ROM correcta; si no, uno nuevo. Así volver a embeber no cambia nada aunque otra versión de zlib
+// comprima distinto, y --check sigue siendo una comparación exacta.
+function packRoms(data, roms, previous = {}) {
+  const out = {};
+  for (const p of data.programs.slice().sort(bySha)) {
+    const rom = roms[p.sha1];
+    if (!rom) throw new Error(`Falta la ROM de ${p.id} (${p.sha1}): corré "node tools/archive.js download".`);
+    const old = previous[p.sha1];
+    let same = false;
+    if (typeof old === 'string') {
+      try { same = unpackRom(old).equals(Buffer.from(rom)); } catch { same = false; }
+    }
+    out[p.sha1] = same ? old : packRom(rom);
+  }
+  return out;
+}
+
+// Los textos comprimidos que ya tiene el bloque del archivo de un HTML: { [sha1]: texto } ({} si no hay).
+function readPacked(html) {
+  const block = findBlock(html, BLOCK_ID);
+  if (!block) return {};
+  const body = html.slice(block.bodyStart, block.end);
+  const at = body.indexOf(DATA_OPEN);
+  if (at < 0) return {};
+  const out = {};
+  const re = /^ {2}"([0-9a-f]{40})": "([A-Za-z0-9_-]*)",?\r?$/gm;
+  re.lastIndex = at;
+  for (let m; (m = re.exec(body));) out[m[1]] = m[2];
+  return out;
+}
+
+// Qué ROMs del bloque de un HTML no están al día con roms: { missing: [ids], wrong: [ids] }.
+function staleRoms(html, data, roms) {
+  const packed = readPacked(html), missing = [], wrong = [];
+  for (const p of data.programs) {
+    if (!Object.hasOwn(packed, p.sha1)) { missing.push(p.id); continue; }
+    let ok = false;
+    try { ok = unpackRom(packed[p.sha1]).equals(Buffer.from(roms[p.sha1])); } catch { ok = false; }
+    if (!ok) wrong.push(p.id);
+  }
+  return { missing, wrong };
 }
 
 // ------------------------------------------------------------------ red
@@ -297,6 +401,7 @@ async function cmdDownload() {
   const extra = fs.readdirSync(ROMS_DIR).filter((f) => !known.has(f));
   fs.writeFileSync(path.join(ROMS_DIR, README_NAME), buildReadme(data));
   console.log(`roms/archivo: ${fresh} bajadas, ${kept} ya estaban (${data.programs.length} ROMs, ${(bytes / 1024).toFixed(0)} KB) y ${README_NAME} al día.`);
+  if (fresh) console.log('Ahora corré: node tools/archive.js embed (las ROMs van también embebidas en chip8.html).');
   if (extra.length) console.warn(`  Atención: hay archivos que no son del archivo: ${extra.join(', ')}`);
 }
 
@@ -349,7 +454,7 @@ async function cmdUpdate() {
   const byPlatform = {};
   for (const p of list) byPlatform[p.platform] = (byPlatform[p.platform] || 0) + 1;
   console.log(`Listo: ${path.relative(ROOT, DATA_PATH)} con ${list.length} programas (${Object.entries(byPlatform).map(([k, v]) => `${k} ${v}`).join(', ')}).`);
-  console.log('Ahora corré: node tools/archive.js embed');
+  console.log('Ahora corré: node tools/archive.js download y después node tools/archive.js embed');
 }
 
 function readData() {
@@ -360,13 +465,22 @@ function readData() {
 function cmdEmbed(args) {
   const htmlPath = path.resolve(args.html || HTML_PATH);
   const html = fs.readFileSync(htmlPath, 'utf8');
-  const next = embedInto(html, readData());
+  const data = readData();
+  const roms = readRoms(data);
+  const next = embedInto(html, data, roms);
+  const kb = (s) => (s.length / 1024).toFixed(0) + ' KB';
+  const dataKb = () => kb(Object.values(readPacked(next)).join(''));
   if (args.check) {
     if (next !== html) {
-      console.error(`El bloque <script id="${BLOCK_ID}"> de ${path.relative(ROOT, htmlPath)} no está al día: corré "node tools/archive.js embed".`);
+      const { missing, wrong } = staleRoms(html, data, roms);
+      const why = [];
+      if (missing.length) why.push(`faltan los bytes de ${missing.length} ROM${missing.length === 1 ? '' : 's'} (${missing.slice(0, 5).join(', ')}${missing.length > 5 ? '…' : ''})`);
+      if (wrong.length) why.push(`los bytes de ${wrong.slice(0, 5).join(', ')}${wrong.length > 5 ? '…' : ''} no son los de roms/archivo/`);
+      if (!why.length) why.push('la tabla cambió');
+      console.error(`El bloque <script id="${BLOCK_ID}"> de ${path.relative(ROOT, htmlPath)} no está al día: ${why.join('; ')}. Corré "node tools/archive.js embed".`);
       process.exitCode = 1;
     } else {
-      console.log(`Todo al día: ${readData().programs.length} programas del archivo embebidos.`);
+      console.log(`Todo al día: ${data.programs.length} programas del archivo embebidos, con sus ROMs (${dataKb()} comprimidas).`);
     }
     return;
   }
@@ -375,7 +489,7 @@ function cmdEmbed(args) {
     return;
   }
   fs.writeFileSync(htmlPath, next);
-  console.log(`Embebidos ${readData().programs.length} programas del archivo en ${path.relative(ROOT, htmlPath)}.`);
+  console.log(`Embebidos ${data.programs.length} programas del archivo, con sus ROMs (${dataKb()} comprimidas), en ${path.relative(ROOT, htmlPath)}.`);
 }
 
 // ------------------------------------------------------------------ prueba de los juegos
@@ -578,11 +692,15 @@ async function main(argv) {
     else throw new Error(`Comando desconocido: ${cmd}`);
   } catch (err) {
     console.error(`archive: ${err.message}`);
-    if (!/^(Comando|Falta|El núcleo|El bloque)/.test(err.message)) console.error(USAGE);
+    if (!/^(Comando|Falta|El núcleo|El bloque|Las ROMs)/.test(err.message)) console.error(USAGE);
     process.exitCode = 1;
   }
 }
 
 if (require.main === module) main(process.argv.slice(2));
 
-module.exports = { fromOctoOptions, normalizeColor, formatEvent, toEntry, buildBlock, embedInto, findBlock, encodePng, buildReadme, OCTO_DEFAULTS, BLOCK_ID, HEADER, DATA_PATH, ROMS_DIR, README_NAME };
+module.exports = {
+  fromOctoOptions, normalizeColor, formatEvent, toEntry, buildBlock, embedInto, findBlock, encodePng, buildReadme,
+  packRom, unpackRom, readRoms, packRoms, readPacked, staleRoms,
+  OCTO_DEFAULTS, BLOCK_ID, HEADER, DATA_HEADER, DATA_OPEN, DATA_PATH, ROMS_DIR, README_NAME,
+};

@@ -143,6 +143,18 @@
  *   64 puntos de corte por cartucho y fuera del estado; el mapa y la traza al reiniciar, al cargar un estado y al
  *      rebobinar; la pestaña se recuerda
  *   65 velocidad con el depurador: 10.000 IPF con un punto de corte y Planos con cada pestaña a 60 fps
+ *   66 archivo de la comunidad: el botón del estante y L abren la ventana con los 104 juegos y sus datos;
+ *      buscar, filtrar por plataforma y por evento o año, ordenar y «Mostrar todos»; las teclas no llegan a la
+ *      consola; Esc, L, × y el fondo la cierran
+ *   67 un clic o Enter cargan el juego con los ajustes del archivo, la ventana se cierra, la pantalla queda a la
+ *      vista y el juego corre; flechas, Inicio, Fin y AvPág; «En la ranura», «en tus cartuchos» y «ajustes
+ *      recordados»; también por file://
+ *   68 las 104 ROMs embebidas se descomprimen en el navegador a su huella SHA-1; dañada, sin DecompressionStream
+ *      o sin las ROMs embebidas, un aviso claro y la consola sigue andando
+ *   69 miniaturas solo de las tarjetas a la vista, idénticas a correr la ROM aparte (colores y giro); mientras se
+ *      hacen, la consola sigue a 60 fps con 10.000 IPF
+ *   70 diseño de la ventana a 1440, 768 y 360 px: sin scroll horizontal, filtros enteros, tarjetas sin pisarse,
+ *      miniaturas de escala entera y foco visible
  */
 
 const { spawn, spawnSync } = require('node:child_process');
@@ -5527,6 +5539,599 @@ scenario(65, 'Velocidad con el depurador: 60 frames por segundo a 10.000 IPF con
   await page.shot('65-planos-sprites');
   s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
 });
+
+// ---------------------------------------------------------------- ayudas de los escenarios 66 en adelante (archivo de la comunidad)
+// Los juegos del archivo como los muestra la ventana «Archivo de la comunidad», sacados de data/archive.json con
+// tools/archive.js (el autor de ejemplo de la plantilla no cuenta como autor, igual que en chip8-ui).
+const archTool = require(path.join(ROOT, 'tools', 'archive.js'));
+const ARCH_GAMES = JSON.parse(fs.readFileSync(archTool.DATA_PATH, 'utf8')).programs.map((p) => {
+  const e = archTool.toEntry(p);
+  return { ...e, sha1: p.sha1, authors: /^your name here$/i.test(e.authors.trim()) ? '' : e.authors };
+});
+const archGame = (id) => ARCH_GAMES.find((g) => g.id === id);
+Object.assign(KEYS, { PageUp: { key: 'PageUp', vk: 33 }, PageDown: { key: 'PageDown', vk: 34 } });   // para recorrer la lista
+const archRom = (g) => fs.readFileSync(path.join(archTool.ROMS_DIR, g.id + '.ch8'));
+const ARCH_PLATFORM_NAME = { chip8: 'CHIP-8', schip: 'SUPER-CHIP', xochip: 'XO-CHIP' };
+// Como la búsqueda de la ventana: minúsculas, sin tildes y con los espacios de a uno.
+const archFold = (s) => String(s).toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/\s+/g, ' ').trim();
+const archCollator = new Intl.Collator('es', { sensitivity: 'base', numeric: true });
+const archByTitle = (a, b) => archCollator.compare(a.title, b.title) || (a.sha1 < b.sha1 ? -1 : 1);
+const archEventRank = (ev) => { const m = /^Octojam (\d+)$/.exec(ev); return m ? Number(m[1]) : (ev ? 1000 : 2000); };
+const archByEvent = (a, b) => archEventRank(a) - archEventRank(b) || archCollator.compare(a, b);
+// Lo que tiene que mostrar la ventana con una búsqueda, unos filtros y un orden: los juegos, en orden.
+function archExpect({ query = '', platform = '', group = '', sort = 'titulo' } = {}) {
+  const words = archFold(query).split(' ').filter(Boolean);
+  const list = ARCH_GAMES.filter((g) => {
+    if (platform && g.platform !== platform) return false;
+    if (group.startsWith('e:') && g.event !== group.slice(2)) return false;
+    if (group.startsWith('y:') && String(g.year) !== group.slice(2)) return false;
+    const text = archFold(g.title + ' ' + g.authors);
+    return words.every((w) => text.includes(w));
+  });
+  return list.sort({
+    titulo: archByTitle,
+    nuevos: (a, b) => b.year - a.year || archByTitle(a, b),
+    viejos: (a, b) => a.year - b.year || archByTitle(a, b),
+    evento: (a, b) => archByEvent(a.event, b.event) || archByTitle(a, b),
+  }[sort]);
+}
+// Las tarjetas a la vista, en orden, como las ve una persona.
+const EXPLORER_CARDS = `Array.from(document.querySelectorAll('#explorer-list > li')).filter((li) => !li.hidden).map((li) => {
+  const b = li.querySelector('.xcart'), ctrl = b.querySelectorAll('.cart-ctrl');
+  return { sha: b.getAttribute('data-sha'), title: b.querySelector('.cart-name').textContent, by: b.querySelector('.cart-desc').textContent,
+    tags: Array.from(b.querySelectorAll('.cart-tag')).filter((t) => !t.hidden).map((t) => t.textContent), when: ctrl[0].textContent, size: ctrl[1].textContent,
+    current: b.getAttribute('aria-current') === 'true', badge: getComputedStyle(b.querySelector('.cart-badge')).display !== 'none', tab: b.tabIndex };
+})`;
+const EXPLORER_STATE = `(() => {
+  const $ = (id) => document.getElementById(id), ae = document.activeElement, note = $('explorer-note');
+  return { open: $('explorer').open, count: $('explorer-count').textContent, empty: !$('explorer-empty').hidden, note: note.textContent,
+    focus: !ae ? null : ae.id || (ae.classList.contains('xcart') ? 'tarjeta:' + ae.getAttribute('data-sha') : ae.tagName),
+    q: $('explorer-q').value, platform: $('explorer-platform').value, group: $('explorer-group').value, sort: $('explorer-sort').value };
+})()`;
+const explorerCard = (sha) => `#explorer-list .xcart[data-sha="${sha}"]`;
+// Una tarjeta, comparada con lo que dice data/archive.json del juego.
+function explorerCardProblem(card, g) {
+  if (!card) return 'falta ' + g.title;
+  const want = { title: g.title, by: g.authors ? 'de ' + g.authors : 'Autor desconocido', when: [g.event, g.year].filter(Boolean).join(' · ') || 'Sin fecha' };
+  for (const k of Object.keys(want)) if (card[k] !== want[k]) return `${g.id}: ${k} «${card[k]}» en vez de «${want[k]}»`;
+  if (card.size.replace(/\D/g, '') !== String(g.size) || !card.size.endsWith(' bytes')) return `${g.id}: tamaño «${card.size}»`;
+  if (card.tags[0] !== ARCH_PLATFORM_NAME[g.platform]) return `${g.id}: plataforma «${card.tags[0]}»`;
+  return '';
+}
+// Escribe con el teclado (letras, números y espacios); lo demás, como lo escribiría un método de entrada.
+async function explorerType(page, text) {
+  for (const ch of text) {
+    if (ch === ' ') await page.press('Space', 10);
+    else if (/^[a-z0-9]$/.test(ch)) await page.press(/[0-9]/.test(ch) ? 'Digit' + ch : 'Key' + ch.toUpperCase(), 10);
+    else await page.send('Input.insertText', { text: ch });
+  }
+  await sleep(80);
+}
+async function openExplorerWithButton(page) {
+  await page.ev("document.getElementById('shelf-title').scrollIntoView({ block: 'center' })");
+  await clickHit(page, '#btn-explorer');
+  await page.waitFor("document.getElementById('explorer').open", { timeout: 3000, desc: 'la ventana del archivo abierta' });
+  await sleep(150);
+}
+// Los cuadros de animación de la página entre dos momentos (como en el escenario 50).
+const explorerRafStart = (page) => page.ev('(() => { const R = window.__raf = { n: 0, gaps: [], last: 0, stop: false }; const f = (t) => { if (R.last) R.gaps.push(t - R.last); R.last = t; R.n++; if (!R.stop) requestAnimationFrame(f); }; requestAnimationFrame(f); R.t0 = performance.now(); return true; })()');
+const explorerRafStop = (page) => page.ev('(() => { const R = window.__raf; R.stop = true; const secs = (performance.now() - R.t0) / 1000; const g = R.gaps.slice().sort((a, b) => a - b); return { fps: R.n / secs, max: g[g.length - 1] || 0, p95: g[Math.floor(g.length * 0.95)] || 0 }; })()');
+// La miniatura de un juego como la arma la interfaz, pero en Node con el núcleo del archivo: corre los frames de
+// EXPLORER_THUMB_FRAMES con el mismo azar, se queda con la pantalla con más píxeles encendidos y la gira, la achica
+// (shrink: cada píxel toma el valor más alto de su cuadrado) y la pinta con los colores del juego.
+// { w, h, px: colores 0xRRGGBB, values: los valores de píxel que usa }.
+const ARCH_THUMB_FRAMES = Number(/\bvar EXPLORER_THUMB_FRAMES = (\d+);/.exec(fs.readFileSync(HTML_PATH, 'utf8'))[1]);
+function archThumbInNode(g, shrink = 1) {
+  const Core = require(path.join(ROOT, 'tests', 'harness.js')).loadCore();
+  let seed = (parseInt(g.sha1.slice(0, 8), 16) >>> 0) || 1;
+  const c = new Core.Chip8({ platform: g.platform, quirks: { ...Core.DEFAULT_QUIRKS, ...g.quirks },
+    random: () => { seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5; return seed & 0xFF; } });
+  c.loadRom(new Uint8Array(archRom(g)));
+  let best = null, lit = -1;
+  for (let f = 0; f < ARCH_THUMB_FRAMES && !c.halted; f++) {
+    c.runFrame(g.ipf);
+    if (!c.displayDirty) continue;
+    c.displayDirty = false;
+    const n = c.display.reduce((k, v) => k + (v ? 1 : 0), 0);
+    if (n > lit) { lit = n; best = { w: c.displayWidth, h: c.displayHeight, px: Uint8Array.from(c.display) }; }
+  }
+  const rot = g.rotation, tall = rot === 90 || rot === 270;
+  const cw = Math.ceil((tall ? best.h : best.w) / shrink), ch = Math.ceil((tall ? best.w : best.h) / shrink);
+  const cells = new Uint8Array(cw * ch);
+  for (let y = 0; y < best.h; y++) {
+    for (let x = 0; x < best.w; x++) {
+      let tx = x, ty = y;
+      if (rot === 90) { tx = best.h - 1 - y; ty = x; } else if (rot === 180) { tx = best.w - 1 - x; ty = best.h - 1 - y; } else if (rot === 270) { tx = y; ty = best.w - 1 - x; }
+      const i = Math.floor(ty / shrink) * cw + Math.floor(tx / shrink);
+      cells[i] = Math.max(cells[i], best.px[y * best.w + x] & 3);
+    }
+  }
+  const pal = g.colors.map((x) => parseInt(x.slice(1), 16));
+  return { w: cw, h: ch, px: Array.from(cells, (v) => pal[v]), values: [...new Set(best.px)].sort() };
+}
+// La miniatura de una tarjeta: sus píxeles (0xRRGGBB), su escala en píxeles físicos y si entra en su ventanita
+// (null si todavía no está).
+const explorerThumbOfCard = (page, sha) => page.ev(`(() => {
+  const c = document.querySelector(${JSON.stringify(explorerCard(sha) + ' canvas')});
+  if (!c || c.hidden) return null;
+  const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data, px = [];
+  for (let i = 0; i < d.length; i += 4) px.push((d[i] << 16) | (d[i + 1] << 8) | d[i + 2]);
+  const box = c.parentNode.getBoundingClientRect(), b = c.getBoundingClientRect();
+  return { w: c.width, h: c.height, px, scale: parseFloat(c.style.width) * devicePixelRatio / c.width,
+    fits: b.left >= box.left - 0.5 && b.right <= box.right + 0.5 && b.top >= box.top - 0.5 && b.bottom <= box.bottom + 0.5 };
+})()`);
+
+// 66 -------------------------------------------------------------------------------
+scenario(66, 'Archivo de la comunidad: el botón del estante y L lo abren con los 104 juegos y sus datos; buscar, filtrar por plataforma y por evento o año, ordenar y «Mostrar todos»; las teclas no llegan a la consola; Esc, L, × y el fondo lo cierran', async (ctx, s) => {
+  const page = await freshApp(ctx, s, { width: 1440, height: 900 });
+  const total = ARCH_GAMES.length;
+  const btn = await page.ev(`(() => {
+    const b = document.getElementById('btn-explorer'), sec = document.getElementById('shelf-title').closest('section');
+    return { hidden: b.hidden, text: b.textContent, label: b.getAttribute('aria-label'), keys: b.getAttribute('aria-keyshortcuts'), popup: b.getAttribute('aria-haspopup'),
+      inTitle: document.getElementById('shelf-title').contains(b), region: document.getElementById(sec.getAttribute('aria-labelledby')).textContent };
+  })()`);
+  s.check(!btn.hidden && btn.inTitle && btn.text === 'Archivo' + total && btn.label === `Archivo de la comunidad: ${total} juegos (L)` && btn.keys === 'L' && btn.popup === 'dialog' && btn.region === 'Cartuchos incluidos',
+    `el título del estante tiene el botón «Archivo ${total}» («${btn.label}»), y el estante se sigue llamando «${btn.region}»`, JSON.stringify(btn));
+  await openExplorerWithButton(page);
+  let st = await page.ev(EXPLORER_STATE);
+  let cards = await page.ev(EXPLORER_CARDS);
+  const all = archExpect();
+  const bad = all.map((g, i) => explorerCardProblem(cards[i] && cards[i].sha === g.sha1 ? cards[i] : null, g)).filter(Boolean);
+  s.check(st.open && st.count === total + ' juegos' && cards.length === total && bad.length === 0,
+    `con un clic se abre con los ${cards.length} juegos por título, cada uno con su título, autores, evento y año, plataforma y tamaño (el primero: «${cards[0].title}», «${cards[0].by}», «${cards[0].when}», ${cards[0].tags[0]}, «${cards[0].size}»)`, bad.slice(0, 3).join(' | '));
+  s.check(st.focus === 'explorer-q' && cards.filter((c) => c.tab === 0).length === 1 && cards[0].tab === 0,
+    'el foco queda en la búsqueda, y una sola tarjeta (la primera) está en el orden del Tab', JSON.stringify({ focus: st.focus, tab: cards.filter((c) => c.tab === 0).map((c) => c.title) }));
+  await page.shot('66-ventana');
+
+  // Con la ventana abierta, las teclas son de ella: ni el keypad, ni N, Retroceso, H, I o G llegan a la consola.
+  await page.press('ArrowDown');
+  const c0 = await counters(page);
+  await page.keyDown('KeyW');
+  await sleep(120);
+  const held = await page.ev(KEYS_EXPR);
+  await page.keyUp('KeyW');
+  for (const k of ['KeyN', 'Backspace', 'KeyH', 'KeyI', 'KeyG']) await page.press(k);
+  await sleep(250);
+  const c1 = await counters(page);
+  const st1 = await page.ev(`({ help: document.getElementById('help').open, open: document.getElementById('explorer').open, saved: window.chip8.listSlots().filter((x) => !x.empty).length, paused: window.chip8.isPaused() })`);
+  s.check(noKeys(held) && c1.resets === c0.resets && !st1.help && st1.open && st1.saved === 0 && !st1.paused && c1.calls > c0.calls,
+    'con la ventana abierta W no aprieta el keypad, N no pausa ni da un paso, y Retroceso, H, I y G no hacen nada; el cartucho sigue corriendo detrás', JSON.stringify({ held, c0, c1, st1 }));
+
+  // Buscar: por título o autores, sin importar mayúsculas ni tildes, con todas las palabras en cualquier orden.
+  const search = async (label, typeIt, query) => {
+    await page.click('#explorer-q');
+    if (await page.ev("document.getElementById('explorer-q').value")) await page.press('Escape');
+    await typeIt();
+    await sleep(120);
+    const got = await page.ev(EXPLORER_CARDS), now = await page.ev(EXPLORER_STATE), want = archExpect({ query });
+    s.check(want.length > 0 && sameList(got.map((c) => c.sha), want.map((g) => g.sha1)) && now.count === `${want.length} de ${total} juegos`,
+      `buscar ${label} deja ${got.length}: ${got.map((c) => c.title).slice(0, 5).join(', ')}${got.length > 5 ? '…' : ''} («${now.count}»)`, JSON.stringify({ got: got.map((c) => c.title), want: want.map((g) => g.title) }));
+  };
+  await search('«kesha» (la autora)', () => explorerType(page, 'kesha'), 'kesha');
+  await page.shot('66-buscar');
+  await search('«TÍTLE ÓCTOJAM» (mayúsculas, tildes y dos palabras al revés)', () => page.send('Input.insertText', { text: 'TÍTLE ÓCTOJAM' }), 'TÍTLE ÓCTOJAM');
+  await search('«johnearnest»', () => explorerType(page, 'johnearnest'), 'johnearnest');
+  await page.press('Escape');
+  st = await page.ev(EXPLORER_STATE);
+  s.check(st.open && st.q === '' && st.count === total + ' juegos', 'Esc con algo escrito en la búsqueda la borra, y la ventana sigue abierta', JSON.stringify(st));
+
+  // Filtros con el mouse: plataforma, y evento o año (cada opción dice cuántos juegos tiene).
+  const opts = await page.ev(`({ platform: Array.from(document.querySelectorAll('#explorer-platform option')).map((o) => o.textContent),
+    groups: Array.from(document.querySelectorAll('#explorer-group optgroup')).map((g) => [g.label, Array.from(g.children).map((o) => o.textContent)]) })`);
+  const n = (f) => ARCH_GAMES.filter(f).length;
+  const wantPlat = [`Todas (${total})`].concat(['chip8', 'schip', 'xochip'].map((p) => `${ARCH_PLATFORM_NAME[p]} (${n((g) => g.platform === p)})`));
+  const events = [...new Set(ARCH_GAMES.map((g) => g.event))].sort(archByEvent), years = [...new Set(ARCH_GAMES.map((g) => g.year))].sort((a, b) => a - b);
+  const wantGroups = [['Eventos', events.map((e) => `${e || 'Sin evento'} (${n((g) => g.event === e)})`)], ['Años', years.map((y) => `${y} (${n((g) => g.year === y)})`)]];
+  s.check(sameList(opts.platform, wantPlat) && sameList(opts.groups, wantGroups),
+    `«Plataforma»: ${opts.platform.join(', ')}; «Evento o año»: ${opts.groups.map((g) => g[0] + ' (' + g[1].length + ')').join(' y ')}, con cuántos juegos tiene cada uno`, JSON.stringify({ opts, wantPlat, wantGroups }));
+  const filter = async (sel, value, wantFilter, label) => {
+    const got = await chooseWithMouse(page, sel, value);
+    await sleep(120);
+    const c = await page.ev(EXPLORER_CARDS), now = await page.ev(EXPLORER_STATE), want = archExpect(wantFilter);
+    s.check(got === value && want.length > 0 && sameList(c.map((x) => x.sha), want.map((g) => g.sha1)) && now.count === `${want.length} de ${total} juegos`,
+      `${label}: ${c.length} juegos («${now.count}»)`, JSON.stringify({ got, now, c: c.map((x) => x.title), want: want.map((g) => g.title) }));
+    return c;
+  };
+  const xo = await filter('#explorer-platform', 'xochip', { platform: 'xochip' }, 'plataforma XO-CHIP');
+  s.check(xo.every((c) => c.tags[0] === 'XO-CHIP'), 'todos dicen XO-CHIP');
+  await filter('#explorer-group', 'e:Octojam 3', { platform: 'xochip', group: 'e:Octojam 3' }, 'XO-CHIP de la Octojam 3');
+  await filter('#explorer-group', 'y:2020', { platform: 'xochip', group: 'y:2020' }, 'XO-CHIP de 2020');
+  await page.shot('66-filtros');
+
+  // Sin coincidencias: el aviso y «Mostrar todos», que borra la búsqueda y los filtros.
+  await page.click('#explorer-q');
+  await explorerType(page, 'zzzz');
+  st = await page.ev(EXPLORER_STATE);
+  cards = await page.ev(EXPLORER_CARDS);
+  s.check(cards.length === 0 && st.empty && st.count === `0 de ${total} juegos`, `sin coincidencias: «${st.count}» y el aviso con «Mostrar todos»`, JSON.stringify(st));
+  await page.shot('66-vacio');
+  await clickHit(page, '#explorer-reset');
+  await sleep(120);
+  st = await page.ev(EXPLORER_STATE);
+  s.check(st.q === '' && st.platform === '' && st.group === '' && st.count === total + ' juegos' && !st.empty && st.focus === 'explorer-q',
+    '«Mostrar todos» borra la búsqueda y los dos filtros y deja el foco en la búsqueda', JSON.stringify(st));
+
+  // Los órdenes, con el mouse.
+  for (const [sort, label] of [['nuevos', 'Más nuevos primero'], ['viejos', 'Más viejos primero'], ['evento', 'Por evento'], ['titulo', 'Título (A–Z)']]) {
+    const got = await chooseWithMouse(page, '#explorer-sort', sort);
+    await sleep(120);
+    const c = await page.ev(EXPLORER_CARDS), want = archExpect({ sort });
+    const optText = await page.ev("document.querySelector('#explorer-sort').selectedOptions[0].textContent");
+    s.check(got === sort && optText === label && sameList(c.map((x) => x.sha), want.map((g) => g.sha1)),
+      `orden «${optText}»: ${c.slice(0, 3).map((x) => `${x.title} (${x.when})`).join(', ')}…`, JSON.stringify({ got: c.slice(0, 6).map((x) => x.title), want: want.slice(0, 6).map((g) => g.title) }));
+  }
+
+  // Cerrar: Esc (con la búsqueda vacía), L, × y un clic en el fondo. L la vuelve a abrir como estaba.
+  await chooseWithMouse(page, '#explorer-sort', 'viejos');
+  await page.click('#explorer-q');
+  await page.press('Escape');
+  await sleep(100);
+  const closed1 = await page.ev("document.getElementById('explorer').open");
+  await page.press('KeyL');
+  await sleep(150);
+  st = await page.ev(EXPLORER_STATE);
+  s.check(!closed1 && st.open && st.focus === 'explorer-q' && st.sort === 'viejos' && st.count === total + ' juegos',
+    'Esc con la búsqueda vacía la cierra; L la vuelve a abrir con el foco en la búsqueda y el orden que había', JSON.stringify({ closed1, st }));
+  await page.press('ArrowDown');
+  await page.press('KeyL');
+  await sleep(100);
+  const closed2 = await page.ev("document.getElementById('explorer').open");
+  await page.press('KeyL');
+  await sleep(150);
+  await clickHit(page, '#explorer-close');
+  await sleep(100);
+  const closed3 = await page.ev("document.getElementById('explorer').open");
+  await page.press('KeyL');
+  await sleep(150);
+  const dlg = await page.rect('#explorer', false);
+  await page.clickAt(Math.max(4, dlg.x / 2), dlg.cy);   // el fondo oscuro, a la izquierda de la ventana
+  await sleep(100);
+  const closed4 = await page.ev("document.getElementById('explorer').open");
+  s.check(!closed2 && !closed3 && !closed4, 'L (con el foco en una tarjeta), la × y un clic en el fondo también la cierran', JSON.stringify({ closed2, closed3, closed4 }));
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 67 -------------------------------------------------------------------------------
+scenario(67, 'Archivo: un clic o Enter cargan el juego con los ajustes del archivo (plataforma, IPF, colores y giro), la ventana se cierra, la pantalla queda a la vista y el juego corre; las flechas, Inicio, Fin y AvPág recorren la lista; «En la ranura», «en tus cartuchos» y «ajustes recordados»; también desde file://', async (ctx, s) => {
+  const page = await freshApp(ctx, s, { width: 1280, height: 900 });
+  const sub8 = archGame('sub8');
+  // Con el mouse, desde el estante (debajo de la consola).
+  await openExplorerWithButton(page);
+  const sy0 = await page.ev('scrollY');
+  await clickHit(page, explorerCard(sub8.sha1));
+  await page.waitFor(`(window.chip8.romInfo() || {}).sha1 === ${JSON.stringify(sub8.sha1)}`, { timeout: 4000, desc: `«${sub8.title}» en la ranura` });
+  await sleep(400);
+  const v = await consoleView(page);
+  const more = await page.ev(`({ open: document.getElementById('explorer').open, mem: Array.from(window.chip8.cpu.memory.slice(0x200, 0x200 + ${sub8.size})),
+    crt: (() => { const b = document.getElementById('crt').getBoundingClientRect(); return { t: Math.round(b.top), b: Math.round(b.bottom), ih: innerHeight }; })(),
+    lib: window.chip8.libraryList().length, info: window.chip8.romInfo(), paused: window.chip8.isPaused() })`);
+  const toasts = await toastTexts(page);
+  const run = await measureRate(page, 1000);
+  s.check(!more.open && v.name === sub8.title && v.source === 'archivo' && more.info.archiveId === 'sub8',
+    `un clic en «${sub8.title}» lo carga (en la ranura: «${v.name}», ajustes del ${v.source}) y cierra la ventana`, JSON.stringify({ open: more.open, info: more.info }));
+  s.check(v.platform === 'schip' && v.ipf === sub8.ipf && v.palette === 'cartucho' && v.rotation === 270 && sameQuirks(v.quirks, sub8.quirks),
+    `con los ajustes del archivo: ${ARCH_PLATFORM_NAME[v.platform]}, ${v.ipf} IPF, sus quirks, sus colores y la pantalla girada ${v.rotation}°`, JSON.stringify(v));
+  s.check(sameList(more.mem, Array.from(archRom(sub8))), `desde 0x200 están los ${sub8.size} bytes de roms/archivo/sub8.ch8`);
+  s.check(run.fps >= 50 && !more.paused && !v.halted, `el juego corre (${run.fps.toFixed(1)} frames por segundo)`, JSON.stringify(run));
+  s.check(sy0 > 300 && more.crt.t >= 0 && more.crt.b <= more.crt.ih, `la página sube hasta la consola: la pantalla se ve entera (${more.crt.t}–${more.crt.b} px; estaba scrolleada ${Math.round(sy0)} px)`, JSON.stringify(more.crt));
+  s.check(toasts.some((t) => t.startsWith(`«${sub8.title}», del archivo de Octo (${sub8.event}): SUPER-CHIP, ${sub8.ipf} IPF, sus colores y la pantalla girada 270°`)), 'el aviso dice qué ajustes del archivo aplicó', JSON.stringify(toasts));
+  s.check(more.lib === 0, 'los juegos del archivo no se suman a «Tus cartuchos»');
+  await page.shot('67-cargado-con-un-clic');
+
+  // Con el teclado: L; ↓ vuelve a la última tarjeta elegida (la de Sub-Terr8nia); Inicio, → ↓ ← Fin ↑ AvPág recorren la
+  // lista, y ↑ desde la primera fila vuelve a la búsqueda.
+  await page.ev('window.scrollTo(0, 0)');
+  await page.click('.tagline');
+  await page.press('KeyL');
+  await page.waitFor("document.getElementById('explorer').open", { timeout: 3000, desc: 'la ventana con L' });
+  const order = await page.ev('window.chip8.archiveView().shown');
+  const cols = await page.ev("(() => { const l = Array.from(document.querySelectorAll('#explorer-list > li')).filter((x) => !x.hidden); let k = 1; while (k < l.length && l[k].offsetTop === l[0].offsetTop) k++; return k; })()");
+  const focused = () => page.ev("document.activeElement ? (document.activeElement.getAttribute('data-sha') || document.activeElement.id) : null");
+  const moves = [];
+  for (const [key, idx] of [['ArrowDown', order.indexOf(sub8.sha1)], ['Home', 0], ['ArrowRight', 1], ['ArrowDown', 1 + cols], ['ArrowLeft', cols], ['End', order.length - 1], ['ArrowUp', order.length - 1 - cols], ['Home', 0]]) {
+    await page.press(key);
+    await sleep(60);
+    moves.push({ key, ok: (await focused()) === order[idx] });
+  }
+  await page.press('PageDown');
+  await sleep(60);
+  const pg = order.indexOf(await focused());
+  await page.press('Home');
+  await page.press('ArrowUp');
+  await sleep(60);
+  const back = await focused();
+  const tabbable = await page.ev("Array.from(document.querySelectorAll('#explorer-list .xcart')).filter((b) => b.tabIndex === 0).length");
+  s.check(moves.every((m) => m.ok) && pg >= cols && pg % cols === 0 && back === 'explorer-q' && tabbable === 1,
+    `↓ desde la búsqueda vuelve a la última tarjeta elegida («${sub8.title}»); Inicio, → ↓ ← Fin ↑ la recorren (${cols} por fila), AvPág baja ${pg / cols} filas y ↑ desde la primera fila vuelve a la búsqueda; una sola tarjeta en el orden del Tab`, JSON.stringify({ moves, pg, back, tabbable }));
+  await page.press('ArrowDown');
+  await page.press('ArrowRight');
+  await page.press('ArrowRight');
+  const third = ARCH_GAMES.find((g) => g.sha1 === order[2]);
+  await page.press('Enter');
+  await page.waitFor(`(window.chip8.romInfo() || {}).sha1 === ${JSON.stringify(third.sha1)}`, { timeout: 4000, desc: `«${third.title}» con Enter` });
+  await sleep(200);
+  const v2 = await consoleView(page);
+  const open2 = await page.ev("document.getElementById('explorer').open");
+  s.check(!open2 && v2.name === third.title && v2.platform === third.platform && v2.ipf === third.ipf && !v2.halted,
+    `Enter sobre la tercera tarjeta carga «${v2.name}» (${ARCH_PLATFORM_NAME[v2.platform]}, ${v2.ipf} IPF) y cierra la ventana`, JSON.stringify({ open2, v2 }));
+
+  // «En la ranura»: al volver a abrir, la tarjeta del juego cargado lo dice (y solo esa).
+  await page.press('KeyL');
+  await sleep(200);
+  let cards = await page.ev(EXPLORER_CARDS);
+  const cur = cards.filter((c) => c.current);
+  s.check(cur.length === 1 && cur[0].sha === third.sha1 && cur[0].badge && cards.filter((c) => c.badge).length === 1,
+    `la tarjeta de «${third.title}» dice «En la ranura» (aria-current) y ninguna otra`, JSON.stringify(cur));
+  await page.press('Escape');
+
+  // «en tus cartuchos» y «ajustes recordados»: la misma ROM, cargada desde su archivo, y un cambio de velocidad con el mouse.
+  const fuse = archGame('fuse');
+  await loadWithButton(page, writeFixture(ctx, 'fuse.ch8', archRom(fuse)), fuse.title);
+  await page.click('#ipf-chips .chip:nth-child(4)');   // 100 IPF: queda como ajuste recordado de Fuse
+  await page.click('.tagline');
+  await sleep(600);
+  await page.press('KeyL');
+  await sleep(200);
+  cards = await page.ev(EXPLORER_CARDS);
+  const fc = cards.find((c) => c.sha === fuse.sha1);
+  const marked = cards.filter((c) => c.tags.length > 1).map((c) => c.title);
+  s.check(fc && fc.current && sameList(fc.tags, ['CHIP-8', 'en tus cartuchos', 'ajustes recordados']) && sameList(marked, [fuse.title]),
+    `la tarjeta de «${fuse.title}» dice ${fc ? fc.tags.slice(1).map((t) => '«' + t + '»').join(' y ') : '?'} (está en tus cartuchos y le cambiaste la velocidad); ninguna otra tiene marcas`, JSON.stringify({ fc, marked }));
+  await page.ev(`document.querySelector(${JSON.stringify(explorerCard(fuse.sha1))}).scrollIntoView({ block: 'center' })`);
+  await page.shot('67-marcas');
+  // Desde la ventana, un juego con ajustes recordados arranca con ellos.
+  await page.press('Escape');
+  await page.click('#cart-chips .chip:nth-child(1)');
+  await page.waitFor("document.getElementById('cart-name').textContent === 'Rebote'", { timeout: 3000, desc: 'Rebote' });
+  await page.press('KeyL');
+  await sleep(200);
+  await clickHit(page, explorerCard(fuse.sha1));
+  await page.waitFor(`(window.chip8.romInfo() || {}).sha1 === ${JSON.stringify(fuse.sha1)}`, { timeout: 4000, desc: 'Fuse desde la ventana' });
+  const v3 = await consoleView(page);
+  s.check(v3.source === 'recordado' && v3.ipf === 100 && v3.forget, `desde la ventana, «${fuse.title}» arranca con sus ajustes recordados (${v3.ipf} IPF, «${v3.slot}»)`, JSON.stringify(v3));
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+  await page.close();
+
+  // Abierta desde file:// (con doble clic): los juegos se cargan igual, sin pedir nada.
+  const pf = await Page.open(ctx, { width: 1280, height: 900 });
+  s.page = pf;
+  await pf.goto(pathToFileURL(HTML_PATH).href);
+  await pf.instrument();
+  await pf.click('.tagline');
+  await pf.press('KeyL');
+  await pf.waitFor("document.getElementById('explorer').open", { timeout: 3000, desc: 'la ventana con L, por file://' });
+  const title1 = archGame('octojam1title');
+  await clickHit(pf, explorerCard(title1.sha1));
+  await pf.waitFor(`(window.chip8.romInfo() || {}).sha1 === ${JSON.stringify(title1.sha1)}`, { timeout: 4000, desc: `«${title1.title}» por file://` });
+  const runF = await measureRate(pf, 800);
+  const proto = await pf.ev('location.protocol');
+  s.check(proto === 'file:' && runF.fps >= 50, `por file://, «${title1.title}» se carga desde la ventana y corre (${runF.fps.toFixed(1)} frames por segundo)`, JSON.stringify({ proto, runF }));
+  s.check(pf.errors.length === 0, 'por file://, sin errores de consola', pf.errors.join(' | '));
+});
+
+// 68 -------------------------------------------------------------------------------
+scenario(68, 'Archivo: las 104 ROMs embebidas se descomprimen en el navegador a los bytes de su huella SHA-1 (archiveRomBytes); una ROM dañada, un navegador sin DecompressionStream o una página sin las ROMs avisan claro y la consola sigue andando', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  const res = await page.ev(`(async () => {
+    const shas = Object.keys(CHIP8_ARCHIVE.data), out = [], t0 = performance.now();
+    for (const sha of shas) {
+      const b = await window.chip8.archiveRomBytes(sha);
+      out.push({ sha, ok: b instanceof Uint8Array, n: b.length, hash: Chip8Core.sha1(b) });
+    }
+    const ms = performance.now() - t0;
+    const first = await window.chip8.archiveRomBytes(shas[0]);
+    first.fill(0);
+    const again = await window.chip8.archiveRomBytes(shas[0].toUpperCase());
+    return { ms, out, copy: Chip8Core.sha1(again) === shas[0],
+      nulls: [await window.chip8.archiveRomBytes('0'.repeat(40)), await window.chip8.archiveRomBytes('no es una huella'), await window.chip8.archiveRomBytes(null)] };
+  })()`, 60000);
+  const sizes = new Map(ARCH_GAMES.map((g) => [g.sha1, g.size]));
+  const wrong = res.out.filter((r) => !r.ok || r.hash !== r.sha || r.n !== sizes.get(r.sha));
+  s.info(`${res.out.length} ROMs descomprimidas y verificadas en ${res.ms.toFixed(0)} ms`);
+  s.check(res.out.length === ARCH_GAMES.length && wrong.length === 0,
+    `las ${res.out.length} ROMs embebidas se descomprimen en el navegador (DecompressionStream) a bytes con su huella SHA-1 y su tamaño`, JSON.stringify(wrong.slice(0, 3)));
+  s.check(res.copy, 'cada llamada devuelve una copia (cambiar los bytes recibidos no cambia la ROM), y la huella vale también en mayúsculas');
+  s.check(res.nulls.every((x) => x === null), 'con una huella que no es del archivo, o algo que no es una huella, la promesa da null');
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+  await page.close();
+
+  // Una ROM dañada (los bytes de otro juego, o algo que no es deflate): el aviso adentro de la ventana, que sigue abierta.
+  const p2 = await Page.open(ctx);
+  s.page = p2;
+  await p2.goto(ctx.base + 'chip8.html');
+  await p2.instrument();
+  const snake = archGame('snake'), fuse = archGame('fuse'), knight = archGame('knight');
+  await p2.ev(`(() => { const d = CHIP8_ARCHIVE.data; d[${JSON.stringify(snake.sha1)}] = d[${JSON.stringify(fuse.sha1)}]; d[${JSON.stringify(knight.sha1)}] = 'esto no es deflate'; return true; })()`);
+  const msgs = await p2.ev(`Promise.all([${JSON.stringify(snake.sha1)}, ${JSON.stringify(knight.sha1)}].map((h) => window.chip8.archiveRomBytes(h).then(() => 'sin error', (e) => e.message)))`);
+  const damaged = (g) => `La ROM de «${g.title}» está dañada en esta página: cargala desde la carpeta roms/archivo con «Cargar ROM».`;
+  s.check(msgs[0] === damaged(snake) && msgs[1] === damaged(knight), `una ROM con otra huella o que no se puede descomprimir se rechaza: «${msgs[0]}»`, JSON.stringify(msgs));
+  await p2.click('.tagline');
+  await p2.press('KeyL');
+  await p2.waitFor("document.getElementById('explorer').open", { timeout: 3000, desc: 'la ventana' });
+  await explorerType(p2, 'snake');
+  const c0 = await counters(p2);
+  await clickHit(p2, explorerCard(snake.sha1));
+  await sleep(400);
+  const st2 = await p2.ev(EXPLORER_STATE);
+  const c1 = await counters(p2);
+  const info2 = await p2.ev('window.chip8.romInfo()');
+  s.check(st2.open && st2.note === damaged(snake) && info2.name === 'Rebote' && c1.calls > c0.calls,
+    `un clic en «${snake.title}» dañado: el aviso va adentro de la ventana, que sigue abierta, y Rebote sigue corriendo`, JSON.stringify({ st2, info2 }));
+  await p2.shot('68-rom-danada');
+  s.check(p2.errors.length === 0, 'con ROMs dañadas, sin excepciones ni errores de consola', p2.errors.join(' | '));
+  await p2.close();
+
+  // Un navegador sin DecompressionStream: el aviso al abrir, «SIN IMAGEN» en las miniaturas, y cargar no rompe nada.
+  const p3 = await Page.open(ctx, { initScripts: ['delete window.DecompressionStream;'] });
+  s.page = p3;
+  await p3.goto(ctx.base + 'chip8.html');
+  await p3.instrument();
+  await p3.click('.tagline');
+  await p3.press('KeyL');
+  await p3.waitFor("document.getElementById('explorer').open", { timeout: 3000, desc: 'la ventana sin DecompressionStream' });
+  await sleep(1200);
+  const st3 = await p3.ev(EXPLORER_STATE);
+  const v3 = await p3.ev('window.chip8.archiveView()');
+  const blanks = await p3.ev("Array.from(document.querySelectorAll('#explorer-list .xcart-blank')).filter((b) => !b.hidden && b.textContent === 'SIN IMAGEN').length");
+  const first = await p3.ev('window.chip8.archiveView().shown[0]');
+  await clickHit(p3, explorerCard(first));
+  await sleep(300);
+  const after3 = await p3.ev(EXPLORER_STATE);
+  const run3 = await measureRate(p3, 600);
+  const name3 = await p3.ev('window.chip8.romInfo().name');
+  s.check(/DecompressionStream/.test(st3.note) && st3.note.includes('«Cargar ROM»') && v3.thumbs.done === 0 && v3.thumbs.error >= 1 && blanks === v3.thumbs.error,
+    `sin DecompressionStream, al abrir avisa: «${st3.note}»; las miniaturas dicen «SIN IMAGEN» (${blanks})`, JSON.stringify({ st3, v3, blanks }));
+  s.check(after3.open && after3.note === st3.note && name3 === 'Rebote' && run3.fps >= 50,
+    `un clic en un juego no carga nada ni cierra la ventana: el aviso sigue y Rebote sigue corriendo (${run3.fps.toFixed(1)} frames por segundo)`, JSON.stringify({ after3, name3, run3 }));
+  await p3.shot('68-sin-decompressionstream');
+  s.check(p3.errors.length === 0, 'sin DecompressionStream, sin excepciones ni errores de consola', p3.errors.join(' | '));
+  await p3.close();
+
+  // Una página sin las ROMs (un chip8.html armado sin ellas): sin botón, L avisa y la autoconfiguración sigue andando.
+  const noData = "(() => { let v; Object.defineProperty(globalThis, 'CHIP8_ARCHIVE', { configurable: true, get() { return v; }, set(x) { if (x && typeof x === 'object') Object.defineProperty(x, 'data', { value: undefined, writable: false }); v = x; } }); })();";
+  const p4 = await Page.open(ctx, { initScripts: [noData] });
+  s.page = p4;
+  await p4.goto(ctx.base + 'chip8.html');
+  await p4.instrument();
+  await p4.click('.tagline');
+  await p4.press('KeyL');
+  await sleep(200);
+  const st4 = await p4.ev("({ btn: document.getElementById('btn-explorer').hidden, open: document.getElementById('explorer').open, status: document.getElementById('status').textContent, bytes: typeof CHIP8_ARCHIVE.data })");
+  await loadWithButton(p4, writeFixture(ctx, 'fuse.ch8', archRom(fuse)), fuse.title);
+  const v4 = await consoleView(p4);
+  s.check(st4.btn && !st4.open && st4.status === 'Esta página no trae los juegos del archivo de la comunidad.' && v4.source === 'archivo',
+    `sin las ROMs embebidas no hay botón, L dice «${st4.status}» y un juego del archivo cargado desde su archivo se configura igual`, JSON.stringify({ st4, source: v4.source }));
+  s.check(p4.errors.length === 0, 'sin las ROMs, sin errores de consola', p4.errors.join(' | '));
+});
+
+// 69 -------------------------------------------------------------------------------
+scenario(69, 'Archivo: miniaturas solo de las tarjetas a la vista (y de las que aparecen al scrollear), idénticas a correr la ROM aparte con sus colores y su giro; mientras se hacen, la consola sigue a 60 fps con 10.000 IPF', async (ctx, s) => {
+  const page = await freshApp(ctx, s, { width: 1440, height: 900 });
+  await loadWithButton(page, writeFixture(ctx, 'bucle.ch8', [0x70, 0x01, 0x12, 0x00]), 'bucle.ch8');
+  await page.click('#ipf-chips .chip:nth-child(8)');   // 10.000 IPF
+  await page.click('.tagline');
+  await sleep(500);
+  await page.press('KeyL');
+  await page.waitFor("document.getElementById('explorer').open", { timeout: 3000, desc: 'la ventana con L' });
+  await page.waitFor('(() => { const v = window.chip8.archiveView(); return v.visible > 0 && v.thumbs.done + v.thumbs.error >= v.visible; })()', { timeout: 10000, desc: 'las miniaturas de las tarjetas a la vista' });
+  await sleep(600);
+  const v1 = await page.ev('window.chip8.archiveView()');
+  s.check(v1.thumbs.error === 0 && v1.thumbs.done === v1.visible && v1.thumbs.done >= 10 && v1.thumbs.done < v1.total / 2,
+    `al abrir se hacen solo las ${v1.thumbs.done} miniaturas de las tarjetas a la vista o por aparecer, de ${v1.total}`, JSON.stringify(v1.thumbs));
+  await page.shot('69-miniaturas');
+
+  // Scrolleando la lista con la rueda del mouse mientras corre un bucle a 10.000 IPF.
+  const box = await page.rect('#explorer-scroll', false);
+  await explorerRafStart(page);
+  const a = await counters(page);
+  for (let i = 0; i < 24; i++) {
+    await page.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: box.cx, y: box.cy + box.h / 4, deltaX: 0, deltaY: 420 });
+    await sleep(250);
+  }
+  const b = await counters(page);
+  const raf = await explorerRafStop(page);
+  const secs = (b.now - a.now) / 1000, fps = (b.calls - a.calls) / secs, ips = (b.instr - a.instr) / secs;
+  const v2 = await page.ev('window.chip8.archiveView()');
+  s.info(`scrolleando ${secs.toFixed(1)} s: ${v2.thumbs.done - v1.thumbs.done} miniaturas más; la consola a ${fps.toFixed(1)} frames por segundo (${Math.round(ips)} instrucciones por segundo), la página a ${raf.fps.toFixed(1)} cuadros por segundo (el más largo, ${raf.max.toFixed(1)} ms; el 95 %, menos de ${raf.p95.toFixed(1)} ms)`);
+  s.check(fps >= 55 && fps <= 66 && ips >= IPF_MAX * fps * 0.99, `mientras se hacen las miniaturas, la consola sigue a ${fps.toFixed(1)} frames por segundo con ${IPF_MAX} instrucciones por frame`, JSON.stringify({ fps, ips }));
+  s.check(raf.fps >= 55 && raf.p95 < 25, `la página no pierde cuadros: ${raf.fps.toFixed(1)} por segundo (el 95 % llega en menos de ${raf.p95.toFixed(1)} ms)`, JSON.stringify(raf));
+  s.check(v2.thumbs.done >= v1.thumbs.done + 20 && v2.thumbs.error === 0 && v2.thumbs.busy <= 1, `al bajar se hacen las de las tarjetas que aparecen (${v2.thumbs.done} de ${v2.total})`, JSON.stringify(v2.thumbs));
+  await page.shot('69-miniaturas-abajo');
+
+  // Con la ventana cerrada no se hace ninguna.
+  await page.click('#explorer-q');
+  await page.press('Escape');
+  const t1 = await page.ev('window.chip8.archiveView().thumbs');
+  await sleep(1200);
+  const t2 = await page.ev('window.chip8.archiveView().thumbs');
+  s.check(sameList(t1, t2), 'con la ventana cerrada no se hace ninguna miniatura más', JSON.stringify({ t1, t2 }));
+
+  // Cada miniatura es la pantalla que da correr la ROM aparte (en Node, con el núcleo del archivo), con los colores del
+  // juego, escala entera y su giro: Sub-Terr8nia (girada 270°), un XO-CHIP con tres colores o más y un CHIP-8.
+  const xoColors = ARCH_GAMES.filter((g) => g.platform === 'xochip').sort(archByTitle).find((g) => new Set(archThumbInNode(g).px).size >= 3);
+  for (const g of [archGame('sub8'), xoColors, archGame('octojam1title')]) {
+    await page.press('KeyL');
+    await page.waitFor("document.getElementById('explorer').open", { timeout: 3000, desc: 'la ventana' });
+    if (await page.ev("document.getElementById('explorer-q').value")) await page.press('Escape');
+    await page.send('Input.insertText', { text: g.title });
+    await page.waitFor(`(() => { const c = document.querySelector(${JSON.stringify(explorerCard(g.sha1) + ' canvas')}); return c && !c.hidden; })()`, { timeout: 8000, desc: `la miniatura de «${g.title}»` });
+    const got = await explorerThumbOfCard(page, g.sha1), full = archThumbInNode(g);
+    const shrink = Math.round(full.w / got.w), want = shrink > 1 ? archThumbInNode(g, shrink) : full;
+    const diff = got.px.reduce((k, x, i) => k + (x !== want.px[i] ? 1 : 0), 0);
+    const colors = [...new Set(got.px)].map((x) => '#' + x.toString(16).padStart(6, '0').toUpperCase()).sort();
+    s.check(got.w === want.w && got.h === want.h && diff === 0 && Number.isInteger(got.scale) && got.scale >= 1 && got.fits && colors.every((c) => g.colors.includes(c)),
+      `«${g.title}» (${ARCH_PLATFORM_NAME[g.platform]}${g.rotation ? `, girada ${g.rotation}°` : ''}): la miniatura de ${got.w}×${got.h}${shrink > 1 ? ` (${full.w}×${full.h} achicada a la mitad para entrar)` : ''} es igual píxel por píxel a la del núcleo en Node, con ${colors.length} de sus colores (${colors.join(' ')}), escala ×${got.scale} y entera en su ventanita`,
+      JSON.stringify({ size: [got.w, got.h], want: [want.w, want.h], shrink, diff, scale: got.scale, fits: got.fits, colors, values: want.values }));
+    if (g.id === 'sub8') await page.shot('69-girada');
+    await page.press('Escape');
+    await page.press('Escape');
+  }
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+}, 120000);
+
+// 70 -------------------------------------------------------------------------------
+scenario(70, 'Archivo: diseño a 1440, 768 y 360 px: sin scroll horizontal, el botón entero en el título del estante, la ventana dentro de la pantalla con la búsqueda y los filtros enteros, tarjetas que no se pisan, miniaturas de escala entera y foco visible', async (ctx, s) => {
+  const page = await freshApp(ctx, s, { width: 1440, height: 900 });
+  for (const [w, h, mobile, cols] of [[1440, 900, false, 5], [768, 1024, false, 3], [360, 640, true, 2]]) {
+    await page.setViewport(w, h, mobile ? 2 : 1, mobile);
+    await page.reload();
+    await sleep(400);
+    await page.ev("document.getElementById('shelf-title').scrollIntoView({ block: 'center' })");
+    const t = await page.ev(`(() => {
+      const r = (el) => { const b = el.getBoundingClientRect(); return { l: b.left, r: b.right, t: b.top, b: b.bottom, h: b.height }; };
+      const span = document.getElementById('shelf-title-text'), btn = document.getElementById('btn-explorer');
+      return { iw: innerWidth, sw: document.documentElement.scrollWidth, span: r(span), btn: r(btn), clipped: btn.scrollWidth > btn.clientWidth + 1 };
+    })()`);
+    const pisa = t.span.l < t.btn.r && t.btn.l < t.span.r && t.span.t < t.btn.b && t.btn.t < t.span.b;
+    s.check(t.sw <= t.iw && t.btn.l >= 0 && t.btn.r <= t.iw && !pisa && !t.clipped && t.span.h < 24,
+      `${w}px: el botón «Archivo» entra entero en el título del estante (${Math.round(t.btn.l)}–${Math.round(t.btn.r)} px) sin pisar «Cartuchos incluidos», que sigue en un renglón`, JSON.stringify(t));
+    await page.shot(`70-estante-${w}`);
+    await clickHit(page, '#btn-explorer');
+    await page.waitFor("document.getElementById('explorer').open", { timeout: 3000, desc: 'la ventana' });
+    await page.waitFor('(() => { const v = window.chip8.archiveView(); return v.visible > 0 && v.thumbs.done >= v.visible; })()', { timeout: 10000, desc: 'las miniaturas a la vista' });
+    await sleep(300);
+    const m = await page.ev(`(() => {
+      const d = document.getElementById('explorer'), db = d.getBoundingClientRect(), over = [];
+      d.querySelectorAll('*').forEach((el) => { const b = el.getBoundingClientRect(); if (b.width && (b.right > db.right + 0.5 || b.left < db.left - 0.5)) over.push((el.id ? '#' + el.id : el.tagName.toLowerCase() + '.' + el.className).slice(0, 40)); });
+      const lis = Array.from(document.querySelectorAll('#explorer-list > li')).filter((l) => !l.hidden).slice(0, 15).map((l) => l.getBoundingClientRect());
+      const overlap = lis.some((a, i) => lis.some((b, j) => i < j && a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5));
+      const ctl = ['explorer-q', 'explorer-platform', 'explorer-group', 'explorer-sort'].map((id) => { const b = document.getElementById(id).getBoundingClientRect(); return { id, l: Math.round(b.left), r: Math.round(b.right), w: Math.round(b.width) }; });
+      const canvases = Array.from(document.querySelectorAll('#explorer-list canvas')).filter((c) => !c.hidden);
+      const thumbs = canvases.map((c) => Math.round(parseFloat(c.style.width) * devicePixelRatio / c.width * 1000) / 1000);
+      const thumbsOut = canvases.filter((c) => { const a = c.getBoundingClientRect(), p = c.parentNode.getBoundingClientRect(); return a.left < p.left - 0.5 || a.right > p.right + 0.5 || a.top < p.top - 0.5 || a.bottom > p.bottom + 0.5; }).length;
+      const title = document.getElementById('explorer-title');
+      return { iw: innerWidth, ih: innerHeight, sw: document.documentElement.scrollWidth, dlg: { l: Math.round(db.left), r: Math.round(db.right), t: Math.round(db.top), b: Math.round(db.bottom) },
+        inner: [d.scrollWidth, d.clientWidth, document.getElementById('explorer-scroll').scrollWidth, document.getElementById('explorer-scroll').clientWidth], over: over.slice(0, 6),
+        cols: lis.filter((b) => Math.round(b.top) === Math.round(lis[0].top)).length, minCard: Math.round(Math.min(...lis.map((b) => b.width))), overlap, ctl, thumbs, thumbsOut,
+        titleH: Math.round(title.getBoundingClientRect().height), titleLine: parseFloat(getComputedStyle(title).lineHeight), titleClipped: title.scrollWidth > title.clientWidth + 1,
+        sticky: getComputedStyle(document.getElementById('explorer-top')).position };
+    })()`);
+    s.info(`${w}×${h}: ventana ${m.dlg.l}–${m.dlg.r} × ${m.dlg.t}–${m.dlg.b} px, ${m.cols} tarjetas por fila (de ${m.minCard} px), miniaturas ×${[...new Set(m.thumbs)].join(', ×')}, filtros ${m.sticky === 'sticky' ? 'pegados arriba' : 'que se van con el scroll'}`);
+    s.check(m.sw <= m.iw && m.dlg.l >= 0 && m.dlg.r <= m.iw && m.dlg.t >= 0 && m.dlg.b <= m.ih && m.inner[0] <= m.inner[1] && m.inner[2] <= m.inner[3] && m.over.length === 0,
+      `${w}px: la ventana entra en la pantalla y nada se sale de ella (ni la página ni la ventana scrollean de costado)`, JSON.stringify(m));
+    s.check(m.ctl.every((c) => c.l >= m.dlg.l && c.r <= m.dlg.r && c.w >= 90) && m.ctl[0].w >= 200,
+      `${w}px: la búsqueda (${m.ctl[0].w} px) y los tres selectores entran enteros`, JSON.stringify(m.ctl));
+    s.check(!m.overlap && m.cols === cols && m.minCard >= 120 && !m.titleClipped && m.titleH < 1.5 * m.titleLine,
+      `${w}px: ${m.cols} tarjetas por fila que no se pisan, y el título de la ventana en un renglón`, JSON.stringify({ cols: m.cols, minCard: m.minCard, overlap: m.overlap, titleH: m.titleH, titleLine: m.titleLine }));
+    s.check(m.thumbs.length > 0 && m.thumbs.every((x) => Number.isInteger(x) && x >= 1) && m.thumbsOut === 0, `${w}px: las ${m.thumbs.length} miniaturas tienen escala entera en píxeles físicos (×${[...new Set(m.thumbs)].join(', ×')}) y entran en su ventanita`, JSON.stringify({ thumbs: m.thumbs, out: m.thumbsOut }));
+    s.check(m.sticky === (w > 620 ? 'sticky' : 'static'), `${w}px: la búsqueda y los filtros ${w > 620 ? 'quedan pegados arriba' : 'se van con el scroll (en el teléfono la lista usa toda la ventana)'}`);
+    await page.shot(`70-ventana-${w}`);
+    // Foco visible: ↓ desde la búsqueda lleva a la primera tarjeta, con su borde de foco.
+    await page.click('#explorer-q');
+    await page.press('ArrowDown');
+    const ring = await page.ev("(() => { const a = document.activeElement, cs = getComputedStyle(a); return { card: a.classList.contains('xcart'), style: cs.outlineStyle, width: cs.outlineWidth, color: cs.outlineColor }; })()");
+    s.check(ring.card && ring.style === 'solid' && ring.width === '3px', `${w}px: la tarjeta con el foco del teclado muestra su borde de foco (${ring.width} ${ring.style} ${ring.color})`, JSON.stringify(ring));
+    const top0 = await page.ev("Math.round(document.getElementById('explorer-top').getBoundingClientRect().top)");
+    await page.ev("document.getElementById('explorer-scroll').scrollTop = 1500");
+    await sleep(500);
+    const top1 = await page.ev("Math.round(document.getElementById('explorer-top').getBoundingClientRect().top)");
+    s.check(w > 620 ? top1 === top0 : top1 < top0, `${w}px: al scrollear la lista, la búsqueda ${w > 620 ? 'sigue a la vista' : 'se va hacia arriba'} (${top0} → ${top1} px)`);
+    await page.shot(`70-abajo-${w}`);
+    await page.press('Escape');
+    await sleep(100);
+  }
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+}, 120000);
 
 // ---------------------------------------------------------------- principal
 async function runScenario(ctx, sc) {
