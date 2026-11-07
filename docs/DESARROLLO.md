@@ -1712,6 +1712,9 @@ La interfaz expone `window.chip8` para depurar desde la consola del navegador y 
 | `setPowerOn(on)`, `getPowerOn()` | El encendido animado. |
 | `saveSlot(ranura)`, `loadSlot(ranura)`, `deleteSlot(ranura)` | Guardan, cargan o borran un estado de la ROM de la ranura (`'rapido'` o de 1 a 4); devuelven `true` o `false`. |
 | `listSlots()` | Las cinco ranuras de la ROM de la ranura (`{ slot, name, empty, date, when, size, platform, damaged }`), o `null` sin cartucho. |
+| `allStates()` | Todos los estados de todos los cartuchos, en el orden de la lista de «Ver todos»: `[{ sha1, name, origin, loaded, states: [{ slot, name, date, when, size, platform, damaged }] }]` (`origin`: `'demo'`, `'archivo'`, `'biblioteca'` o `'desconocido'`). |
+| `statesFile(sha1, ranura)` | El texto del archivo que bajaría «Exportar», sin bajarlo: sin argumentos, todos los estados; con `sha1`, los de ese cartucho; con los dos, uno solo. `null` si no hay nada para exportar. |
+| `importStates(texto, nombre)` | Importa el texto de un archivo de estados como «Importar» (si hay ranuras ocupadas, pregunta); promesa con `{ imported, same, kept, damaged, roms, storage, text }`, o con `{ error }` o `{ cancelled }`. |
 | `setRewind(on)`, `getRewind()` | El interruptor «Rebobinado». |
 | `setRewinding(on)`, `isRewinding()` | Rebobinar como si se mantuviera B. |
 | `rewindInfo()` | `{ seconds, entries, bytes }` del buffer de rebobinado. |
@@ -2192,6 +2195,7 @@ Antes de dar por terminado un cambio: `node --test` y, si tocaste la interfaz,
 | `tests/roms.test.js` | Los cartuchos: cada `.asm` ensambla idéntico a su `.ch8` y tiene sus etiquetas; `embed-roms --check` y el bloque incrustado; el propio `embed-roms.js` sobre un HTML temporal con CRLF, y la etiqueta `@platform`; 600 frames por demo y perfil sin ejecutar datos; y el comportamiento de cada uno: el movimiento y las velocidades de Rebote; las 16 teclas de Teclado; en Atrapa, la paleta, que todo bloque se pueda atrapar y el reinicio con apretar y soltar; Autotest con VD = 19 y VE = 0 en cada perfil e IPF, y los núcleos saboteados que tiene que detectar; la posición de cada glifo en Fuente; y en Planos, la pantalla, los planos limpios, los cuatro valores, las velocidades, el contador, el sonido, la tecla y que vaya igual con cualquier perfil e IPF. |
 | `tests/archive.test.js` | `tools/archive.js` (las opciones de Octo pasadas a los ajustes, colores, giro, eventos, `toEntry`), `data/archive.json` (fuente, licencia, commit; huellas únicas, plataformas válidas, tamaños que entran), las ROMs de `roms/archivo/` (una por programa, con su huella y su tamaño, y el índice `LEEME.md` al día) y el bloque incrustado (al día, una entrada válida por programa, sin `</script` ni comentarios HTML, entre `chip8-roms` y `chip8-ui`, `embedInto` idempotente y con CRLF). |
 | `tests/estados.test.js` | Los estados guardados y el rebobinado: guardar a mitad de un programa y cargar en otra máquina sigue igual frame a frame (timers, `CALL`/`RET`, `FX0A`, SUPER-CHIP, XO-CHIP con dos planos, audio y memoria de 64 KB, máquinas detenidas y terminadas); `loadState` cambia de plataforma sin recargar la ROM; 54 validaciones que dejan la máquina intacta; el formato de texto (ida y vuelta, también con estados al azar; la compresión en los bordes de la base 128; tamaños; cada error; 400 textos cambiados al azar); y `RewindBuffer` (orden, páginas compartidas y la cuenta exacta de los bytes, límites, `clear`, cambios de plataforma entre fotos, `push` y `pop` intercalados y el rendimiento). |
+| `tests/estados-archivos.test.js` | Los archivos de estados, el giro de las pantallitas y `findCartridge` ([4.22](#422-estados-guardados-y-rebobinado)): evalúa sola la sección «estados guardados: archivos» de `chip8-ui`, con las ayudas que usa sacadas de `chip8.html`; el archivo que se arma (campos y su orden, ida y vuelta, estados reales de las tres plataformas, los nombres de archivo), el mensaje de cada archivo que no sirve (vacío, no JSON, otro programa, otra versión, un estado suelto, todo dañado), cada estado dañado con su motivo, ranuras y fechas, la ROM (buena, ajena, rota, del tamaño máximo), qué pasa con cada ranura al importar y el resumen, el giro contra una referencia escrita aparte, distinguir un archivo de estados de una ROM, y `findCartridge` con demos, «Tus cartuchos» y `archiveRomBytes`. |
 | `tests/taller.test.js` | Los fuentes del Taller (`CHIP8_SOURCES`): el de cada cartucho y los once ejemplos del tutorial, iguales a sus archivos y con sus `.ch8`, la descripción de cada ejemplo, los textos escapados; y `embed-roms.js` con los ejemplos (`@platform`, `@description`, errores en castellano, CRLF, `--check` y sin la carpeta `docs/ejemplos/`). |
 | `tests/depurador.test.js` | El depurador del núcleo: la traza (orden, tope, la instrucción que falla), el mapa de accesos (cada instrucción que lee o escribe, el operando de `F000 NNNN`, la vuelta en `0xFFF`), el registro de dibujos, los puntos de corte (se detiene antes y al seguir ejecuta, el frame abierto, frenar y seguir da lo mismo frame por frame, no son parte del estado), `runTo` (paso por encima con recursión, salir, «hasta acá», una subrutina que no vuelve) y qué borran `reset` y `loadState`. |
 | `tests/tutorial.test.js` | El tutorial y sus ejemplos ([6.6](#66-pruebas-de-la-documentación)). |
@@ -2201,7 +2205,7 @@ Antes de dar por terminado un cambio: `node --test` y, si tocaste la interfaz,
 ### 6.3 Números actuales
 
 Medido el 6 de noviembre de 2026 con Node 24.18 (`node --test` desde la raíz):
-**1566 pruebas en 222 grupos**, todas pasan y ninguna salteada, en unos 5 s.
+**1602 pruebas en 229 grupos**, todas pasan y ninguna salteada, en unos 5 s.
 
 | Archivo | Pruebas |
 |---|---|
@@ -2220,13 +2224,14 @@ Medido el 6 de noviembre de 2026 con Node 24.18 (`node --test` desde la raíz):
 | `tests/timers-keys.test.js` | 46 |
 | `tests/depurador.test.js` | 41 |
 | `tests/manual.test.js` | 38 |
+| `tests/estados-archivos.test.js` | 36 |
 | `tests/quirks.test.js` | 30 |
 | `tests/archive.test.js` | 29 |
 | `tests/asm-bloque.test.js` | 18 |
 | `tests/mutation-gaps.test.js` | 12 |
 | `tests/taller.test.js` | 9 |
 | `tests/single-file.test.js` | 4 |
-| **Total** | **1566** |
+| **Total** | **1602** |
 
 Todas pasan cuando los cartuchos y la tabla del archivo incrustados están al día y
 `roms/archivo/` está completa. Las pruebas del grupo "chip8.html tiene las demos
@@ -2487,6 +2492,12 @@ tercera:
 | 68 | Las 104 ROMs embebidas se descomprimen en el navegador a su huella SHA-1; una dañada, un navegador sin `DecompressionStream` o una página sin las ROMs avisan claro y la consola sigue andando. |
 | 69 | Miniaturas solo de las tarjetas a la vista, idénticas a correr la ROM aparte (colores y giro); mientras se hacen, la consola sigue a 60 fps con 10.000 IPF. |
 | 70 | Diseño de la ventana a 1440, 768 y 360 px: sin scroll horizontal, filtros enteros, tarjetas que no se pisan, miniaturas de escala entera y foco visible. |
+| 71 | Exportar: «Exportar» de «Estados», el de un estado de la lista y «Exportar todo» bajan el JSON (formato, fechas, el estado exacto, la pantallita en PNG píxel por píxel y la ROM solo si es de «Tus cartuchos»). |
+| 72 | Importar en un navegador limpio con «Importar» y arrastrando el archivo: los estados exactos y la ROM a «Tus cartuchos»; al arrastrar, el contenido distingue un archivo de estados de una ROM que empieza con «{». |
+| 73 | Validación (otro programa, otra versión, un estado suelto, todo dañado, una ROM ajena) y ranuras ocupadas: la pregunta con el mouse y con el teclado («Reemplazar todos»), Esc cancela todo y lo dañado no entra. |
+| 74 | La lista de todos los estados: grupos y de dónde es cada cartucho, pantallitas con sus colores, Cargar (también con un dedo), lo que no se puede cargar, Borrar y «Deshacer» (mouse y teclado), Esc y el fondo la cierran, y las teclas no van a la máquina. |
+| 75 | El giro en las pantallitas: 90° (también un estado guardado antes), 180° y 270° en «Estados», en la lista, en la pregunta y en el archivo exportado; Sub-Terr8nia, del archivo, a 270°. |
+| 76 | Diseño de «Estados», de la lista y de la pregunta a 1440, 768 y 360 px, y 60 fps a 10.000 IPF con la lista abierta. |
 
 `node tools/e2e.js --help` imprime esta misma lista (sale del comentario del principio del
 archivo).

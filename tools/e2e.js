@@ -155,6 +155,19 @@
  *      hacen, la consola sigue a 60 fps con 10.000 IPF
  *   70 diseño de la ventana a 1440, 768 y 360 px: sin scroll horizontal, filtros enteros, tarjetas sin pisarse,
  *      miniaturas de escala entera y foco visible
+ *   71 exportar estados: «Exportar» de «Estados», el de cada estado de la lista y «Exportar todo» bajan el
+ *      JSON (formato, fechas, el estado exacto, la pantallita en PNG píxel por píxel y la ROM solo si hace falta)
+ *   72 importar en otro navegador (perfil limpio) con «Importar» y arrastrando el archivo: los estados exactos y
+ *      la ROM a «Tus cartuchos»; arrastrar distingue un archivo de estados de una ROM que empieza con «{»
+ *   73 validación (otro programa, otra versión, un estado suelto, todo dañado, una ROM dañada) y ranuras
+ *      ocupadas: la pregunta (mouse y teclado, «Reemplazar todos»), Esc cancela todo y lo dañado no entra
+ *   74 la lista de todos los estados: grupos por cartucho y de dónde son, pantallitas con los colores de cada
+ *      uno, Cargar (también con un dedo) pone el cartucho y el estado, lo que no se puede cargar se explica,
+ *      Borrar y «Deshacer» con el mouse y el teclado, Esc y el fondo la cierran, y las teclas no van a la máquina
+ *   75 el giro en las pantallitas: 90° (también un estado guardado antes, sin giro), 180° y 270° en «Estados»,
+ *      la lista, la pregunta y el archivo exportado; Sub-Terr8nia, del archivo, a 270°
+ *   76 diseño de «Estados», de la lista y de la pregunta a 1440, 768 y 360 px, y 60 fps a 10.000 IPF con la
+ *      lista abierta
  */
 
 const { spawn, spawnSync } = require('node:child_process');
@@ -6132,6 +6145,766 @@ scenario(70, 'Archivo: diseño a 1440, 768 y 360 px: sin scroll horizontal, el b
   }
   s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
 }, 120000);
+
+// ---------------------------------------------------------------- ayudas de los escenarios 71 en adelante (archivos de estados, la lista y el giro)
+const STATES_FILE = 'chip8-consola-estados';
+let nodeCoreCache = null;
+// El núcleo en Node (para decodificar y armar estados como la consola).
+const nodeCore = () => nodeCoreCache || (nodeCoreCache = require(path.join(ROOT, 'tests', 'harness.js')).loadCore());
+
+// Las descargas del navegador van a una carpeta del perfil temporal mientras corre fn (como en el escenario 35).
+async function withDownloads(ctx, fn) {
+  const dir = path.join(ctx.browser.tmp, 'descargas');
+  fs.mkdirSync(dir, { recursive: true });
+  await ctx.browser.cdp.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: dir, eventsEnabled: true });
+  try {
+    return await fn(dir);
+  } finally {
+    await ctx.browser.cdp.send('Browser.setDownloadBehavior', { behavior: 'default' }).catch(() => {});
+  }
+}
+// La descarga que provoca action, ya leída: { name, state, text, json }.
+async function downloaded(ctx, dir, action) {
+  const p = nextDownload(ctx);
+  await action();
+  const dl = await p;
+  const file = dl.file || path.join(dir, dl.name || '-');
+  const text = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+  let json = null;
+  try { json = JSON.parse(text); } catch { json = null; }
+  return { name: dl.name, state: dl.state, text, json };
+}
+// «Importar» (el de «Estados» o el de la lista) con el diálogo de archivos interceptado.
+async function importWithButton(page, selector, file) {
+  await page.send('Page.setInterceptFileChooserDialog', { enabled: true });
+  const opened = page.cdp.waitEvent('Page.fileChooserOpened', page.sessionId, 5000);
+  await clickHit(page, selector);
+  const ev = await opened;
+  await page.send('DOM.setFileInputFiles', { files: [file], backendNodeId: ev.backendNodeId });
+}
+// Arrastra un archivo hasta (x, y) y lo suelta. Devuelve qué cartel se veía antes de soltarlo.
+async function dropFileOn(page, file, x = 400, y = 300) {
+  const data = { items: [], files: [file], dragOperationsMask: 1 };
+  await page.send('Input.dispatchDragEvent', { type: 'dragEnter', x, y, data });
+  await page.send('Input.dispatchDragEvent', { type: 'dragOver', x, y, data });
+  await sleep(100);
+  const shown = await page.ev(`({ page: !document.getElementById('drop').hidden, list: document.getElementById('states-list').classList.contains('is-dropping') })`);
+  await page.send('Input.dispatchDragEvent', { type: 'drop', x, y, data });
+  return shown;
+}
+// Espera un aviso flotante cuyo texto cumpla re y lo devuelve ({ text, kind, action }).
+async function waitToast(page, re, timeout = 4000) {
+  const t0 = Date.now();
+  for (;;) {
+    const found = (await toastsInfo(page)).find((t) => re.test(t.text));
+    if (found) return found;
+    if (Date.now() - t0 > timeout) throw new Error('No apareció un aviso que diga ' + re + '; hay: ' + JSON.stringify(await toastsInfo(page)));
+    await sleep(50);
+  }
+}
+const clearToasts = (page) => page.ev("document.querySelectorAll('#toasts .toast').forEach((t) => t.remove())");
+const noticeText = (page) => page.ev("document.getElementById('states-notice-text').textContent");
+const listIsOpen = (page) => page.ev("document.getElementById('states-list').open");
+const cardSel = (sha, slot, act) => `#states-list .states-card[data-sha="${sha}"][data-slot="${slot}"]` + (act ? ` [data-act="${act}"]` : '');
+// Lo que muestra la lista de todos los estados.
+function listView(page) {
+  return page.ev(`(() => {
+    const d = document.getElementById('states-list'), act = document.getElementById('states-notice-act');
+    return { open: d.open, count: document.getElementById('states-count').textContent, notice: document.getElementById('states-notice-text').textContent,
+      noticeAct: act.hidden ? null : act.textContent, empty: !document.getElementById('states-empty').hidden, exportAll: !document.getElementById('states-export-all').disabled,
+      groups: Array.from(d.querySelectorAll('.states-cart')).map((g) => ({ sha: g.dataset.sha, name: g.querySelector('.states-cart-name').textContent,
+        tags: Array.from(g.querySelectorAll('.cart-tag')).map((t) => t.textContent), note: g.querySelector('.states-cart-note').hidden ? '' : g.querySelector('.states-cart-note').textContent,
+        cards: Array.from(g.querySelectorAll('.states-card')).map((c) => ({ slot: c.dataset.slot, name: c.querySelector('.save-name').textContent, when: c.querySelector('.save-when').textContent,
+          blank: c.querySelector('.save-blank') ? c.querySelector('.save-blank').textContent : '', canvas: !!c.querySelector('canvas'),
+          load: c.querySelector('[data-act="load"]').getAttribute('aria-disabled') !== 'true', exp: c.querySelector('[data-act="export"]').getAttribute('aria-disabled') !== 'true' })) })) };
+  })()`);
+}
+// Lo que muestra la pregunta de las ranuras ocupadas.
+function askView(page) {
+  return page.ev(`(() => {
+    const d = document.getElementById('states-ask'), all = document.getElementById('states-ask-all'), ae = document.activeElement;
+    return { open: d.open, text: document.getElementById('states-ask-text').textContent, all: !document.getElementById('states-ask-all-row').hidden, allChecked: all.checked, allMixed: all.indeterminate,
+      focus: ae ? ae.id || ae.getAttribute('data-key') || ae.tagName : null,
+      rows: Array.from(d.querySelectorAll('.states-ask-item')).map((li) => ({ key: li.querySelector('input').getAttribute('data-key'), label: li.querySelector('.states-ask-check span').textContent,
+        checked: li.querySelector('input').checked, caps: Array.from(li.querySelectorAll('figcaption')).map((c) => c.textContent), canvases: li.querySelectorAll('canvas').length })) };
+  })()`);
+}
+// Un estado guardado en la página, decodificado en Node (null si no está).
+async function storedState(page, sha, slot) {
+  const st = await stored(page, STATES_KEY);
+  const e = st && st.roms[sha] && st.roms[sha].slots[String(slot)];
+  return e ? nodeCore().decodeState(e.text) : null;
+}
+// Un lienzo de la página: sus píxeles (RGBA), su escala en píxeles del monitor y si entra en su caja.
+function canvasImage(page, selector) {
+  return page.ev(`(() => {
+    const cv = document.querySelector(${JSON.stringify(selector)});
+    if (!cv) return null;
+    const a = cv.getBoundingClientRect(), b = cv.parentNode.getBoundingClientRect();
+    return { width: cv.width, height: cv.height, data: Array.from(cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data),
+      scale: Math.round(parseFloat(cv.style.width) * devicePixelRatio / cv.width * 1000) / 1000, rendering: getComputedStyle(cv).imageRendering,
+      inside: a.width > 0 && a.left >= b.left - 0.5 && a.right <= b.right + 0.5 && a.top >= b.top - 0.5 && a.bottom <= b.bottom + 0.5 };
+  })()`);
+}
+const pngOf = (dataUrl) => decodePng(Buffer.from(String(dataUrl).slice(String(dataUrl).indexOf(',') + 1), 'base64'));
+// El píxel del núcleo que se ve en (x, y) de la pantalla girada deg grados en sentido horario (como el tubo).
+function rotatedSource(x, y, w, h, deg) {
+  if (deg === 90) return [y, h - 1 - x];
+  if (deg === 180) return [w - 1 - x, h - 1 - y];
+  if (deg === 270) return [w - 1 - y, x];
+  return [x, y];
+}
+// Una imagen RGBA comparada con un display girado: cada píxel tiene que ser el color de la paleta que le toca.
+function imageVsDisplay(img, display, w, h, deg, colors) {
+  const side = deg === 90 || deg === 270, ow = side ? h : w, oh = side ? w : h;
+  if (!img) return { wrong: -1, first: 'no hay imagen' };
+  const scale = img.width / ow, size = img.width + '×' + img.height;
+  if (!Number.isInteger(scale) || img.height !== oh * scale) return { scale, size, wrong: -1, first: `mide ${size} y la pantalla girada ${ow}×${oh}` };
+  const pal = colors.map((c) => parseInt(c.slice(1), 16));
+  let wrong = 0, first = '';
+  for (let y = 0; y < img.height; y++) {
+    for (let x = 0; x < img.width; x++) {
+      const [sx, sy] = rotatedSource(Math.floor(x / scale), Math.floor(y / scale), w, h, deg);
+      const o = (y * img.width + x) * 4, got = (img.data[o] << 16) | (img.data[o + 1] << 8) | img.data[o + 2], want = pal[display[sy * w + sx] & 3];
+      if (got !== want) { if (!wrong) first = `(${x},${y}) ${got.toString(16)} en vez de ${want.toString(16)}`; wrong++; }
+    }
+  }
+  return { scale, size, wrong, first };
+}
+// Tab hasta que el foco llegue a selector (como una persona con el teclado). Devuelve si llegó.
+async function tabTo(page, selector, max = 60) {
+  const at = `document.activeElement === document.querySelector(${JSON.stringify(selector)})`;
+  for (let i = 0; i < max && !(await page.ev(at)); i++) await page.press('Tab', 10);
+  return page.ev(at);
+}
+// Un toque con un dedo en el centro de un elemento.
+async function tapOn(page, selector) {
+  const r = await page.rect(selector);
+  await page.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+  const tp = { x: r.cx, y: r.cy, id: 11, radiusX: 4, radiusY: 4, force: 1 };
+  await page.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [tp] });
+  await sleep(60);
+  await page.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [tp] });
+  await sleep(100);
+  await page.send('Emulation.setTouchEmulationEnabled', { enabled: false });
+}
+// Una flecha que apunta a la derecha arriba a la izquierda y una barra abajo: así se nota el giro.
+function romFlecha() {
+  return asm(`
+        CLS
+        LD I, flecha
+        LD V0, 2
+        LD V1, 2
+        DRW V0, V1, 7
+        LD I, barra
+        LD V0, 0
+        LD V1, 30
+        DRW V0, V1, 2
+fin:    JP fin
+flecha: DB 0x10, 0x18, 0xFC, 0xFE, 0xFC, 0x18, 0x10
+barra:  DB 0xFF, 0xFF`);
+}
+// Un estado en texto (Core.encodeState) de una ROM corrida frames frames en el núcleo de Node.
+function stateTextOf(rom, frames) {
+  const core = nodeCore(), cpu = new core.Chip8();
+  cpu.loadRom(Uint8Array.from(rom));
+  for (let f = 0; f < frames; f++) cpu.runFrame(15);
+  return core.encodeState(cpu.saveState());
+}
+
+// 71 -------------------------------------------------------------------------------
+scenario(71, 'Exportar estados: «Exportar» de «Estados», el de un estado de la lista y «Exportar todo» bajan un JSON con el formato, las fechas, el estado exacto, la pantallita (PNG, píxel por píxel) y la ROM solo si el otro navegador puede no tenerla', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  const e0 = await page.ev(`({ dis: document.getElementById('states-export').disabled, title: document.getElementById('states-export').title, name: document.getElementById('cart-name').textContent })`);
+  s.check(e0.dis && e0.title === 'Todavía no guardaste estados de «' + e0.name + '»', `sin estados, «Exportar» está deshabilitado («${e0.title}»)`, JSON.stringify(e0));
+  const rom = romContador(), sha = sha1Hex(rom);
+  await loadWithButton(page, writeFixture(ctx, 'contador.ch8', rom), 'contador.ch8');
+  await page.click('.tagline');
+  await sleep(500);
+  await page.press('KeyI');
+  await sleep(400);
+  await clickHit(page, slotSel(2, 'save'));
+  await sleep(100);
+  const st = await stored(page, STATES_KEY);
+  await withDownloads(ctx, async (dir) => {
+    const d1 = await downloaded(ctx, dir, () => clickHit(page, '#states-export'));
+    const j = d1.json, c = j && j.cartridges && j.cartridges[0];
+    const status = await statusText(page);
+    s.check(d1.state === 'completed' && /^chip8-estados-contador-\d{8}-\d{6}\.json$/.test(d1.name) && status === `Exporté 2 estados de «contador» a ${d1.name}.`,
+      `«Exportar» (clic) baja «${d1.name}» y lo anuncia: «${status}»`, JSON.stringify({ name: d1.name, state: d1.state, status }));
+    s.check(j && Object.keys(j).join() === 'format,version,exported,cartridges' && j.format === STATES_FILE && j.version === 1 && Math.abs(Date.parse(j.exported) - Date.now()) < 60000 && j.cartridges.length === 1,
+      `el archivo: { format: "${j && j.format}", version: ${j && j.version}, exported: "${j && j.exported}", cartridges: [${j && j.cartridges && j.cartridges.length}] }`, d1.text.slice(0, 300));
+    const romOk = !!c && typeof c.rom === 'string' && Buffer.from(c.rom, 'base64').equals(Buffer.from(rom));
+    s.check(c && c.sha1 === sha && c.name === 'contador' && c.origin === 'biblioteca' && romOk && Object.keys(c).join() === 'sha1,name,origin,rom,states',
+      `el cartucho: su SHA-1, «${c && c.name}», origin "${c && c.origin}" y la ROM en base64 (los ${rom.length} bytes del .ch8): es de «Tus cartuchos» y el otro navegador puede no tenerla`, JSON.stringify(c && { ...c, states: c.states.length }));
+    const states = c ? c.states : [];
+    const same = states.length === 2 && [['rapido', 'rapido'], [2, '2']].every(([slot, id], i) => states[i].slot === slot &&
+      Date.parse(states[i].date) === st.roms[sha].slots[id].date && JSON.stringify(states[i].state) === st.roms[sha].slots[id].text);
+    s.check(same, 'cada estado lleva su ranura ("rapido" y 2), su fecha (ISO, la misma que guardó la consola) y el estado tal cual (JSON.stringify(state) es el texto guardado)', JSON.stringify(states.map((x) => ({ slot: x.slot, date: x.date }))));
+    const th = states.map((x) => imageVsDisplay(pngOf(x.thumbnail), nodeCore().decodeState(JSON.stringify(x.state)).display, 64, 32, 0, FOSFORO));
+    s.check(th.length === 2 && th.every((t) => t.wrong === 0 && t.scale === 2 && t.size === '128×64'),
+      'cada pantallita es un PNG de 128×64: el display del estado al doble, con los colores de Verde fósforo, píxel por píxel', JSON.stringify(th));
+    // Un demo: el estado de una ranura, desde la lista; el archivo no lleva la ROM (la tiene cualquier consola).
+    await clickCart(page, 'rebote');
+    await sleep(300);
+    await clickHit(page, slotSel(1, 'save'));
+    const shaR = (await page.ev('window.chip8.romInfo()')).sha1;
+    await clickHit(page, '#states-open');
+    await page.waitFor("document.getElementById('states-list').open", { timeout: 2000, desc: 'la lista abierta' });
+    const d2 = await downloaded(ctx, dir, () => clickHit(page, cardSel(shaR, '1', 'export')));
+    const c2 = d2.json && d2.json.cartridges[0], n2 = await noticeText(page);
+    s.check(d2.state === 'completed' && /^chip8-estado-rebote-ranura-1-\d{8}-\d{6}\.json$/.test(d2.name) && c2 && c2.origin === 'demo' && c2.name === 'Rebote' && !('rom' in c2) &&
+      c2.states.length === 1 && c2.states[0].slot === 1 && n2 === `Exporté el estado de la ranura 1 de «Rebote» a ${d2.name}.` && (await listIsOpen(page)),
+    `«Exportar» de un estado de la lista baja «${d2.name}»: solo ese estado, origin "demo" y sin la ROM; la ventana sigue abierta y lo dice («${n2}»)`, JSON.stringify({ name: d2.name, c2: c2 && { ...c2, states: c2.states.map((x) => x.slot) }, n2 }));
+    // «Exportar todo»: los dos cartuchos (el de la ranura primero) y sus tres estados.
+    const d3 = await downloaded(ctx, dir, () => clickHit(page, '#states-export-all'));
+    const n3 = await noticeText(page), carts = d3.json ? d3.json.cartridges : [];
+    s.check(d3.state === 'completed' && /^chip8-estados-\d{8}-\d{6}\.json$/.test(d3.name) && carts.map((x) => x.name).join() === 'Rebote,contador' &&
+      carts.map((x) => x.states.length).join() === '1,2' && n3 === `Exporté 3 estados de 2 cartuchos a ${d3.name}.`,
+    `«Exportar todo» baja «${d3.name}» con los dos cartuchos (el de la ranura primero) y sus 3 estados: «${n3}»`, JSON.stringify({ name: d3.name, carts: carts.map((x) => [x.name, x.states.length]), n3 }));
+    const api = JSON.parse(await page.ev('window.chip8.statesFile()'));
+    s.check(JSON.stringify(api.cartridges) === JSON.stringify(carts), 'window.chip8.statesFile() da los mismos cartuchos que el archivo bajado');
+    const copy = path.join(ctx.opts.shots, '71-estados-exportados.json');
+    fs.writeFileSync(copy, d3.text);
+    ctx.shots.push(copy);
+  });
+  await page.shot('71-lista-exportar');
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 72 -------------------------------------------------------------------------------
+scenario(72, 'Importar en otro navegador: «Importar» y arrastrar el archivo traen los estados exactos y la ROM a «Tus cartuchos»; al arrastrar, el contenido distingue un archivo de estados de una ROM (aunque empiece con «{»)', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  const rom = romContador(), sha = sha1Hex(rom);
+  await loadWithButton(page, writeFixture(ctx, 'contador.ch8', rom), 'contador.ch8');
+  await page.click('.tagline');
+  await sleep(600);
+  await page.press('KeyI');
+  await sleep(500);
+  await clickHit(page, slotSel(3, 'save'));
+  await clickCart(page, 'rebote');
+  await sleep(300);
+  await clickHit(page, slotSel(1, 'save'));
+  const shaR = (await page.ev('window.chip8.romInfo()')).sha1;
+  const before = await stored(page, STATES_KEY);
+  const file = path.join(ctx.browser.fixtures, 'estados-de-la-otra-pc.json');
+  fs.writeFileSync(file, await page.ev('window.chip8.statesFile()'));
+  // Otro navegador: nada guardado (ni estados ni «Tus cartuchos»).
+  await clearStorage(page, ctx);
+  await page.goto(ctx.base + 'chip8.html');
+  await page.instrument();
+  const clean = await page.ev('({ lib: window.chip8.libraryList().length, all: window.chip8.allStates().length })');
+  await importWithButton(page, '#states-import', file);
+  const t1 = await waitToast(page, /^Importé/);
+  const after = await stored(page, STATES_KEY);
+  const lib = await page.ev('window.chip8.libraryList()');
+  s.check(clean.lib === 0 && clean.all === 0 && t1.text === 'Importé 3 estados de 2 cartuchos. «contador» entró a «Tus cartuchos».' && t1.kind === 'info',
+    `en un navegador limpio, «Importar» (clic y el diálogo de archivos) trae todo: «${t1.text}»`, JSON.stringify({ clean, t1 }));
+  s.check(!!after && JSON.stringify(after.roms[sha].slots) === JSON.stringify(before.roms[sha].slots) && JSON.stringify(after.roms[shaR].slots) === JSON.stringify(before.roms[shaR].slots),
+    'los estados quedan en localStorage exactamente como en el otro navegador: las mismas ranuras, fechas y textos', JSON.stringify(after && Object.keys(after.roms)));
+  const libDom = await page.ev(`({ chips: Array.from(document.querySelectorAll('#lib-chips .chip')).map((c) => c.textContent), shelf: Array.from(document.querySelectorAll('#lib-list .cart-name')).map((c) => c.textContent) })`);
+  s.check(lib.length === 1 && lib[0].sha1 === sha && lib[0].name === 'contador' && lib[0].size === rom.length && libDom.chips.join() === 'contador' && libDom.shelf.join() === 'contador',
+    'la ROM que traía el archivo entró a «Tus cartuchos» (el estante y «Tuyos:»); Rebote, que es un demo, no', JSON.stringify({ lib, libDom }));
+  // contador desde «Tuyos:»: sus ranuras tienen lo importado, y U vuelve exactamente al estado rápido.
+  await page.click('#lib-chips .chip:nth-child(1)');
+  await page.waitFor(`document.getElementById('cart-name').textContent === 'contador'`, { timeout: 3000, desc: 'contador desde «Tuyos:»' });
+  const v = await slotsView(page);
+  const th = await page.ev(thumbExpr('rapido', FOSFORO));
+  s.check(!v[0].empty && v[0].canvas && !v[3].empty && v[1].empty && v[2].empty && v[4].empty && th.wrong === 0 && th.lit > 0,
+    'con contador en la ranura, «Estados» muestra la ranura rápida y la 3, con pantallitas idénticas al display de cada estado', JSON.stringify({ v, th }));
+  await page.click('.tagline');
+  await page.press('Space');
+  await sleep(80);
+  await page.press('KeyU');
+  await sleep(150);
+  const u = await page.ev(sameAsSlotExpr('rapido'));
+  s.check(u.diff.length === 0 && (await statusText(page)).startsWith('Estado de la ranura rápida cargado'), 'U carga el estado importado: la máquina queda exactamente como en el otro navegador', JSON.stringify(u));
+  await page.ev("document.getElementById('states-group').scrollIntoView({ block: 'center' })");
+  await page.shot('72-importado');
+  // Otro navegador más: el archivo, arrastrado y soltado sobre la página.
+  await clearStorage(page, ctx);
+  await page.goto(ctx.base + 'chip8.html');
+  await page.instrument();
+  const shown = await dropFileOn(page, file);
+  const t2 = await waitToast(page, /^Importé/);
+  const name2 = await page.ev("document.getElementById('cart-name').textContent");
+  s.check(shown.page && t2.text === t1.text && name2 === 'Rebote' && (await page.ev('window.chip8.allStates().length')) === 2,
+    `al arrastrar el archivo se ve el cartel y, al soltarlo, se importa igual («${t2.text}»); el cartucho de la ranura no cambia`, JSON.stringify({ shown, t2, name2 }));
+  await clearToasts(page);
+  await dropFileOn(page, file);
+  const t3 = await waitToast(page, /^No importé/);
+  s.check(t3.text === 'No importé ningún estado: los 3 ya estaban guardados.' && t3.kind === 'info', `el mismo archivo otra vez no cambia nada: «${t3.text}»`);
+  // Una ROM que empieza con «{» (0x7B: ADD VB, 1) es una ROM.
+  const llave = asm(`
+inicio: ADD VB, 1
+        JP inicio`);
+  await dropFileOn(page, writeFixture(ctx, 'llave.ch8', llave));
+  await page.waitFor(`document.getElementById('cart-name').textContent === 'llave.ch8'`, { timeout: 3000, desc: 'llave.ch8 en la ranura' });
+  await sleep(300);
+  const k = await page.ev('({ vb: window.chip8.cpu.V[11], first: window.chip8.cpu.memory[0x200] })');
+  s.check(llave[0] === 0x7B && k.first === 0x7B && k.vb > 0, `una ROM que empieza con el byte 0x7B («{», ADD VB, 1), soltada, se carga como ROM y corre (VB = ${k.vb})`, JSON.stringify(k));
+  // Un .json que no es JSON: un archivo de estados dañado, no una ROM.
+  await clearToasts(page);
+  const roto = path.join(ctx.browser.fixtures, 'roto.json');
+  fs.writeFileSync(roto, '{ "format": "chip8-consola-estados", "version": 1, ');
+  await dropFileOn(page, roto);
+  const t4 = await waitToast(page, /roto\.json/);
+  await sleep(200);
+  s.check(t4.text === '«roto.json» está dañado o no es un archivo de estados: no es JSON válido.' && t4.kind === 'error' && (await page.ev("document.getElementById('cart-name').textContent")) === 'llave.ch8',
+    `un .json que no es JSON se avisa como dañado («${t4.text}») y la ROM sigue en la ranura`, JSON.stringify(t4));
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 73 -------------------------------------------------------------------------------
+scenario(73, 'Importar con cuidado: otro programa, otra versión, un estado suelto o todo dañado se explican sin tocar nada; una ranura ocupada se reemplaza solo si la marcás (mouse o teclado, «Reemplazar todos»), Esc cancela todo, lo dañado no entra y una ROM dañada no va a «Tus cartuchos»', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  const rom = romContador(), sha = sha1Hex(rom);
+  await loadWithButton(page, writeFixture(ctx, 'contador.ch8', rom), 'contador.ch8');
+  await page.click('.tagline');
+  for (const slot of [1, 2, 3]) {
+    await sleep(350);
+    await clickHit(page, slotSel(slot, 'save'));
+  }
+  const base = JSON.parse(await page.ev(`window.chip8.statesFile('${sha}')`));
+  const clone = () => JSON.parse(JSON.stringify(base));
+  const fx = (name, data) => {
+    const f = path.join(ctx.browser.fixtures, name);
+    fs.writeFileSync(f, JSON.stringify(data, null, 2));
+    return f;
+  };
+  const sinPc = (st) => { const x = { ...st }; delete x.pc; return x; };
+  // Archivos que no sirven: cada uno, un aviso de error y nada cambia.
+  const keep = await page.ev(`localStorage.getItem('${STATES_KEY}')`);
+  const rotos = clone();
+  rotos.cartridges[0].states.forEach((x) => { x.state = sinPc(x.state); });
+  const bad = [
+    ['otro.json', { format: 'otra-cosa', version: 3 }, '«otro.json» es de otro programa (formato "otra-cosa"): no son estados de esta consola.'],
+    ['nuevo.json', { ...clone(), version: 2 }, '«nuevo.json» es de una versión más nueva de la consola (la 2; esta lee la 1): importalo con un chip8.html más nuevo.'],
+    ['suelto.json', base.cartridges[0].states[0].state, '«suelto.json» es un estado suelto, sin su cartucho ni su ranura: para llevar estados a otro navegador, exportalos con «Exportar» (en «Estados» o en «Ver todos»).'],
+    ['todo-roto.json', rotos, '«todo-roto.json» está dañado: ninguno de sus 3 estados se puede leer («contador», ranura 1: Estado inválido: falta el campo pc).'],
+  ];
+  for (const [name, data, want] of bad) {
+    await clearToasts(page);
+    await importWithButton(page, '#states-import', fx(name, data));
+    const t = await waitToast(page, new RegExp('^«' + name.replace('.', '\\.') + '»'));
+    s.check(t.text === want && t.kind === 'error', `${name}: «${t.text}»`, JSON.stringify({ t, want }));
+  }
+  s.check((await page.ev(`localStorage.getItem('${STATES_KEY}')`)) === keep && !(await page.ev("document.getElementById('states-ask').open")), 'ninguno de esos archivos cambió lo guardado ni preguntó nada');
+  // Cada ranura: la 1 igual, la 2 ocupada con otro estado, la 3 vacía (se borra acá) y la 4 dañada (en el archivo).
+  const mix = clone();
+  mix.cartridges[0].states.push({ slot: 4, date: new Date().toISOString(), state: sinPc(base.cartridges[0].states[0].state) });
+  const mixFile = fx('mezcla.json', mix);
+  await sleep(400);
+  await clickHit(page, slotSel(2, 'save'));
+  await clickHit(page, slotSel(3, 'delete'));
+  await clearToasts(page);
+  const mine2 = (await stored(page, STATES_KEY)).roms[sha].slots['2'];
+  await importWithButton(page, '#states-import', mixFile);
+  await page.waitFor("document.getElementById('states-ask').open", { timeout: 3000, desc: 'la pregunta de las ranuras ocupadas' });
+  await sleep(100);
+  const a1 = await askView(page);
+  const key2 = sha + '|2';
+  s.check(a1.text === '«mezcla.json» trae 3 estados y uno va a una ranura que ya tiene otro: marcalo si querés reemplazar el tuyo por el del archivo. Otro entra en una ranura vacía. Otro ya estaba guardado. Lo que no marques queda como está.' &&
+    a1.rows.length === 1 && a1.rows[0].key === key2 && a1.rows[0].label === 'Reemplazar la ranura 2 de «contador»' && !a1.rows[0].checked && !a1.all && a1.focus === key2 &&
+    a1.rows[0].caps.join(' | ') === 'Tuyo · recién | Del archivo · recién' && a1.rows[0].canvases === 2,
+  `la pregunta: «${a1.text}»; una casilla sin marcar (con el foco), y las dos pantallitas: la tuya y la del archivo`, JSON.stringify(a1));
+  const fileSt2 = nodeCore().decodeState(JSON.stringify(base.cartridges[0].states[1].state));
+  const cmpMine = imageVsDisplay(await canvasImage(page, '#states-ask .states-ask-item figure:first-child canvas'), nodeCore().decodeState(mine2.text).display, 64, 32, 0, FOSFORO);
+  const cmpFile = imageVsDisplay(await canvasImage(page, '#states-ask .states-ask-item figure:last-child canvas'), fileSt2.display, 64, 32, 0, FOSFORO);
+  s.check(cmpMine.wrong === 0 && cmpFile.wrong === 0, 'cada pantallita de la pregunta es su estado, píxel por píxel', JSON.stringify({ cmpMine, cmpFile }));
+  await page.shot('73-pregunta');
+  // Mientras pregunta, las teclas no le llegan a la máquina (Espacio y Enter son del control con el foco).
+  const k0 = { resets: (await counters(page)).resets, paused: await page.ev('window.chip8.isPaused()') };
+  for (const key of ['KeyI', 'Backspace', 'KeyN', 'KeyH']) await page.press(key);
+  await page.keyDown('KeyX');
+  const held = await page.ev(KEYS_EXPR);
+  await page.keyUp('KeyX');
+  await sleep(150);
+  const k1 = { resets: (await counters(page)).resets, paused: await page.ev('window.chip8.isPaused()'), help: await page.ev("document.getElementById('help').open"), store: await page.ev(`localStorage.getItem('${STATES_KEY}')`) };
+  s.check(k1.resets === k0.resets && k1.paused === k0.paused && !k1.help && noKeys(held) && (await page.ev("document.getElementById('states-ask').open")) && JSON.parse(k1.store).roms[sha].slots['2'].text === mine2.text,
+    'con la pregunta abierta, I, Retroceso, N, H y el keypad no hacen nada en la consola', JSON.stringify({ k0, k1: { ...k1, store: undefined }, held }));
+  // Esc cancela todo.
+  const s0 = await page.ev(`localStorage.getItem('${STATES_KEY}')`);
+  await page.press('Escape');
+  await sleep(150);
+  const esc = { open: await page.ev("document.getElementById('states-ask').open"), status: await statusText(page), same: (await page.ev(`localStorage.getItem('${STATES_KEY}')`)) === s0 };
+  s.check(!esc.open && esc.same && esc.status === 'Importación cancelada: no cambié nada.', `Esc cierra la pregunta y no importa nada: «${esc.status}»`, JSON.stringify(esc));
+  // Otra vez, marcando la casilla con el mouse.
+  await importWithButton(page, '#states-import', mixFile);
+  await page.waitFor("document.getElementById('states-ask').open", { timeout: 3000, desc: 'la pregunta otra vez' });
+  await sleep(100);
+  await clickHit(page, '#states-ask .states-ask-item input');
+  await clickHit(page, '#states-ask-ok');
+  const t1 = await waitToast(page, /^Importé/);
+  const st1 = (await stored(page, STATES_KEY)).roms[sha].slots;
+  const fileText = (i) => nodeCore().encodeState(nodeCore().decodeState(JSON.stringify(base.cartridges[0].states[i].state)));
+  s.check(t1.text === 'Importé 2 estados de «contador». Otro ya estaba guardado. Un estado no se pudo leer («contador», ranura 4: Estado inválido: falta el campo pc).' && t1.kind === 'error' &&
+    st1['1'].text === fileText(0) && st1['2'].text === fileText(1) && st1['3'].text === fileText(2) && !st1['4'],
+  `marcada la casilla (clic) e «Importar» (clic): la 2 se reemplaza, la 3 entra, la 1 ya estaba y la 4, dañada, no entra: «${t1.text}»`, JSON.stringify({ t1, slots: Object.keys(st1) }));
+  // Tres ocupadas, con el teclado: «Reemplazar todos» con Espacio, la del medio desmarcada, e «Importar» con Enter.
+  for (const slot of [1, 2, 3]) {
+    await sleep(350);
+    await clickHit(page, slotSel(slot, 'save'));
+  }
+  const mine = (await stored(page, STATES_KEY)).roms[sha].slots;
+  await clearToasts(page);
+  await importWithButton(page, '#states-import', mixFile);
+  await page.waitFor("document.getElementById('states-ask').open", { timeout: 3000, desc: 'la pregunta con tres ranuras ocupadas' });
+  await sleep(100);
+  const a3 = await askView(page);
+  await page.press('Space');
+  const a4 = await askView(page);
+  const tabbed = await tabTo(page, `#states-ask input[data-key="${key2}"]`, 6);
+  await page.press('Space');
+  const a5 = await askView(page);
+  const toOk = await tabTo(page, '#states-ask-ok', 10);
+  await page.press('Enter');
+  const t2 = await waitToast(page, /^Importé/);
+  const st2 = (await stored(page, STATES_KEY)).roms[sha].slots;
+  s.check(a3.rows.length === 3 && a3.all && a3.focus === 'states-ask-all' && a4.allChecked && a4.rows.every((r) => r.checked) &&
+    tabbed && a5.allMixed && !a5.allChecked && a5.rows.map((r) => r.checked).join() === 'true,false,true' && toOk,
+  'con tres ocupadas aparece «Reemplazar todos» (con el foco): Espacio marca las tres; con Tab y Espacio se desmarca la 2 y queda a medias', JSON.stringify({ a3, a4, a5 }));
+  s.check(t2.text === 'Importé 2 estados de «contador». En una ranura ocupada dejé el tuyo. Un estado no se pudo leer («contador», ranura 4: Estado inválido: falta el campo pc).' &&
+    st2['1'].text === fileText(0) && st2['2'].text === mine['2'].text && st2['3'].text === fileText(2),
+  `Enter en «Importar»: la 1 y la 3 se reemplazan y la 2 queda la tuya: «${t2.text}»`, JSON.stringify(t2));
+  // Un cartucho que esta consola no tiene, con una ROM que no es la suya: entran los estados, la ROM no.
+  const fantasma = romDigitos(7, 3), shaF = sha1Hex(fantasma);
+  const ghost = { format: STATES_FILE, version: 1, exported: new Date().toISOString(), cartridges: [{ sha1: shaF, name: 'fantasma', origin: 'biblioteca',
+    rom: Buffer.from(romDigitos(1, 2)).toString('base64'), states: [{ slot: 1, date: new Date().toISOString(), state: JSON.parse(stateTextOf(fantasma, 20)) }] }] };
+  await clearToasts(page);
+  const libBefore = await page.ev('window.chip8.libraryList().length');
+  await importWithButton(page, '#states-import', fx('fantasma.json', ghost));
+  const t3 = await waitToast(page, /^Importé/);
+  s.check(t3.text === 'Importé 1 estado de «fantasma». No agregué la ROM de «fantasma» a «Tus cartuchos»: la ROM que trae está dañada (su huella no es la del cartucho).' && t3.kind === 'error' &&
+    (await page.ev('window.chip8.libraryList().length')) === libBefore && !!(await storedState(page, shaF, 1)),
+  `una ROM que no es la del cartucho no entra a «Tus cartuchos», pero sus estados sí: «${t3.text}»`, JSON.stringify(t3));
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+}, 150000);
+
+// 74 -------------------------------------------------------------------------------
+scenario(74, 'La lista de todos los estados («Ver todos»): por cartucho y de dónde es, con las pantallitas de cada uno; Cargar (también con un dedo) pone el cartucho y el estado, lo que no se puede cargar se explica, Borrar trae «Deshacer» (mouse y teclado), Esc y el fondo la cierran y las teclas no van a la máquina', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  // De otro navegador: un cartucho que esta consola no tiene y un estado dañado de contador.
+  const rom = romContador(), sha = sha1Hex(rom);
+  const misterio = romDigitos(9, 9), shaM = sha1Hex(misterio), now = Date.now();
+  const seed = { version: 1, roms: {
+    [shaM]: { name: 'misterio.ch8', slots: { '2': { date: now - 3 * 86400000, text: stateTextOf(misterio, 30) } } },
+    [sha]: { name: 'contador.ch8', slots: { '3': { date: now - 7200000, text: '{"format":"chip8-state","version":1,"platform":"chip8"}' } } },
+  } };
+  await page.ev(`localStorage.setItem('${STATES_KEY}', ${JSON.stringify(JSON.stringify(seed))})`);
+  await page.reload();
+  await page.instrument();
+  // Un juego del archivo de Octo (entrada registrada para la prueba, con sus colores), cargado por la API: no va a «Tus cartuchos».
+  const juego = romDigitos(4, 2), shaJ = sha1Hex(juego);
+  const JCOLORS = ['#202040', '#FFE066', '#60A0FF', '#A04080'];
+  await page.ev(`window.chip8.registerArchiveEntry('${shaJ}', { id: 'prueba-lista', title: 'Juego de prueba', platform: 'chip8', colors: ${JSON.stringify(JCOLORS)} })`);
+  await page.ev(`window.chip8.loadRomBytes(${JSON.stringify(juego)}, 'juego.ch8')`);
+  await waitSelfJump(page);
+  await clickHit(page, slotSel(2, 'save'));
+  // contador («Tus cartuchos»): la rápida y la 4; Rebote (demo): la 1, y queda en la ranura.
+  await loadWithButton(page, writeFixture(ctx, 'contador.ch8', rom), 'contador.ch8');
+  await page.click('.tagline');
+  await sleep(400);
+  await page.press('KeyI');
+  await sleep(300);
+  await clickHit(page, slotSel(4, 'save'));
+  await clickCart(page, 'rebote');
+  await sleep(300);
+  await clickHit(page, slotSel(1, 'save'));
+  const shaR = (await page.ev('window.chip8.romInfo()')).sha1;
+  // Se abre con el teclado: el foco en «Ver todos» y Enter.
+  await page.ev("document.getElementById('states-open').focus()");
+  await page.press('Enter');
+  await page.waitFor("document.getElementById('states-list').open", { timeout: 2000, desc: 'la lista abierta con Enter' });
+  await sleep(150);
+  const v = await listView(page);
+  const inside = await page.ev("document.getElementById('states-list').contains(document.activeElement)");
+  const byName = (n) => v.groups.find((g) => g.name === n) || { tags: [], cards: [], note: '' };
+  const G = { reb: byName('Rebote'), con: byName('contador'), jue: byName('Juego de prueba'), mis: byName('misterio') };
+  s.check(v.open && inside && v.count === '6 estados de 4 cartuchos.' && v.groups.map((g) => g.name).join() === 'Rebote,contador,Juego de prueba,misterio',
+    `Enter sobre «Ver todos» abre la lista con el foco adentro: «${v.count}», el cartucho de la ranura primero y después el del estado más nuevo`, JSON.stringify(v.groups.map((g) => g.name)));
+  s.check(G.reb.tags.join() === 'Demo incluido,En la ranura' && G.con.tags.join() === 'Tus cartuchos' && G.jue.tags.join() === 'Archivo de Octo' && G.mis.tags.join() === 'Desconocido',
+    'cada cartucho dice de dónde es: «Demo incluido» (y «En la ranura»), «Tus cartuchos», «Archivo de Octo» y «Desconocido»', JSON.stringify(v.groups.map((g) => g.tags)));
+  const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  const old = new Date(now - 3 * 86400000), threeDays = old.getDate() + ' de ' + MESES[old.getMonth()] + (old.getFullYear() !== new Date().getFullYear() ? ' de ' + old.getFullYear() : '');
+  s.check(G.con.cards.map((c) => c.slot + ':' + c.name).join() === 'rapido:Rápido,3:Ranura 3,4:Ranura 4' && G.con.cards.every((c) => c.load === (c.slot !== '3')) &&
+    G.con.cards[1].blank === 'DAÑADO' && !G.con.cards[1].exp && G.con.cards[0].when === 'recién' && G.mis.cards[0].when === threeDays,
+  `las tarjetas: ranura y fecha de cada estado («${G.con.cards[0].when}», «${G.mis.cards[0].when}»), en el orden de «Estados»; el dañado dice «DAÑADO» y no se puede cargar ni exportar`, JSON.stringify({ con: G.con.cards, mis: G.mis.cards, threeDays }));
+  s.check(G.jue.note.startsWith('Este juego del archivo de Octo no está en esta consola: para cargar sus estados, cargá primero el juego') && !G.jue.cards[0].load && G.jue.cards[0].exp &&
+    G.mis.note.startsWith('Esta consola no tiene la ROM de este cartucho: para cargar sus estados, cargá primero la ROM') && !G.mis.cards[0].load,
+  'sin la ROM (el juego del archivo cargado por la API y el desconocido), Cargar no carga y una nota dice qué hacer', JSON.stringify({ jue: G.jue.note, mis: G.mis.note }));
+  const cJ = imageVsDisplay(await canvasImage(page, cardSel(shaJ, '2') + ' canvas'), (await storedState(page, shaJ, 2)).display, 64, 32, 0, JCOLORS);
+  const cC = imageVsDisplay(await canvasImage(page, cardSel(sha, 'rapido') + ' canvas'), (await storedState(page, sha, 'rapido')).display, 64, 32, 0, FOSFORO);
+  s.check(cJ.wrong === 0 && cC.wrong === 0, 'cada pantallita usa los colores de su cartucho: el juego del archivo, los suyos; contador, Verde fósforo (píxel por píxel)', JSON.stringify({ cJ, cC }));
+  await page.shot('74-lista');
+  // Las teclas no van a la máquina (Espacio y Enter son del botón con el foco, como en cualquier ventana).
+  const k0 = { resets: (await counters(page)).resets, paused: await page.ev('window.chip8.isPaused()'), slots: JSON.stringify(await page.ev('window.chip8.listSlots()')) };
+  for (const key of ['KeyI', 'KeyU', 'Backspace', 'KeyN', 'KeyH', 'KeyB']) await page.press(key);
+  await page.keyDown('KeyW');
+  const held = await page.ev(KEYS_EXPR);
+  await page.keyUp('KeyW');
+  await sleep(150);
+  const k1 = { resets: (await counters(page)).resets, paused: await page.ev('window.chip8.isPaused()'), slots: JSON.stringify(await page.ev('window.chip8.listSlots()')), help: await page.ev("document.getElementById('help').open"),
+    rewind: await page.ev('window.chip8.isRewinding()') };
+  s.check(k1.resets === k0.resets && k1.paused === k0.paused && k1.slots === k0.slots && !k1.help && !k1.rewind && noKeys(held) && (await listIsOpen(page)),
+    'con la lista abierta, I, U, Retroceso, N, H, B y el keypad no le llegan a la consola', JSON.stringify({ k0, k1, held }));
+  // Lo que no se puede cargar se explica.
+  await clickHit(page, cardSel(shaM, '2', 'load'));
+  const nM = await noticeText(page);
+  await clickHit(page, cardSel(sha, '3', 'load'));
+  const nD = await noticeText(page);
+  s.check(nM.startsWith('Esta consola no tiene la ROM de este cartucho') && nD.startsWith('Este estado está dañado y no se puede cargar: Estado inválido: ') &&
+    (await page.ev("document.getElementById('cart-name').textContent")) === 'Rebote' && (await listIsOpen(page)),
+  `Cargar en lo que no se puede cargar lo explica en la ventana y no cambia nada: «${nM.slice(0, 60)}…» / «${nD.slice(0, 60)}…»`, JSON.stringify({ nM, nD }));
+  // Con un dedo, Cargar en contador (de «Tus cartuchos», no está en la ranura): pone el cartucho y el estado. La
+  // máquina sigue corriendo, así que se mira cómo quedó justo al cargar el estado (cpu.loadState, espiado).
+  await page.ev(`(() => { const c = window.chip8.cpu, ls = c.loadState; c.loadState = function (st) { const r = ls.call(this, st);
+    window.__alCargar = { platform: this.platform, pc: this.pc, I: this.I, sp: this.sp, V: Array.from(this.V), stack: Array.from(this.stack), display: Array.from(this.display), memory: Array.from(this.memory) }; return r; }; return true; })()`);
+  await tapOn(page, cardSel(sha, 'rapido', 'load'));
+  await page.waitFor(`document.getElementById('cart-name').textContent === 'contador' && !document.getElementById('states-list').open`, { timeout: 3000, desc: 'contador y su estado, cargados desde la lista' });
+  const loaded = await page.ev('window.__alCargar || null'), want = await storedState(page, sha, 'rapido');
+  const diff = loaded ? ['platform', 'pc', 'I', 'sp'].filter((k) => loaded[k] !== want[k]).concat(['V', 'stack', 'display', 'memory'].filter((k) => loaded[k].join() !== Array.from(want[k]).join())) : ['nada'];
+  const st = await statusText(page);
+  const back = await page.ev("document.activeElement === document.getElementById('states-open')");
+  s.check(diff.length === 0 && st === 'Estado de la ranura rápida cargado (guardado recién).' && back && (await page.ev('window.chip8.romInfo().sha1')) === sha,
+    `un toque en Cargar cierra la lista, pone contador en la ranura y carga su estado rápido, exacto («${st}»); el foco vuelve a «Ver todos»`, JSON.stringify({ diff, st, back }));
+  // Borrar y «Deshacer» con el teclado.
+  await clickHit(page, '#states-open');
+  await page.waitFor("document.getElementById('states-list').open", { timeout: 2000, desc: 'la lista abierta con un clic' });
+  const reached = await tabTo(page, cardSel(shaR, '1', 'delete'));
+  await page.press('Enter');
+  await sleep(150);
+  const d1 = await page.ev(`({ notice: document.getElementById('states-notice-text').textContent, act: document.getElementById('states-notice-act').hidden ? null : document.getElementById('states-notice-act').textContent,
+    focus: document.activeElement === document.getElementById('states-notice-act'), group: !!document.querySelector('#states-list .states-cart[data-sha="${shaR}"]') })`);
+  const gone = !(await storedState(page, shaR, 1));
+  s.check(reached && d1.notice === 'Borraste el estado de la ranura 1 de «Rebote».' && d1.act === 'Deshacer' && d1.focus && !d1.group && gone,
+    `con Tab hasta Borrar y Enter: el estado de Rebote se va (y su grupo), «${d1.notice}» y el foco pasa a «Deshacer»`, JSON.stringify(d1));
+  await page.press('Enter');
+  await sleep(150);
+  const d2 = await page.ev(`({ notice: document.getElementById('states-notice-text').textContent, act: !document.getElementById('states-notice-act').hidden,
+    focus: document.activeElement === document.querySelector(${JSON.stringify(cardSel(shaR, '1', 'delete'))}) })`);
+  s.check(d2.notice === 'El estado de la ranura 1 de «Rebote» volvió.' && !d2.act && d2.focus && !!(await storedState(page, shaR, 1)),
+    `Enter en «Deshacer» lo devuelve («${d2.notice}») y el foco vuelve a su Borrar`, JSON.stringify(d2));
+  // Con el mouse.
+  await clickHit(page, cardSel(sha, '4', 'delete'));
+  const m1 = { notice: await noticeText(page), gone: !(await storedState(page, sha, 4)) };
+  await clickHit(page, '#states-notice-act');
+  const m2 = { notice: await noticeText(page), back: !!(await storedState(page, sha, 4)), slot4: (await slotsView(page))[4] };
+  s.check(m1.gone && m1.notice === 'Borraste el estado de la ranura 4 de «contador».' && m2.back && m2.notice === 'El estado de la ranura 4 de «contador» volvió.' && !m2.slot4.empty && m2.slot4.canvas,
+    'Borrar y «Deshacer» con el mouse; como contador está en la ranura, «Estados» lo muestra al momento', JSON.stringify({ m1, m2 }));
+  await page.shot('74-deshacer');
+  // Esc y un clic en el fondo la cierran.
+  await page.press('Escape');
+  await sleep(150);
+  const esc = !(await listIsOpen(page));
+  await clickHit(page, '#states-open');
+  await page.waitFor("document.getElementById('states-list').open", { timeout: 2000, desc: 'la lista abierta otra vez' });
+  await page.clickAt(6, 6);
+  await sleep(150);
+  s.check(esc && !(await listIsOpen(page)), 'Esc cierra la lista, y un clic afuera (en el fondo) también');
+  // Sin ningún estado: lo explica.
+  await page.ev(`localStorage.removeItem('${STATES_KEY}')`);
+  await page.reload();
+  await clickHit(page, '#states-open');
+  await page.waitFor("document.getElementById('states-list').open", { timeout: 2000, desc: 'la lista vacía' });
+  const e = await listView(page);
+  s.check(e.empty && e.groups.length === 0 && e.count === 'Ningún estado guardado.' && !e.exportAll, 'sin estados, la lista lo explica y «Exportar todo» está deshabilitado', JSON.stringify(e));
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+}, 120000);
+
+// 75 -------------------------------------------------------------------------------
+scenario(75, 'El giro en las pantallitas: un juego girado 90° (también un estado guardado antes, sin giro), 180° y 270° se ve como la pantalla en «Estados», en la lista, en la pregunta y en el archivo exportado; Sub-Terr8nia, del archivo, a 270°', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  const flecha = romFlecha(), sha = sha1Hex(flecha);
+  // Un estado de antes (como los que ya estaban guardados: { date, text }, sin nada del giro).
+  const seed = { version: 1, roms: { [sha]: { name: 'flecha.ch8', slots: { '1': { date: Date.now() - 86400000, text: stateTextOf(flecha, 5) } } } } };
+  await page.ev(`localStorage.setItem('${STATES_KEY}', ${JSON.stringify(JSON.stringify(seed))})`);
+  await page.reload();
+  await page.instrument();
+  await clickCart(page, 'rebote');
+  await sleep(300);
+  await clickHit(page, slotSel(1, 'save'));
+  const shaR = (await page.ev('window.chip8.romInfo()')).sha1;
+  await page.ev(`window.chip8.registerArchiveEntry('${sha}', { id: 'flecha-girada', title: 'Flecha girada', platform: 'chip8', rotation: 90 })`);
+  await loadWithButton(page, writeFixture(ctx, 'flecha.ch8', flecha), 'Flecha girada');
+  await waitSelfJump(page);
+  await clickHit(page, slotSel(2, 'save'));
+  const thumb = async (slot, deg) => {
+    const img = await canvasImage(page, `#save-slots .save-slot[data-slot="${slot}"] canvas`);
+    const st = await storedState(page, sha, slot);
+    return { ...imageVsDisplay(img, st.display, 64, 32, deg, FOSFORO), inside: img.inside, integer: Number.isInteger(img.scale) && img.scale >= 1, css: img.scale };
+  };
+  const g1 = await thumb(1, 90), g2 = await thumb(2, 90);
+  s.check((await page.ev('window.chip8.getRotation()')) === 90 && g1.wrong === 0 && g1.size === '32×64' && g1.inside && g1.integer,
+    `el estado guardado antes (sin nada del giro) se ve girado 90°, como la pantalla: ${g1.size}, píxel por píxel, entero en su caja (escala ×${g1.css})`, JSON.stringify(g1));
+  s.check(g2.wrong === 0 && g2.size === '32×64' && g2.inside, 'y el que se guarda ahora, también', JSON.stringify(g2));
+  // La captura de la pantalla (con su giro) es la misma imagen que la pantallita.
+  const shot = pngOf(await page.ev('window.chip8.screenshot()'));
+  const cmpShot = imageVsDisplay(shot, (await storedState(page, sha, 2)).display, 64, 32, 90, FOSFORO);
+  s.check(cmpShot.wrong === 0 && cmpShot.size === '320×640', `la captura de la pantalla (${cmpShot.size}) es la misma imagen girada que la pantallita de la ranura 2`, JSON.stringify(cmpShot));
+  await page.ev("document.getElementById('states-group').scrollIntoView({ block: 'center' })");
+  await page.shot('75-giro-90');
+  await page.ev('window.chip8.setRotation(180)');
+  await sleep(100);
+  const g3 = await thumb(2, 180);
+  await page.ev('window.chip8.setRotation(270)');
+  await sleep(100);
+  const g4 = await thumb(1, 270), g5 = await thumb(2, 270);
+  s.check(g3.wrong === 0 && g3.size === '64×32' && g4.wrong === 0 && g5.wrong === 0 && g5.size === '32×64', 'al girar la pantalla a 180° y a 270°, las pantallitas se giran con ella', JSON.stringify({ g3, g4, g5 }));
+  // La lista: este cartucho girado 270° y Rebote derecho.
+  await clickHit(page, '#states-open');
+  await page.waitFor("document.getElementById('states-list').open", { timeout: 2000, desc: 'la lista abierta' });
+  const l1 = imageVsDisplay(await canvasImage(page, cardSel(sha, '2') + ' canvas'), (await storedState(page, sha, 2)).display, 64, 32, 270, FOSFORO);
+  const l2 = imageVsDisplay(await canvasImage(page, cardSel(shaR, '1') + ' canvas'), (await storedState(page, shaR, 1)).display, 64, 32, 0, FOSFORO);
+  s.check(l1.wrong === 0 && l1.size === '32×64' && l2.wrong === 0 && l2.size === '64×32', 'en la lista, la flecha se ve girada 270° y Rebote derecho', JSON.stringify({ l1, l2 }));
+  await page.shot('75-lista-girada');
+  // El archivo exportado lleva la pantallita girada.
+  await withDownloads(ctx, async (dir) => {
+    const d = await downloaded(ctx, dir, () => clickHit(page, cardSel(sha, '2', 'export')));
+    const st = d.json && d.json.cartridges[0].states[0];
+    const cmp = st ? imageVsDisplay(pngOf(st.thumbnail), nodeCore().decodeState(JSON.stringify(st.state)).display, 64, 32, 270, FOSFORO) : { wrong: -1 };
+    s.check(cmp.wrong === 0 && cmp.size === '64×128' && cmp.scale === 2 && d.json.cartridges[0].origin === 'archivo' && !('rom' in d.json.cartridges[0]),
+      `el archivo exportado lleva la pantallita girada 270° (PNG de ${cmp.size}, al doble) y, por ser un juego del archivo, no la ROM`, JSON.stringify(cmp));
+  });
+  await page.press('Escape');
+  // La pregunta al importar, también girada.
+  const file = JSON.parse(await page.ev(`window.chip8.statesFile('${sha}', 2)`));
+  file.cartridges[0].states[0].state = JSON.parse(stateTextOf(flecha, 1));
+  const fp = path.join(ctx.browser.fixtures, 'flecha-otra.json');
+  fs.writeFileSync(fp, JSON.stringify(file));
+  await importWithButton(page, '#states-import', fp);
+  await page.waitFor("document.getElementById('states-ask').open", { timeout: 3000, desc: 'la pregunta' });
+  await sleep(100);
+  const q = imageVsDisplay(await canvasImage(page, '#states-ask .states-ask-item figure:last-child canvas'), nodeCore().decodeState(stateTextOf(flecha, 1)).display, 64, 32, 270, FOSFORO);
+  s.check(q.wrong === 0 && q.size === '32×64', 'en la pregunta de las ranuras ocupadas, la pantallita del archivo también se ve girada', JSON.stringify(q));
+  await page.press('Escape');
+  await sleep(100);
+  // Con otro cartucho en la ranura, la lista gira la flecha como arrancaría: 270°, el giro recordado.
+  await clickCart(page, 'rebote');
+  await clickHit(page, '#states-open');
+  await page.waitFor("document.getElementById('states-list').open", { timeout: 2000, desc: 'la lista con Rebote en la ranura' });
+  const l3 = imageVsDisplay(await canvasImage(page, cardSel(sha, '1') + ' canvas'), (await storedState(page, sha, 1)).display, 64, 32, 270, FOSFORO);
+  s.check(l3.wrong === 0 && l3.size === '32×64', 'con Rebote en la ranura, la lista muestra la flecha girada como arrancaría (270°, el giro recordado para ella)', JSON.stringify(l3));
+  await page.press('Escape');
+  // Sub-Terr8nia, del archivo de Octo: SUPER-CHIP, girado 270° y con sus colores.
+  const sub8 = path.join(ROOT, 'roms', 'archivo', 'sub8.ch8');
+  if (!fs.existsSync(sub8)) {
+    s.info('no está roms/archivo/sub8.ch8 (node tools/archive.js download): se saltea Sub-Terr8nia');
+  } else {
+    await loadWithButton(page, sub8, 'Sub-Terr8nia');
+    await page.click('.tagline');
+    await sleep(1500);
+    await clickHit(page, slotSel(1, 'save'));
+    const info = await page.ev(`(() => { const i = window.chip8.romInfo(); return { sha: i.sha1, rot: window.chip8.getRotation(), colors: (window.chip8.archiveLookup(i.sha1) || {}).colors || null, palette: window.chip8.getPalette() }; })()`);
+    const st = await storedState(page, info.sha, 1);
+    const img = await canvasImage(page, '#save-slots .save-slot[data-slot="1"] canvas');
+    const cmp = imageVsDisplay(img, st.display, st.displayWidth, st.displayHeight, 270, info.colors || FOSFORO);
+    s.check(info.rot === 270 && cmp.wrong === 0 && img.inside && (img.scale >= 1 ? img.rendering === 'pixelated' : img.rendering === 'auto'),
+      `Sub-Terr8nia (${st.displayWidth}×${st.displayHeight}, paleta «${info.palette}»): la pantallita es su pantalla girada 270°, píxel por píxel, y entra en su caja (escala ×${img.scale}${img.scale < 1 ? ', achicada suavizada' : ''})`, JSON.stringify({ info, cmp, scale: img.scale, rendering: img.rendering, inside: img.inside }));
+    await page.ev("document.getElementById('states-group').scrollIntoView({ block: 'center' })");
+    await page.shot('75-sub-terr8nia');
+  }
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+}, 120000);
+
+// 76 -------------------------------------------------------------------------------
+scenario(76, 'Diseño de «Estados», de la lista y de la pregunta a 1440, 768 y 360 px (sin scroll horizontal, botones enteros, la lista se scrollea por dentro con la cabecera a la vista y pantallitas con escala entera) y 60 fps a 10.000 IPF con la lista abierta', async (ctx, s) => {
+  const page = await freshApp(ctx, s, { width: 1440, height: 900 });
+  const rom = romContador(), sha = sha1Hex(rom);
+  await clickCart(page, 'planos');
+  await sleep(500);
+  await clickHit(page, slotSel(3, 'save'));
+  await clickCart(page, 'rebote');
+  await sleep(300);
+  await clickHit(page, slotSel(1, 'save'));
+  await clickHit(page, slotSel(2, 'save'));
+  await loadWithButton(page, writeFixture(ctx, 'contador.ch8', rom), 'contador.ch8');
+  await page.click('.tagline');
+  for (const slot of ['rapido', 1, 2, 3, 4]) {
+    await sleep(250);
+    await clickHit(page, slotSel(slot, 'save'));
+  }
+  const file = path.join(ctx.browser.fixtures, 'contador-estados.json');
+  fs.writeFileSync(file, await page.ev(`window.chip8.statesFile('${sha}')`));
+  for (const [w, h, mobile] of [[1440, 900, false], [768, 1024, false], [360, 640, true]]) {
+    await page.setViewport(w, h, mobile ? 2 : 1, mobile);
+    await page.reload();
+    await page.click('#lib-chips .chip:nth-child(1)');
+    await page.waitFor(`document.getElementById('cart-name').textContent === 'contador'`, { timeout: 3000, desc: 'contador desde «Tuyos:»' });
+    await sleep(300);
+    const head = await page.ev(`(() => {
+      const g = document.getElementById('states-group').getBoundingClientRect();
+      const btns = Array.from(document.querySelectorAll('#states-group .states-tools .save-btn')).map((b) => { const r = b.getBoundingClientRect(); return { text: b.textContent, clipped: b.scrollWidth > b.clientWidth + 1, h: r.height, l: r.left, r: r.right }; });
+      return { g: [g.left, g.right], btns, sw: document.documentElement.scrollWidth, iw: innerWidth };
+    })()`);
+    s.check(head.sw <= head.iw && head.btns.length === 3 && head.btns.every((b) => !b.clipped && b.h >= 24 && b.l >= head.g[0] - 0.5 && b.r <= head.g[1] + 0.5),
+      `${w}px: «Ver todos», «Exportar» e «Importar» entran enteros en «Estados» (botones de ${Math.round(Math.min(...head.btns.map((b) => b.h)))} px de alto) y la página no scrollea de costado`, JSON.stringify(head));
+    await clickHit(page, '#states-open');
+    await page.waitFor("document.getElementById('states-list').open", { timeout: 2000, desc: 'la lista abierta' });
+    await sleep(200);
+    const metrics = () => page.ev(`(() => {
+      const d = document.getElementById('states-list'), r = d.getBoundingClientRect(), sc = document.getElementById('states-scroll');
+      const title = document.getElementById('states-list-title').getBoundingClientRect(), all = document.getElementById('states-export-all').getBoundingClientRect();
+      const btns = Array.from(d.querySelectorAll('.save-btn, .help-close')).map((b) => ({ text: b.textContent, clipped: b.scrollWidth > b.clientWidth + 1, h: b.getBoundingClientRect().height }));
+      const cards = Array.from(d.querySelectorAll('.states-card')).map((c) => c.getBoundingClientRect()), box = sc.getBoundingClientRect();
+      const overlap = cards.some((a, i) => cards.some((b, j) => i < j && a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5));
+      const thumbs = Array.from(d.querySelectorAll('.states-card canvas')).map((c) => ({ w: c.width, scale: Math.round(parseFloat(c.style.width) * devicePixelRatio / c.width * 1000) / 1000 }));
+      return { iw: innerWidth, ih: innerHeight, sw: document.documentElement.scrollWidth, dlg: [r.left, r.top, r.right, r.bottom].map(Math.round),
+        inner: sc.scrollWidth <= sc.clientWidth, scrolls: sc.scrollHeight > sc.clientHeight, scrollTop: sc.scrollTop,
+        titleIn: title.top >= r.top && title.bottom <= r.bottom, allIn: all.top >= r.top && all.bottom <= r.bottom,
+        clipped: btns.filter((b) => b.clipped).map((b) => b.text), minBtn: Math.min(...btns.map((b) => b.h)), overlap,
+        cardsIn: cards.every((c) => c.left >= box.left - 0.5 && c.right <= box.right + 0.5), thumbs };
+    })()`);
+    const m = await metrics();
+    await page.shot(`76-lista-${w}`);
+    await page.ev("document.getElementById('states-scroll').scrollTop = 1e6");
+    await sleep(100);
+    const m2 = await metrics();
+    const lores = m.thumbs.filter((t) => t.w === 64), hires = m.thumbs.filter((t) => t.w === 128);
+    s.info(`${w}×${h}: la lista ocupa ${m.dlg.join(', ')}; ${m.thumbs.length} pantallitas (×${[...new Set(m.thumbs.map((t) => t.scale))].join(', ×')}); se scrollea por dentro: ${m.scrolls ? 'sí' : 'no hace falta'}`);
+    s.check(m.sw <= m.iw && m.dlg[0] >= 0 && m.dlg[1] >= 0 && m.dlg[2] <= m.iw && m.dlg[3] <= m.ih && m.inner && !m.overlap && m.cardsIn,
+      `${w}px: la lista entra en la ventana (${m.dlg.join(', ')}), sin scroll de costado ni tarjetas que se pisen`, JSON.stringify(m));
+    s.check(m.clipped.length === 0 && m.minBtn >= 24 && m.thumbs.length === 8 && lores.every((t) => Number.isInteger(t.scale) && t.scale >= 2) && hires.every((t) => Number.isInteger(t.scale) && t.scale >= 1),
+      `${w}px: los botones muestran su texto entero (${Math.round(m.minBtn)} px de alto o más) y las pantallitas tienen escala entera (×${[...new Set(lores.map((t) => t.scale))].join(', ×')} con 64×32)`, JSON.stringify({ clipped: m.clipped, thumbs: m.thumbs }));
+    s.check(!m2.scrolls || (m2.scrollTop > 0 && m2.titleIn && m2.allIn), `${w}px: ${m2.scrolls ? 'scrolleada hasta abajo, el título y «Exportar todo» siguen a la vista' : 'todo entra sin scrollear'}`, JSON.stringify(m2));
+    if (m2.scrolls) await page.shot(`76-lista-${w}-abajo`);
+    await page.press('Escape');
+    await sleep(100);
+  }
+  // La pregunta, a 360 px: dos ranuras ocupadas.
+  await clickHit(page, slotSel(1, 'save'));
+  await clickHit(page, slotSel(2, 'save'));
+  await importWithButton(page, '#states-import', file);
+  await page.waitFor("document.getElementById('states-ask').open", { timeout: 3000, desc: 'la pregunta a 360 px' });
+  await sleep(150);
+  const q = await page.ev(`(() => {
+    const d = document.getElementById('states-ask'), r = d.getBoundingClientRect();
+    const ok = document.getElementById('states-ask-ok').getBoundingClientRect(), cancel = document.getElementById('states-ask-cancel').getBoundingClientRect();
+    const sc = d.querySelector('.states-scroll');
+    return { iw: innerWidth, ih: innerHeight, dlg: [r.left, r.top, r.right, r.bottom].map(Math.round), ok: ok.bottom <= r.bottom && ok.right <= r.right && ok.height >= 24, cancel: cancel.left >= r.left && cancel.height >= 24,
+      inner: sc.scrollWidth <= sc.clientWidth, sw: document.documentElement.scrollWidth, rows: d.querySelectorAll('.states-ask-item').length };
+  })()`);
+  s.check(q.rows === 2 && q.dlg[0] >= 0 && q.dlg[1] >= 0 && q.dlg[2] <= q.iw && q.dlg[3] <= q.ih && q.ok && q.cancel && q.inner && q.sw <= q.iw,
+    `360px: la pregunta (dos ranuras ocupadas) entra en la ventana con «Cancelar» e «Importar» a la vista`, JSON.stringify(q));
+  await page.shot('76-pregunta-360');
+  await page.press('Escape');
+  // 60 fps a 10.000 IPF con la lista abierta (un bucle sin dibujo: todas las instrucciones corren).
+  await page.setViewport(1440, 900, 1, false);
+  await page.reload();
+  await page.instrument();
+  await loadWithButton(page, writeFixture(ctx, 'bucle.ch8', asm(`
+bucle:  ADD V0, 1
+        JP bucle`)), 'bucle.ch8');
+  await page.click('#ipf-chips .chip:nth-child(8)');
+  await clickHit(page, slotSel(1, 'save'));
+  await clickHit(page, '#states-open');
+  await page.waitFor("document.getElementById('states-list').open", { timeout: 2000, desc: 'la lista abierta' });
+  await sleep(1000);
+  const rate = await measureRate(page, 3000);
+  s.check(rate.fps >= 55 && rate.fps <= 66 && rate.ips >= IPF_MAX * rate.fps * 0.95,
+    `con la lista abierta, la máquina sigue a ${rate.fps.toFixed(1)} frames por segundo con 10.000 IPF (${Math.round(rate.ips)} instrucciones por segundo)`, JSON.stringify(rate));
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+}, 150000);
 
 // ---------------------------------------------------------------- principal
 async function runScenario(ctx, sc) {

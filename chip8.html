@@ -681,6 +681,63 @@
   .save-btn:active:not(:disabled) { transform: translateY(2px); box-shadow: none; }
   .save-btn:disabled { opacity: .45; cursor: not-allowed; }
   .rewind-info { align-self: center; font-size: 12px; color: var(--ink-soft); }
+  /* «Ver todos», «Exportar» e «Importar», al lado del título de «Estados» (si no entran, bajan). */
+  .states-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+  .states-head .section-print { flex: 1 1 120px; margin: 0; }
+  .states-tools { display: flex; flex-wrap: wrap; gap: 6px; }
+  .states-tools .save-btn { padding: 5px 10px; }
+  .save-btn[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+
+  /* La lista de todos los estados y la pregunta al importar: ventanas de papel como la ayuda, con la
+     cabecera y los botones fijos y el contenido que se scrollea. Cada estado, como una ranura de «Estados». */
+  .states-dialog { --dlg-pad: 26px; }
+  .states-dialog[open] { display: flex; flex-direction: column; }
+  .states-dialog .help-inner { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; padding: 22px 0 0; }
+  .states-dialog .help-head, .states-bar, .states-notice, .states-ask-acts { margin-left: var(--dlg-pad); margin-right: var(--dlg-pad); }
+  .states-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 4px var(--dlg-pad) 22px; }
+  .states-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; }
+  .states-dialog .states-count { flex: 1 1 160px; margin: 0; font-size: 13px; line-height: 1.4; color: var(--ink-soft); }
+  .states-notice { display: flex; align-items: center; gap: 10px; }
+  .states-notice.is-on { margin-top: 10px; padding: 8px 10px; border-radius: 8px; border-left: 5px solid #2b6a43; background: rgba(123, 90, 50, .1); }
+  .states-notice.is-error { border-left-color: #c8321c; }
+  .states-dialog .states-notice p { flex: 1; min-width: 0; margin: 0; font-size: 13.5px; line-height: 1.4; }
+  .states-notice .act-btn { flex: none; }
+  .states-dialog .states-empty { margin: 14px 0 0; padding: 16px; border: 2px dashed rgba(123, 69, 38, .3); border-radius: 12px; font-size: 14px; color: var(--ink-soft); }
+  .states-cart { margin-top: 16px; }
+  .states-cart-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid rgba(123, 69, 38, .25); }
+  .states-dialog .states-cart-name { margin: 0; min-width: 0; font: 800 17px/1.2 var(--font-brand); letter-spacing: 0; text-transform: none; color: var(--ink); overflow-wrap: anywhere; }
+  .cart-tag--biblioteca { color: var(--accent-2); }
+  .cart-tag--desconocido { color: var(--ink-soft); }
+  .cart-tag--ranura { color: #2b6a43; }
+  .states-dialog .states-cart-note { margin: 0 0 10px; font-size: 13px; line-height: 1.4; color: var(--ink-soft); }
+  /* 136 px: una pantallita de 128 px (un 64×32 al doble) más el borde hundido. */
+  .states-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(136px, 1fr)); gap: 12px 8px; }
+  .states-card .save-acts > :first-child { grid-column: 1 / -1; }
+  /* Soltando un archivo sobre la lista (el cartel de la página queda debajo de la ventana). */
+  .states-dialog.is-dropping { outline: 3px dashed var(--accent); outline-offset: -8px; }
+  .states-dialog.is-dropping::after {
+    content: "Soltá el archivo de estados acá"; position: absolute; inset: 0; z-index: 2;
+    display: grid; place-items: center; padding: 24px; text-align: center;
+    font: italic 900 24px/1.2 var(--font-brand); color: var(--accent-2);
+    background: rgba(247, 241, 225, .9); pointer-events: none;
+  }
+  .states-dialog.states-ask { width: min(600px, calc(100vw - 32px)); }
+  .states-dialog .states-ask-text { margin: 12px 0 10px; }
+  .states-ask-all { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 14px; font-weight: 700; }
+  .states-dialog .states-ask-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .states-ask-item { padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, .45); border: 1px solid rgba(123, 90, 50, .22); }
+  .states-ask-check { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; }
+  .states-dialog input[type="checkbox"] { flex: none; width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+  .states-ask-pair { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: start; gap: 6px; margin-top: 8px; }
+  .states-ask-pair figure { margin: 0; min-width: 0; }
+  .states-ask-pair figcaption { margin-top: 4px; font: 11px/1.3 var(--font-mono); color: var(--ink-soft); overflow-wrap: anywhere; }
+  .states-ask-arrow { align-self: center; font-size: 20px; color: var(--accent); }
+  .states-ask-acts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; padding: 12px 0 18px; border-top: 1px solid rgba(123, 69, 38, .25); }
+  .states-ask-acts .save-btn { padding: 6px 14px; font-size: 13px; }
+  @media (max-width: 480px) {
+    .states-dialog { --dlg-pad: 16px; }
+    .states-dialog .help-inner { padding-top: 18px; }
+  }
 
   /* ---------- Pie de la consola ---------- */
   .console-foot { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 16px; flex-wrap: wrap; }
@@ -1620,7 +1677,14 @@
             <p class="hint" id="pad-hint">Joystick: ninguno. Conectalo y tocá un botón para que el navegador lo reconozca.</p>
           </div>
           <div class="panel-group group-states" id="states-group">
-            <h2 class="section-print">Estados</h2>
+            <div class="states-head">
+              <h2 class="section-print">Estados</h2>
+              <div class="states-tools" role="group" aria-label="Todos los estados y sus archivos">
+                <button class="save-btn" id="states-open" type="button" aria-haspopup="dialog" aria-label="Ver todos los estados guardados, de todos los cartuchos" title="Todos los estados guardados, de todos los cartuchos: cargarlos, borrarlos, exportarlos o importar más">Ver todos</button>
+                <button class="save-btn" id="states-export" type="button" disabled>Exportar</button>
+                <button class="save-btn" id="states-import" type="button" aria-label="Importar estados desde un archivo exportado" title="Importar estados desde un archivo exportado (también podés arrastrarlo sobre la página)">Importar</button>
+              </div>
+            </div>
             <div class="save-slots" id="save-slots" hidden></div>
             <div class="toggles">
               <button class="toggle" id="tg-rewind" type="button" aria-pressed="true" aria-describedby="rewind-info" title="Mientras mantenés apretada la B (o el botón de rebobinar, debajo de la pantalla), la máquina vuelve atrás en el tiempo. Apagado, la consola no guarda los últimos segundos."><span class="toggle-sw" aria-hidden="true"></span>Rebobinado</button>
@@ -1812,7 +1876,7 @@
 
   <div class="toasts" id="toasts" aria-live="polite"></div>
   <div class="drop" id="drop" hidden>
-    <div class="drop-card"><strong>Soltá el cartucho acá</strong><span>Una ROM de CHIP-8 o SUPER-CHIP de hasta 3584 bytes, o de XO-CHIP de hasta 65.024 (.ch8)</span></div>
+    <div class="drop-card"><strong>Soltá el cartucho acá</strong><span>Una ROM de CHIP-8 o SUPER-CHIP de hasta 3584 bytes, o de XO-CHIP de hasta 65.024 (.ch8), o un archivo de estados exportado (.json)</span></div>
   </div>
 
   <dialog class="help explorer" id="explorer" aria-labelledby="explorer-title">
@@ -1894,6 +1958,7 @@
 
       <h3>Estados guardados y rebobinado</h3>
       <p>En <strong>Estados</strong>, al final del panel, guardás la máquina entera (memoria, registros, pantalla, timers y sonido) para volver a ese momento cuando quieras. La ranura <strong>Rápido</strong> se maneja también con el teclado: <kbd>I</kbd> guarda y <kbd>U</kbd> carga; las otras cuatro, con sus botones. Cada ranura muestra la pantalla de ese momento y cuándo la guardaste, y <strong>Borrar</strong> trae <strong>Deshacer</strong>. Cargar un estado no toca la pausa: si la máquina estaba en pausa, queda en pausa en ese momento. Los estados son de cada cartucho: cada ROM tiene sus cinco ranuras y otra ROM no las ve. Quedan guardados en este navegador; si no deja guardar datos, duran hasta que cierres la página.</p>
+      <p><strong>Ver todos</strong> abre la lista de los estados de todos los cartuchos, agrupados por cartucho, con la pantalla de cada uno (con sus colores y su giro): desde ahí cargás cualquiera (si el cartucho no está en la ranura, la consola lo pone antes), lo borrás o lo exportás. <strong>Exportar</strong> baja un archivo <code>.json</code> con los estados, para llevarlos a otro navegador; si la ROM no es un demo ni un juego del archivo de Octo, el archivo la lleva también y, al importarlo, entra a «Tus cartuchos». <strong>Importar</strong> (o arrastrar el archivo sobre la página) los trae; si una ranura ya tiene otro estado, la consola te pregunta antes de reemplazarlo.</p>
       <p>Mientras mantenés apretada la <kbd>B</kbd> (o el botón de rebobinar, debajo de la pantalla) la máquina vuelve atrás en el tiempo, al doble de velocidad (con <kbd>T</kbd> también apretada, ocho veces más rápido), hasta 30 segundos; al soltarla sigue desde ahí. En pausa también anda: un toque de <kbd>B</kbd> vuelve un frame y <strong>Frame</strong> avanza uno. Después de un error o del fin del programa, rebobinar vuelve a antes y deja la máquina en pausa, para que mires qué pasó. Rebobinar o cargar un estado vuelve atrás también las banderas que el juego guardó con <code>FX75</code> (récords o partidas). Si no lo usás, apagá <strong>Rebobinado</strong> y la consola deja de guardar los últimos segundos.</p>
 
       <h3>Joystick y controles</h3>
@@ -1960,6 +2025,48 @@
         <li>Si la máquina se detiene por un error, el monitor muestra el opcode y la dirección. Reiniciá con <kbd>Retroceso</kbd>.</li>
         <li>Los ajustes (velocidad, plataforma, quirks, pantalla, colores, controles y sonido) se guardan en este navegador; con <strong>Ajustes por cartucho</strong>, también los de cada ROM.</li>
       </ul>
+    </div>
+  </dialog>
+
+  <!-- Todos los estados guardados, agrupados por cartucho (la arma la interfaz). -->
+  <dialog class="help states-dialog" id="states-list" aria-labelledby="states-list-title">
+    <div class="help-inner">
+      <header class="help-head">
+        <h2 id="states-list-title">Estados guardados</h2>
+        <button class="help-close" id="states-list-close" type="button" aria-label="Cerrar la lista de estados (Esc)">×</button>
+      </header>
+      <div class="states-bar">
+        <p class="states-count" id="states-count"></p>
+        <div class="states-tools" role="group" aria-label="Archivos de estados">
+          <button class="save-btn" id="states-export-all" type="button" aria-label="Exportar todos los estados a un archivo" title="Todos los estados, de todos los cartuchos, en un archivo para llevarlos a otro navegador">Exportar todo</button>
+          <button class="save-btn" id="states-import-list" type="button" aria-label="Importar estados desde un archivo exportado" title="Importar estados desde un archivo exportado (también podés soltarlo sobre esta ventana)">Importar</button>
+        </div>
+      </div>
+      <div class="states-notice" id="states-notice"><p id="states-notice-text" role="status"></p><button class="act-btn" id="states-notice-act" type="button" hidden></button></div>
+      <div class="states-scroll" id="states-scroll">
+        <p class="states-empty" id="states-empty" hidden>Todavía no hay estados guardados. Con un cartucho en la ranura, guardalos en «Estados» (o con <kbd>I</kbd>); para traerlos de otro navegador, exportalos allá e importá el archivo acá.</p>
+        <div id="states-groups"></div>
+      </div>
+      <input type="file" id="states-file" class="visually-hidden" tabindex="-1" aria-hidden="true" accept=".json,application/json">
+    </div>
+  </dialog>
+
+  <!-- Al importar: qué ranuras ocupadas reemplazar (la arma la interfaz). -->
+  <dialog class="help states-dialog states-ask" id="states-ask" aria-labelledby="states-ask-title" aria-describedby="states-ask-text">
+    <div class="help-inner">
+      <header class="help-head">
+        <h2 id="states-ask-title">Ranuras ocupadas</h2>
+        <button class="help-close" id="states-ask-close" type="button" aria-label="Cancelar la importación (Esc)">×</button>
+      </header>
+      <div class="states-scroll">
+        <p class="states-ask-text" id="states-ask-text"></p>
+        <label class="states-ask-all" id="states-ask-all-row"><input type="checkbox" id="states-ask-all"> Reemplazar todos</label>
+        <ul class="states-ask-list" id="states-ask-list"></ul>
+      </div>
+      <div class="states-ask-acts">
+        <button class="save-btn" id="states-ask-cancel" type="button">Cancelar</button>
+        <button class="act-btn" id="states-ask-ok" type="button">Importar</button>
+      </div>
     </div>
   </dialog>
 </main>
@@ -5256,7 +5363,9 @@ globalThis.CHIP8_ARCHIVE.data = {
  * a ese momento sin reiniciar (Core.decodeState y cpu.loadState; la pausa no cambia). El rebobinado (B o
  * el botón del bisel, mantenidos) guarda una foto por frame emulado en un Core.RewindBuffer y vuelve
  * atrás de a REWIND_STEP frames por tick real. Cargar un estado o rebobinar no cuenta como un cambio de
- * ajustes de la persona.
+ * ajustes de la persona. Los estados se exportan e importan como archivos de texto (STATES_FILE_FORMAT) y
+ * «Ver todos» los muestra todos, por cartucho; findCartridge(sha1) busca los bytes de un cartucho que no
+ * está en la ranura (demos, «Tus cartuchos» y, con archiveRomBytes, el archivo de Octo).
  */
 (function () {
   'use strict';
@@ -6032,6 +6141,22 @@ globalThis.CHIP8_ARCHIVE.data = {
     var rom = sha && hasOwn(stateStore.roms, sha) ? stateStore.roms[sha] : null;
     return rom && hasOwn(rom.slots, id) ? rom.slots[id] : null;
   }
+  // Pone un estado ({ date, text }) en una ranura de un cartucho; si el cartucho no tenía estados, entra con
+  // ese nombre. Devuelve la entrada del cartucho. (Guarda en memoria: commitStates lo lleva al almacenamiento.)
+  function putStateEntry(sha, name, id, entry) {
+    var rom = hasOwn(stateStore.roms, sha) ? stateStore.roms[sha] : (stateStore.roms[sha] = { name: name, slots: {} });
+    rom.slots[id] = entry;
+    return rom;
+  }
+  // Saca el estado de una ranura (y el cartucho, si se queda sin ninguno). Devuelve { entry, name } o null.
+  function takeStateEntry(sha, id) {
+    var entry = slotEntry(sha, id);
+    if (!entry) return null;
+    var rom = stateStore.roms[sha];
+    delete rom.slots[id];
+    if (!Object.keys(rom.slots).length) delete stateStore.roms[sha];
+    return { entry: entry, name: rom.name };
+  }
 
   // ------------------------------------------------------------------ referencias al DOM
   var consoleEl = $('console');
@@ -6446,6 +6571,7 @@ globalThis.CHIP8_ARCHIVE.data = {
     crtEl.classList.toggle('is-tall', isRotated());   // en pantalla completa, el tubo se para (1:2)
     sizeGlowCanvas();
     resizeScreen(true);
+    paintThumbs();   // las pantallitas de los estados también se giran
     needsRender = true;
     return rotation;
   }
@@ -7450,6 +7576,7 @@ globalThis.CHIP8_ARCHIVE.data = {
     ensureAudio(e);
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (isTypingTarget(e.target)) return;
+    if (statesDialogOpen()) return;   // la lista de estados o la pregunta al importar: el teclado es de la ventana
     if (helpOpen()) {
       if (e.code === 'KeyH') { e.preventDefault(); closeHelp(); }
       return;
@@ -10462,9 +10589,10 @@ globalThis.CHIP8_ARCHIVE.data = {
 
   // ------------------------------------------------------------------ estados guardados: las ranuras
   // «Estados» muestra las cinco ranuras del cartucho de la ranura: cada una con la pantalla de ese momento
-  // (los colores de la paleta, escala entera), cuándo se guardó y Guardar / Cargar / Borrar. Sin cartucho,
-  // la explicación. Guardar y cargar se anuncian en la línea de estado y con «GUARDADO» o «CARGADO» en la
-  // pantalla; Borrar, con un aviso que trae «Deshacer».
+  // (los colores de la paleta y el giro de la pantalla, escala entera), cuándo se guardó y Guardar / Cargar /
+  // Borrar. Sin cartucho, la explicación. Guardar y cargar se anuncian en la línea de estado y con «GUARDADO»
+  // o «CARGADO» en la pantalla; Borrar, con un aviso que trae «Deshacer». Arriba, «Ver todos» (la lista de
+  // todos los estados), «Exportar» e «Importar» (las secciones que siguen).
   var slotEls = {};   // id -> los elementos de su ranura, el texto del estado que muestra y su pantallita
   function slotName(id) { return id === 'rapido' ? 'Rápido' : 'Ranura ' + id; }
   function slotPhrase(id) { return id === 'rapido' ? 'ranura rápida' : 'ranura ' + id; }
@@ -10560,37 +10688,50 @@ globalThis.CHIP8_ARCHIVE.data = {
       return { error: errorText(err) };
     }
   }
-  // cpu.display del estado, un píxel del lienzo por píxel CHIP-8, con el color de la paleta de cada valor
-  // (0 fondo, 1 plano 1, 2 plano 2, 3 los dos); el CSS lo agranda sin suavizar.
+  // La pantalla del estado con los colores de la paleta y el giro de ahora, como se ve la pantalla del
+  // cartucho de la ranura (un píxel del lienzo por píxel CHIP-8; el CSS lo agranda sin suavizar).
   function drawThumb(el) {
-    var t = el.thumb, cv = el.canvas;
-    if (!t || t.error) return;
-    if (cv.width !== t.w) cv.width = t.w;
-    if (cv.height !== t.h) cv.height = t.h;
-    var g = cv.getContext('2d'), img = g.createImageData(t.w, t.h), px = new Uint32Array(img.data.buffer), p = activeColors;
-    var colors = [p.bg, p.on, p.p2, p.both].map(function (c) { return packColor(c[0], c[1], c[2]); });
-    for (var i = 0; i < px.length; i++) px[i] = colors[t.display[i] & 3];
-    g.putImageData(img, 0, 0);
-    cv.hidden = false;
-    sizeThumb(el);
-  }
-  // Escala entera en píxeles físicos, como la pantalla: cada píxel CHIP-8 ocupa s × s píxeles del monitor
-  // (con 64×32, el doble que con 128×64), lo más grande que entre en la pantallita.
-  function sizeThumb(el) {
     var t = el.thumb;
     if (!t || t.error) return;
-    var box = el.screen.clientWidth;
-    if (!box) return;
-    var dpr = window.devicePixelRatio || 1;
-    var s = Math.max(1, Math.floor(box * dpr / t.w + 1e-6));
-    var w = (t.w * s / dpr) + 'px';
-    if (el.canvas.style.width !== w) {
-      el.canvas.style.width = w;
-      el.canvas.style.height = (t.h * s / dpr) + 'px';
+    paintThumb(el.canvas, t, { colors: activeColors, rotation: rotation }, 1);
+    el.canvas.hidden = false;
+    sizeThumb(el);
+  }
+  // Pinta la pantalla de un estado (t, de stateThumb) en un lienzo: cada píxel CHIP-8 ocupa s × s píxeles del
+  // lienzo, con el color de look.colors de cada valor (0 fondo, 1 plano 1, 2 plano 2, 3 los dos) y girada
+  // look.rotation grados en sentido horario (screenImage).
+  function paintThumb(cv, t, look, s) {
+    var p = look.colors;
+    var colors = [p.bg, p.on, p.p2, p.both].map(function (c) { return packColor(c[0], c[1], c[2]); });
+    var shot = screenImage(t.display, t.w, t.h, look.rotation, colors, s);
+    if (cv.width !== shot.width) cv.width = shot.width;
+    if (cv.height !== shot.height) cv.height = shot.height;
+    var g = cv.getContext('2d'), img = g.createImageData(shot.width, shot.height);
+    new Uint32Array(img.data.buffer).set(shot.pixels);
+    g.putImageData(img, 0, 0);
+  }
+  function sizeThumb(el) {
+    if (el.thumb && !el.thumb.error) fitThumb(el.canvas, el.screen);
+  }
+  // Escala entera en píxeles físicos, como la pantalla: cada píxel del lienzo ocupa s × s píxeles del monitor
+  // (con 64×32, el doble que con 128×64), lo más grande que entre en la caja. Girada 90° o 270°, la imagen
+  // es más alta que ancha y entra por el alto, con bandas a los costados (como en el tubo). Si ni a escala 1
+  // entra (128×64 girada, en una pantalla común), se achica suavizada: así no se pierden filas.
+  function fitThumb(cv, box) {
+    var bw = box.clientWidth, bh = box.clientHeight;
+    if (!bw || !bh || !cv.width || !cv.height) return;
+    var dpr = window.devicePixelRatio || 1, fit = Math.min(bw * dpr / cv.width, bh * dpr / cv.height);
+    var s = fit < 1 ? fit : Math.floor(fit + 1e-6);
+    var w = (cv.width * s / dpr) + 'px', h = (cv.height * s / dpr) + 'px';
+    if (cv.style.width !== w || cv.style.height !== h) {
+      cv.style.width = w;
+      cv.style.height = h;
     }
+    cv.style.imageRendering = s < 1 ? 'auto' : '';
   }
   function sizeThumbs() { STATE_SLOTS.forEach(function (id) { if (slotEls[id]) sizeThumb(slotEls[id]); }); }
-  // La paleta cambió: las pantallitas se pintan con los colores nuevos.
+  // La paleta o el giro cambiaron: las pantallitas se pintan con los colores y el giro nuevos (también las
+  // de la lista de todos los estados, si está abierta).
   function paintThumbs() {
     var p = activeColors;
     saveSlotsEl.style.setProperty('--thumb-bg', 'rgb(' + p.bg.join(',') + ')');
@@ -10599,6 +10740,7 @@ globalThis.CHIP8_ARCHIVE.data = {
       var el = slotEls[id];
       if (el && el.thumb && !el.thumb.error) drawThumb(el);
     });
+    if (statesListOpen()) renderStatesList();
   }
 
   // Las cinco ranuras del cartucho de la ranura (sin cartucho, solo la explicación).
@@ -10607,6 +10749,7 @@ globalThis.CHIP8_ARCHIVE.data = {
     saveSlotsEl.hidden = !sha;
     STATE_SLOTS.forEach(function (id) { renderSlot(id, sha ? slotEntry(sha, id) : null, now); });
     updateStatesHint();
+    updateStatesTools();
   }
   function renderSlot(id, entry, now) {
     var el = slotEls[id];
@@ -10651,6 +10794,7 @@ globalThis.CHIP8_ARCHIVE.data = {
   function updateSlotTimes() {
     var now = Date.now();
     STATE_SLOTS.forEach(function (id) { if (slotEls[id]) updateSlotWhen(slotEls[id], now); });
+    if (statesListOpen()) updateListTimes(now);
   }
   // Cargar y Borrar, solo con un estado. Si el foco del teclado estaba en uno que se apaga, pasa a Guardar.
   function setSlotButtons(el, full) {
@@ -10675,19 +10819,25 @@ globalThis.CHIP8_ARCHIVE.data = {
     stateTagTimer = window.setTimeout(function () { tagState.hidden = true; }, STATE_TAG_MS);
   }
   // Guarda los estados y, si no se pudo, avisa: sin lugar, qué borrar para hacerlo; sin almacenamiento,
-  // una vez por sesión. Lo que no entró sigue en memoria y se vuelve a intentar en el próximo cambio.
-  function commitStates() {
+  // una vez por sesión. Lo que no entró sigue en memoria y se vuelve a intentar en el próximo cambio. Con
+  // quiet no avisa (la importación lo cuenta en su resumen). Pone al día «Exportar» y, si está abierta, la
+  // lista de todos los estados.
+  function commitStates(quiet) {
     var r = writeStateStore();
     statesUnsaved = r !== 'ok';
-    if (r === 'lleno') {
-      toast('No hay más lugar en este navegador: el estado queda solo hasta que cierres la página. Para hacer lugar, borrá estados viejos o cartuchos de «Tus cartuchos».', 'error');
+    if (quiet) {
+      if (r === 'memoria') statesWarned = true;   // el resumen de la importación ya lo dice
+    } else if (r === 'lleno') {
+      statesNotify('No hay más lugar en este navegador: el estado queda solo hasta que cierres la página. Para hacer lugar, borrá estados viejos o cartuchos de «Tus cartuchos».', 'error');
     } else if (r === 'error') {
-      toast('No se pudo guardar en este navegador: el estado queda solo hasta que cierres la página.', 'error');
+      statesNotify('No se pudo guardar en este navegador: el estado queda solo hasta que cierres la página.', 'error');
     } else if (r === 'memoria' && !statesWarned) {
       statesWarned = true;
-      toast('Este navegador no deja guardar datos: los estados duran hasta que cierres la página.', 'info');
+      statesNotify('Este navegador no deja guardar datos: los estados duran hasta que cierres la página.', 'info');
     }
     updateStatesHint();
+    updateStatesTools();
+    if (statesListOpen()) renderStatesList();
     return r;
   }
 
@@ -10705,10 +10855,8 @@ globalThis.CHIP8_ARCHIVE.data = {
       toast('No se pudo guardar el estado: ' + errorText(err), 'error');
       return false;
     }
-    var sha = state.romSha;
-    var rom = hasOwn(stateStore.roms, sha) ? stateStore.roms[sha] : (stateStore.roms[sha] = { name: state.romName, slots: {} });
+    var rom = putStateEntry(state.romSha, state.romName, id, { date: Date.now(), text: text });
     rom.name = state.romName;
-    rom.slots[id] = { date: Date.now(), text: text };
     commitStates();
     renderSlot(id, rom.slots[id]);
     announce('Estado guardado en la ' + slotPhrase(id) + '.');
@@ -10747,29 +10895,26 @@ globalThis.CHIP8_ARCHIVE.data = {
   }
   // Borra el estado de una ranura; el aviso trae «Deshacer» (lo devuelve si la ranura sigue vacía).
   function deleteSlot(id) {
-    var sha = state.romLoaded ? state.romSha : null, entry = slotEntry(sha, id);
-    if (!entry) return false;
-    var rom = stateStore.roms[sha], name = rom.name;
-    delete rom.slots[id];
-    if (!Object.keys(rom.slots).length) delete stateStore.roms[sha];
+    var sha = state.romLoaded ? state.romSha : null, gone = takeStateEntry(sha, id);
+    if (!gone) return false;
     commitStates();
     renderSlot(id, null);
-    toast('Borraste el estado de la ' + slotPhrase(id) + ' de «' + name + '».', 'info', {
+    toast('Borraste el estado de la ' + slotPhrase(id) + ' de «' + gone.name + '».', 'info', {
       label: 'Deshacer',
-      run: function () { restoreSlot(sha, name, id, entry); }
+      run: function () { restoreSlot(sha, gone.name, id, gone.entry); }
     });
     return true;
   }
+  // «Deshacer» (de las ranuras o de la lista de todos los estados): name es el que dice el aviso.
   function restoreSlot(sha, name, id, entry) {
     if (slotEntry(sha, id)) {
-      announce('La ' + slotPhrase(id) + ' ya tiene otro estado: no lo reemplacé.');
+      statesSay('La ' + slotPhrase(id) + ' de «' + name + '» ya tiene otro estado: no lo reemplacé.');
       return false;
     }
-    var rom = hasOwn(stateStore.roms, sha) ? stateStore.roms[sha] : (stateStore.roms[sha] = { name: name, slots: {} });
-    rom.slots[id] = entry;
+    putStateEntry(sha, name, id, entry);
     commitStates();
     if (state.romLoaded && state.romSha === sha) renderSlot(id, entry);
-    announce('El estado de la ' + slotPhrase(id) + ' de «' + name + '» volvió.');
+    statesSay('El estado de la ' + slotPhrase(id) + ' de «' + name + '» volvió.');
     return true;
   }
   // Lo que devuelve la API: las cinco ranuras del cartucho de la ranura (null sin cartucho).
@@ -10789,6 +10934,892 @@ globalThis.CHIP8_ARCHIVE.data = {
       }
       return out;
     });
+  }
+
+  // ------------------------------------------------------------------ estados guardados: archivos
+  // Exportar e importar estados con un archivo de texto (JSON), para llevarlos de un navegador a otro:
+  //   { format: 'chip8-consola-estados', version: 1, exported: '2026-11-06T21:20:00.000Z',
+  //     cartridges: [{ sha1, name, origin, rom?, states: [{ slot, date, thumbnail, state }] }] }
+  // origin dice de dónde es el cartucho en la consola que exportó: 'demo', 'archivo' (un juego del archivo
+  // de Octo), 'biblioteca' («Tus cartuchos») o 'desconocido'. rom (los bytes, en base64) va solo si es una
+  // ROM que el otro navegador puede no tener (ni un demo ni un juego del archivo): al importar, si acá
+  // falta, entra a «Tus cartuchos». slot es 'rapido' o de 1 a 4; date, cuándo se guardó (ISO 8601);
+  // thumbnail, la pantalla como PNG en data:, con los colores y el giro con que se ve ese cartucho (para
+  // mostrarlo sin decodificar el estado; al importar no se usa: cada consola dibuja la suya); state, el
+  // estado de Core.encodeState como objeto. Al importar se valida todo, cada estado se decodifica y se
+  // vuelve a codificar (entra exactamente lo que guardaría esta consola) y, si una ranura ya tiene otro
+  // estado, se pregunta antes de pisarlo. Las funciones de esta sección no tocan el DOM al definirse:
+  // tests/estados-archivos.test.js la evalúa sola, con las ayudas que usa.
+  var STATES_FILE_FORMAT = 'chip8-consola-estados';
+  var STATES_FILE_VERSION = 1;
+  var STATES_FILE_MAX = 16 * 1024 * 1024;   // un archivo de estados pesa, como mucho, 16 MB
+  var LOOSE_STATE_FORMAT = 'chip8-state';    // el "format" de un estado suelto (el texto de Core.encodeState)
+  var THUMB_FILE_WIDTH = 128;                // la pantallita de los archivos: 128 px de ancho antes de girarla
+  var CART_ORIGINS = { demo: 'Demo incluido', archivo: 'Archivo de Octo', biblioteca: 'Tus cartuchos', desconocido: 'Desconocido' };
+
+  function countText(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+  // El píxel del núcleo que va en (ox, oy) de la imagen girada deg grados en sentido horario: su índice en
+  // display (w × h, fila por fila). Es el giro de la pantalla y de la captura.
+  function rotatedIndex(ox, oy, w, h, deg) {
+    if (deg === 90) return (h - 1 - ox) * w + oy;
+    if (deg === 180) return (h - 1 - oy) * w + (w - 1 - ox);
+    if (deg === 270) return ox * w + (w - 1 - oy);
+    return oy * w + ox;
+  }
+  // La pantalla de un estado como imagen: cada píxel CHIP-8, s × s píxeles del color colors[valor & 3] (los
+  // cuatro colores ya empaquetados para un ImageData), girada deg grados. { width, height, pixels }.
+  function screenImage(display, w, h, deg, colors, s) {
+    s = s || 1;
+    var side = deg === 90 || deg === 270, ow = side ? h : w, oh = side ? w : h;
+    var width = ow * s, height = oh * s, px = new Uint32Array(width * height);
+    for (var oy = 0; oy < oh; oy++) {
+      for (var ox = 0; ox < ow; ox++) {
+        var color = colors[display[rotatedIndex(ox, oy, w, h, deg)] & 3];
+        for (var yy = 0, at = oy * s * width + ox * s; yy < s; yy++, at += width) {
+          for (var xx = 0; xx < s; xx++) px[at + xx] = color;
+        }
+      }
+    }
+    return { width: width, height: height, pixels: px };
+  }
+
+  // El texto del archivo. cartridges: [{ sha1, name, origin, rom (base64 o null), states: [{ id, date, text,
+  // thumbnail }] }], en el orden en que van; now, la fecha de la exportación.
+  function statesFileText(cartridges, now) {
+    return JSON.stringify({
+      format: STATES_FILE_FORMAT,
+      version: STATES_FILE_VERSION,
+      exported: new Date(now).toISOString(),
+      cartridges: cartridges.map(function (c) {
+        var out = { sha1: c.sha1, name: c.name, origin: c.origin };
+        if (c.rom) out.rom = c.rom;
+        out.states = c.states.map(function (s) {
+          var st = { slot: s.id === 'rapido' ? 'rapido' : Number(s.id), date: new Date(s.date).toISOString() };
+          if (s.thumbnail) st.thumbnail = s.thumbnail;
+          st.state = JSON.parse(s.text);
+          return st;
+        });
+        return out;
+      })
+    }, null, 2);
+  }
+  // «chip8-estados-20261106-182000.json» (todos), «chip8-estados-contador-20261106-182000.json» (los de un
+  // cartucho) o «chip8-estado-contador-ranura-2-20261106-182000.json» (uno solo).
+  function statesFileName(name, id, d) {
+    var stamp = d.getFullYear() + two(d.getMonth() + 1) + two(d.getDate()) + '-' + two(d.getHours()) + two(d.getMinutes()) + two(d.getSeconds());
+    if (!name) return 'chip8-estados-' + stamp + '.json';
+    if (!id) return 'chip8-estados-' + fileSlug(name) + '-' + stamp + '.json';
+    return 'chip8-estado-' + fileSlug(name) + '-' + (id === 'rapido' ? 'rapido' : 'ranura-' + id) + '-' + stamp + '.json';
+  }
+
+  // Un valor del archivo, corto, para los mensajes: "texto", 12, null, nada, una lista, un objeto.
+  function fileValue(v) {
+    if (typeof v === 'string') return '"' + (v.length > 30 ? v.slice(0, 30) + '…' : v) + '"';
+    if (v === undefined) return 'nada';
+    if (v === null || typeof v !== 'object') return String(v);
+    return Array.isArray(v) ? 'una lista' : 'un objeto';
+  }
+  // Una fecha del archivo (ISO 8601, o milisegundos) en milisegundos; 0 si no es válida.
+  function fileDate(v) {
+    var t = typeof v === 'string' && /^\d{4}-\d\d-\d\dT/.test(v) ? Date.parse(v) : (typeof v === 'number' ? v : NaN);
+    return isTime(t) && t < 253402300800000 ? t : 0;   // hasta el año 9999
+  }
+  // La ROM que trae un cartucho del archivo: { bytes } si es válida y su huella es la del cartucho, o { error }.
+  function fileRom(raw, sha) {
+    var bytes = null;
+    if (typeof raw === 'string' && raw.length % 4 === 0 && B64_RE.test(raw)) {
+      try { bytes = fromBase64(raw); } catch (e) { bytes = null; }
+    }
+    if (!bytes || bytes.length < 1 || bytes.length > MAX_ROM_ANY) return { error: 'la ROM que trae no es válida' };
+    if (Core.sha1(bytes) !== sha) return { error: 'la ROM que trae está dañada (su huella no es la del cartucho)' };
+    return { bytes: bytes };
+  }
+  // Un estado del archivo: { id, date, text } (el texto, vuelto a codificar por esta consola) o { id?, error }.
+  function fileState(raw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { error: 'un estado no es un objeto' };
+    var id = normalizeSlot(raw.slot);
+    if (!id) return { error: 'la ranura ' + fileValue(raw.slot) + ' no existe (tiene que ser "rapido" o de 1 a 4)' };
+    var date = fileDate(raw.date);
+    if (!date) return { id: id, error: 'la fecha ' + fileValue(raw.date) + ' no es válida' };
+    var st = raw.state, src = typeof st === 'string' ? st : (st && typeof st === 'object' && !Array.isArray(st) ? JSON.stringify(st) : null);
+    if (src === null) return { id: id, error: 'no trae el estado' };
+    var text;
+    try {
+      text = Core.encodeState(Core.decodeState(src));
+    } catch (err) {
+      return { id: id, error: errorText(err).replace(/\.$/, '') };
+    }
+    if (text.length > STATE_TEXT_MAX) return { id: id, error: 'el estado ocupa ' + text.length + ' caracteres y el máximo es ' + STATE_TEXT_MAX };
+    return { id: id, date: date, text: text };
+  }
+  // Lee y valida el texto de un archivo de estados (label: su nombre, para los mensajes). Devuelve { error }
+  // si el archivo no sirve, o { cartridges: [{ sha1, name, rom, romError, states: [{ id, date, text }] }],
+  // total, damaged }: los estados que se pueden importar y, por cada uno que no, el motivo («cartucho, ranura:
+  // qué pasa»). Un cartucho que aparece dos veces se junta; de dos estados para la misma ranura queda el más
+  // nuevo.
+  function parseStatesFile(text, label) {
+    var file = '«' + label + '»', data;
+    if (typeof text !== 'string' || !/\S/.test(text)) return { error: file + ' está vacío: no trae estados.' };
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      return { error: file + ' está dañado o no es un archivo de estados: no es JSON válido.' };
+    }
+    if (!data || typeof data !== 'object' || Array.isArray(data) || data.format === undefined) {
+      return { error: file + ' no es un archivo de estados de esta consola.' };
+    }
+    if (data.format === LOOSE_STATE_FORMAT) {
+      return { error: file + ' es un estado suelto, sin su cartucho ni su ranura: para llevar estados a otro navegador, exportalos con «Exportar» (en «Estados» o en «Ver todos»).' };
+    }
+    if (data.format !== STATES_FILE_FORMAT) {
+      return { error: file + ' es de otro programa (formato ' + fileValue(data.format) + '): no son estados de esta consola.' };
+    }
+    if (data.version !== STATES_FILE_VERSION) {
+      return { error: isInt(data.version, STATES_FILE_VERSION + 1, 1e9)
+        ? file + ' es de una versión más nueva de la consola (la ' + data.version + '; esta lee la ' + STATES_FILE_VERSION + '): importalo con un chip8.html más nuevo.'
+        : file + ' está dañado: la versión ' + fileValue(data.version) + ' no es válida.' };
+    }
+    if (!Array.isArray(data.cartridges)) return { error: file + ' está dañado: no trae la lista de cartuchos.' };
+    var carts = [], bySha = {}, damaged = [], total = 0;
+    data.cartridges.forEach(function (raw, i) {
+      var ok = raw && typeof raw === 'object' && !Array.isArray(raw), name = ok ? cleanText(raw.name, 120) : '';
+      var where = name ? '«' + name + '»' : 'el cartucho ' + (i + 1);
+      var list = ok && Array.isArray(raw.states) ? raw.states : null;
+      var sha = ok && typeof raw.sha1 === 'string' ? raw.sha1.toLowerCase() : '';
+      if (!list) { damaged.push(where + ': ' + (ok ? 'no trae la lista de estados' : 'no es un objeto')); return; }
+      if (!SHA_RE.test(sha)) {
+        list.forEach(function () { damaged.push(where + ': su huella SHA-1 (' + fileValue(raw.sha1) + ') no es válida'); });
+        return;
+      }
+      var cart = hasOwn(bySha, sha) ? bySha[sha] : null;
+      if (!cart) {
+        cart = bySha[sha] = { sha1: sha, name: name || 'ROM sin nombre', rom: null, romError: null, states: [] };
+        carts.push(cart);
+      }
+      if (raw.rom !== undefined && raw.rom !== null && !cart.rom) {
+        var rom = fileRom(raw.rom, sha);
+        cart.rom = rom.bytes || null;
+        cart.romError = rom.error || null;
+      }
+      list.forEach(function (rs) {
+        var got = fileState(rs);
+        if (got.error) { damaged.push(where + (got.id ? ', ' + slotPhrase(got.id) : '') + ': ' + got.error); return; }
+        for (var j = 0; j < cart.states.length; j++) {
+          if (cart.states[j].id !== got.id) continue;
+          if (got.date > cart.states[j].date) cart.states[j] = got;
+          return;
+        }
+        cart.states.push(got);
+        total++;
+      });
+    });
+    if (!total) {
+      return { error: damaged.length
+        ? file + ' está dañado: ' + (damaged.length === 1 ? 'su estado no se puede leer' : 'ninguno de sus ' + damaged.length + ' estados se puede leer') + ' (' + damaged[0] + ').'
+        : file + ' no trae ningún estado.' };
+    }
+    return { cartridges: carts.filter(function (c) { return c.states.length > 0; }), total: total, damaged: damaged };
+  }
+  // Qué haría la importación con lo guardado (store, como stateStore): cada estado va a una ranura vacía
+  // ('nueva'), ya está guardado igual ('igual') o pisaría otro ('ocupada'; have es el que hay).
+  function planStatesImport(parsed, store) {
+    var items = [];
+    parsed.cartridges.forEach(function (c) {
+      var rom = hasOwn(store.roms, c.sha1) ? store.roms[c.sha1] : null;
+      c.states.forEach(function (s) {
+        var have = rom && hasOwn(rom.slots, s.id) ? rom.slots[s.id] : null;
+        items.push({ sha1: c.sha1, name: c.name, id: s.id, entry: { date: s.date, text: s.text }, have: have,
+          kind: !have ? 'nueva' : (have.text === s.text ? 'igual' : 'ocupada') });
+      });
+    });
+    return items;
+  }
+  // El resumen de una importación: r = { imported, carts (los nombres de los cartuchos con estados nuevos),
+  // same, kept, damaged (motivos), roms (los que entraron a «Tus cartuchos»), romErrors ([{ name, error }]),
+  // storage ('ok', 'memoria', 'lleno' o 'error') }. Devuelve { text, kind }.
+  function importSummary(r) {
+    var parts = [];
+    if (r.imported) {
+      parts.push('Importé ' + countText(r.imported, 'estado', 'estados') + ' de ' + (r.carts.length === 1 ? '«' + r.carts[0] + '»' : r.carts.length + ' cartuchos') + '.');
+      if (r.same) parts.push(r.same === 1 ? 'Otro ya estaba guardado.' : 'Otros ' + r.same + ' ya estaban guardados.');
+      if (r.kept) parts.push(r.kept === 1 ? 'En una ranura ocupada dejé el tuyo.' : 'En ' + r.kept + ' ranuras ocupadas dejé los tuyos.');
+    } else {
+      var why = [];
+      if (r.same) why.push(r.same === 1 ? 'ya estaba guardado' : 'los ' + r.same + ' ya estaban guardados');
+      if (r.kept) why.push(r.kept === 1 ? 'en la ranura ocupada dejé el tuyo' : 'en las ' + r.kept + ' ranuras ocupadas dejé los tuyos');
+      parts.push('No importé ningún estado' + (why.length ? ': ' + why.join(' y ') : '') + '.');
+    }
+    if (r.roms.length) parts.push(r.roms.length === 1 ? '«' + r.roms[0] + '» entró a «Tus cartuchos».' : 'Entraron ' + r.roms.length + ' cartuchos a «Tus cartuchos».');
+    if (r.romErrors.length) parts.push('No agregué la ROM de «' + r.romErrors[0].name + '» a «Tus cartuchos»: ' + r.romErrors[0].error + '.');
+    if (r.damaged.length) {
+      parts.push((r.damaged.length === 1 ? 'Un estado no se pudo leer' : r.damaged.length + ' estados no se pudieron leer') + ' (' + r.damaged[0] + ').');
+    }
+    if (r.storage === 'lleno') parts.push('No hay más lugar en este navegador: lo importado queda solo hasta que cierres la página. Para hacer lugar, borrá estados viejos o cartuchos de «Tus cartuchos».');
+    else if (r.storage === 'error') parts.push('No se pudo guardar en este navegador: lo importado queda solo hasta que cierres la página.');
+    else if (r.storage === 'memoria') parts.push('Este navegador no deja guardar datos: los estados duran hasta que cierres la página.');
+    var bad = r.damaged.length || r.romErrors.length || r.storage === 'lleno' || r.storage === 'error';
+    return { text: parts.join(' '), kind: bad ? 'error' : 'info' };
+  }
+  // ¿El principio de un archivo (bytes) puede ser texto JSON? Saltea la marca BOM de UTF-8 y los espacios: un
+  // archivo de estados empieza con «{».
+  function looksLikeJson(bytes) {
+    var i = bytes.length >= 3 && bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF ? 3 : 0;
+    while (i < bytes.length && (bytes[i] === 0x20 || bytes[i] === 0x09 || bytes[i] === 0x0A || bytes[i] === 0x0D)) i++;
+    return i < bytes.length && bytes[i] === 0x7B;
+  }
+
+  // De dónde es un cartucho: 'demo', 'archivo' (un juego del archivo de Octo), 'biblioteca' («Tus cartuchos»)
+  // o 'desconocido'.
+  function cartridgeOrigin(sha) {
+    if (findDemoBySha(sha)) return 'demo';
+    if (archiveLookup(sha)) return 'archivo';
+    return findLibraryIndex(sha) >= 0 ? 'biblioteca' : 'desconocido';
+  }
+  // El nombre con que lo muestra la consola: el del demo, el del archivo de Octo, el de «Tus cartuchos» o, si
+  // no es ninguno de esos, el que tenía cuando se guardó su primer estado (sin la extensión, como en «Tus
+  // cartuchos»).
+  function cartridgeName(sha) {
+    var d = findDemoBySha(sha), a = archiveLookup(sha), i = findLibraryIndex(sha);
+    if (d) return d.name;
+    if (a) return a.title;
+    if (i >= 0) return library.items[i].name;
+    return libraryName(sha, hasOwn(stateStore.roms, sha) ? stateStore.roms[sha].name : '');
+  }
+  // Los bytes de un cartucho, por su SHA-1, para cargarlo aunque no esté en la ranura. Devuelve una promesa
+  // con { name, bytes, source: 'demo' | 'biblioteca' | 'archivo' } (con demoId o item, para cargarlo como
+  // desde su estante), o null si esta consola no lo tiene.
+  function findCartridge(sha) {
+    var demo = findDemoBySha(sha);
+    if (demo) return Promise.resolve({ name: demo.name, bytes: demo.bytes, source: 'demo', demoId: demo.id });
+    var i = findLibraryIndex(sha);
+    if (i >= 0) {
+      var item = library.items[i], bytes = null;
+      try { bytes = fromBase64(item.data); } catch (e) { bytes = null; }
+      if (bytes && bytes.length === item.size && Core.sha1(bytes) === sha) {
+        return Promise.resolve({ name: item.name, bytes: bytes, source: 'biblioteca', item: item });
+      }
+    }
+    // >>> FUENTE DEL ARCHIVO DE OCTO: los juegos del archivo, con sus bytes embebidos. archiveRomBytes(sha1)
+    // es de otra parte de la consola (una promesa con un Uint8Array o null); mientras no exista, un juego del
+    // archivo que no está en la ranura ni en «Tus cartuchos» no se puede cargar desde la lista.
+    var arch = archiveLookup(sha);
+    if (arch && typeof archiveRomBytes === 'function') {
+      return Promise.resolve(archiveRomBytes(sha)).then(function (b) {
+        return b && b.length && Core.sha1(b) === sha ? { name: arch.title, bytes: b, source: 'archivo' } : null;
+      }, function () { return null; });
+    }
+    // <<<
+    return Promise.resolve(null);
+  }
+  // Cómo se ve la pantalla de un cartucho: { colors, rotation }. El de la ranura, como se ve ahora; otro, como
+  // arrancaría (resolveConfig: sus ajustes recordados, los del archivo de Octo o los tuyos; sin «Ajustes por
+  // cartucho», con tu paleta y sin girar). Así se ven las pantallitas, también las guardadas antes del giro.
+  function cartridgeLook(sha) {
+    if (state.romLoaded && state.romSha === sha) return { colors: activeColors, rotation: rotation };
+    if (!settings.perRom) return { colors: paletteColors(settings.palette), rotation: 0 };
+    var cfg = resolveConfig(sha, findDemoBySha(sha));
+    return { colors: cfg.palette === CARTRIDGE ? paletteFromColors(CARTRIDGE_NAME, cfg.colors) : paletteColors(cfg.palette), rotation: cfg.rotation };
+  }
+  // Los cartuchos con estados, en el orden de la lista: el de la ranura primero y después el que tiene el
+  // estado más nuevo.
+  function statesShas() {
+    var cur = state.romLoaded ? state.romSha : null, newest = {};
+    var shas = Object.keys(stateStore.roms);
+    shas.forEach(function (sha) {
+      var slots = stateStore.roms[sha].slots, t = 0;
+      Object.keys(slots).forEach(function (id) { if (slots[id].date > t) t = slots[id].date; });
+      newest[sha] = t;
+    });
+    return shas.sort(function (a, b) {
+      if (a === cur || b === cur) return a === cur ? -1 : 1;
+      return newest[b] - newest[a] || (a < b ? -1 : 1);
+    });
+  }
+  // La pantalla de un estado decodificada (stateThumb). Mientras la lista está abierta se guarda por su texto
+  // (se redibuja con cada cambio); al cerrarla, se olvida.
+  var thumbCache = {}, thumbCacheSize = 0;
+  function cachedThumb(text) {
+    if (!statesListOpen()) return stateThumb(text);
+    if (hasOwn(thumbCache, text)) return thumbCache[text];
+    if (thumbCacheSize >= 200) { thumbCache = {}; thumbCacheSize = 0; }
+    thumbCacheSize++;
+    return (thumbCache[text] = stateThumb(text));
+  }
+  function clearThumbCache() { thumbCache = {}; thumbCacheSize = 0; }
+
+  // Exportar: el estado de una ranura (sha e id), los de un cartucho (sha) o todos (sin nada), cada uno con su
+  // pantallita y, si hace falta, la ROM. Los dañados no van: skipped dice cuántos quedaron afuera.
+  function exportedCartridges(sha, id) {
+    var list = [], skipped = 0;
+    (sha ? [sha] : statesShas()).forEach(function (s) {
+      var rom = hasOwn(stateStore.roms, s) ? stateStore.roms[s] : null;
+      if (!rom) return;
+      var look = cartridgeLook(s), states = [];
+      STATE_SLOTS.forEach(function (slot) {
+        var e = hasOwn(rom.slots, slot) && (!id || slot === id) ? rom.slots[slot] : null;
+        if (!e) return;
+        var t = cachedThumb(e.text);
+        if (t.error) { skipped++; return; }
+        states.push({ id: slot, date: e.date, text: e.text, thumbnail: thumbPng(t, look) });
+      });
+      if (states.length) list.push({ sha1: s, name: cartridgeName(s), origin: cartridgeOrigin(s), rom: exportedRom(s), states: states });
+    });
+    return { cartridges: list, skipped: skipped };
+  }
+  // La pantallita de un archivo: PNG en data:, THUMB_FILE_WIDTH de ancho (antes de girarla), escala entera.
+  function thumbPng(t, look) {
+    var c = document.createElement('canvas');
+    paintThumb(c, t, look, Math.max(1, Math.round(THUMB_FILE_WIDTH / t.w)));
+    return canvasPng(c);
+  }
+  // La ROM que va en el archivo (base64), solo si el otro navegador puede no tenerla: ni un demo ni un juego
+  // del archivo de Octo. Sale de «Tus cartuchos» o, si no está ahí, de la ranura.
+  function exportedRom(sha) {
+    if (findDemoBySha(sha) || archiveLookup(sha)) return null;
+    var i = findLibraryIndex(sha);
+    if (i >= 0) {
+      var bytes = null;
+      try { bytes = fromBase64(library.items[i].data); } catch (e) { bytes = null; }
+      if (bytes && Core.sha1(bytes) === sha) return library.items[i].data;
+    }
+    return state.romLoaded && state.romSha === sha && cpu.rom.length ? toBase64(cpu.rom) : null;
+  }
+  // Baja un texto como archivo, con un <a download> y una URL blob armada en el mismo gesto (como la captura).
+  // El enlace va dentro de la ventana abierta, si hay una: con una ventana modal, el resto está inerte.
+  // Devuelve null, o el error.
+  function downloadText(text, name) {
+    var url = null, blob = false;
+    try {
+      if (window.URL && typeof URL.createObjectURL === 'function' && typeof Blob === 'function') {
+        url = URL.createObjectURL (new Blob([text], { type: 'application/json' }));
+        blob = true;
+      } else {
+        url = 'data:application/json;charset=utf-8,' + encodeURIComponent(text);
+      }
+      var a = document.createElement('a'), host = statesListOpen() ? statesListDialog : document.body;
+      a.href = url;
+      a.download = name;
+      host.appendChild(a);
+      a.click();
+      host.removeChild(a);
+    } catch (err) {
+      return errorText(err);
+    }
+    if (blob) window.setTimeout(function () { URL.revokeObjectURL (url); }, 60000);
+    return null;
+  }
+  // Exporta (baja el archivo): un estado, los de un cartucho o todos. Devuelve el nombre del archivo, o null.
+  function exportStates(sha, id) {
+    var ex = exportedCartridges(sha, id);
+    if (!ex.cartridges.length) {
+      statesSay(ex.skipped ? 'No hay nada para exportar: ' + (ex.skipped === 1 ? 'el estado está dañado.' : 'los estados están dañados.') : 'No hay estados para exportar.');
+      return null;
+    }
+    var now = new Date(), count = 0, first = ex.cartridges[0];
+    ex.cartridges.forEach(function (c) { count += c.states.length; });
+    var name = statesFileName(sha ? first.name : null, id || null, now);
+    var err = downloadText(statesFileText(ex.cartridges, now.getTime()), name);
+    if (err) {
+      statesNotify('No se pudo exportar: ' + err, 'error');
+      return null;
+    }
+    var what = id ? 'el estado de la ' + slotPhrase(id) + ' de «' + first.name + '»'
+      : countText(count, 'estado', 'estados') + ' de ' + (ex.cartridges.length === 1 ? '«' + first.name + '»' : ex.cartridges.length + ' cartuchos');
+    statesSay('Exporté ' + what + ' a ' + name + '.' + (ex.skipped ? (ex.skipped === 1 ? ' Uno estaba dañado y quedó afuera.' : ' ' + ex.skipped + ' estaban dañados y quedaron afuera.') : ''));
+    return name;
+  }
+
+  // Importar: el texto de un archivo de estados (label: su nombre). Lo valida, pregunta antes de pisar una
+  // ranura ocupada, agrega a «Tus cartuchos» las ROMs que trae y acá faltan, y avisa qué hizo. Devuelve una
+  // promesa con el resumen: { imported, same, kept, damaged, roms, text } (o { error } / { cancelled }).
+  var importing = false;   // una importación espera la respuesta de la persona
+  function importStatesText(text, label) {
+    var parsed = parseStatesFile(text, label);
+    if (parsed.error) {
+      statesNotify(parsed.error, 'error');
+      return Promise.resolve({ error: parsed.error, imported: 0 });
+    }
+    if (importing) {
+      statesNotify('Primero respondé qué hacer con las ranuras ocupadas de la importación anterior.', 'error');
+      return Promise.resolve({ error: 'ocupado', imported: 0 });
+    }
+    var items = planStatesImport(parsed, stateStore);
+    var busy = items.filter(function (it) { return it.kind === 'ocupada'; });
+    var answer;
+    importing = true;
+    try {
+      answer = busy.length ? askReplace(busy, items, label) : Promise.resolve({});
+    } catch (err) {
+      answer = Promise.reject(err);   // (el catch de abajo libera la importación y avisa)
+    }
+    return answer.then(function (replace) {
+      if (!replace) {
+        importing = false;
+        statesSay('Importación cancelada: no cambié nada.');
+        return { cancelled: true, imported: 0 };
+      }
+      return importRoms(parsed).then(function (roms) {
+        importing = false;
+        return applyStatesImport(parsed, items, replace, roms);
+      });
+    }).catch(function (err) {
+      importing = false;
+      statesNotify('No se pudo importar: ' + errorText(err), 'error');
+      return { error: errorText(err), imported: 0 };
+    });
+  }
+  // Las ROMs que trae el archivo y esta consola no tiene (ni demo, ni en «Tus cartuchos», ni del archivo de
+  // Octo) entran a «Tus cartuchos»; una ROM dañada se avisa solo si acá falta. Promesa con { added: [nombres],
+  // errors: [{ name, error }] }.
+  function importRoms(parsed) {
+    var out = { added: [], errors: [] };
+    return parsed.cartridges.reduce(function (p, c) {
+      if (!c.rom && !c.romError) return p;
+      return p.then(function () { return findCartridge(c.sha1); }).then(function (have) {
+        if (have) return;
+        if (c.romError) out.errors.push({ name: c.name, error: c.romError });
+        else if (libraryImport(c.rom, c.sha1, c.name)) out.added.push(cartridgeName(c.sha1));
+      });
+    }, Promise.resolve()).then(function () { return out; });
+  }
+  // Una ROM de un archivo de estados entra a «Tus cartuchos», adelante (como recién usada), si no estaba.
+  function libraryImport(bytes, sha, name) {
+    if (findLibraryIndex(sha) >= 0) return false;
+    var now = Date.now();
+    library.items.unshift({ sha1: sha, name: libraryName(sha, name), size: bytes.length, added: now, played: now, data: toBase64(bytes) });
+    libraryCommit(sha);
+    return true;
+  }
+  // Escribe lo que corresponde (replace: { 'sha1|ranura': true } con las ocupadas que se reemplazan) y avisa.
+  // Se vuelve a mirar cada ranura: si mientras se esperaba la respuesta alguna se ocupó, queda la que hay.
+  function applyStatesImport(parsed, items, replace, roms) {
+    var r = { imported: 0, carts: [], same: 0, kept: 0, damaged: parsed.damaged, roms: roms.added, romErrors: roms.errors, storage: 'ok' };
+    var seen = {};
+    items.forEach(function (it) {
+      var have = slotEntry(it.sha1, it.id);
+      if (have && have.text === it.entry.text) { r.same++; return; }
+      if (have && !replace[it.sha1 + '|' + it.id]) { r.kept++; return; }
+      putStateEntry(it.sha1, it.name, it.id, it.entry);
+      r.imported++;
+      if (!hasOwn(seen, it.sha1)) {
+        seen[it.sha1] = true;
+        r.carts.push(cartridgeName(it.sha1));
+      }
+    });
+    if (r.imported) r.storage = commitStates(true);   // (también redibuja la lista, si está abierta)
+    else if (statesListOpen()) renderStatesList();     // las ROMs nuevas: ahora se pueden cargar
+    renderStates();
+    var sum = importSummary(r);
+    statesNotify(sum.text, sum.kind);
+    return { imported: r.imported, same: r.same, kept: r.kept, damaged: r.damaged.length, roms: r.roms, storage: r.storage, text: sum.text };
+  }
+  // Lee un archivo de estados (del botón Importar o soltado sobre la página) y lo importa.
+  function readStatesFile(file) {
+    var name = file.name || 'archivo';
+    if (file.size > STATES_FILE_MAX) {
+      statesNotify('«' + name + '» pesa ' + formatInt(Math.round(file.size / 1048576)) + ' MB: un archivo de estados puede pesar hasta ' + STATES_FILE_MAX / 1048576 + ' MB.', 'error');
+      return;
+    }
+    var reader = new FileReader();
+    reader.onload = function () { importStatesText(String(reader.result), name); };
+    reader.onerror = function () { statesNotify('No se pudo leer «' + name + '».', 'error'); };
+    reader.readAsText(file);
+  }
+  function pickStatesFile() {
+    statesFileInput.value = '';
+    statesFileInput.click();
+  }
+  // Lo que devuelve la API: todos los estados, por cartucho, en el orden de la lista.
+  function allStatesInfo() {
+    var now = Date.now();
+    return statesShas().map(function (sha) {
+      var slots = stateStore.roms[sha].slots;
+      return {
+        sha1: sha, name: cartridgeName(sha), origin: cartridgeOrigin(sha), loaded: state.romLoaded && state.romSha === sha,
+        states: STATE_SLOTS.filter(function (id) { return hasOwn(slots, id); }).map(function (id) {
+          var e = slots[id], t = cachedThumb(e.text);
+          return { slot: id === 'rapido' ? 'rapido' : Number(id), name: slotName(id), date: e.date, when: savedWhen(e.date, now).short,
+            size: e.text.length, platform: t.error ? null : t.platform, damaged: !!t.error };
+        })
+      };
+    });
+  }
+
+  // ------------------------------------------------------------------ estados guardados: la lista
+  // «Ver todos» abre una ventana con los estados de todos los cartuchos, agrupados por cartucho: su nombre, de
+  // dónde es (demo, archivo de Octo, «Tus cartuchos» o desconocido) y, por cada estado, su pantallita (con los
+  // colores y el giro de ese cartucho), la ranura, la fecha, y Cargar / Exportar / Borrar. Cargar pone el
+  // cartucho en la ranura si hace falta (findCartridge) y después el estado; si esta consola no tiene la ROM,
+  // el grupo dice cómo conseguirla. Arriba, Exportar todo e Importar. Al importar, si hay ranuras ocupadas,
+  // otra ventana pregunta cuáles reemplazar. Mientras una de las dos está abierta, el teclado es de ella (las
+  // teclas no le llegan a la máquina) y los avisos van a la línea de mensajes de la lista (los flotantes
+  // quedarían debajo de la ventana).
+  var statesListDialog = $('states-list'), statesAskDialog = $('states-ask');
+  var statesGroupsEl = $('states-groups'), statesEmptyEl = $('states-empty'), statesCountEl = $('states-count');
+  var statesNoticeEl = $('states-notice'), statesNoticeText = $('states-notice-text'), statesNoticeAct = $('states-notice-act');
+  var statesFileInput = $('states-file'), statesExportBtn = $('states-export'), statesExportAll = $('states-export-all');
+  var statesAskList = $('states-ask-list'), statesAskAll = $('states-ask-all');
+  var noticeAction = null;   // { label, run } del botón de la línea de mensajes
+  var askResolve = null;     // la respuesta pendiente de la ventana de las ranuras ocupadas
+
+  function dialogOpen(d) { return !!(d && (d.open || d.hasAttribute('open'))); }
+  function statesListOpen() { return dialogOpen(statesListDialog); }
+  function statesDialogOpen() { return statesListOpen() || dialogOpen(statesAskDialog); }
+  function showDialog(d) {
+    if (typeof d.showModal === 'function') d.showModal();
+    else d.setAttribute('open', '');
+  }
+  function hideDialog(d, value) {
+    if (typeof d.close === 'function') { if (d.open) d.close(value); }
+    else { d.removeAttribute('open'); d.returnValue = value; d.dispatchEvent(new Event('close')); }
+  }
+
+  // Los avisos: con la lista abierta van a su línea de mensajes; si no, son los de siempre.
+  function statesNotify(msg, kind, action) {
+    if (statesListOpen()) statesNotice(msg, kind, action);
+    else toast(msg, kind, action);
+  }
+  function statesSay(msg) {
+    if (statesListOpen()) statesNotice(msg, 'info');
+    else announce(msg);
+  }
+  function statesNotice(msg, kind, action) {
+    statesNoticeText.textContent = msg;
+    statesNoticeEl.className = 'states-notice is-on' + (kind === 'error' ? ' is-error' : '');
+    noticeAction = action || null;
+    statesNoticeAct.hidden = !action;
+    statesNoticeAct.textContent = action ? action.label : '';
+  }
+  function clearStatesNotice() {
+    statesNoticeText.textContent = '';
+    statesNoticeEl.className = 'states-notice';
+    noticeAction = null;
+    statesNoticeAct.hidden = true;
+  }
+
+  // «Exportar» de «Estados»: los estados del cartucho de la ranura (sin ninguno, deshabilitado).
+  function updateStatesTools() {
+    var sha = state.romLoaded ? state.romSha : null, n = 0;
+    if (sha && hasOwn(stateStore.roms, sha)) n = Object.keys(stateStore.roms[sha].slots).length;
+    if (!n && document.activeElement === statesExportBtn && focusVisible(statesExportBtn)) $('states-import').focus();
+    statesExportBtn.disabled = !n;
+    statesExportBtn.setAttribute('aria-label', sha ? 'Exportar los estados de «' + state.romName + '»' : 'Exportar los estados del cartucho de la ranura');
+    statesExportBtn.title = !sha ? 'Con un cartucho en la ranura, exportás sus estados a un archivo (los de todos, desde «Ver todos»)'
+      : (n ? 'Exportar los estados de «' + state.romName + '» a un archivo, para llevarlos a otro navegador' : 'Todavía no guardaste estados de «' + state.romName + '»');
+  }
+
+  function openStatesList() {
+    releaseAllKeys();
+    if (statesListOpen()) return;
+    clearStatesNotice();
+    renderStatesList();
+    showDialog(statesListDialog);
+    sizeListThumbs();
+  }
+  function closeStatesList() { hideDialog(statesListDialog, ''); }
+
+  // Redibuja la lista. Si el foco del teclado estaba en un botón de un estado, vuelve al mismo botón.
+  function renderStatesList() {
+    var ae = document.activeElement, keep = null;
+    if (ae && statesGroupsEl.contains(ae) && ae.closest('.states-card')) {
+      var card = ae.closest('.states-card');
+      keep = '.states-card[data-sha="' + card.getAttribute('data-sha') + '"][data-slot="' + card.getAttribute('data-slot') + '"] [data-act="' + ae.getAttribute('data-act') + '"]';
+    }
+    var now = Date.now(), shas = statesShas(), total = 0;
+    statesGroupsEl.textContent = '';
+    shas.forEach(function (sha, n) {
+      var g = buildListGroup(sha, n, now);
+      statesGroupsEl.appendChild(g.el);
+      total += g.count;
+    });
+    statesEmptyEl.hidden = total > 0;
+    statesCountEl.textContent = total ? countText(total, 'estado', 'estados') + ' de ' + countText(shas.length, 'cartucho', 'cartuchos') + '.' : 'Ningún estado guardado.';
+    statesExportAll.disabled = !total;
+    if (statesListOpen()) sizeListThumbs();
+    var back = keep ? statesGroupsEl.querySelector(keep) : null;
+    if (back) back.focus();
+  }
+  // Un cartucho de la lista: su nombre, de dónde es, una nota si no se puede cargar y sus estados.
+  function buildListGroup(sha, n, now) {
+    var slots = stateStore.roms[sha].slots, ids = STATE_SLOTS.filter(function (id) { return hasOwn(slots, id); });
+    var name = cartridgeName(sha), origin = cartridgeOrigin(sha), loaded = state.romLoaded && state.romSha === sha, look = cartridgeLook(sha);
+    var sec = make('section', 'states-cart');
+    sec.setAttribute('data-sha', sha);
+    var head = make('div', 'states-cart-head');
+    var title = make('h3', 'states-cart-name', name);
+    title.id = 'states-cart-' + n;
+    sec.setAttribute('aria-labelledby', title.id);
+    head.appendChild(title);
+    var tags = make('span', 'cart-tags');
+    tags.appendChild(make('span', 'cart-tag cart-tag--' + origin, CART_ORIGINS[origin]));
+    if (origin === 'archivo' && findLibraryIndex(sha) >= 0) tags.appendChild(make('span', 'cart-tag cart-tag--biblioteca', CART_ORIGINS.biblioteca));
+    if (loaded) tags.appendChild(make('span', 'cart-tag cart-tag--ranura', 'En la ranura'));
+    head.appendChild(tags);
+    sec.appendChild(head);
+    var note = make('p', 'states-cart-note');
+    note.id = 'states-cart-note-' + n;
+    note.hidden = true;
+    sec.appendChild(note);
+    var grid = make('div', 'states-cards');
+    var cards = ids.map(function (id) { return buildListCard(sha, id, slots[id], name, look, now); });
+    cards.forEach(function (c) { grid.appendChild(c.root); });
+    sec.appendChild(grid);
+    if (!loaded) {
+      // ¿Esta consola tiene la ROM? Si no, Cargar explica cómo conseguirla (y la nota lo dice a la vista).
+      findCartridge(sha).then(function (c) {
+        if (c || !sec.isConnected) return;
+        note.textContent = unavailableText(origin);
+        note.hidden = false;
+        cards.forEach(function (card) { setBlocked(card.load, note.textContent, note.id); });
+      });
+    }
+    return { el: sec, count: ids.length };
+  }
+  function unavailableText(origin) {
+    if (origin === 'archivo') {
+      return 'Este juego del archivo de Octo no está en esta consola: para cargar sus estados, cargá primero el juego (con «Cargar ROM» o arrastrándolo sobre la página) y después usá Cargar.';
+    }
+    return 'Esta consola no tiene la ROM de este cartucho: para cargar sus estados, cargá primero la ROM (con «Cargar ROM» o arrastrándola sobre la página) y después usá Cargar.';
+  }
+  // Un estado de la lista, como una ranura de «Estados».
+  function buildListCard(sha, id, entry, name, look, now) {
+    var t = cachedThumb(entry.text), bad = !!t.error, phrase = slotPhrase(id) + ' de «' + name + '»';
+    var root = make('div', 'save-slot states-card' + (bad ? ' is-damaged' : ''));
+    root.setAttribute('role', 'group');
+    root.setAttribute('aria-label', slotName(id) + ' de «' + name + '»');
+    root.setAttribute('data-sha', sha);
+    root.setAttribute('data-slot', id);
+    var well = make('div', 'save-well'), screen = make('div', 'save-screen');
+    screen.setAttribute('aria-hidden', 'true');
+    screen.style.setProperty('--thumb-bg', 'rgb(' + look.colors.bg.join(',') + ')');
+    screen.style.setProperty('--thumb-fg', 'rgb(' + look.colors.on.join(',') + ')');
+    if (bad) {
+      screen.appendChild(make('span', 'save-blank', 'DAÑADO'));
+    } else {
+      var canvas = make('canvas');
+      paintThumb(canvas, t, look, 1);
+      screen.appendChild(canvas);
+    }
+    well.appendChild(screen);
+    var meta = make('div', 'save-meta');
+    meta.appendChild(make('span', 'save-name', slotName(id)));
+    var when = make('span', 'save-when', savedWhen(entry.date, now).short);
+    when.title = savedTitle(entry.date) + (bad ? '. No se puede cargar: ' + t.error : '');
+    when.setAttribute('data-date', String(entry.date));
+    meta.appendChild(when);
+    var acts = make('div', 'save-acts');
+    var load = slotButton('load', 'Cargar', 'Cargar el estado de la ' + phrase, function () { listLoad(sha, id, load); });
+    var exp = slotButton('export', 'Exportar', 'Exportar el estado de la ' + phrase + ' a un archivo', function () { if (!explainBlocked(exp)) exportStates(sha, id); });
+    var del = slotButton('delete', 'Borrar', 'Borrar el estado de la ' + phrase, function () { listDelete(sha, id); });
+    if (bad) {
+      var why = make('span', 'visually-hidden', 'Este estado está dañado: ' + t.error);
+      why.id = 'states-why-' + sha + '-' + id;
+      root.appendChild(why);
+      setBlocked(load, 'Este estado está dañado y no se puede cargar: ' + t.error, why.id);
+      setBlocked(exp, 'Este estado está dañado y no se puede exportar: ' + t.error, why.id);
+    }
+    acts.appendChild(load);
+    acts.appendChild(exp);
+    acts.appendChild(del);
+    root.appendChild(well);
+    root.appendChild(meta);
+    root.appendChild(acts);
+    return { root: root, load: load };
+  }
+  // Un botón que ahora no hace lo suyo pero sigue enfocable: al tocarlo, explica por qué (why, también en el
+  // elemento describedBy).
+  function setBlocked(b, why, describedBy) {
+    b.setAttribute('aria-disabled', 'true');
+    b.setAttribute('data-why', why);
+    b.setAttribute('aria-describedby', describedBy);
+    b.title = why;
+  }
+  function explainBlocked(b) {
+    if (b.getAttribute('aria-disabled') !== 'true') return false;
+    statesNotice(b.getAttribute('data-why'), 'info');
+    return true;
+  }
+  function sizeListThumbs() {
+    [statesListDialog, statesAskDialog].forEach(function (d) {
+      if (!dialogOpen(d)) return;
+      Array.prototype.forEach.call(d.querySelectorAll('.save-screen canvas'), function (cv) { fitThumb(cv, cv.parentNode); });
+    });
+  }
+  function updateListTimes(now) {
+    Array.prototype.forEach.call(statesGroupsEl.querySelectorAll('.save-when[data-date]'), function (el) {
+      el.textContent = savedWhen(Number(el.getAttribute('data-date')), now).short;
+    });
+  }
+
+  // Cargar desde la lista: el cartucho (si no está en la ranura) y después el estado. Devuelve una promesa
+  // con true si quedó cargado.
+  function listLoad(sha, id, btn) {
+    if (explainBlocked(btn)) return Promise.resolve(false);
+    if (!slotEntry(sha, id)) return Promise.resolve(false);
+    if (state.romLoaded && state.romSha === sha) {
+      closeStatesList();
+      return Promise.resolve(loadFromSlot(id));
+    }
+    return findCartridge(sha).then(function (c) {
+      if (!c) {
+        statesNotice(unavailableText(cartridgeOrigin(sha)), 'info');
+        return false;
+      }
+      closeStatesList();
+      if (!loadCartridge(c.bytes, c.name, cartridgeLoadOptions(c)) || state.romSha !== sha) return false;
+      return loadFromSlot(id);
+    });
+  }
+  // Cómo se carga lo que encontró findCartridge: como desde su estante (un juego del archivo de Octo, con su
+  // título y sin pasar por «Tus cartuchos»).
+  function cartridgeLoadOptions(c) {
+    if (c.source === 'demo') return { demoId: c.demoId, origin: 'demo' };
+    if (c.source === 'biblioteca') return { origin: 'biblioteca', item: c.item };
+    return {};
+  }
+  // Borrar desde la lista: la línea de mensajes trae «Deshacer» (y, si se borró con el teclado, el foco).
+  function listDelete(sha, id) {
+    var name = cartridgeName(sha), ae = document.activeElement;
+    var byKey = !!ae && statesGroupsEl.contains(ae) && focusVisible(ae);
+    var gone = takeStateEntry(sha, id);
+    if (!gone) return false;
+    var stored = commitStates(true);
+    if (state.romLoaded && state.romSha === sha) renderSlot(id, null);
+    statesNotice('Borraste el estado de la ' + slotPhrase(id) + ' de «' + name + '».' +
+      (stored === 'lleno' || stored === 'error' ? ' No se pudo guardar el cambio en este navegador: al recargar la página, el estado vuelve.' : ''), 'info', {
+      label: 'Deshacer',
+      run: function () {
+        if (!restoreSlot(sha, name, id, gone.entry)) return null;
+        return statesGroupsEl.querySelector('.states-card[data-sha="' + sha + '"][data-slot="' + id + '"] [data-act="delete"]');
+      }
+    });
+    if (byKey) statesNoticeAct.focus();
+    return true;
+  }
+  // El botón de la línea de mensajes: hace lo suyo y, si tenía el foco del teclado, lo pasa a lo que devuelve.
+  function runNoticeAction() {
+    var a = noticeAction, byKey = focusVisible(statesNoticeAct);
+    if (!a) return;
+    noticeAction = null;
+    statesNoticeAct.hidden = true;
+    var next = a.run();
+    if (byKey) (next || $('states-list-close')).focus();
+  }
+
+  // Las ranuras ocupadas de una importación: cada una con su pantallita y la del archivo, y una casilla para
+  // reemplazarla (sin marcar: lo tuyo no se pisa sin que lo elijas). Promesa con { 'sha1|ranura': true } de
+  // las marcadas, o null si se cancela (Cancelar, × o Esc).
+  function askReplace(busy, items, label) {
+    releaseAllKeys();
+    var fresh = 0, same = 0;
+    items.forEach(function (it) { if (it.kind === 'nueva') fresh++; else if (it.kind === 'igual') same++; });
+    var text = '«' + label + '» trae ' + (items.length === 1 ? 'un estado y va' : items.length + ' estados y ' + (busy.length === 1 ? 'uno va' : busy.length + ' van')) +
+      (busy.length === 1 ? ' a una ranura que ya tiene otro: marcalo si querés reemplazar el tuyo por el del archivo.'
+        : ' a ranuras que ya tienen otro: marcá los que quieras reemplazar por los del archivo.');
+    if (fresh) text += fresh === 1 ? ' Otro entra en una ranura vacía.' : ' Otros ' + fresh + ' entran en ranuras vacías.';
+    if (same) text += same === 1 ? ' Otro ya estaba guardado.' : ' Otros ' + same + ' ya estaban guardados.';
+    $('states-ask-text').textContent = text + ' Lo que no marques queda como está.';
+    statesAskList.textContent = '';
+    var now = Date.now();
+    busy.forEach(function (it, n) {
+      var li = make('li', 'states-ask-item'), look = cartridgeLook(it.sha1), name = cartridgeName(it.sha1);
+      var check = make('label', 'states-ask-check'), box = make('input');
+      box.type = 'checkbox';
+      box.setAttribute('data-key', it.sha1 + '|' + it.id);
+      check.appendChild(box);
+      check.appendChild(make('span', null, 'Reemplazar la ' + slotPhrase(it.id) + ' de «' + name + '»'));
+      li.appendChild(check);
+      var pair = make('div', 'states-ask-pair'), ids = [];
+      [['Tuyo', it.have], ['Del archivo', it.entry]].forEach(function (side, k) {
+        var fig = make('figure'), well = make('div', 'save-well'), screen = make('div', 'save-screen'), t = cachedThumb(side[1].text);
+        screen.setAttribute('aria-hidden', 'true');
+        screen.style.setProperty('--thumb-bg', 'rgb(' + look.colors.bg.join(',') + ')');
+        screen.style.setProperty('--thumb-fg', 'rgb(' + look.colors.on.join(',') + ')');
+        if (t.error) {
+          screen.appendChild(make('span', 'save-blank', 'DAÑADO'));
+        } else {
+          var cv = make('canvas');
+          paintThumb(cv, t, look, 1);
+          screen.appendChild(cv);
+        }
+        well.appendChild(screen);
+        fig.appendChild(well);
+        var cap = make('figcaption', null, side[0] + ' · ' + savedWhen(side[1].date, now).short);
+        cap.title = savedTitle(side[1].date);
+        cap.id = 'states-ask-' + n + '-' + k;
+        ids.push(cap.id);
+        fig.appendChild(cap);
+        pair.appendChild(fig);
+        if (!k) {
+          var arrow = make('span', 'states-ask-arrow', '←');
+          arrow.setAttribute('aria-hidden', 'true');
+          pair.appendChild(arrow);
+        }
+      });
+      box.setAttribute('aria-describedby', ids.join(' '));
+      li.appendChild(pair);
+      statesAskList.appendChild(li);
+    });
+    var allRow = $('states-ask-all-row');
+    allRow.hidden = busy.length < 2;
+    statesAskAll.checked = false;
+    statesAskAll.indeterminate = false;
+    statesAskDialog.returnValue = '';
+    return new Promise(function (resolve) {
+      askResolve = resolve;
+      showDialog(statesAskDialog);
+      sizeListThumbs();
+      (allRow.hidden ? askBoxes()[0] : statesAskAll).focus();   // la primera casilla, no la ×
+    });
+  }
+  function askBoxes() { return Array.prototype.slice.call(statesAskList.querySelectorAll('input[type="checkbox"]')); }
+  function onAskClosed() {
+    var resolve = askResolve, map = {};
+    askResolve = null;
+    if (!resolve) return;
+    if (statesAskDialog.returnValue !== 'importar') { resolve(null); return; }
+    askBoxes().forEach(function (b) { if (b.checked) map[b.getAttribute('data-key')] = true; });
+    resolve(map);
+  }
+
+  // Arma los botones de «Estados», las dos ventanas y la importación desde un archivo (una vez, al arrancar).
+  function buildStatesTools() {
+    $('states-open').addEventListener('click', function (e) {
+      if (e.detail > 0) this.blur();   // con el mouse, como «?»: al cerrar, el foco vuelve a la página
+      openStatesList();
+    });
+    statesExportBtn.addEventListener('click', function () { if (state.romLoaded && state.romSha) exportStates(state.romSha, null); });
+    $('states-import').addEventListener('click', pickStatesFile);
+    $('states-import-list').addEventListener('click', pickStatesFile);
+    statesExportAll.addEventListener('click', function () { exportStates(null, null); });
+    statesFileInput.addEventListener('change', function () {
+      var f = statesFileInput.files && statesFileInput.files[0];
+      if (f) readStatesFile(f);
+    });
+    $('states-list-close').addEventListener('click', closeStatesList);
+    statesListDialog.addEventListener('click', function (e) { if (e.target === statesListDialog) closeStatesList(); });
+    statesListDialog.addEventListener('close', function () {
+      statesGroupsEl.textContent = '';   // los lienzos se van; al abrir se vuelve a armar
+      clearStatesNotice();
+      clearThumbCache();
+      statesListDialog.classList.remove('is-dropping');
+    });
+    statesNoticeAct.addEventListener('click', runNoticeAction);
+    $('states-ask-ok').addEventListener('click', function () { hideDialog(statesAskDialog, 'importar'); });
+    $('states-ask-cancel').addEventListener('click', function () { hideDialog(statesAskDialog, ''); });
+    $('states-ask-close').addEventListener('click', function () { hideDialog(statesAskDialog, ''); });
+    statesAskDialog.addEventListener('close', onAskClosed);
+    statesAskAll.addEventListener('change', function () { askBoxes().forEach(function (b) { b.checked = statesAskAll.checked; }); });
+    statesAskList.addEventListener('change', function () {
+      var boxes = askBoxes(), on = boxes.filter(function (b) { return b.checked; }).length;
+      statesAskAll.checked = on === boxes.length;
+      statesAskAll.indeterminate = on > 0 && on < boxes.length;
+    });
+    if (typeof ResizeObserver === 'function') {
+      new ResizeObserver(sizeListThumbs).observe(statesGroupsEl);
+      new ResizeObserver(sizeListThumbs).observe(statesAskList);
+    }
+    window.addEventListener('resize', sizeListThumbs);
   }
 
   // ------------------------------------------------------------------ ayuda y arrastre
@@ -10822,7 +11853,35 @@ globalThis.CHIP8_ARCHIVE.data = {
     for (var i = 0; i < types.length; i++) if (types[i] === 'Files') return true;
     return false;
   }
-  function showDrop(on) { dropEl.hidden = !on; if (!on) dragDepth = 0; }
+  function showDrop(on) {
+    dropEl.hidden = !on;
+    if (!on) dragDepth = 0;
+    // Con la lista de estados abierta, el cartel de la página queda debajo de la ventana: el aviso va en ella.
+    statesListDialog.classList.toggle('is-dropping', on && statesListOpen());
+  }
+  // Un archivo soltado sobre la página: un archivo de estados se importa y cualquier otro es una ROM. Decide
+  // el contenido, no el nombre: un archivo de estados es texto JSON que empieza con «{». Uno que empieza con
+  // «{» pero no es JSON es una ROM (0x7B es el primer byte de 7BNN, ADD VB, NN), salvo que se llame .json o
+  // que no entre como ROM: entonces es un archivo de estados dañado.
+  function dropFile(file) {
+    if (!file) return;
+    if (file.size > STATES_FILE_MAX || typeof FileReader !== 'function') { loadFile(file); return; }
+    var head = new FileReader();
+    head.onload = function () {
+      if (!looksLikeJson(new Uint8Array(head.result))) { loadFile(file); return; }
+      var reader = new FileReader(), name = file.name || 'archivo';
+      reader.onload = function () {
+        var text = String(reader.result), json = true;
+        try { JSON.parse(text); } catch (e) { json = false; }
+        if (!json && !/\.json$/i.test(name) && file.size <= MAX_ROM_ANY) loadFile(file);
+        else importStatesText(text, name);
+      };
+      reader.onerror = function () { statesNotify('No se pudo leer «' + name + '».', 'error'); };
+      reader.readAsText(file);
+    };
+    head.onerror = function () { loadFile(file); };
+    head.readAsArrayBuffer(file.slice(0, 256));
+  }
 
   // ------------------------------------------------------------------ bucle principal
   var lastTime = -1, acc = 0, fadeAcc = 0;
@@ -11127,7 +12186,7 @@ globalThis.CHIP8_ARCHIVE.data = {
       e.preventDefault();
       showDrop(false);
       var files = e.dataTransfer && e.dataTransfer.files;
-      if (files && files.length) loadFile(files[0]);
+      if (files && files.length) dropFile(files[0]);   // una ROM o un archivo de estados
     });
 
     if (typeof ResizeObserver === 'function') {
@@ -12248,6 +13307,15 @@ globalThis.CHIP8_ARCHIVE.data = {
     loadSlot: function (slot) { var id = normalizeSlot(slot); return id ? loadFromSlot(id) : false; },
     deleteSlot: function (slot) { var id = normalizeSlot(slot); return id ? deleteSlot(id) : false; },
     listSlots: function () { return listSlots(); },
+    // Todos los estados, de todos los cartuchos, y sus archivos (sha1: la huella de un cartucho).
+    allStates: function () { return allStatesInfo(); },
+    statesFile: function (sha, slot) {
+      var id = slot == null ? null : normalizeSlot(slot), key = sha == null ? null : String(sha).toLowerCase();
+      if (slot != null && (!id || !key)) return null;
+      var ex = exportedCartridges(key, id);
+      return ex.cartridges.length ? statesFileText(ex.cartridges, Date.now()) : null;
+    },
+    importStates: function (text, name) { return importStatesText(String(text), name ? String(name) : 'el texto importado'); },
     setRewind: function (on) { return setRewindEnabled(on); },
     getRewind: function () { return settings.rewind; },
     setRewinding: function (on) { setRewindSource('api', on); return rewind.active; },   // como mantener B
@@ -12273,6 +13341,7 @@ globalThis.CHIP8_ARCHIVE.data = {
   setMonitorOpen(settings.monitorOpen, true);
   setRewindEnabled(settings.rewind);
   renderStates();
+  buildStatesTools();
   bindGlobalEvents();
   resizeScreen();
   updateAudioHint();
