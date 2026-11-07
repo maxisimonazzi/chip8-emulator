@@ -1082,13 +1082,15 @@ function linksOf(md) {
 }
 
 // Copia las herramientas, los ejemplos y las fuentes de los cartuchos a una carpeta
-// temporal para correr los comandos del tutorial sin escribir nada en el repositorio.
+// temporal para correr los comandos del tutorial sin escribir nada en el repositorio
+// (y chip8.html, de donde tools/chip8asm.js saca el ensamblador).
 let sandbox = null;
 function commandSandbox() {
   if (!sandbox) {
     sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'chip8-tutorial-'));
     fs.mkdirSync(path.join(sandbox, 'tools'));
     fs.copyFileSync(path.join(ROOT, 'tools', 'chip8asm.js'), path.join(sandbox, 'tools', 'chip8asm.js'));
+    fs.copyFileSync(path.join(ROOT, 'chip8.html'), path.join(sandbox, 'chip8.html'));
     fs.mkdirSync(path.join(sandbox, 'docs', 'ejemplos'), { recursive: true });
     for (const f of fs.readdirSync(EJEMPLOS)) {
       fs.copyFileSync(path.join(EJEMPLOS, f), path.join(sandbox, 'docs', 'ejemplos', f));

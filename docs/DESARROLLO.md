@@ -1130,9 +1130,9 @@ que el bloque 1-4 / Q-R / A-F / Z-V es el mismo en QWERTY, AZERTY o Dvorak:
 
 **Atajos.** Espacio (pausa o continúa), N (un paso; se repite si se mantiene), Retroceso
 (reiniciar), H (abrir o cerrar la ayuda), T (avance rápido, mientras se mantiene), P
-(pantalla completa, si el navegador la tiene), G (captura), I (guardar el estado en la
-ranura rápida), U (cargar la ranura rápida), B (rebobinar, mientras se mantiene) y Esc
-(cerrar diálogos y la capa de arrastre). Las **flechas** aprietan las teclas del keypad
+(pantalla completa, si el navegador la tiene), G (captura), Y (abrir o cerrar el Taller), I
+(guardar el estado en la ranura rápida), U (cargar la ranura rápida), B (rebobinar, mientras
+se mantiene) y Esc (cerrar diálogos y la capa de arrastre). Las **flechas** aprietan las teclas del keypad
 del mapa de «Controles» (`liveKeymap`). Ninguno choca con las 16 teclas.
 
 **Todas las fuentes de teclas se suman.** El keypad se puede tocar con el teclado físico,
@@ -1601,6 +1601,7 @@ La consola usa cuatro claves de `localStorage`, todas leídas y escritas dentro 
 | `'chip8-consola.cartuchos'` | Los ajustes recordados y las banderas de cada ROM ([4.9](#49-ajustes-por-cartucho)). |
 | `'chip8-consola.biblioteca'` | Tus cartuchos ([4.10](#410-tus-cartuchos-la-biblioteca)). |
 | `'chip8-consola.estados'` | Los estados guardados de cada ROM: `{ version: 1, roms: { [sha1]: { name, slots: { rapido, "1"…"4": { date, text } } } } }`, con `text` = `Chip8Core.encodeState(cpu.saveState())` ([4.22](#422-estados-guardados-y-rebobinado)). |
+| `'chip8-consola.taller'` | Los programas del Taller: `{ version: 1, next, open, programs: [{ id, name, source, saved }], edited: { id: { source, saved } }, drafts: { id: fuente } }` (tus programas, los ejemplos y cartuchos editados y lo que todavía no se guardó). |
 
 `settings` se guarda entero cada vez que cambia algo. Al arrancar, `loadSettings()` valida
 cada campo por separado y descarta lo que no tenga el tipo esperado:
@@ -1702,6 +1703,8 @@ La interfaz expone `window.chip8` para depurar desde la consola del navegador y 
 | `setRewind(on)`, `getRewind()` | El interruptor «Rebobinado». |
 | `setRewinding(on)`, `isRewinding()` | Rebobinar como si se mantuviera B. |
 | `rewindInfo()` | `{ seconds, entries, bytes }` del buffer de rebobinado. |
+| `workshopInfo()` | El Taller: `{ open, docked, id, kind, name, platform, dirty, edited, unsaved, errors: [{ line, message }], programs: [{ id, name }] }`. |
+| `workshopSymbols()` | `{ labels, listing }` del programa del Taller que está en la ranura (una copia), o `null` si en la ranura hay otra cosa. |
 
 Las funciones que cambian ajustes cuentan como un cambio de la persona: quedan en
 `settings` y, con «Ajustes por cartucho», en los de la ROM de la ranura. Un truco: en la
@@ -2173,17 +2176,19 @@ Antes de dar por terminado un cambio: `node --test` y, si tocaste la interfaz,
 | `tests/xochip.test.js` | Las de XO-CHIP, también contra una referencia propia: `5XY2`/`5XY3` (en los dos sentidos), `F000 NNNN` y los saltos condicionales que lo saltean entero, `FN01` y el dibujo en dos planos, `00E0` y los desplazamientos sobre los planos elegidos, `00DN`, el audio (`F002`, `FX3A`, `patternRate`) y la memoria de 64 KB (PC, I, accesos, `JP V0`, `CALL` y la vuelta en `0xFFFF`), y un programa completo de XO-CHIP. |
 | `tests/asm.test.js` | El ensamblador: cada instrucción de CHIP-8, `JP VX`, números, etiquetas, mayúsculas, `EQU`, `DB`/`DW`, expresiones, comentarios, el listado, cada clase de error con "Línea N: ", la ida y vuelta de las 65 536 palabras y la línea de comandos (incluidos los errores en castellano, sin stack trace). |
 | `tests/asm-extendido.test.js` | Las instrucciones de SUPER-CHIP y XO-CHIP del ensamblador, `LD I, LONG` (4 bytes), los errores nuevos, los nombres reservados nuevos, la opción `xochip`/`--xo` (hasta `0xFFFF`), el listado con direcciones de 4 dígitos y la ida y vuelta con el desensamblador de SUPER-CHIP y de XO-CHIP en todas las palabras. |
+| `tests/asm-bloque.test.js` | El ensamblador como bloque `chip8-asm`: código puro (en un contexto vacío define solo `Chip8Asm` y ensambla), `tools/chip8asm.js` con `require` (las mismas funciones, sin dejar el global) y sin `chip8.html` o sin el bloque (el error en una línea; `--help` anda igual); `check()` contra `assemble()` en cada fuente del proyecto y en 600 fuentes rotas al azar (el primer error es el mismo; sin errores, el mismo resultado), sin errores en cascada, la memoria llena una vez y el tope de 100; y `headerTags()`. |
 | `tests/roms.test.js` | Los cartuchos: cada `.asm` ensambla idéntico a su `.ch8` y tiene sus etiquetas; `embed-roms --check` y el bloque incrustado; el propio `embed-roms.js` sobre un HTML temporal con CRLF, y la etiqueta `@platform`; 600 frames por demo y perfil sin ejecutar datos; y el comportamiento de cada uno: el movimiento y las velocidades de Rebote; las 16 teclas de Teclado; en Atrapa, la paleta, que todo bloque se pueda atrapar y el reinicio con apretar y soltar; Autotest con VD = 19 y VE = 0 en cada perfil e IPF, y los núcleos saboteados que tiene que detectar; la posición de cada glifo en Fuente; y en Planos, la pantalla, los planos limpios, los cuatro valores, las velocidades, el contador, el sonido, la tecla y que vaya igual con cualquier perfil e IPF. |
 | `tests/archive.test.js` | `tools/archive.js` (las opciones de Octo pasadas a los ajustes, colores, giro, eventos, `toEntry`), `data/archive.json` (fuente, licencia, commit; huellas únicas, plataformas válidas, tamaños que entran), las ROMs de `roms/archivo/` (una por programa, con su huella y su tamaño, y el índice `LEEME.md` al día) y el bloque incrustado (al día, una entrada válida por programa, sin `</script` ni comentarios HTML, entre `chip8-roms` y `chip8-ui`, `embedInto` idempotente y con CRLF). |
 | `tests/estados.test.js` | Los estados guardados y el rebobinado: guardar a mitad de un programa y cargar en otra máquina sigue igual frame a frame (timers, `CALL`/`RET`, `FX0A`, SUPER-CHIP, XO-CHIP con dos planos, audio y memoria de 64 KB, máquinas detenidas y terminadas); `loadState` cambia de plataforma sin recargar la ROM; 54 validaciones que dejan la máquina intacta; el formato de texto (ida y vuelta, también con estados al azar; la compresión en los bordes de la base 128; tamaños; cada error; 400 textos cambiados al azar); y `RewindBuffer` (orden, páginas compartidas y la cuenta exacta de los bytes, límites, `clear`, cambios de plataforma entre fotos, `push` y `pop` intercalados y el rendimiento). |
+| `tests/taller.test.js` | Los fuentes del Taller (`CHIP8_SOURCES`): el de cada cartucho y los once ejemplos del tutorial, iguales a sus archivos y con sus `.ch8`, la descripción de cada ejemplo, los textos escapados; y `embed-roms.js` con los ejemplos (`@platform`, `@description`, errores en castellano, CRLF, `--check` y sin la carpeta `docs/ejemplos/`). |
 | `tests/tutorial.test.js` | El tutorial y sus ejemplos ([6.6](#66-pruebas-de-la-documentación)). |
 | `tests/manual.test.js` | El manual, el README y este documento ([6.6](#66-pruebas-de-la-documentación)). |
-| `tests/single-file.test.js` | El contrato del archivo único: los cinco bloques, cada uno una vez, con la etiqueta de apertura exacta y en orden; ningún `</script` ni `</style` adentro; ninguna dirección `http(s)`, `@import`, ni `src`/`href`/`url()` que no sea `data:` o `#ancla`; y que los cuatro bloques de código compilen. |
+| `tests/single-file.test.js` | El contrato del archivo único: los seis bloques, cada uno una vez, con la etiqueta de apertura exacta y en orden; ningún `</script` ni `</style` adentro; ninguna dirección `http(s)`, `@import`, ni `src`/`href`/`url()` que no sea `data:` o `#ancla`; y que los cinco bloques de código compilen. |
 
 ### 6.3 Números actuales
 
 Medido el 6 de noviembre de 2026 con Node 24.18 (`node --test` desde la raíz):
-**1489 pruebas en 207 grupos**, todas pasan y ninguna salteada, en unos 5 s.
+**1516 pruebas en 214 grupos**, todas pasan y ninguna salteada, en unos 5 s.
 
 | Archivo | Pruebas |
 |---|---|
@@ -2203,9 +2208,11 @@ Medido el 6 de noviembre de 2026 con Node 24.18 (`node --test` desde la raíz):
 | `tests/manual.test.js` | 38 |
 | `tests/quirks.test.js` | 30 |
 | `tests/archive.test.js` | 20 |
+| `tests/asm-bloque.test.js` | 18 |
 | `tests/mutation-gaps.test.js` | 12 |
+| `tests/taller.test.js` | 9 |
 | `tests/single-file.test.js` | 4 |
-| **Total** | **1489** |
+| **Total** | **1516** |
 
 Todas pasan cuando los cartuchos y la tabla del archivo incrustados están al día y
 `roms/archivo/` está completa. Las pruebas del grupo "chip8.html tiene las demos
@@ -2446,6 +2453,13 @@ tercera:
 | 48 | Almacenamiento roto (todo en memoria), lleno (el aviso correcto y el estado en memoria), un estado dañado y la ranura vacía. |
 | 49 | Diseño con el grupo «Estados» a la vista, a 1440, 768 y 360 px. |
 | 50 | XO-CHIP a 1000 IPF con Planos y con una ROM que reescribe la memoria en cada frame: 60 fps tomando fotos y al rebobinar. |
+| 51 | Taller a 1440×900: va fijo a la derecha sin tapar la pantalla, trae los 11 ejemplos y los 6 fuentes; Ctrl+Enter ensambla y corre un ejemplo (los mismos bytes que `tools/chip8asm.js`, sin ir a «Tus cartuchos») y `workshopSymbols()` trae sus etiquetas y su listado; Y y Esc. |
+| 52 | Errores: los tres de un programa roto marcados en el margen y listados, el cursor en el primero, un clic en uno lleva a su renglón, la revisión sola al corregir, y el margen alineado con la rueda y con un error en el renglón 600. |
+| 53 | «Sin guardar» que sobrevive a una recarga, Guardar («editado»), «Restaurar el original» y Borrar con «Deshacer», Nuevo, Tab, Mayús+Tab y Ctrl+Z, el nombre (Esc deshace lo escrito) y el formato de `localStorage['chip8-consola.taller']`. |
+| 54 | «Abrir .asm» con `@platform xochip` corre en XO-CHIP; Plataforma escribe la etiqueta (CHIP-8 da el error de memoria en su renglón; una etiqueta que no vale, el suyo); «Descargar .asm» y «Descargar .ch8» exactos; SUPER-CHIP en un programa sin etiqueta. |
+| 55 | Taller sin almacenamiento (en memoria, sin avisos flotantes), sin lugar (el aviso y Guardar para reintentar) y con datos dañados (todo o una parte). |
+| 56 | Diseño con el Taller abierto: a 1440 y 1280 px al costado sin tapar la pantalla; a 768 y 360 px debajo de los estantes (a 360, abierto con un toque y el foco en el título); botones enteros y el margen alineado. |
+| 57 | Teclado y lector de pantalla: Tab y Enter abren, las teclas escritas no llegan al keypad, Esc y Tab salen del editor, Plataforma con las flechas (no reescribe la etiqueta a cada paso), Guardar con Enter no pierde el foco, Esc cierra, Y desde la pantalla completa; roles y nombres; 60 fps a 10.000 IPF mientras se escribe. |
 
 `node tools/e2e.js --help` imprime esta misma lista (sale del comentario del principio del
 archivo).
@@ -3314,7 +3328,7 @@ El mapa está repetido en varios lugares a propósito (cada uno lo muestra o lo 
 - el README, la parte 1.4 del tutorial (que `tests/tutorial.test.js` compara con
   `KEY_BY_CODE`) y la §7.2 del manual.
 
-Que ninguna tecla del mapa choque con los atajos (Espacio, N, Retroceso, H, T, P, G, I, U
+Que ninguna tecla del mapa choque con los atajos (Espacio, N, Retroceso, H, T, P, G, Y, I, U
 y B). Los mapas de las flechas y el joystick están en `KEYMAP_PRESETS` y en las opciones
 del selector `#keymap` (el texto de cada opción repite las teclas; el tutorial los cita).
 Un atajo nuevo va en `onKeyDown` (y en `onKeyUp` si se mantiene), en la tabla de atajos

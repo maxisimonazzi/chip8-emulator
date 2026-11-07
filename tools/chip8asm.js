@@ -1,722 +1,146 @@
 #!/usr/bin/env node
+'use strict';
 /*
- * chip8asm.js — ensamblador de CHIP-8 sin dependencias.
+ * chip8asm.js — el ensamblador de CHIP-8 en la línea de comandos.
  *
- * Funciona de tres maneras:
- *   - Desde Node como módulo:   const { assemble } = require('./tools/chip8asm.js');
- *   - Desde un <script> en el navegador: define globalThis.Chip8Asm = { assemble }.
- *   - Como programa de línea de comandos:
- *       node tools/chip8asm.js entrada.asm [salida.ch8] [--listing] [--xo]
+ * El ensamblador vive en chip8.html, en el bloque <script id="chip8-asm">, que
+ * también usa la consola (el Taller). Esta herramienta lo saca de ahí, como
+ * tests/harness.js saca el núcleo, así la línea de comandos y la página
+ * ensamblan con el mismo código. La sintaxis, las instrucciones y la API están
+ * explicadas al principio de ese bloque.
+ *
+ * Uso:
+ *   node tools/chip8asm.js entrada.asm [salida.ch8] [--listing] [--xo]
  *     Si no indicás la salida, se usa el mismo nombre con extensión .ch8.
  *     Con --listing además imprime el listado (dirección, bytes y línea fuente).
  *     Con --xo ensambla para XO-CHIP: el programa puede llegar hasta la
- *     dirección 0xFFFF (sin --xo, hasta 0xFFF; ver "XO-CHIP: 64 KB" más abajo).
+ *     dirección 0xFFFF (sin --xo, hasta 0xFFF).
  *     Con --help (o -h) muestra el uso. Ante cualquier problema (archivo que no
  *     se puede leer o escribir, error en la fuente, opción desconocida, archivos
- *     de más) explica qué pasó en una línea y sale con código 1.
+ *     de más, chip8.html que falta) explica qué pasó en una línea y sale con
+ *     código 1.
  *
- * API
- *   assemble(fuente, { origin = 0x200, xochip = false } = {})
- *     -> { bytes: Uint8Array, labels: { nombre: dirección }, listing: [...] }
- *   origin es la dirección donde empieza el programa: 0..0xFFF, o 0..0xFFFF con
- *   xochip. xochip: true es lo mismo que --xo.
- *   listing tiene una entrada por línea de la fuente:
- *     { line: número de línea (desde 1), addr: dirección donde empieza,
- *       bytes: [bytes que generó], text: la línea original }
- *   Ante cualquier error lanza un Error cuyo mensaje empieza con "Línea N: ".
- *
- * ------------------------------------------------------------------------
- * SINTAXIS
- * ------------------------------------------------------------------------
- *   ; comentario            Todo lo que sigue a ";" hasta el fin de línea.
- *
- *   etiqueta:               Marca la dirección actual. Letras, dígitos, "_" y
- *   etiqueta: CLS           "."; no puede empezar con un dígito. Puede ir sola
- *                           o seguida de una instrucción en la misma línea.
- *
- *   NOMBRE EQU expresión    Define una constante (no ocupa memoria).
- *
- *   DB expr, expr, ...      Emite bytes (0..255, o -128..-1 en complemento a 2).
- *   DW expr, expr, ...      Emite palabras de 16 bits, big-endian (byte alto
- *                           primero), igual que las instrucciones.
- *
- *   Números:     42   0x2A   $2A   0b00101010   %00101010
- *   Expresiones: números, etiquetas y constantes sumados y restados con + y -
- *                (por ejemplo: tabla + 3, FIN - INICIO, -1).
- *   Un byte negativo (-128..-1) se acepta en cualquier lugar donde va un byte:
- *   "ADD V1, -1" es lo mismo que "ADD V1, 0xFF".
- *
- *   Mayúsculas y minúsculas: las instrucciones, los registros y las directivas
- *   (EQU, DB, DW) se pueden escribir como quieras ("ld v1, 5" = "LD V1, 5").
- *   Las etiquetas y las constantes, en cambio, distinguen mayúsculas ("Fin" y
- *   "fin" son dos etiquetas distintas).
- *
- *   Nombres reservados (no sirven como etiqueta ni constante, en ninguna
- *   combinación de mayúsculas): V0..VF, I, DT, ST, K, F, B, HF, R, LONG, las
- *   instrucciones (también las de SUPER-CHIP y XO-CHIP) y las directivas.
- *   Un nombre que solo empieza igual sí vale: "low_x", "saved" o "R2".
- *
- *   El ensamblador hace dos pasadas, así que podés usar una etiqueta antes de
- *   definirla (referencias hacia adelante).
- *
- * INSTRUCCIONES (las mismas que muestra el desensamblador del emulador)
- *   Vx, Vy = registros V0..VF    nn = byte    nnn = dirección (0..0xFFF)
- *   n = nibble (0..15)           nnnn = dirección de 16 bits (0..0xFFFF)
- *
- * CHIP-8
- *   CLS                00E0   borra la pantalla
- *   RET                00EE   vuelve de una subrutina
- *   SYS nnn            0nnn   rutina de máquina (el emulador la ignora)
- *   JP nnn             1nnn   salta a nnn
- *   CALL nnn           2nnn   llama a la subrutina en nnn
- *   SE Vx, nn          3xnn   saltea la siguiente si Vx == nn
- *   SNE Vx, nn         4xnn   saltea la siguiente si Vx != nn
- *   SE Vx, Vy          5xy0   saltea la siguiente si Vx == Vy
- *   LD Vx, nn          6xnn   Vx = nn
- *   ADD Vx, nn         7xnn   Vx = Vx + nn (sin tocar VF)
- *   LD Vx, Vy          8xy0   Vx = Vy
- *   OR Vx, Vy          8xy1   Vx = Vx | Vy
- *   AND Vx, Vy         8xy2   Vx = Vx & Vy
- *   XOR Vx, Vy         8xy3   Vx = Vx ^ Vy
- *   ADD Vx, Vy         8xy4   Vx = Vx + Vy, VF = acarreo
- *   SUB Vx, Vy         8xy5   Vx = Vx - Vy, VF = 1 si no hubo préstamo
- *   SHR Vx, Vy         8xy6   desplaza a la derecha, VF = bit que sale
- *   SUBN Vx, Vy        8xy7   Vx = Vy - Vx, VF = 1 si no hubo préstamo
- *   SHL Vx, Vy         8xyE   desplaza a la izquierda, VF = bit que sale
- *   SHR Vx / SHL Vx           formas cortas de SHR Vx, Vx y SHL Vx, Vx
- *   SNE Vx, Vy         9xy0   saltea la siguiente si Vx != Vy
- *   LD I, nnn          Annn   I = nnn
- *   JP V0, nnn         Bnnn   salta a nnn + V0
- *   JP Vx, xnn         Bxnn   la misma instrucción leída como en SUPER-CHIP
- *                             (salta a xnn + Vx): solo vale si x es el primer
- *                             dígito hexadecimal de la dirección, por ejemplo
- *                             "JP V3, 0x3A0" = B3A0 ("JP V1, 0x3A0" es un error)
- *   RND Vx, nn         Cxnn   Vx = número al azar & nn
- *   DRW Vx, Vy, n      Dxyn   dibuja un sprite de n filas en (Vx, Vy)
- *   SKP Vx             Ex9E   saltea la siguiente si la tecla Vx está apretada
- *   SKNP Vx            ExA1   saltea la siguiente si la tecla Vx NO está apretada
- *   LD Vx, DT          Fx07   Vx = temporizador de retardo
- *   LD Vx, K           Fx0A   espera una tecla y la guarda en Vx
- *   LD DT, Vx          Fx15   temporizador de retardo = Vx
- *   LD ST, Vx          Fx18   temporizador de sonido = Vx
- *   ADD I, Vx          Fx1E   I = I + Vx
- *   LD F, Vx           Fx29   I = dirección del dígito Vx de la fuente
- *   LD B, Vx           Fx33   guarda Vx en decimal (centenas, decenas, unidades)
- *   LD [I], Vx         Fx55   guarda V0..Vx en memoria a partir de I
- *   LD Vx, [I]         Fx65   carga V0..Vx desde memoria a partir de I
- *
- * SUPER-CHIP
- *   SCD n              00Cn   baja la imagen n píxeles
- *   SCR                00FB   corre la imagen 4 píxeles a la derecha
- *   SCL                00FC   corre la imagen 4 píxeles a la izquierda
- *   EXIT               00FD   termina el programa
- *   LOW                00FE   pasa a baja resolución (64 x 32)
- *   HIGH               00FF   pasa a alta resolución (128 x 64)
- *   LD HF, Vx          Fx30   I = dirección del dígito Vx de la fuente grande
- *   LD R, Vx           Fx75   guarda V0..Vx en las banderas RPL
- *   LD Vx, R           Fx85   carga V0..Vx desde las banderas RPL
- *
- * XO-CHIP
- *   SCU n              00Dn   sube la imagen n píxeles
- *   SAVE Vx, Vy        5xy2   guarda Vx..Vy en memoria a partir de I (I no cambia)
- *   LOAD Vx, Vy        5xy3   carga Vx..Vy desde memoria a partir de I (I no cambia)
- *   LD I, LONG nnnn    F000 nnnn
- *                             I = nnnn: la única instrucción de 4 bytes (la
- *                             palabra F000 y después nnnn)
- *   PLANE n            Fn01   elige los planos donde se dibuja (n = 0..3)
- *   AUDIO              F002   carga el patrón de sonido (16 bytes) desde I
- *   PITCH Vx           Fx3A   tono del sonido = Vx
- *
- *   El ensamblador no sabe para qué máquina es el programa: acepta todas las
- *   instrucciones en cualquier fuente, y es el emulador (según la plataforma
- *   elegida) el que las ejecuta o no. "SYS 0x0FF" sigue valiendo y da lo
- *   mismo que HIGH.
- *
- *   Todo lo que produce el desensamblador se puede volver a ensamblar, en
- *   cualquier plataforma, incluso "DW 0x5121" (así muestra las palabras que no
- *   son instrucciones válidas) y "JP V3, 0x3A0" (así muestra BNNN con el quirk
- *   de saltos de SUPER-CHIP).
- *
- *   Los registros y los nombres especiales (DT, ST, HF, ...) se escriben sin
- *   espacios adentro: "V 1" o "D T" son un error. Solo [I] admite espacios
- *   entre los corchetes ("[ I ]"). LONG va separado del valor por al menos un
- *   espacio: "LONG 0x1234", "LONG datos + 2".
- *
- * XO-CHIP: 64 KB (opción --xo, o { xochip: true } en la API)
- *   Sin la opción, el programa tiene que terminar antes de 0x1000, como en
- *   CHIP-8 y SUPER-CHIP. Con la opción puede llegar hasta 0xFFFF. En los dos
- *   casos las direcciones de 12 bits (SYS, JP, CALL, LD I y JP V0) van de 0 a
- *   0xFFF: lo que quede más arriba solo se alcanza con LD I, LONG, que acepta
- *   de 0 a 0xFFFF con o sin la opción (es solo un operando).
- *
- * EJEMPLO
- *       LD V0, 10          ; x
- *       LD V1, 5           ; y
- *       LD I, cara
- *       DRW V0, V1, 3
- *   fin: JP fin            ; un programa termina en un salto a sí mismo
- *   cara: DB %01000010, %00000000, %00111100
+ * Desde Node, como módulo:
+ *   const { assemble, formatListing } = require('./tools/chip8asm.js');
+ * Devuelve el globalThis.Chip8Asm del bloque (assemble, check, formatListing y
+ * headerTags) sin dejarlo como global. El bloque se busca en el chip8.html que
+ * está al lado de la carpeta tools/; si no está, o no tiene el bloque, require
+ * lanza un error que lo dice.
  */
-(function () {
-  'use strict';
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
 
-  // ------------------------------------------------------------------
-  // Utilidades
-  // ------------------------------------------------------------------
+const HTML_PATH = path.join(__dirname, '..', 'chip8.html');
+const OPEN_TAG = '<script id="chip8-asm">';
+const USAGE = 'Uso: node tools/chip8asm.js entrada.asm [salida.ch8] [--listing] [--xo]';
 
-  function hex(n, digits) {
-    return '0x' + n.toString(16).toUpperCase().padStart(digits, '0');
+// Explica en castellano los errores más comunes del sistema de archivos.
+function fsReason(e, file) {
+  if (e.code === 'ENOENT') {
+    const dir = path.dirname(path.resolve(file));
+    return fs.existsSync(dir) ? 'el archivo no existe' : 'la carpeta "' + path.dirname(file) + '" no existe';
   }
+  if (e.code === 'EISDIR') return 'es una carpeta, no un archivo';
+  if (e.code === 'EACCES' || e.code === 'EPERM') return 'no hay permiso';
+  if (e.code === 'EBUSY') return 'otro programa lo tiene abierto';
+  return e.message;
+}
 
-  function AsmError(lineNo, message) {
-    const err = new Error('Línea ' + lineNo + ': ' + message);
-    err.line = lineNo;
-    return err;
+// Saca el bloque chip8-asm de un HTML y lo evalúa en este mismo contexto (como tests/harness.js:
+// así lo que devuelve, como la Uint8Array de los bytes, es de este proceso). Devuelve
+// globalThis.Chip8Asm y deja el global como estaba.
+function loadAssembler(file) {
+  const name = path.basename(file);
+  let html;
+  try {
+    html = fs.readFileSync(file, 'utf8');
+  } catch (e) {
+    throw new Error('no pude leer "' + file + '", donde está el ensamblador: ' + fsReason(e, file));
   }
-
-  const DIRECTIVES = ['EQU', 'DB', 'DW'];
-  const MNEMONICS = ['CLS', 'RET', 'SYS', 'JP', 'CALL', 'SE', 'SNE', 'LD', 'ADD', 'OR', 'AND',
-    'XOR', 'SUB', 'SUBN', 'SHR', 'SHL', 'RND', 'DRW', 'SKP', 'SKNP',
-    'SCD', 'SCR', 'SCL', 'EXIT', 'LOW', 'HIGH',           // SUPER-CHIP
-    'SCU', 'SAVE', 'LOAD', 'PLANE', 'AUDIO', 'PITCH'];    // XO-CHIP
-  // Operandos que se escriben tal cual. HF (la fuente grande) y R (las banderas
-  // RPL) son de SUPER-CHIP.
-  const SPECIALS = ['I', 'DT', 'ST', 'K', 'F', 'B', 'HF', 'R'];
-  // La palabra que va delante del valor en "LD I, LONG nnnn" (XO-CHIP).
-  const LONG = 'LONG';
-
-  const NAME_RE = /^[A-Za-z_.][A-Za-z0-9_.]*$/;
-
-  function isReservedName(name) {
-    const up = name.toUpperCase();
-    return /^V[0-9A-F]$/.test(up) || SPECIALS.includes(up) || MNEMONICS.includes(up) ||
-      DIRECTIVES.includes(up) || up === '[I]' || up === LONG;
+  const start = html.indexOf(OPEN_TAG);
+  if (start < 0) throw new Error(name + ' no tiene el bloque ' + OPEN_TAG + ', donde está el ensamblador');
+  const bodyStart = start + OPEN_TAG.length;
+  const end = html.indexOf('</script>', bodyStart);
+  if (end < 0) throw new Error('el bloque ' + OPEN_TAG + ' de ' + name + ' no está cerrado');
+  const lineOffset = html.slice(0, bodyStart).split('\n').length - 1;
+  const had = Object.prototype.hasOwnProperty.call(globalThis, 'Chip8Asm');
+  const before = globalThis.Chip8Asm;
+  let api;
+  try {
+    delete globalThis.Chip8Asm;
+    new vm.Script(html.slice(bodyStart, end), { filename: file, lineOffset }).runInThisContext();
+    api = globalThis.Chip8Asm;
+  } catch (e) {
+    throw new Error('el bloque ' + OPEN_TAG + ' de ' + name + ' no anda: ' + e.message);
+  } finally {
+    if (had) globalThis.Chip8Asm = before;
+    else delete globalThis.Chip8Asm;
   }
-
-  // Quita el comentario (todo desde ";").
-  function stripComment(line) {
-    const i = line.indexOf(';');
-    return i >= 0 ? line.slice(0, i) : line;
+  if (!api || typeof api.assemble !== 'function' || typeof api.formatListing !== 'function') {
+    throw new Error('el bloque ' + OPEN_TAG + ' de ' + name + ' no definió globalThis.Chip8Asm');
   }
+  return api;
+}
 
-  // Separa operandos por comas. Una coma sin nada a un lado es un error.
-  function splitOperands(text, lineNo) {
-    const trimmed = text.trim();
-    if (trimmed === '') return [];
-    const parts = trimmed.split(',').map((s) => s.trim());
-    if (parts.some((p) => p === '')) throw AsmError(lineNo, 'falta un operando entre comas');
-    return parts;
-  }
-
-  // ------------------------------------------------------------------
-  // Números y expresiones
-  // ------------------------------------------------------------------
-
-  function parseNumber(tok, lineNo) {
-    let m;
-    if ((m = /^0x([0-9a-f]+)$/i.exec(tok))) return parseInt(m[1], 16);
-    if ((m = /^\$([0-9a-f]+)$/i.exec(tok))) return parseInt(m[1], 16);
-    if ((m = /^0b([01]+)$/i.exec(tok))) return parseInt(m[1], 2);
-    if ((m = /^%([01]+)$/.exec(tok))) return parseInt(m[1], 2);
-    if (/^[0-9]+$/.test(tok)) return parseInt(tok, 10);
-    throw AsmError(lineNo, 'número inválido: "' + tok + '"');
-  }
-
-  // Convierte el texto de una expresión en una lista de términos con signo:
-  // [{ sign: 1 | -1, kind: 'num' | 'name', value | name }]
-  function parseExpression(text, lineNo) {
-    const src = text.trim();
-    if (src === '') throw AsmError(lineNo, 'falta una expresión');
-    const terms = [];
-    let i = 0;
-    let expectTerm = true;
-    let sign = 1;
-    while (i < src.length) {
-      const c = src[i];
-      if (c === ' ' || c === '\t') { i++; continue; }
-      if (c === '+' || c === '-') {
-        if (expectTerm) {
-          if (c === '-') sign = -sign;
-        } else {
-          sign = c === '-' ? -1 : 1;
-          expectTerm = true;
-        }
-        i++;
-        continue;
-      }
-      if (!expectTerm) {
-        throw AsmError(lineNo, 'expresión inválida: "' + src + '" (falta + o - entre dos términos)');
-      }
-      let m;
-      const rest = src.slice(i);
-      if ((m = /^[0-9$%][0-9A-Za-z_]*/.exec(rest))) {
-        terms.push({ sign, kind: 'num', value: parseNumber(m[0], lineNo) });
-      } else if ((m = /^[A-Za-z_.][A-Za-z0-9_.]*/.exec(rest))) {
-        if (isReservedName(m[0])) {
-          throw AsmError(lineNo, 'no se puede usar "' + m[0] + '" dentro de una expresión (es un nombre reservado)');
-        }
-        terms.push({ sign, kind: 'name', name: m[0] });
-      } else {
-        throw AsmError(lineNo, 'carácter inesperado "' + c + '" en la expresión "' + src + '"');
-      }
-      i += m[0].length;
-      sign = 1;
-      expectTerm = false;
-    }
-    if (expectTerm) throw AsmError(lineNo, 'la expresión "' + src + '" está incompleta');
-    return terms;
-  }
-
-  // ------------------------------------------------------------------
-  // Operandos
-  // ------------------------------------------------------------------
-
-  // Clasifica un operando: registro, nombre especial, LONG valor o expresión.
-  function classify(text, lineNo) {
-    const up = text.trim().toUpperCase();
-    const m = /^V([0-9A-F])$/.exec(up);
-    if (m) return { kind: 'reg', reg: parseInt(m[1], 16), text };
-    if (/^\[\s*I\s*\]$/.test(up)) return { kind: '[I]', text };
-    if (SPECIALS.includes(up)) return { kind: up, text };
-    // "LONG valor": la palabra LONG, uno o más espacios y una expresión. `expr`
-    // es el texto del valor solo, para los mensajes de rango.
-    const long = /^LONG(?:\s+(.*))?$/i.exec(text.trim());
-    if (long) {
-      if (long[1] === undefined) {
-        throw AsmError(lineNo, 'falta la dirección después de LONG (por ejemplo: LD I, LONG 0x1234)');
-      }
-      return { kind: LONG, terms: parseExpression(long[1], lineNo), text, expr: long[1] };
-    }
-    // "V 1", "D T": un registro o nombre especial con espacios adentro.
-    const joined = up.replace(/\s+/g, '');
-    if (joined !== up && (/^V[0-9A-F]$/.test(joined) || SPECIALS.includes(joined))) {
-      throw AsmError(lineNo, 'el operando "' + text.trim() + '" tiene espacios adentro: se escribe "' +
-        text.trim().replace(/\s+/g, '') + '"');
-    }
-    return { kind: 'expr', terms: parseExpression(text, lineNo), text };
-  }
-
-  // Tabla de codificación: para cada mnemónico, las combinaciones de operandos
-  // aceptadas. R = registro, N = expresión, LONG = "LONG valor"; el resto son
-  // literales.
-  // Cada entrada: [patrón, función(ops, val) -> opcode, tamaño en bytes (2 si falta)].
-  // Una instrucción de 4 bytes devuelve [palabra, palabra] en vez de un opcode.
-  // val(op, tipo) evalúa una expresión y controla el rango ('byte', 'addr',
-  // 'nibble', ...: ver checked()).
-  const R = 'reg';
-  const N = 'expr';
-  // La palabra R de "LD R, Vx" y "LD Vx, R" (las banderas RPL de SUPER-CHIP).
-  // No confundir con la R de arriba, que quiere decir "un registro V0..VF".
-  const FLAGS = 'R';
-  const TABLE = {
-    CLS: [[[], () => 0x00E0]],
-    RET: [[[], () => 0x00EE]],
-    SYS: [[[N], (o, v) => v(o[0], 'addr')]],
-    JP: [
-      [[N], (o, v) => 0x1000 | v(o[0], 'addr')],
-      // BNNN. "JP V0, nnn" es la lectura clásica (salta a nnn + V0); "JP Vx, xnn"
-      // es la de SUPER-CHIP (salta a xnn + Vx), y solo existe si x es el primer
-      // dígito de la dirección, porque ese dígito es el que elige el registro.
-      [[R, N], (o, v, line) => {
-        const addr = v(o[1], 'addr');
-        const x = o[0].reg;
-        if (x !== 0 && x !== addr >> 8) {
-          const X = x.toString(16).toUpperCase();
-          throw AsmError(line, 'JP V' + X + ' solo se puede usar con una dirección que empiece con ' + X +
-            ' (0x' + X + '00..0x' + X + 'FF, la forma BXNN de SUPER-CHIP), y ' + hex(addr, 3) +
-            ' no empieza con ' + X + '; JP V0 acepta cualquier dirección');
-        }
-        return 0xB000 | addr;
-      }],
-    ],
-    CALL: [[[N], (o, v) => 0x2000 | v(o[0], 'addr')]],
-    SE: [
-      [[R, N], (o, v) => 0x3000 | (o[0].reg << 8) | v(o[1], 'byte')],
-      [[R, R], (o) => 0x5000 | (o[0].reg << 8) | (o[1].reg << 4)],
-    ],
-    SNE: [
-      [[R, N], (o, v) => 0x4000 | (o[0].reg << 8) | v(o[1], 'byte')],
-      [[R, R], (o) => 0x9000 | (o[0].reg << 8) | (o[1].reg << 4)],
-    ],
-    LD: [
-      [[R, N], (o, v) => 0x6000 | (o[0].reg << 8) | v(o[1], 'byte')],
-      [[R, R], (o) => 0x8000 | (o[0].reg << 8) | (o[1].reg << 4)],
-      [['I', N], (o, v) => 0xA000 | v(o[1], 'iaddr')],
-      [[R, 'DT'], (o) => 0xF007 | (o[0].reg << 8)],
-      [[R, 'K'], (o) => 0xF00A | (o[0].reg << 8)],
-      [['DT', R], (o) => 0xF015 | (o[1].reg << 8)],
-      [['ST', R], (o) => 0xF018 | (o[1].reg << 8)],
-      [['F', R], (o) => 0xF029 | (o[1].reg << 8)],
-      [['B', R], (o) => 0xF033 | (o[1].reg << 8)],
-      [['[I]', R], (o) => 0xF055 | (o[1].reg << 8)],
-      [[R, '[I]'], (o) => 0xF065 | (o[0].reg << 8)],
-      // SUPER-CHIP
-      [['HF', R], (o) => 0xF030 | (o[1].reg << 8)],
-      [[FLAGS, R], (o) => 0xF075 | (o[1].reg << 8)],
-      [[R, FLAGS], (o) => 0xF085 | (o[0].reg << 8)],
-      // XO-CHIP: F000 seguida de la dirección de 16 bits.
-      [['I', LONG], (o, v) => [0xF000, v(o[1], 'long')], 4],
-    ],
-    ADD: [
-      [[R, N], (o, v) => 0x7000 | (o[0].reg << 8) | v(o[1], 'byte')],
-      [[R, R], (o) => 0x8004 | (o[0].reg << 8) | (o[1].reg << 4)],
-      [['I', R], (o) => 0xF01E | (o[1].reg << 8)],
-    ],
-    OR: [[[R, R], (o) => 0x8001 | (o[0].reg << 8) | (o[1].reg << 4)]],
-    AND: [[[R, R], (o) => 0x8002 | (o[0].reg << 8) | (o[1].reg << 4)]],
-    XOR: [[[R, R], (o) => 0x8003 | (o[0].reg << 8) | (o[1].reg << 4)]],
-    SUB: [[[R, R], (o) => 0x8005 | (o[0].reg << 8) | (o[1].reg << 4)]],
-    SUBN: [[[R, R], (o) => 0x8007 | (o[0].reg << 8) | (o[1].reg << 4)]],
-    SHR: [
-      [[R], (o) => 0x8006 | (o[0].reg << 8) | (o[0].reg << 4)],
-      [[R, R], (o) => 0x8006 | (o[0].reg << 8) | (o[1].reg << 4)],
-    ],
-    SHL: [
-      [[R], (o) => 0x800E | (o[0].reg << 8) | (o[0].reg << 4)],
-      [[R, R], (o) => 0x800E | (o[0].reg << 8) | (o[1].reg << 4)],
-    ],
-    RND: [[[R, N], (o, v) => 0xC000 | (o[0].reg << 8) | v(o[1], 'byte')]],
-    DRW: [[[R, R, N], (o, v) => 0xD000 | (o[0].reg << 8) | (o[1].reg << 4) | v(o[2], 'nibble')]],
-    SKP: [[[R], (o) => 0xE09E | (o[0].reg << 8)]],
-    SKNP: [[[R], (o) => 0xE0A1 | (o[0].reg << 8)]],
-    // SUPER-CHIP (LD HF, LD R y LD Vx, R están con LD)
-    SCD: [[[N], (o, v) => 0x00C0 | v(o[0], 'nibble')]],
-    SCR: [[[], () => 0x00FB]],
-    SCL: [[[], () => 0x00FC]],
-    EXIT: [[[], () => 0x00FD]],
-    LOW: [[[], () => 0x00FE]],
-    HIGH: [[[], () => 0x00FF]],
-    // XO-CHIP (LD I, LONG está con LD)
-    SCU: [[[N], (o, v) => 0x00D0 | v(o[0], 'nibble')]],
-    SAVE: [[[R, R], (o) => 0x5002 | (o[0].reg << 8) | (o[1].reg << 4)]],
-    LOAD: [[[R, R], (o) => 0x5003 | (o[0].reg << 8) | (o[1].reg << 4)]],
-    PLANE: [[[N], (o, v) => 0xF001 | (v(o[0], 'plane') << 8)]],
-    AUDIO: [[[], () => 0xF002]],
-    PITCH: [[[R], (o) => 0xF03A | (o[0].reg << 8)]],
+// ------------------------------------------------------------------
+// Línea de comandos
+// ------------------------------------------------------------------
+function main() {
+  // Muestra el problema y el uso, y termina con código 1.
+  const fail = (message) => {
+    console.error('chip8asm: ' + message + '\n' + USAGE);
+    process.exit(1);
   };
 
-  function describePattern(mnemonic, pattern) {
-    const names = pattern.map((p) => (p === R ? 'Vx' : p === N ? 'valor' : p === LONG ? 'LONG valor' : p));
-    return (mnemonic + ' ' + names.join(', ')).trim();
+  const args = process.argv.slice(2);
+  if (args.includes('--help') || args.includes('-h')) {
+    console.log(USAGE);
+    process.exit(0);
   }
-
-  // Busca el patrón que coincide con los operandos, o lanza un error explicativo.
-  // Devuelve { encode, size }.
-  function matchPattern(mnemonic, ops, lineNo) {
-    const options = TABLE[mnemonic];
-    for (const entry of options) {
-      const pattern = entry[0];
-      if (pattern.length !== ops.length) continue;
-      if (pattern.every((p, i) => ops[i].kind === p)) return { encode: entry[1], size: entry[2] || 2 };
-    }
-    const counts = Array.from(new Set(options.map((e) => e[0].length))).sort();
-    const forms = options.map((e) => describePattern(mnemonic, e[0])).join(' | ');
-    if (!counts.includes(ops.length)) {
-      const expected = counts.join(' o ');
-      throw AsmError(lineNo, mnemonic + ' espera ' + expected + ' operando' +
-        (counts.length === 1 && counts[0] === 1 ? '' : 's') + ' y recibió ' + ops.length +
-        ' (formas válidas: ' + forms + ')');
-    }
-    const given = ops.map((o) => o.text).join(', ');
-    throw AsmError(lineNo, 'operandos inválidos para ' + mnemonic + ': "' + given +
-      '" (formas válidas: ' + forms + ')');
+  let wantListing = false;
+  let xochip = false;
+  const files = [];
+  for (const a of args) {
+    if (a === '--listing') wantListing = true;
+    else if (a === '--xo') xochip = true;
+    else if (a.startsWith('-') && a !== '-') fail('opción desconocida: ' + a);
+    else files.push(a);
   }
-
-  // ------------------------------------------------------------------
-  // Ensamblador
-  // ------------------------------------------------------------------
-
-  function assemble(source, options) {
-    const origin = options && options.origin !== undefined ? options.origin : 0x200;
-    // Con xochip el programa puede ocupar la memoria de XO-CHIP (64 KB).
-    const xochip = Boolean(options && options.xochip);
-    const memoryEnd = xochip ? 0x10000 : 0x1000; // la primera dirección que ya no existe
-    if (typeof source !== 'string') throw new TypeError('assemble() espera el código fuente como texto');
-    if (!Number.isInteger(origin) || origin < 0 || origin >= memoryEnd) {
-      throw new RangeError('origin debe ser una dirección entre 0x000 y ' + hex(memoryEnd - 1, 3));
-    }
-
-    const lines = source.split(/\r\n|\r|\n/);
-    const labels = Object.create(null);     // nombre -> dirección
-    const constants = Object.create(null);  // nombre -> { terms, line }
-    const defined = Object.create(null);    // nombre -> línea donde se definió
-    const items = [];                       // una entrada por línea
-
-    function define(name, lineNo) {
-      if (!NAME_RE.test(name)) throw AsmError(lineNo, 'nombre inválido: "' + name + '"');
-      if (isReservedName(name)) {
-        throw AsmError(lineNo, '"' + name + '" es un nombre reservado y no puede usarse como etiqueta ni constante');
-      }
-      if (defined[name] !== undefined) {
-        throw AsmError(lineNo, '"' + name + '" ya estaba definido en la línea ' + defined[name]);
-      }
-      defined[name] = lineNo;
-    }
-
-    // ---------- Primera pasada: direcciones, etiquetas y constantes ----------
-    let addr = origin;
-    lines.forEach((raw, idx) => {
-      const lineNo = idx + 1;
-      let text = stripComment(raw).trim();
-      const item = { line: lineNo, addr, text: raw.replace(/\s+$/, ''), kind: 'none' };
-      items.push(item);
-      if (text === '') return;
-
-      // NOMBRE EQU expresión
-      let m = /^([^\s:,]+)\s+EQU(?:\s+(.*))?$/i.exec(text);
-      if (m) {
-        define(m[1], lineNo);
-        if (m[2] === undefined || m[2].trim() === '') throw AsmError(lineNo, 'EQU necesita un valor');
-        constants[m[1]] = { terms: parseExpression(m[2], lineNo), line: lineNo };
-        return;
-      }
-
-      // etiqueta:
-      m = /^([^\s:,;]+)\s*:(.*)$/.exec(text);
-      if (m) {
-        define(m[1], lineNo);
-        labels[m[1]] = addr;
-        text = m[2].trim();
-        if (text === '') return;
-      }
-
-      m = /^(\S+)(?:\s+(.*))?$/.exec(text);
-      const word = m[1];
-      const up = word.toUpperCase();
-      const operandText = m[2] || '';
-
-      if (up === 'EQU') throw AsmError(lineNo, 'EQU necesita un nombre: NOMBRE EQU valor');
-      if (up === 'DB' || up === 'DW') {
-        const ops = splitOperands(operandText, lineNo);
-        if (ops.length === 0) throw AsmError(lineNo, up + ' necesita al menos un valor');
-        item.kind = up;
-        item.exprs = ops.map((o) => parseExpression(o, lineNo));
-        item.size = ops.length * (up === 'DB' ? 1 : 2);
-      } else if (TABLE[up]) {
-        const ops = splitOperands(operandText, lineNo).map((o) => classify(o, lineNo));
-        const match = matchPattern(up, ops, lineNo);
-        item.kind = 'ins';
-        item.encode = match.encode;
-        item.ops = ops;
-        item.size = match.size;
-      } else if (/^[^\s:]+:/.test(word)) {
-        throw AsmError(lineNo, 'etiqueta inválida: "' + word + '"');
-      } else {
-        throw AsmError(lineNo, 'instrucción desconocida: "' + word + '"');
-      }
-      if (addr + item.size > memoryEnd) {
-        throw AsmError(lineNo, xochip
-          ? 'el programa no entra en la memoria de XO-CHIP (se pasa de la dirección 0xFFFF)'
-          : 'el programa no entra en la memoria (se pasa de la dirección 0xFFF; si es para XO-CHIP, ' +
-            'que llega hasta 0xFFFF, ensamblá con --xo o con la opción xochip)');
-      }
-      addr += item.size;
-    });
-
-    // ---------- Evaluación de expresiones ----------
-    const resolving = Object.create(null);
-    const constValues = Object.create(null);
-
-    function evalTerms(terms, lineNo) {
-      let total = 0;
-      for (const t of terms) {
-        let value;
-        if (t.kind === 'num') {
-          value = t.value;
-        } else if (labels[t.name] !== undefined) {
-          value = labels[t.name];
-        } else if (constants[t.name] !== undefined) {
-          value = constValue(t.name, lineNo);
-        } else {
-          const hint = /^v[0-9a-f]+$/i.test(t.name) ? ' (los registros van de V0 a VF)' : '';
-          throw AsmError(lineNo, 'etiqueta o constante desconocida: "' + t.name + '"' + hint);
-        }
-        total += t.sign * value;
-      }
-      return total;
-    }
-
-    function constValue(name, lineNo) {
-      if (constValues[name] !== undefined) return constValues[name];
-      if (resolving[name]) throw AsmError(lineNo, 'definición circular: la constante "' + name + '" depende de sí misma');
-      resolving[name] = true;
-      const c = constants[name];
-      const value = evalTerms(c.terms, c.line);
-      resolving[name] = false;
-      constValues[name] = value;
-      return value;
-    }
-
-    function checked(value, type, lineNo, text) {
-      const shown = '"' + text + '" = ' + value;
-      if (type === 'byte') {
-        if (value < -128 || value > 255) throw AsmError(lineNo, 'valor fuera de rango para un byte (-128..255): ' + shown);
-        return value & 0xFF;
-      }
-      // 'iaddr' es la dirección de LD I: el mismo rango, y si el valor entra en
-      // 16 bits el mensaje sugiere LD I, LONG.
-      if (type === 'addr' || type === 'iaddr') {
-        if (value < 0 || value > 0xFFF) {
-          const hint = type === 'iaddr' && value > 0xFFF && value <= 0xFFFF
-            ? '; para cargar en I una dirección de 16 bits usá LD I, LONG (XO-CHIP)' : '';
-          throw AsmError(lineNo, 'dirección fuera de rango (0..0xFFF): ' + shown + hint);
-        }
-        return value;
-      }
-      if (type === 'long') {
-        if (value < 0 || value > 0xFFFF) {
-          throw AsmError(lineNo, 'dirección fuera de rango para LD I, LONG (0..0xFFFF): ' + shown);
-        }
-        return value;
-      }
-      if (type === 'nibble') {
-        if (value < 0 || value > 15) throw AsmError(lineNo, 'valor fuera de rango para un nibble (0..15): ' + shown);
-        return value;
-      }
-      if (type === 'plane') {
-        if (value < 0 || value > 3) throw AsmError(lineNo, 'valor fuera de rango para PLANE (0..3): ' + shown);
-        return value;
-      }
-      if (type === 'word') {
-        if (value < -32768 || value > 0xFFFF) throw AsmError(lineNo, 'valor fuera de rango para una palabra (-32768..65535): ' + shown);
-        return value & 0xFFFF;
-      }
-      throw new Error('tipo desconocido ' + type);
-    }
-
-    // Todas las constantes se evalúan aunque no se usen, para reportar errores.
-    for (const name of Object.keys(constants)) constValue(name, constants[name].line);
-
-    // ---------- Segunda pasada: generar bytes ----------
-    const bytes = new Uint8Array(addr - origin);
-    const listing = [];
-    for (const item of items) {
-      const out = [];
-      if (item.kind === 'ins') {
-        const val = (op, type) => checked(evalTerms(op.terms, item.line), type, item.line,
-          (op.expr !== undefined ? op.expr : op.text).trim());
-        // Un opcode, o una lista de palabras en las instrucciones de 4 bytes.
-        for (const word of [].concat(item.encode(item.ops, val, item.line))) {
-          out.push((word >> 8) & 0xFF, word & 0xFF);
-        }
-      } else if (item.kind === 'DB') {
-        for (const terms of item.exprs) {
-          out.push(checked(evalTerms(terms, item.line), 'byte', item.line, termsText(terms)));
-        }
-      } else if (item.kind === 'DW') {
-        for (const terms of item.exprs) {
-          const w = checked(evalTerms(terms, item.line), 'word', item.line, termsText(terms));
-          out.push((w >> 8) & 0xFF, w & 0xFF);
-        }
-      }
-      bytes.set(out, item.addr - origin);
-      listing.push({ line: item.line, addr: item.addr, bytes: out, text: item.text });
-    }
-
-    const labelsOut = {};
-    for (const name of Object.keys(labels)) labelsOut[name] = labels[name];
-    return { bytes, labels: labelsOut, listing };
+  if (files.length < 1) fail('falta el archivo de entrada');
+  if (files.length > 2) fail('sobran argumentos: ' + files.slice(2).join(' '));
+  const input = files[0];
+  const output = files[1] || input.replace(/\.[^./\\]*$/, '') + '.ch8';
+  let source;
+  try {
+    source = fs.readFileSync(input, 'utf8');
+  } catch (e) {
+    console.error('No pude leer "' + input + '": ' + fsReason(e, input));
+    process.exit(1);
   }
-
-  function termsText(terms) {
-    return terms.map((t, i) => {
-      const s = t.kind === 'num' ? String(t.value) : t.name;
-      if (i === 0) return (t.sign < 0 ? '-' : '') + s;
-      return (t.sign < 0 ? ' - ' : ' + ') + s;
-    }).join('');
+  let api;
+  try {
+    api = loadAssembler(HTML_PATH);
+  } catch (e) {
+    console.error('chip8asm: ' + e.message);
+    process.exit(1);
   }
-
-  // Da formato al listado para mostrarlo en la terminal.
-  function formatListing(listing) {
-    // Si algún byte queda más allá de 0xFFF (XO-CHIP), todas las direcciones
-    // llevan 4 dígitos, para que las columnas sigan alineadas.
-    const digits = listing.some((e) => e.bytes.length > 0 && e.addr + e.bytes.length - 1 > 0xFFF) ? 4 : 3;
-    const rows = [];
-    for (const entry of listing) {
-      const chunks = [];
-      for (let i = 0; i < entry.bytes.length; i += 4) chunks.push(entry.bytes.slice(i, i + 4));
-      if (chunks.length === 0) chunks.push([]);
-      chunks.forEach((chunk, i) => {
-        const a = entry.bytes.length ? hex(entry.addr + i * 4, digits) : ' '.repeat(digits + 2);
-        const b = chunk.map((x) => x.toString(16).toUpperCase().padStart(2, '0')).join(' ').padEnd(12);
-        const lineNo = String(entry.line).padStart(4);
-        rows.push(lineNo + '  ' + a + '  ' + b + (i === 0 ? entry.text : ''));
-      });
-    }
-    return rows.join('\n');
+  let result;
+  try {
+    result = api.assemble(source, { xochip });
+  } catch (e) {
+    console.error(path.basename(input) + ': ' + e.message);
+    process.exit(1);
   }
-
-  const api = { assemble, formatListing };
-
-  if (typeof module !== 'undefined' && module.exports) {
-    module.exports = api;
-  } else {
-    globalThis.Chip8Asm = api;
+  try {
+    fs.writeFileSync(output, result.bytes);
+  } catch (e) {
+    console.error('No pude escribir "' + output + '": ' + fsReason(e, output));
+    process.exit(1);
   }
+  if (wantListing) console.log(api.formatListing(result.listing));
+  console.log('Ensamblado ' + path.basename(input) + ': ' + result.bytes.length + ' bytes -> ' + output);
+}
 
-  // ------------------------------------------------------------------
-  // Línea de comandos
-  // ------------------------------------------------------------------
-  if (typeof require !== 'undefined' && typeof module !== 'undefined' && require.main === module) {
-    const fs = require('fs');
-    const path = require('path');
-    const USAGE = 'Uso: node tools/chip8asm.js entrada.asm [salida.ch8] [--listing] [--xo]';
-    // Muestra el problema y el uso, y termina con código 1.
-    const fail = (message) => {
-      console.error('chip8asm: ' + message + '\n' + USAGE);
-      process.exit(1);
-    };
-    // Explica en castellano los errores más comunes del sistema de archivos.
-    const fsReason = (e, file) => {
-      if (e.code === 'ENOENT') {
-        const dir = path.dirname(path.resolve(file));
-        return fs.existsSync(dir) ? 'el archivo no existe' : 'la carpeta "' + path.dirname(file) + '" no existe';
-      }
-      if (e.code === 'EISDIR') return 'es una carpeta, no un archivo';
-      if (e.code === 'EACCES' || e.code === 'EPERM') return 'no hay permiso';
-      if (e.code === 'EBUSY') return 'otro programa lo tiene abierto';
-      return e.message;
-    };
-
-    const args = process.argv.slice(2);
-    if (args.includes('--help') || args.includes('-h')) {
-      console.log(USAGE);
-      process.exit(0);
-    }
-    let wantListing = false;
-    let xochip = false;
-    const files = [];
-    for (const a of args) {
-      if (a === '--listing') wantListing = true;
-      else if (a === '--xo') xochip = true;
-      else if (a.startsWith('-') && a !== '-') fail('opción desconocida: ' + a);
-      else files.push(a);
-    }
-    if (files.length < 1) fail('falta el archivo de entrada');
-    if (files.length > 2) fail('sobran argumentos: ' + files.slice(2).join(' '));
-    const input = files[0];
-    const output = files[1] || input.replace(/\.[^./\\]*$/, '') + '.ch8';
-    let source;
-    try {
-      source = fs.readFileSync(input, 'utf8');
-    } catch (e) {
-      console.error('No pude leer "' + input + '": ' + fsReason(e, input));
-      process.exit(1);
-    }
-    let result;
-    try {
-      result = assemble(source, { xochip });
-    } catch (e) {
-      console.error(path.basename(input) + ': ' + e.message);
-      process.exit(1);
-    }
-    try {
-      fs.writeFileSync(output, result.bytes);
-    } catch (e) {
-      console.error('No pude escribir "' + output + '": ' + fsReason(e, output));
-      process.exit(1);
-    }
-    if (wantListing) console.log(formatListing(result.listing));
-    console.log('Ensamblado ' + path.basename(input) + ': ' + result.bytes.length + ' bytes -> ' + output);
-  }
-})();
+if (require.main === module) main();
+else module.exports = loadAssembler(HTML_PATH);

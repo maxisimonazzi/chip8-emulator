@@ -215,15 +215,16 @@ describe('tools/embed-roms.js', () => {
   });
 });
 
-// Corre una copia de embed-roms.js (con el ensamblador) en una carpeta temporal
-// con sus propios roms/*.asm: la herramienta busca roms/ al lado de tools/, así
-// que nada de esto toca el repositorio.
+// Corre una copia de embed-roms.js (con el ensamblador y el chip8.html de donde lo
+// saca) en una carpeta temporal con sus propios roms/*.asm: la herramienta busca
+// roms/ al lado de tools/, así que nada de esto toca el repositorio.
 function embedSandbox(files, fn) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'embed-platform-'));
   try {
     fs.mkdirSync(path.join(dir, 'tools'));
     fs.mkdirSync(path.join(dir, 'roms'));
     for (const f of ['embed-roms.js', 'chip8asm.js']) fs.copyFileSync(path.join(ROOT, 'tools', f), path.join(dir, 'tools', f));
+    fs.copyFileSync(path.join(ROOT, 'chip8.html'), path.join(dir, 'chip8.html'));
     for (const [name, text] of Object.entries(files)) fs.writeFileSync(path.join(dir, 'roms', name), text);
     const html = path.join(dir, 'pagina.html');
     fs.writeFileSync(html, '<script id="chip8-roms">\n</script>\n');

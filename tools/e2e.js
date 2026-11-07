@@ -114,6 +114,19 @@
  *      borrar y sigue andando), dañados («DAÑADO» y el error al cargar) y sin cartucho (la explicación)
  *   49 diseño con «Estados» a la vista: 1440, 768 y 360 px (pantallitas con escala entera, botones enteros)
  *   50 rebobinado a 60 fps con XO-CHIP a 1000 IPF: Planos y una ROM que reescribe la memoria de 64 KB
+ *   51 Taller: se abre al costado sin tapar la pantalla (1440×900), trae los ejemplos y los fuentes de los
+ *      cartuchos; Ctrl+Enter ensambla y corre (no va a «Tus cartuchos»; workshopSymbols()); Y y Esc
+ *   52 Taller: los errores en el margen de su renglón, la lista, el cursor en el primero, la revisión sola
+ *      mientras se corrigen y el margen alineado con el texto (rueda del mouse, un error en el renglón 600)
+ *   53 Taller: «sin guardar» aunque recargues, Guardar, «Restaurar el original» y Borrar (con «Deshacer»),
+ *      Nuevo, Tab, Mayús+Tab y Ctrl+Z, el nombre (Esc deshace lo escrito) y el formato de
+ *      localStorage['chip8-consola.taller']
+ *   54 Taller: «Abrir .asm» con @platform xochip corre en XO-CHIP; Plataforma escribe la etiqueta (una que no
+ *      vale es un error en su renglón); «Descargar .asm» y «Descargar .ch8» exactos
+ *   55 Taller sin almacenamiento, sin lugar (QuotaExceededError real) y con datos dañados
+ *   56 diseño con el Taller abierto: 1440 y 1280 px al costado, 768 y 360 px debajo (a 360, con un toque)
+ *   57 Taller con el teclado y para lectores de pantalla (roles, nombres, Tab, Esc, foco, Plataforma con las
+ *      flechas, Y desde la pantalla completa) y a 60 fps con 10.000 IPF mientras se escribe
  */
 
 const { spawn, spawnSync } = require('node:child_process');
@@ -4130,6 +4143,661 @@ bucle:  LD [I], VF              ; 16 bytes (I avanza 16 con el quirk de memoria 
   s.check(info2.bytes <= 48 * 1024 * 1024, `el buffer respeta su tope de 48 MB (${(info2.bytes / 1048576).toFixed(1)} MB)`);
   s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
 }, 120000);
+
+// ---------------------------------------------------------------- ayudas de los escenarios 51 en adelante (el Taller)
+const WORKSHOP_KEY = 'chip8-consola.taller';
+const ejemplo = (name) => fs.readFileSync(path.join(ROOT, 'docs', 'ejemplos', name), 'utf8');
+const romSource = (id) => fs.readFileSync(path.join(ROOT, 'roms', id + '.asm'), 'utf8');
+
+// Una tecla con modificadores, como la manda el teclado (Ctrl = 2, Mayús = 8).
+async function comboKey(page, code, modifiers) {
+  const k = KEYS[code];
+  await page.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', code, key: k.key, windowsVirtualKeyCode: k.vk, nativeVirtualKeyCode: k.vk, modifiers });
+  await page.send('Input.dispatchKeyEvent', { type: 'keyUp', code, key: k.key, windowsVirtualKeyCode: k.vk, nativeVirtualKeyCode: k.vk, modifiers });
+}
+// Escribe en el elemento enfocado como un teclado (o un dictado): el texto entra donde está el cursor.
+const insertText = (page, text) => page.send('Input.insertText', { text });
+// Pone el foco en el editor y el cursor (o una selección) donde se pide, como un clic.
+const editorSelect = (page, start, end = start) => page.ev(`(() => { const t = document.getElementById('ws-text'); t.focus(); t.setSelectionRange(${start}, ${end}); return true; })()`);
+// Elige un renglón entero del editor (desde 1, sin el salto de línea).
+const editorSelectLine = (page, line) => page.ev(`(() => { const t = document.getElementById('ws-text'), v = t.value; let a = 0; for (let i = 1; i < ${line}; i++) a = v.indexOf('\\n', a) + 1; let b = v.indexOf('\\n', a); if (b < 0) b = v.length; t.focus(); t.setSelectionRange(a, b); return [a, b]; })()`);
+
+// Lo que se ve del Taller: el editor (texto, cursor, foco, renglones y los marcados), la lista de errores,
+// los selectores, la descripción, los avisos y qué botones están.
+function editorView(page) {
+  return page.ev(`(() => {
+    const $ = (id) => document.getElementById(id), t = $('ws-text'), lines = Array.from(document.querySelectorAll('#ws-lines .ws-ln'));
+    const sel = $('ws-program');
+    return { open: !$('workshop').hidden, text: t.value, focus: document.activeElement === t, active: document.activeElement ? document.activeElement.id : null,
+      caretLine: t.value.slice(0, t.selectionStart).split('\\n').length, start: t.selectionStart, end: t.selectionEnd,
+      lines: lines.length, marked: lines.filter((l) => l.classList.contains('is-err')).map((l) => Number(l.textContent)),
+      errors: Array.from(document.querySelectorAll('#ws-errors .ws-err')).map((b) => b.textContent), invalid: t.getAttribute('aria-invalid'),
+      status: $('ws-status').textContent, program: sel.value, option: sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : '',
+      options: Array.from(sel.options).map((o) => o.textContent), platform: $('ws-platform').value, about: $('ws-about').textContent,
+      note: $('ws-note').hidden ? '' : $('ws-note').textContent, badge: !$('ws-badge').hidden, saveOn: !$('ws-save').disabled,
+      restore: !$('ws-restore').hidden, remove: !$('ws-delete').hidden, name: $('ws-name-field').hidden ? null : $('ws-name').value };
+  })()`);
+}
+// El margen va con el texto: para tres renglones a la vista, el número está a la altura de su renglón
+// (el editor tiene renglones de 20 px y 8 px de margen arriba).
+const GUTTER_EXPR = `(() => {
+  const t = document.getElementById('ws-text'), r = t.getBoundingClientRect(), lines = document.querySelectorAll('#ws-lines .ws-ln');
+  const first = Math.floor(t.scrollTop / 20) + 1, out = [];
+  for (const k of [first, first + 7, first + 14]) {
+    const el = lines[k - 1];
+    if (!el) continue;
+    out.push({ k, text: Number(el.textContent), diff: Math.round((el.getBoundingClientRect().top - (r.top + 8 + (k - 1) * 20 - t.scrollTop)) * 10) / 10 });
+  }
+  return { scrollTop: t.scrollTop, out, ok: out.length === 3 && out.every((o) => o.text === o.k && Math.abs(o.diff) <= 0.5) };
+})()`;
+const wsOpen = (page) => page.waitFor("!document.getElementById('workshop').hidden", { timeout: 3000, desc: 'el Taller abierto' });
+
+// 51 -------------------------------------------------------------------------------
+scenario(51, 'Taller: se abre al costado sin tapar la pantalla, trae los ejemplos y los fuentes de los cartuchos, y un ejemplo se ensambla y corre con Ctrl+Enter (sin ir a «Tus cartuchos», con sus etiquetas para el depurador); Y y Esc', async (ctx, s) => {
+  const page = await freshApp(ctx, s, { width: 1440, height: 900 });
+  await clickHit(page, '#btn-workshop');
+  await wsOpen(page);
+  await sleep(150);
+  const geo = await page.ev(`(() => {
+    const r = (el) => { const b = el.getBoundingClientRect(); return { l: Math.round(b.left), r: Math.round(b.right), t: Math.round(b.top), b: Math.round(b.bottom) }; };
+    const ws = document.getElementById('workshop'), crt = document.getElementById('crt'), con = document.getElementById('console');
+    const c = r(crt), at = document.elementFromPoint((c.l + c.r) / 2, (c.t + c.b) / 2);
+    return { ws: r(ws), crt: c, con: r(con), fixed: getComputedStyle(ws).position, hit: crt.contains(at), iw: innerWidth, ih: innerHeight, sw: document.documentElement.scrollWidth,
+      expanded: document.getElementById('btn-workshop').getAttribute('aria-expanded'), focus: document.activeElement && document.activeElement.id,
+      groups: Array.from(document.querySelectorAll('#ws-program optgroup')).map((g) => g.label + ':' + g.children.length) };
+  })()`);
+  s.check(geo.fixed === 'fixed' && geo.ws.r <= geo.iw && geo.ws.t >= 0 && geo.ws.b <= geo.ih && geo.ws.l > geo.con.r && geo.hit && geo.sw <= geo.iw,
+    `1440×900: el Taller va fijo a la derecha (${geo.ws.l}–${geo.ws.r} px) y la consola entera queda a su izquierda (${geo.con.l}–${geo.con.r} px): la pantalla se ve y un clic en ella le llega`, JSON.stringify(geo));
+  s.check(geo.expanded === 'true' && geo.focus === 'ws-text', 'el botón del lápiz dice que está abierto (aria-expanded) y el foco queda en el editor', JSON.stringify(geo));
+  s.check(sameList(geo.groups, ['Ejemplos del tutorial:11', 'Cartuchos incluidos:6']), `la lista trae los 11 ejemplos del tutorial y los 6 fuentes de los cartuchos (${geo.groups.join(', ')})`);
+  const first = await editorView(page);
+  s.check(first.program === 'demo:rebote' && first.text === romSource('rebote') && first.lines === first.text.split('\n').length && /Fuente del cartucho «Rebote»/.test(first.about),
+    `la primera vez abre el fuente del cartucho que está en la ranura (Rebote, ${first.lines} renglones numerados)`, JSON.stringify({ program: first.program, lines: first.lines, about: first.about }));
+  const g1 = await page.ev(GUTTER_EXPR);
+  s.check(g1.ok, 'cada número del margen está a la altura de su renglón', JSON.stringify(g1));
+
+  // Un ejemplo del tutorial, elegido con el mouse, y Ctrl+Enter en el editor.
+  const chosen = await chooseWithMouse(page, '#ws-program', 'ejemplo:03-fantasma.asm');
+  const src = ejemplo('03-fantasma.asm'), want = assemble(src);
+  const ex = await editorView(page);
+  s.check(chosen === 'ejemplo:03-fantasma.asm' && ex.text === src && ex.lines === src.split('\n').length && /^Ejemplo del tutorial: Cazamonedas, etapa A/.test(ex.about) && ex.platform === 'chip8',
+    '«03-fantasma.asm» se abre con su texto, sus números de renglón, su descripción y la plataforma CHIP-8', JSON.stringify({ about: ex.about, platform: ex.platform }));
+  const ghost = Array.from(want.bytes.slice(-6)).reduce((n, b) => n + b.toString(2).replace(/0/g, '').length, 0);   // los píxeles del sprite
+  await page.click('#ws-text');
+  await comboKey(page, 'Enter', 2);
+  await page.waitFor(`document.getElementById('cart-name').textContent === '03-fantasma'`, { timeout: 3000, desc: '«03-fantasma» en la ranura' });
+  await sleep(400);
+  const run = await page.ev(`({ info: window.chip8.romInfo(), platform: window.chip8.cpu.platform, lit: Array.from(window.chip8.cpu.display).filter((v) => v).length, running: !window.chip8.isPaused(), lib: window.chip8.libraryList().length, sym: window.chip8.workshopSymbols(), status: document.getElementById('ws-status').textContent, focus: document.activeElement.id, text: document.getElementById('ws-text').value })`);
+  s.check(run.info.sha1 === sha1Hex(want.bytes) && run.info.size === want.bytes.length && run.platform === 'chip8' && run.running && run.lit === ghost && run.text === src,
+    `Ctrl+Enter lo ensambla y lo carga en la consola: corre en CHIP-8 con los mismos ${want.bytes.length} bytes que da tools/chip8asm.js y el fantasmita en la pantalla (${run.lit} píxeles); el texto no cambió`, JSON.stringify(run));
+  s.check(run.lib === 0, 'no llenó «Tus cartuchos» (sigue vacío)', String(run.lib));
+  s.check(run.sym && JSON.stringify(run.sym.labels) === JSON.stringify(want.labels) && run.sym.listing.length === want.listing.length &&
+    run.sym.listing.every((e, i) => e.addr === want.listing[i].addr && e.line === want.listing[i].line && e.text === want.listing[i].text),
+    `workshopSymbols() trae sus etiquetas (${Object.keys(want.labels).join(', ')}) y el listado de los ${want.listing.length} renglones con sus direcciones`, JSON.stringify(run.sym && run.sym.labels));
+  s.check(run.status === '«03-fantasma» corre en la consola, en CHIP-8: 18 bytes, de 0x200 a 0x211. Para usar el teclado en el programa, tocá la pantalla.' && run.focus === 'ws-text',
+    `la línea del Taller lo dice («${run.status}») y el foco sigue en el editor`);
+  await page.ev('window.scrollTo(0, 0)');
+  await page.shot('51-taller-corriendo');
+  // Y con el foco en el editor escribe una «y», y Retroceso la borra (ninguna de las dos va a la consola).
+  const resets0 = await page.ev(`${E2E}.resets`);
+  await page.press('KeyY');
+  const y1 = await editorView(page);
+  await page.press('Backspace');
+  const y2 = await editorView(page);
+  const resets1 = await page.ev(`${E2E}.resets`);
+  s.check(y1.open && y1.text === src.slice(0, y1.start - 1) + 'y' + src.slice(y1.start - 1) && y2.text === src && resets1 === resets0,
+    'en el editor, Y escribe una «y» y Retroceso la borra: no abren ni cierran el Taller ni reinician la máquina', JSON.stringify({ resets0, resets1, open: y1.open }));
+  // Otro cartucho en la ranura: las etiquetas ya no son de lo que corre.
+  await page.click('#cart-chips .chip:nth-child(5)');   // Fuente, debajo de la ranura
+  await page.waitFor(`document.getElementById('cart-name').textContent === 'Fuente'`, { timeout: 3000, desc: 'Fuente en la ranura' });
+  s.check((await page.ev('window.chip8.workshopSymbols()')) === null, 'con otro cartucho en la ranura, workshopSymbols() devuelve null');
+  // Fuera del editor, Y cierra el Taller (la consola vuelve a tener el monitor al costado) y lo vuelve a abrir.
+  await page.click('.tagline');
+  await page.press('KeyY');
+  const closed = await page.ev(`({ open: !document.getElementById('workshop').hidden, cls: document.documentElement.classList.contains('has-workshop'), expanded: document.getElementById('btn-workshop').getAttribute('aria-expanded'), mon: Math.round(document.getElementById('monitor').getBoundingClientRect().left), con: Math.round(document.getElementById('console').getBoundingClientRect().right) })`);
+  s.check(!closed.open && !closed.cls && closed.expanded === 'false' && closed.mon > closed.con, 'fuera del editor, Y lo cierra y el monitor vuelve al costado de la consola', JSON.stringify(closed));
+  await page.press('KeyY');
+  await wsOpen(page);
+  const again = await editorView(page);
+  s.check(again.focus && again.program === 'ejemplo:03-fantasma.asm' && again.text === src, 'Y lo abre otra vez, en el mismo programa y con el foco en el editor', JSON.stringify({ focus: again.active, program: again.program }));
+  // Esc en el editor: el primero avisa que Tab sale; el segundo cierra y el foco vuelve al botón.
+  await page.press('Escape');
+  const e1 = await editorView(page);
+  await page.press('Escape');
+  await sleep(50);
+  const e2 = await editorView(page);
+  s.check(e1.open && e1.focus && e1.status === 'Tab sale del editor. Esc otra vez cierra el Taller.' && !e2.open && e2.active === 'btn-workshop',
+    'en el editor, el primer Esc avisa que Tab sale del editor y el segundo cierra el Taller, con el foco de vuelta en el botón del lápiz', JSON.stringify({ e1: e1.status, e2: e2.active }));
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 52 -------------------------------------------------------------------------------
+scenario(52, 'Taller: los errores del ensamblador se marcan en el margen de su renglón, se listan y el cursor va al primero; la lista sigue sola mientras se corrigen; el margen se corre con el texto', async (ctx, s) => {
+  const page = await freshApp(ctx, s, { width: 1440, height: 900 });
+  await page.press('KeyY');
+  await wsOpen(page);
+  await clickHit(page, '#ws-new');
+  const fresh = await editorView(page);
+  s.check(fresh.program === 'mio:1' && fresh.name === 'Programa 1' && fresh.option === 'Programa 1' && fresh.focus && fresh.remove && !fresh.restore,
+    '«Nuevo» crea «Programa 1» en «Tus programas», con su nombre a la vista, «Borrar» y el foco en el editor', JSON.stringify(fresh));
+  const BAD = [
+    '; tres errores',
+    '        CLS',
+    '        LDX V0, 1           ; instrucción desconocida',
+    '        LD V1, 300          ; un byte no llega a 300',
+    '        JP nada             ; etiqueta que no existe',
+    'fin:    JP fin',
+  ].join('\n');
+  await editorSelect(page, 0, fresh.text.length);
+  await insertText(page, BAD);
+  let thrown = '';
+  try { assemble(BAD); } catch (e) { thrown = e.message; }
+  const rom0 = await page.ev('window.chip8.romInfo().sha1');
+  await clickHit(page, '#ws-run');
+  await sleep(150);
+  const bad = await editorView(page);
+  const want = ['Línea 3: instrucción desconocida: "LDX"', 'Línea 4: valor fuera de rango para un byte (-128..255): "300" = 300', 'Línea 5: etiqueta o constante desconocida: "nada"'];
+  s.check(sameList(bad.errors, want) && thrown === want[0], `«Ensamblar y correr» lista los tres errores, con los mensajes del ensamblador (el primero es el que da tools/chip8asm.js: «${thrown}»)`, JSON.stringify(bad.errors));
+  s.check(sameList(bad.marked, [3, 4, 5]) && bad.invalid === 'true', 'los renglones 3, 4 y 5 quedan marcados en el margen, y el editor dice que tiene errores (aria-invalid)', JSON.stringify(bad.marked));
+  s.check(bad.focus && bad.caretLine === 3 && bad.start === bad.end && bad.start === BAD.indexOf('        LDX'), 'el cursor va al principio del renglón 3, el del primer error', JSON.stringify({ caret: bad.caretLine, start: bad.start }));
+  s.check(bad.status === '3 errores. El primero: Línea 3: instrucción desconocida: "LDX"' && (await page.ev('window.chip8.romInfo().sha1')) === rom0,
+    `la línea del Taller lo dice («${bad.status}») y la consola sigue con lo que tenía`);
+  const tip = await page.ev("document.querySelectorAll('#ws-lines .ws-ln')[3].title");
+  s.check(tip === want[1], 'el número marcado muestra su mensaje al pasar el mouse', tip);
+  await page.shot('52-taller-errores');
+  // Un clic en un error de la lista lleva el cursor a su renglón.
+  await clickHit(page, '#ws-errors li:nth-child(3) .ws-err');
+  const go = await editorView(page);
+  s.check(go.focus && go.caretLine === 5, 'un clic en el error del renglón 5 lleva el cursor ahí', JSON.stringify({ caret: go.caretLine }));
+  // Se corrigen de a uno: la lista y las marcas se ponen al día solas.
+  await editorSelectLine(page, 3);
+  await insertText(page, '        LD V0, 1');
+  await sleep(700);
+  const fix1 = await editorView(page);
+  s.check(sameList(fix1.marked, [4, 5]) && fix1.errors.length === 2 && fix1.status === '2 errores. El primero: ' + want[1], 'al corregir el renglón 3, sola, la revisión deja marcados el 4 y el 5', JSON.stringify(fix1));
+  await editorSelectLine(page, 4);
+  await insertText(page, '        LD V1, 30');
+  await editorSelectLine(page, 5);
+  await insertText(page, '        JP fin');
+  await sleep(700);
+  const fix2 = await editorView(page);
+  s.check(fix2.marked.length === 0 && fix2.errors.length === 0 && fix2.invalid === 'false' && fix2.status === 'Sin errores: ya se puede ensamblar y correr.', 'corregidos todos, no queda ninguna marca y la línea lo dice', JSON.stringify(fix2));
+  await comboKey(page, 'Enter', 2);
+  await page.waitFor(`document.getElementById('cart-name').textContent === 'Programa 1'`, { timeout: 3000, desc: '«Programa 1» en la ranura' });
+  s.check((await page.ev('window.chip8.cpu.pc')) >= 0x200, 'ahora sí corre en la consola');
+  // El margen se corre con el texto: Autotest (casi 700 renglones), con la rueda del mouse.
+  await chooseWithMouse(page, '#ws-program', 'demo:autotest');
+  const r = await page.rect('#ws-text', false);
+  for (let i = 0; i < 6; i++) {
+    await page.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: r.cx, y: r.cy, deltaX: 0, deltaY: 600 });
+    await sleep(60);
+  }
+  await sleep(200);
+  const g = await page.ev(GUTTER_EXPR);
+  s.check(g.ok && g.scrollTop > 2000, `con la rueda (${Math.round(g.scrollTop)} px hacia abajo), cada número sigue a la altura de su renglón (${g.out.map((o) => o.k).join(', ')})`, JSON.stringify(g));
+  // Un error en el renglón 600: el cursor va hasta ahí y el renglón queda a la vista.
+  const auto = await editorView(page);
+  const at = auto.text.split('\n').slice(0, 599).join('\n').length + 1;
+  await page.ev(`document.getElementById('ws-text').scrollTop = 0`);
+  await editorSelect(page, at);
+  await insertText(page, 'XYZ ');
+  await comboKey(page, 'Enter', 2);
+  await sleep(150);
+  const far = await editorView(page);
+  const vis = await page.ev(`(() => { const t = document.getElementById('ws-text'), y = 8 + 599 * 20 - t.scrollTop; return { y, h: t.clientHeight, mark: document.querySelectorAll('#ws-lines .ws-ln')[599].classList.contains('is-err') }; })()`);
+  s.check(far.caretLine === 600 && sameList(far.marked, [600]) && vis.mark && vis.y >= 0 && vis.y + 20 <= vis.h, 'un error en el renglón 600: el cursor va ahí, el editor lo muestra y su número queda marcado', JSON.stringify({ caret: far.caretLine, marked: far.marked, vis }));
+  const g2 = await page.ev(GUTTER_EXPR);
+  s.check(g2.ok, 'y el margen sigue alineado', JSON.stringify(g2));
+  await page.shot('52-taller-error-lejos');
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 53 -------------------------------------------------------------------------------
+scenario(53, 'Taller: lo que cambiás queda «sin guardar» aunque recargues, Guardar lo deja editado, «Restaurar el original» (con «Deshacer»), Nuevo, Tab, Mayús+Tab y Ctrl+Z, el nombre (Esc deshace lo escrito), Borrar (con «Deshacer») y el formato de localStorage', async (ctx, s) => {
+  const page = await freshApp(ctx, s, { width: 1440, height: 900 });
+  const reopen = async () => {
+    await page.reload();
+    await page.press('KeyY');
+    await wsOpen(page);
+    await sleep(100);
+  };
+  await page.press('KeyY');
+  await wsOpen(page);
+  await chooseWithMouse(page, '#ws-program', 'ejemplo:02-hola.asm');
+  const orig = ejemplo('02-hola.asm');
+  // Un cambio sin guardar: la lista, la marca y Guardar lo dicen, y sobrevive a una recarga.
+  await editorSelect(page, orig.length);
+  await insertText(page, '; un cambio\n');
+  const d1 = await editorView(page);
+  s.check(d1.text === orig + '; un cambio\n' && d1.option === '02-hola.asm · sin guardar' && d1.badge && d1.saveOn && d1.restore,
+    'un cambio: la lista dice «02-hola.asm · sin guardar», aparece la marca SIN GUARDAR y se habilitan Guardar y «Restaurar el original»', JSON.stringify({ option: d1.option, badge: d1.badge, save: d1.saveOn, restore: d1.restore }));
+  await sleep(900);   // lo que escribís se anota a los 0,7 s
+  await reopen();
+  const d2 = await editorView(page);
+  s.check(d2.program === 'ejemplo:02-hola.asm' && d2.text === orig + '; un cambio\n' && d2.option === '02-hola.asm · sin guardar',
+    'después de recargar, el Taller vuelve a «02-hola.asm» con el cambio, todavía sin guardar', JSON.stringify({ program: d2.program, option: d2.option }));
+  // Guardar: queda «editado».
+  await clickHit(page, '#ws-save');
+  const sv = await editorView(page);
+  const st1 = await stored(page, WORKSHOP_KEY);
+  s.check(sv.option === '02-hola.asm · editado' && !sv.badge && !sv.saveOn && sv.restore && /^Guardado «02-hola\.asm»/.test(sv.status) && /Lo cambiaste y lo guardaste recién\./.test(sv.about),
+    `Guardar lo deja «editado» («${sv.status}»)`, JSON.stringify(sv));
+  s.check(st1 && st1.version === 1 && st1.edited['ejemplo:02-hola.asm'].source === orig + '; un cambio\n' && typeof st1.edited['ejemplo:02-hola.asm'].saved === 'number' &&
+    Object.keys(st1.drafts).length === 0 && st1.open === 'ejemplo:02-hola.asm' && Array.isArray(st1.programs),
+    `localStorage['${WORKSHOP_KEY}'] tiene la versión 1, el ejemplo editado con su fecha, ningún cambio pendiente y el programa abierto`, JSON.stringify(st1).slice(0, 300));
+  // Restaurar el original, Deshacer, y otra vez Restaurar.
+  await reopen();
+  await clickHit(page, '#ws-restore');
+  const rs = await editorView(page);
+  const t1 = await toastsInfo(page);
+  s.check(rs.text === orig && rs.option === '02-hola.asm' && !rs.restore && t1.some((t) => t.text === 'Volvió el original de «02-hola.asm».' && t.action === 'Deshacer'),
+    '«Restaurar el original» vuelve el texto de siempre (sin «editado») y el aviso trae «Deshacer»', JSON.stringify({ option: rs.option, t1 }));
+  await clickToastAction(page, 'Deshacer');
+  const un = await editorView(page);
+  s.check(un.text === orig + '; un cambio\n' && un.option === '02-hola.asm · editado', '«Deshacer» devuelve lo editado', JSON.stringify({ option: un.option }));
+  await clickHit(page, '#ws-restore');
+  // Nuevo, Tab y Mayús+Tab.
+  await clickHit(page, '#ws-new');
+  const nw = await editorView(page);
+  await editorSelect(page, nw.text.length);
+  await insertText(page, 'otra:');
+  await page.press('Tab');
+  await insertText(page, 'CLS');
+  const tb = await editorView(page);
+  s.check(tb.text.endsWith('\notra:   CLS') && tb.focus, 'Tab agrega espacios hasta la columna 8 (y no saca el foco del editor): «otra:   CLS»', JSON.stringify(tb.text.slice(-14)));
+  const lineStart = tb.text.lastIndexOf('\n') + 1;
+  await editorSelect(page, lineStart);
+  await page.press('Tab');
+  const tb2 = await editorView(page);
+  await comboKey(page, 'Tab', 8);
+  const tb3 = await editorView(page);
+  s.check(tb2.text.endsWith('\n        otra:   CLS') && tb3.text.endsWith('\notra:   CLS') && tb3.caretLine === tb3.text.split('\n').length && tb3.focus,
+    'al principio del renglón, Tab lo corre 8 espacios y Mayús+Tab los saca', JSON.stringify({ a: tb2.text.slice(-20), b: tb3.text.slice(-12) }));
+  // Elegir dos renglones y correrlos juntos.
+  const two = tb3.text.lastIndexOf('fin:');
+  await editorSelect(page, two, tb3.text.length);
+  await page.press('Tab');
+  const tb4 = await editorView(page);
+  s.check(/\n {8}fin: {4}JP fin {18}; un programa termina en un salto a sí mismo\n {8}otra: {3}CLS$/.test(tb4.text) && tb4.start === two && tb4.end === tb4.text.length,
+    'con dos renglones elegidos, Tab corre los dos y quedan elegidos', JSON.stringify(tb4.text.slice(two - 2)));
+  // Ctrl+Z deshace la sangría (el editor usa la edición del navegador).
+  await page.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', code: 'KeyZ', key: 'z', windowsVirtualKeyCode: 90, modifiers: 2, commands: ['undo'] });
+  await page.send('Input.dispatchKeyEvent', { type: 'keyUp', code: 'KeyZ', key: 'z', windowsVirtualKeyCode: 90, modifiers: 2 });
+  const tb5 = await editorView(page);
+  s.check(tb5.text === tb3.text, 'Ctrl+Z deshace la sangría de los dos renglones', JSON.stringify(tb5.text.slice(-30)));
+  // El nombre (y Esc en «Nombre» deshace lo escrito, sin cerrar el Taller).
+  await page.click('#ws-name');
+  await page.ev("document.getElementById('ws-name').select()");
+  await insertText(page, 'Mi juego');
+  await page.press('Enter');
+  await page.ev("document.getElementById('ws-name').select()");
+  await insertText(page, 'Otro nombre');
+  await page.press('Escape');
+  const esc = await editorView(page);
+  s.check(esc.open && esc.name === 'Mi juego' && esc.option === 'Mi juego · sin guardar', 'en «Nombre», Esc deshace lo que escribiste ahí y el Taller sigue abierto', JSON.stringify({ open: esc.open, name: esc.name }));
+  await clickHit(page, '#ws-save');
+  const nm = await editorView(page);
+  s.check(nm.name === 'Mi juego' && nm.option === 'Mi juego' && nm.options[0] === 'Mi juego' && !nm.saveOn, 'el nombre se cambia en «Nombre» (Enter) y la lista lo muestra; Guardar lo guarda', JSON.stringify({ name: nm.name, options: nm.options.slice(0, 2) }));
+  // Borrar, Deshacer y la recarga.
+  await clickHit(page, '#ws-delete');
+  const del = await editorView(page);
+  const t2 = await toastsInfo(page);
+  s.check(!del.options.includes('Mi juego') && del.program !== 'mio:1' && t2.some((t) => t.text === 'Borraste «Mi juego» del Taller.' && t.action === 'Deshacer'),
+    'Borrar lo saca de la lista (el editor pasa a otro programa) y el aviso trae «Deshacer»', JSON.stringify({ program: del.program, t2 }));
+  await clickToastAction(page, 'Deshacer');
+  const back = await editorView(page);
+  s.check(back.program === 'mio:1' && back.name === 'Mi juego' && back.text === tb3.text, '«Deshacer» lo devuelve, con su texto', JSON.stringify({ program: back.program }));
+  await reopen();
+  const after = await editorView(page);
+  const st2 = await stored(page, WORKSHOP_KEY);
+  s.check(after.program === 'mio:1' && after.text === tb3.text && after.options[0] === 'Mi juego' && after.option === 'Mi juego' && !after.badge,
+    'después de recargar, «Mi juego» sigue ahí, guardado', JSON.stringify({ program: after.program, option: after.option }));
+  s.check(st2 && st2.programs.length === 1 && st2.programs[0].id === 'mio:1' && st2.programs[0].name === 'Mi juego' && st2.programs[0].source === tb3.text &&
+    typeof st2.programs[0].saved === 'number' && st2.next === 2 && !Object.keys(st2.edited).length,
+    'en localStorage: tus programas con id, nombre, fuente y fecha, el próximo número y ningún ejemplo editado (se restauró)', JSON.stringify(st2).slice(0, 300));
+  await page.shot('53-taller-tus-programas');
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 54 -------------------------------------------------------------------------------
+scenario(54, 'Taller: «Abrir .asm» con @platform xochip corre en XO-CHIP; Plataforma escribe la etiqueta @platform (y una que no vale es un error en su renglón); «Descargar .asm» y «Descargar .ch8» bajan el texto y la ROM exactos', async (ctx, s) => {
+  const page = await freshApp(ctx, s, { width: 1440, height: 900 });
+  const dir = path.join(ctx.browser.tmp, 'descargas-taller');
+  fs.mkdirSync(dir, { recursive: true });
+  await ctx.browser.cdp.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: dir, eventsEnabled: true });
+  try {
+    await page.press('KeyY');
+    await wsOpen(page);
+    // Un programa de XO-CHIP: los datos quedan más allá de 0xFFF.
+    const XO = [
+      '; Más allá de 4 KB',
+      '; @platform xochip',
+      '',
+      '        LD I, LONG datos',
+      '        LD V0, 30',
+      '        LD V1, 12',
+      '        DRW V0, V1, 4',
+      'fin:    JP fin',
+      'relleno: DB ' + new Array(3990).fill('0').join(', '),
+      'datos:  DB 0xF0, 0x90, 0x90, 0xF0',
+      '',
+    ].join('\n');
+    const file = path.join(ctx.browser.fixtures, 'lejos.asm');
+    fs.writeFileSync(file, XO);
+    await page.send('Page.setInterceptFileChooserDialog', { enabled: true });
+    const opened = page.cdp.waitEvent('Page.fileChooserOpened', page.sessionId, 5000);
+    await clickHit(page, '#ws-open');
+    const ev = await opened;
+    await page.send('DOM.setFileInputFiles', { files: [file], backendNodeId: ev.backendNodeId });
+    await page.waitFor(`window.chip8.workshopInfo().name === 'lejos'`, { timeout: 3000, desc: '«lejos» abierto en el Taller' });
+    await page.send('Page.setInterceptFileChooserDialog', { enabled: false });
+    const op = await editorView(page);
+    s.check(op.text === XO && op.program === 'mio:1' && op.name === 'lejos' && op.platform === 'xochip' && /Es de XO-CHIP: lo dice «@platform xochip», en el encabezado\./.test(op.about) && op.status === 'Abriste «lejos».',
+      '«Abrir .asm» lo abre como un programa tuyo («lejos»), con su texto y la plataforma XO-CHIP de su etiqueta @platform', JSON.stringify({ name: op.name, platform: op.platform, about: op.about, status: op.status }));
+    await comboKey(page, 'Enter', 2);
+    await page.waitFor(`document.getElementById('cart-name').textContent === 'lejos'`, { timeout: 3000, desc: '«lejos» en la ranura' });
+    await sleep(300);
+    const want = assemble(XO, { xochip: true });
+    const xo = await page.ev(`({ platform: window.chip8.cpu.platform, sel: document.getElementById('platform').value, sha: window.chip8.romInfo().sha1, size: window.chip8.romInfo().size, lit: Array.from(window.chip8.cpu.display).filter((v) => v).length, status: document.getElementById('ws-status').textContent })`);
+    s.check(xo.platform === 'xochip' && xo.sel === 'xochip' && xo.sha === sha1Hex(want.bytes) && xo.size === 4006 && xo.lit === 12 && /en XO-CHIP: 4\.006 bytes, de 0x0200 a 0x11A5\./.test(xo.status),
+      `corre en XO-CHIP (la consola cambió de plataforma) con los ${want.bytes.length} bytes que da el ensamblador con --xo, y dibuja el cuadrado que está más allá de 0xFFF`, JSON.stringify(xo));
+    // Plataforma: CHIP-8 cambia la etiqueta; el programa no entra en 4 KB y el error queda en su renglón.
+    await chooseWithMouse(page, '#ws-platform', 'chip8');
+    const c8 = await editorView(page);
+    s.check(c8.text === XO.replace('; @platform xochip', '; @platform chip8') && c8.platform === 'chip8' && c8.badge, 'elegir CHIP-8 en Plataforma cambia la etiqueta a «; @platform chip8» (y queda sin guardar)', JSON.stringify(c8.text.slice(0, 60)));
+    await clickHit(page, '#ws-run');
+    const big = await editorView(page);
+    s.check(big.errors.length === 1 && /^Línea 9: el programa no entra en la memoria \(se pasa de la dirección 0xFFF; si es para XO-CHIP/.test(big.errors[0]) && sameList(big.marked, [9]) && big.caretLine === 9,
+      'sin XO-CHIP no entra en 4 KB: el error es el del ensamblador, en el renglón 9, y el cursor va ahí', JSON.stringify(big.errors));
+    await chooseWithMouse(page, '#ws-platform', 'xochip');
+    // Una etiqueta que no es una plataforma: error en su renglón.
+    await editorSelectLine(page, 2);
+    await insertText(page, '; @platform xo');
+    await clickHit(page, '#ws-run');
+    const badTag = await editorView(page);
+    s.check(sameList(badTag.errors, ['Línea 2: @platform tiene que ser chip8, schip o xochip (dice "xo")']) && sameList(badTag.marked, [2]) && /no es una plataforma/.test(badTag.about),
+      'una etiqueta «@platform xo» es un error en el renglón 2 (el mismo texto que da tools/embed-roms.js)', JSON.stringify({ errors: badTag.errors, about: badTag.about }));
+    await editorSelectLine(page, 2);
+    await insertText(page, '; @platform xochip');
+    // Descargar .asm y .ch8.
+    const p1 = nextDownload(ctx);
+    await clickHit(page, '#ws-dl-asm');
+    const d1 = await p1;
+    const asmText = fs.readFileSync(d1.file || path.join(dir, d1.name), 'utf8');
+    s.check(d1.state === 'completed' && d1.name === 'lejos.asm' && asmText === XO, `«Descargar .asm» baja «${d1.name}» con el texto del editor, exacto`, JSON.stringify(d1));
+    const p2 = nextDownload(ctx);
+    await clickHit(page, '#ws-dl-ch8');
+    const d2 = await p2;
+    const rom = fs.readFileSync(d2.file || path.join(dir, d2.name));
+    s.check(d2.state === 'completed' && d2.name === 'lejos.ch8' && rom.equals(Buffer.from(want.bytes)), `«Descargar .ch8» baja «${d2.name}»: los ${rom.length} bytes que da el ensamblador`, JSON.stringify(d2));
+    // Un ejemplo se baja con el nombre de su archivo; con errores, «Descargar .ch8» no baja nada y marca el error.
+    await chooseWithMouse(page, '#ws-program', 'ejemplo:10-contador.asm');
+    const p3 = nextDownload(ctx);
+    await clickHit(page, '#ws-dl-ch8');
+    const d3 = await p3;
+    s.check(d3.name === '10-contador.ch8' && fs.readFileSync(d3.file || path.join(dir, d3.name)).equals(Buffer.from(assemble(ejemplo('10-contador.asm')).bytes)), `un ejemplo baja como «${d3.name}»`);
+    await editorSelect(page, 0);
+    await insertText(page, 'MAL\n');
+    let got = null;
+    const off = ctx.browser.cdp.on((m) => { if (m.method === 'Browser.downloadWillBegin') got = m.params.suggestedFilename; });
+    await clickHit(page, '#ws-dl-ch8');
+    await sleep(600);
+    off();
+    const noDl = await editorView(page);
+    s.check(got === null && sameList(noDl.marked, [1]) && noDl.caretLine === 1, 'con un error, «Descargar .ch8» no baja nada: marca el error y lleva el cursor', JSON.stringify({ got, marked: noDl.marked }));
+    // Un programa sin etiqueta: SUPER-CHIP la agrega después de los comentarios del encabezado.
+    await clickHit(page, '#ws-new');
+    await chooseWithMouse(page, '#ws-platform', 'schip');
+    const sc = await editorView(page);
+    s.check(sc.text.split('\n')[2] === '; @platform schip' && sc.text.split('\n')[3] === '' && sc.platform === 'schip',
+      'en un programa sin etiqueta, elegir SUPER-CHIP agrega «; @platform schip» al final de los comentarios del principio', JSON.stringify(sc.text.split('\n').slice(0, 5)));
+    await comboKey(page, 'Enter', 2);
+    await page.waitFor(`window.chip8.cpu.platform === 'schip'`, { timeout: 3000, desc: 'la consola en SUPER-CHIP' });
+    s.check(true, 'y corre en SUPER-CHIP');
+    await page.shot('54-taller-plataforma');
+  } finally {
+    await ctx.browser.cdp.send('Browser.setDownloadBehavior', { behavior: 'default' }).catch(() => {});
+  }
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 55 -------------------------------------------------------------------------------
+scenario(55, 'Taller sin almacenamiento, sin lugar o con datos dañados: lo dice una vez, en el Taller, y sigue andando en memoria', async (ctx, s) => {
+  // localStorage que tira una excepción en cada acceso.
+  const broken = `Object.defineProperty(window, 'localStorage', { configurable: true, get() { throw new DOMException('Acceso al almacenamiento denegado (e2e)', 'SecurityError'); } });`;
+  const p1 = await Page.open(ctx, { width: 1440, height: 900, initScripts: [broken] });
+  s.page = p1;
+  await p1.goto(ctx.base + 'chip8.html');
+  await p1.instrument();
+  await p1.press('KeyY');
+  await wsOpen(p1);
+  const NO_STORAGE = 'Este navegador no deja guardar datos: lo que escribas en el Taller dura hasta que cierres la página.';
+  await clickHit(p1, '#ws-new');
+  await editorSelect(p1, 0);
+  await insertText(p1, '; hola\n');
+  await clickHit(p1, '#ws-save');
+  const a = await editorView(p1);
+  await comboKey(p1, 'Enter', 2);
+  await p1.waitFor(`document.getElementById('cart-name').textContent === 'Programa 1'`, { timeout: 3000, desc: '«Programa 1» en la ranura' });
+  s.check(a.note === NO_STORAGE && a.option === 'Programa 1' && !a.badge && /^Guardado «Programa 1»\. Este navegador no deja guardar datos: dura hasta que cierres la página\.$/.test(a.status) && (await toastTexts(p1)).length === 0,
+    `sin almacenamiento: el Taller lo dice («${NO_STORAGE.slice(0, 50)}…»), Guardar guarda en memoria (sin avisos flotantes) y el programa corre`, JSON.stringify({ note: a.note, status: a.status }));
+  s.check(p1.errors.length === 0, 'sin almacenamiento no hay excepciones ni errores de consola', p1.errors.join(' | '));
+  await p1.shot('55-taller-sin-almacenamiento');
+  await p1.close();
+
+  // localStorage lleno de verdad (QuotaExceededError).
+  const p2 = await freshApp(ctx, s, { width: 1440, height: 900 });
+  await p2.press('KeyY');
+  await wsOpen(p2);
+  await clickHit(p2, '#ws-new');
+  const filled = await p2.ev(`(() => {
+    let n = 0, total = 0;
+    for (let size = 1 << 20; size >= 16; size >>= 1) {
+      const chunk = 'x'.repeat(size);
+      for (;;) {
+        try { localStorage.setItem('relleno-' + n, chunk); n++; total += size; }
+        catch (e) { if (e.name !== 'QuotaExceededError') return { error: e.name }; break; }
+      }
+    }
+    return { n, total };
+  })()`);
+  s.info(`localStorage lleno con ${filled.n} claves de relleno (${Math.round(filled.total / 1024)} K caracteres)`);
+  await editorSelect(p2, 0);
+  await insertText(p2, '; ' + 'un programa largo '.repeat(400) + '\n');
+  await clickHit(p2, '#ws-save');
+  await sleep(150);
+  const FULL = 'No hay más lugar en este navegador: «Programa 1» queda solo hasta que cierres la página. Para hacer lugar, borrá programas del Taller que no uses, estados viejos o cartuchos de «Tus cartuchos».';
+  const b = await editorView(p2);
+  const t2 = await toastsInfo(p2);
+  s.check(!filled.error && t2.some((t) => t.text === FULL && t.kind === 'error') && b.note === 'Lo último no entró en el navegador: está solo hasta que cierres la página.' && b.saveOn &&
+    b.status === 'No se pudo guardar «Programa 1» en el navegador: queda solo hasta que cierres la página.',
+    `sin lugar: el aviso de error («${FULL.slice(0, 50)}…»), el Taller lo dice y Guardar sigue a mano para probar otra vez`, JSON.stringify({ t2, note: b.note, status: b.status }));
+  await comboKey(p2, 'Enter', 2);
+  await p2.waitFor(`document.getElementById('cart-name').textContent === 'Programa 1'`, { timeout: 3000, desc: '«Programa 1» en la ranura' });
+  s.check(true, 'y el programa, que quedó en memoria, se ensambla y corre igual');
+  // Se hace lugar y Guardar entra.
+  await p2.ev(`(() => { for (let i = 0; i < 400; i++) localStorage.removeItem('relleno-' + i); return true; })()`);
+  await clickHit(p2, '#ws-save');
+  const c = await editorView(p2);
+  const st = await stored(p2, WORKSHOP_KEY);
+  s.check(!c.note && !c.saveOn && st && st.programs[0].source === c.text, 'con lugar otra vez, Guardar entra y el aviso del Taller se va', JSON.stringify({ note: c.note }));
+  s.check(p2.errors.length === 0, 'sin lugar: sin excepciones ni errores de consola', p2.errors.join(' | '));
+  await p2.close();
+
+  // Datos dañados: todo o una parte.
+  const p3 = await freshApp(ctx, s, { width: 1440, height: 900 });
+  await p3.ev(`localStorage.setItem('${WORKSHOP_KEY}', '{roto')`);
+  await p3.reload();
+  await p3.press('KeyY');
+  await wsOpen(p3);
+  const d = await editorView(p3);
+  s.check(d.note === 'Los programas guardados del Taller estaban dañados y no se pudieron leer.' && d.program === 'demo:rebote' && d.text === romSource('rebote'),
+    'con un JSON roto, el Taller lo dice y arranca como nuevo', JSON.stringify({ note: d.note, program: d.program }));
+  await p3.ev(`localStorage.setItem('${WORKSHOP_KEY}', JSON.stringify({ version: 1, next: 3, open: 'mio:1', programs: [{ id: 'mio:1', name: 'Bueno', source: 'fin: JP fin\\n', saved: 1 }, { id: 'mio:2', name: 'Roto', source: 42 }, { id: 'otro', name: 'Raro', source: 'CLS' }], edited: { 'ejemplo:01-a-mano.asm': { source: null }, 'demo:rebote': { source: 'CLS\\n', saved: 2 } }, drafts: { 'mio:1': 'fin: JP fin ; cambio\\n', 'mio:9': 'x' } }))`);
+  await p3.reload();
+  await p3.press('KeyY');
+  await wsOpen(p3);
+  const e = await editorView(p3);
+  s.check(e.note === '3 programas guardados estaban dañados y los descarté.' && e.program === 'mio:1' && e.text === 'fin: JP fin ; cambio\n' && e.option === 'Bueno · sin guardar' &&
+    e.options.includes('Rebote · editado') && !e.options.some((o) => /Roto|Raro/.test(o)),
+    'con una parte dañada, quedan los programas que se pueden leer (con su cambio sin guardar) y el Taller dice cuántos descartó', JSON.stringify({ note: e.note, options: e.options.slice(0, 3) }));
+  s.check(p3.errors.length === 0, 'datos dañados: sin excepciones ni errores de consola', p3.errors.join(' | '));
+  await p3.shot('55-taller-datos-danados');
+});
+
+// 56 -------------------------------------------------------------------------------
+scenario(56, 'Diseño con el Taller abierto: a 1440 y 1280 px va al costado sin tapar la pantalla; a 768 y 360 px va debajo de los estantes (a 360, abierto con un toque); sin scroll horizontal, botones enteros y el margen alineado', async (ctx, s) => {
+  const page = await freshApp(ctx, s, { width: 1440, height: 900 });
+  for (const [w, h, mobile] of [[1440, 900, false], [1280, 800, false], [768, 1024, false], [360, 640, true]]) {
+    await page.setViewport(w, h, mobile ? 2 : 1, mobile);
+    await page.reload();
+    await sleep(300);
+    await page.ev('window.scrollTo(0, 0)');
+    const top = await page.ev(`(() => { const r = (id) => { const b = document.getElementById(id).getBoundingClientRect(); return { t: Math.round(b.top), b: Math.round(b.bottom), l: Math.round(b.left), r: Math.round(b.right) }; };
+      const keys = Array.from(document.querySelectorAll('#keypad .key')).map((k) => k.getBoundingClientRect());
+      return { btn: r('btn-workshop'), help: r('btn-help'), crt: r('crt'), keysBottom: Math.round(Math.max(...keys.map((k) => k.bottom))), ih: innerHeight }; })()`);
+    s.check(top.btn.r <= top.help.l && top.btn.t === top.help.t && top.btn.b === top.help.b && (w > 480 || top.keysBottom <= top.ih),
+      `${w}px: el botón del lápiz va al lado del «?», a la misma altura${w <= 480 ? `, y la pantalla y el keypad siguen entrando en la primera vista (hasta ${top.keysBottom} de ${top.ih} px)` : ''}`, JSON.stringify(top));
+    if (mobile) {
+      await page.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+      const b = await page.rect('#btn-workshop', false);
+      const tp = { x: b.cx, y: b.cy, id: 3, radiusX: 4, radiusY: 4, force: 1 };
+      await page.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [tp] });
+      await sleep(40);
+      await page.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [tp] });
+      await page.send('Emulation.setTouchEmulationEnabled', { enabled: false });
+    } else {
+      await clickHit(page, '#btn-workshop');
+    }
+    await wsOpen(page);
+    await sleep(300);
+    const m = await page.ev(`(() => {
+      const r = (el) => { const b = el.getBoundingClientRect(); return { t: Math.round(b.top), b: Math.round(b.bottom), l: Math.round(b.left), r: Math.round(b.right), w: Math.round(b.width), h: Math.round(b.height) }; };
+      const over = [];
+      document.querySelectorAll('body *').forEach((el) => { const b = el.getBoundingClientRect(); if (b.width && b.right > innerWidth + 0.5 && getComputedStyle(el).position !== 'fixed') over.push((el.id ? '#' + el.id : el.tagName.toLowerCase() + '.' + el.className).slice(0, 40)); });
+      const ws = document.getElementById('workshop'), crt = document.getElementById('crt'), lib = document.getElementById('lib-title').closest('.shelf');
+      const btns = Array.from(ws.querySelectorAll('.ws-actions button')).filter((b) => !b.hidden).map((b) => ({ text: b.textContent, clipped: b.scrollWidth > b.clientWidth + 1, h: b.getBoundingClientRect().height, r: Math.round(b.getBoundingClientRect().right) }));
+      const c = r(crt), at = document.elementFromPoint((c.l + c.r) / 2, (c.t + c.b) / 2);
+      return { iw: innerWidth, ih: innerHeight, sw: document.documentElement.scrollWidth, over: over.slice(0, 6), ws: r(ws), fixed: getComputedStyle(ws).position === 'fixed',
+        crt: c, crtHit: !!at && crt.contains(at), lib: r(lib), editor: r(document.getElementById('ws-text')), btns, focus: document.activeElement ? document.activeElement.id : null };
+    })()`);
+    const g = await page.ev(GUTTER_EXPR);
+    s.info(`${w}×${h}: Taller ${m.ws.l}–${m.ws.r} × ${m.ws.t}–${m.ws.b} px (${m.fixed ? 'fijo al costado' : 'debajo de los estantes'}), editor de ${m.editor.w}×${m.editor.h} px`);
+    s.check(m.sw <= m.iw && m.over.length === 0 && m.ws.l >= 0 && m.ws.r <= m.iw, `${w}px: sin scroll horizontal y el Taller entra en el ancho (${m.ws.l}–${m.ws.r} px)`, 'se salen: ' + m.over.join(', '));
+    const minH = mobile ? 32 : 24;
+    s.check(m.btns.length >= 6 && m.btns.every((b) => !b.clipped && b.h >= minH && b.r <= m.ws.r), `${w}px: los botones del Taller muestran su texto entero y miden al menos ${minH} px de alto`, JSON.stringify(m.btns));
+    s.check(m.editor.h >= (mobile ? 250 : 300) && m.editor.w >= 200 && g.ok, `${w}px: el editor mide ${m.editor.w}×${m.editor.h} px y cada número del margen está a la altura de su renglón`, JSON.stringify({ editor: m.editor, g }));
+    if (w >= 1200) {
+      s.check(m.fixed && m.crtHit && m.crt.r < m.ws.l && m.ws.t >= 0 && m.ws.b <= m.ih, `${w}px: el Taller va fijo a la derecha y la pantalla (${m.crt.l}–${m.crt.r} px) queda entera a su izquierda, sin nada encima`, JSON.stringify({ crt: m.crt, ws: m.ws }));
+    } else {
+      s.check(!m.fixed && m.ws.t >= -1 && m.ws.t < 60 && m.lib.b <= m.ws.t, `${w}px: el Taller va debajo de «Tus cartuchos» y la página se corre hasta él`, JSON.stringify({ ws: m.ws, lib: m.lib }));
+    }
+    if (mobile) s.check(m.focus === 'ws-title', 'abierto con un toque, el foco va al título del Taller (no al editor: así no aparece el teclado del teléfono)', String(m.focus));
+    else s.check(m.focus === 'ws-text', `${w}px: abierto con el mouse, el foco va al editor`, String(m.focus));
+    await page.shot(`56-taller-${w}`);
+  }
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 57 -------------------------------------------------------------------------------
+scenario(57, 'Taller con el teclado y para lectores de pantalla: Tab hasta el botón y Enter, lo que escribís no llega al keypad, Esc y Tab salen del editor, Plataforma con las flechas, Guardar con Enter no pierde el foco, Esc cierra, Y desde la pantalla completa, roles y nombres; a 10.000 IPF sigue a 60 fps mientras escribís', async (ctx, s) => {
+  const page = await freshApp(ctx, s, { width: 1440, height: 900 });
+  // Con el teclado: Tab hasta el botón del lápiz y Enter.
+  await page.click('.tagline');
+  let guard = 0;
+  while ((await page.ev('document.activeElement && document.activeElement.id')) !== 'btn-workshop' && guard++ < 20) await page.press('Tab', 10);
+  s.check(guard < 20, `Tab llega al botón del lápiz (${guard} veces desde arriba)`);
+  await page.press('Enter');
+  await wsOpen(page);
+  const a = await page.ev(`(() => { const $ = (id) => document.getElementById(id), ws = $('workshop');
+    const label = (el) => { const l = document.querySelector('label[for="' + el.id + '"]'); return l ? l.textContent : el.getAttribute('aria-label'); };
+    return { focus: document.activeElement.id, expanded: $('btn-workshop').getAttribute('aria-expanded'), controls: $('btn-workshop').getAttribute('aria-controls'), btnName: $('btn-workshop').getAttribute('aria-label'),
+      region: ws.tagName + ' ' + document.getElementById(ws.getAttribute('aria-labelledby')).textContent, editor: $('ws-text').getAttribute('aria-label'), describedBy: $('ws-text').getAttribute('aria-describedby'),
+      program: label($('ws-program')), platform: label($('ws-platform')), status: $('ws-status').getAttribute('role'), errors: $('ws-errors').getAttribute('aria-label'), actions: $('ws-actions') ? null : ws.querySelector('.ws-actions').getAttribute('aria-label'),
+      gutter: $('ws-gutter').getAttribute('aria-hidden'), names: Array.from(ws.querySelectorAll('button')).filter((b) => !b.hidden).map((b) => b.textContent.trim()).filter((t) => !t) };
+  })()`);
+  s.check(a.focus === 'ws-text' && a.expanded === 'true' && a.controls === 'workshop' && a.btnName === 'Taller (Y)', 'Enter sobre el botón abre el Taller (aria-expanded, aria-controls, nombre «Taller (Y)») y el foco va al editor', JSON.stringify(a));
+  s.check(a.region === 'SECTION TALLER' && a.editor === 'Programa en el assembler de CHIP-8' && a.describedBy === 'ws-keys' && a.program === 'Programa' && a.platform === 'Plataforma' &&
+    a.status === 'status' && a.errors === 'Errores del ensamblador' && a.actions === 'Acciones del Taller' && a.gutter === 'true' && a.names.length === 0,
+    'para un lector de pantalla: una región «TALLER», el editor y los selectores con nombre, la línea de estado (role=status), la lista de errores y las acciones con nombre, y el margen oculto', JSON.stringify(a));
+  // Las teclas del keypad, N, H, Espacio y Retroceso escriben en el editor: no llegan a la consola.
+  await editorSelect(page, 0);
+  const pc0 = await page.ev(`({ resets: ${E2E}.resets, paused: window.chip8.isPaused() })`);
+  await page.type('1234qwerzxcv');
+  await page.press('Space');
+  await page.type('nh');
+  const typed = await page.ev(`({ keys: ${KEYS_EXPR}, caps: document.querySelectorAll('#keypad .key.is-down').length, text: document.getElementById('ws-text').value.slice(0, 15), help: document.getElementById('help').open, resets: ${E2E}.resets, paused: window.chip8.isPaused() })`);
+  s.check(typed.text === '1234qwerzxcv nh' && noKeys(typed.keys) && typed.caps === 0 && !typed.help && typed.resets === pc0.resets && typed.paused === pc0.paused,
+    'en el editor, «1234qwerzxcv nh» se escribe: ninguna tecla llega al keypad, Espacio no pausa, H no abre la ayuda y N no ejecuta', JSON.stringify(typed));
+  // Esc y Tab: el foco sale del editor; Mayús+Tab vuelve.
+  await page.press('Escape');
+  await page.press('Tab');
+  const out = await page.ev('({ id: document.activeElement.id, inWs: document.getElementById("workshop").contains(document.activeElement), text: document.getElementById("ws-text").value.slice(0, 15) })');
+  await comboKey(page, 'Tab', 8);
+  const back = await page.ev('document.activeElement.id');
+  s.check(out.id !== 'ws-text' && out.text === '1234qwerzxcv nh' && back === 'ws-text', `Esc y después Tab sacan el foco del editor (a «${out.id}») sin escribir nada; Mayús+Tab vuelve`, JSON.stringify({ out, back }));
+  // Si después de Esc el foco se va con un clic, al volver Tab agrega espacios otra vez.
+  await page.press('Escape');
+  await page.click('.tagline');
+  await editorSelect(page, 0);
+  await page.press('Tab');
+  const again = await page.ev('({ id: document.activeElement.id, text: document.getElementById("ws-text").value.slice(0, 10), keys: document.getElementById("ws-keys").textContent })');
+  s.check(again.id === 'ws-text' && again.text === '        12' && /^Tab agrega espacios/.test(again.keys), 'si después de Esc el foco se va con un clic, al volver al editor Tab agrega espacios otra vez', JSON.stringify(again));
+  await comboKey(page, 'Tab', 8);
+  // Plataforma con el teclado: las flechas recorren las opciones sin reescribir la etiqueta a cada paso.
+  const t0 = await page.ev('document.getElementById("ws-text").value');
+  await page.ev("document.getElementById('ws-platform').focus()");
+  for (const k of ['ArrowDown', 'ArrowDown', 'ArrowUp', 'ArrowUp']) { await page.press(k, 10); await sleep(40); }
+  await sleep(800);
+  const t1 = await page.ev('({ text: document.getElementById("ws-text").value, sel: document.getElementById("ws-platform").value, focus: document.activeElement.id })');
+  await page.press('ArrowDown', 10);
+  await sleep(800);
+  const t2 = await page.ev('({ text: document.getElementById("ws-text").value, sel: document.getElementById("ws-platform").value, focus: document.activeElement.id })');
+  await page.press('ArrowUp', 10);
+  await page.press('Tab');
+  const t3 = await page.ev('document.getElementById("ws-text").value');
+  s.check(t1.text === t0 && t1.sel === 'chip8' && t1.focus === 'ws-platform' && t2.sel === 'schip' && t2.text.includes('; @platform schip\n') && t3.includes('; @platform chip8\n') && !t3.includes('schip'),
+    'Plataforma con el teclado: ir y volver con las flechas no toca el programa; quedarse en SUPER-CHIP escribe la etiqueta, y salir del selector aplica la última', JSON.stringify({ t1: t1.sel, t2: t2.sel, focus: t1.focus }));
+  // Guardar con el teclado: el botón se apaga y el foco pasa al editor (no se pierde).
+  await page.ev("document.getElementById('ws-save').focus()");
+  await page.press('Enter');
+  const sv = await page.ev(`({ focus: document.activeElement.id, disabled: document.getElementById('ws-save').disabled, status: document.getElementById('ws-status').textContent })`);
+  s.check(sv.disabled && sv.focus === 'ws-text' && /^Guardado «Rebote» \(editado/.test(sv.status), 'Guardar con Enter: el botón se apaga (no hay nada más que guardar) y el foco pasa al editor', JSON.stringify(sv));
+  // Esc con el foco en un botón del Taller lo cierra y el foco vuelve al botón del lápiz.
+  await page.ev("document.getElementById('ws-new').focus()");
+  await page.press('Escape');
+  const closed = await page.ev('({ open: !document.getElementById("workshop").hidden, focus: document.activeElement.id })');
+  s.check(!closed.open && closed.focus === 'btn-workshop', 'Esc con el foco en un botón del Taller lo cierra y el foco vuelve al botón del lápiz', JSON.stringify(closed));
+  // En pantalla completa el Taller no se vería: Y sale de la pantalla completa y lo abre.
+  await page.click('.tagline');
+  await page.press('KeyP');
+  const fs1 = await page.poll('window.chip8.isFullscreen()', 3000);
+  await page.press('KeyY');
+  await page.poll('!window.chip8.isFullscreen() && !document.getElementById("workshop").hidden', 3000);
+  const fs2 = await page.ev('({ full: window.chip8.isFullscreen(), open: !document.getElementById("workshop").hidden, focus: document.activeElement.id })');
+  s.check(fs1 && !fs2.full && fs2.open && fs2.focus === 'ws-text', 'en pantalla completa, Y sale de la pantalla completa y abre el Taller, con el foco en el editor', JSON.stringify({ fs1, fs2 }));
+  // Rendimiento: un programa del Taller a 10.000 IPF sigue a 60 fps mientras escribís.
+  await clickHit(page, '#ws-new');
+  const ed = await editorView(page);
+  await editorSelect(page, 0, ed.text.length);
+  await insertText(page, '; un bucle sin dibujo\nbucle:  ADD V0, 1\n        JP bucle\n; ');
+  await comboKey(page, 'Enter', 2);
+  await page.waitFor(`document.getElementById('cart-name').textContent === 'Programa 1'`, { timeout: 3000, desc: '«Programa 1» en la ranura' });
+  await page.click('#ipf-chips .chip:nth-child(8)');   // 10.000
+  await editorSelect(page, (await editorView(page)).text.length);
+  await sleep(1500);
+  const c0 = await counters(page);
+  for (let i = 0; i < 70; i++) {
+    await insertText(page, i % 10 === 9 ? '\n; ' : 'x');
+    await sleep(25);
+  }
+  const c1 = await counters(page);
+  const secs = (c1.now - c0.now) / 1000, fps = (c1.calls - c0.calls) / secs, ips = (c1.instr - c0.instr) / secs;
+  s.info(`a 10.000 IPF, escribiendo ${secs.toFixed(1)} s: ${fps.toFixed(1)} frames por segundo, ${Math.round(ips)} instrucciones por segundo`);
+  s.check(fps >= 55 && fps <= 66 && ips >= 10000 * fps * 0.98, `a 10.000 IPF, mientras se escriben 70 caracteres en el editor, la máquina sigue a ${fps.toFixed(1)} frames por segundo con 10.000 instrucciones cada uno`, JSON.stringify({ fps, ips }));
+  await page.shot('57-taller-teclado');
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
 
 // ---------------------------------------------------------------- principal
 async function runScenario(ctx, sc) {

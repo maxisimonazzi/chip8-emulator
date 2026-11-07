@@ -58,6 +58,7 @@ Z X C V        A 0 B F
 | T (mantenida) | Avance rápido: cuatro veces más rápido, timers incluidos |
 | P | Pantalla completa |
 | G | Guarda una captura en PNG |
+| Y | Abre o cierra el Taller: escribís un programa, lo ensamblás y corre en la consola |
 | I | Guarda el estado en la ranura rápida |
 | U | Carga la ranura rápida |
 | B (mantenida) | Rebobina |
@@ -86,10 +87,10 @@ herramientas.
 npm test
 ```
 
-Son **1489 pruebas** en 18 archivos y tardan unos segundos. Además de cada instrucción y cada
+Son **1516 pruebas** en 20 archivos y tardan unos segundos. Además de cada instrucción y cada
 quirk, revisan el ensamblador, los demos, los estados guardados, la tabla del archivo y que
 la documentación no mienta: los ejemplos del manual y del tutorial se ensamblan y se
-ejecutan. `npm run e2e` corre 50 escenarios en Chrome o Edge sin ventana, con teclado, mouse
+ejecutan. `npm run e2e` corre 57 escenarios en Chrome o Edge sin ventana, con teclado, mouse
 y toques de verdad.
 
 Las otras herramientas:

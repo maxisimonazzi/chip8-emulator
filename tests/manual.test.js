@@ -32,10 +32,10 @@
 // Además se verifican:
 //   - la referencia de SUPER-CHIP y XO-CHIP (sección 13.11): tiene una ficha
 //     "#### `OPCODE` — MNEMÓNICO" por cada instrucción que documenta el
-//     encabezado de tools/chip8asm.js y por cada instrucción que reconoce el
-//     núcleo (extendedInfo); el opcode de cada ficha tiene que ser el que genera
-//     el ensamblador para su mnemónico, y su línea "**Plataforma:**" la que
-//     dice el núcleo;
+//     encabezado del ensamblador (el bloque chip8-asm de chip8.html) y por cada
+//     instrucción que reconoce el núcleo (extendedInfo); el opcode de cada
+//     ficha tiene que ser el que genera el ensamblador para su mnemónico, y su
+//     línea "**Plataforma:**" la que dice el núcleo;
 //   - los datos que el manual copia del núcleo y del archivo de la comunidad: la
 //     tabla de la fuente grande, los dibujos de los glifos (cada fila tiene que
 //     ser su byte), la tabla de tonos de XO-CHIP y los números de
@@ -63,7 +63,7 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { ROOT, loadCore, loadAssembler, loadDemos, hexToBytes } = require('./harness');
+const { ROOT, loadCore, loadAssembler, loadDemos, hexToBytes, extractScript } = require('./harness');
 
 const {
   Chip8, QUIRK_PRESETS, PLATFORMS, PLATFORM_INFO, BIG_FONT, BIG_FONT_ADDR, extendedInfo, patternRate,
@@ -74,7 +74,6 @@ const DOCS = path.join(ROOT, 'docs');
 const MANUAL_PATH = path.join(DOCS, 'MANUAL.md');
 const TUTORIAL_PATH = path.join(DOCS, 'TUTORIAL.md');
 const README_PATH = path.join(ROOT, 'README.md');
-const ASM_PATH = path.join(ROOT, 'tools', 'chip8asm.js');
 const ARCHIVE_TOOL_PATH = path.join(ROOT, 'tools', 'archive.js');
 const ARCHIVE_DATA_PATH = path.join(ROOT, 'data', 'archive.json');
 
@@ -228,10 +227,11 @@ function cardsOf(md) {
   return cards;
 }
 
-// Las instrucciones de SUPER-CHIP y XO-CHIP que documenta el encabezado de
-// tools/chip8asm.js: [{ section: 'SUPER-CHIP', syntax: 'SCD n', opcode: '00Cn' }].
+// Las instrucciones de SUPER-CHIP y XO-CHIP que documenta el encabezado del
+// ensamblador (el bloque chip8-asm de chip8.html):
+// [{ section: 'SUPER-CHIP', syntax: 'SCD n', opcode: '00Cn' }].
 function assemblerExtendedForms() {
-  const src = read(ASM_PATH);
+  const src = extractScript('chip8-asm').code;
   const header = src.slice(src.indexOf('/*'), src.indexOf('*/'));
   const forms = [];
   let section = null;
@@ -419,11 +419,11 @@ describe('docs/MANUAL.md', () => {
     //    con el mismo opcode y el mismo mnemónico.
     const forms = assemblerExtendedForms();
     assert.ok(forms.some((f) => f.section === 'SUPER-CHIP') && forms.some((f) => f.section === 'XO-CHIP'),
-      'no encontré las instrucciones de SUPER-CHIP y XO-CHIP en el encabezado de tools/chip8asm.js');
+      'no encontré las instrucciones de SUPER-CHIP y XO-CHIP en el encabezado del bloque chip8-asm');
     for (const f of forms) {
       const want = '`' + f.opcode.toUpperCase() + '` — ' + f.syntax.toUpperCase();
       assert.ok(cards.some((c) => c.heading === want),
-        'falta la ficha «#### ' + want + '» (' + f.section + ' en tools/chip8asm.js)');
+        'falta la ficha «#### ' + want + '» (' + f.section + ' en el bloque chip8-asm)');
     }
     // 2. Cada ficha de una instrucción de SUPER-CHIP o XO-CHIP: el ensamblador genera su
     //    opcode a partir de su mnemónico, y la línea Plataforma es la que dice el núcleo.

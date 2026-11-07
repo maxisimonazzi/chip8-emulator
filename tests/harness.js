@@ -117,8 +117,28 @@ function renderAscii(cpu, on = '#', off = '.') {
   return rows.join('\n');
 }
 
+// El ensamblador, del bloque chip8-asm (el mismo código que usan la consola y tools/chip8asm.js).
+let assembler = null;
 function loadAssembler() {
-  return require(path.join(ROOT, 'tools', 'chip8asm.js'));
+  if (!assembler) {
+    delete globalThis.Chip8Asm;
+    runScript('chip8-asm');
+    assembler = globalThis.Chip8Asm;
+    if (!assembler) throw new Error('El bloque chip8-asm no definió globalThis.Chip8Asm');
+  }
+  return assembler;
+}
+
+// Los fuentes del Taller que incrusta tools/embed-roms.js en el bloque chip8-roms: { demos, examples }.
+let sources = null;
+function loadSources() {
+  if (!sources) {
+    delete globalThis.CHIP8_SOURCES;
+    runScript('chip8-roms');
+    sources = globalThis.CHIP8_SOURCES;
+    if (!sources || typeof sources !== 'object') throw new Error('El bloque chip8-roms no definió globalThis.CHIP8_SOURCES');
+  }
+  return sources;
 }
 
 module.exports = {
@@ -135,4 +155,5 @@ module.exports = {
   pixel,
   renderAscii,
   loadAssembler,
+  loadSources,
 };

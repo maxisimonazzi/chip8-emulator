@@ -441,6 +441,7 @@ un selector, un deslizador o el modo de pantalla.
 | Avance rápido (al pie del tubo) | T, mantenida | Mientras lo mantenés apretado, la máquina corre 4 veces más rápido, timers incluidos, y en la pantalla aparece «×4». Al soltar, vuelve a la velocidad de siempre. En pausa no hace nada. |
 | Pantalla completa (al pie del tubo) | P | La pantalla ocupa todo el monitor, siempre con píxeles enteros; en un teléfono, el keypad va al lado. Para volver, P o Esc. Si el navegador no tiene pantalla completa, como el del iPhone, el botón no aparece. |
 | Captura (al pie del tubo) | G | Baja una imagen PNG de la pantalla, con los colores exactos de la paleta y sin los efectos del tubo, de 640 × 320 (cada píxel, un cuadrado de 10 × 10, o de 5 × 5 en alta resolución). El archivo se llama `chip8-`, el nombre del cartucho y la fecha y la hora. |
+| Taller (el lápiz, arriba) | Y | Abre o cierra el Taller: escribís un programa, lo ensamblás y corre en la consola. |
 | **Guardar** de la ranura **Rápido** (en Estados) | I | Guarda el estado de la máquina en la ranura rápida (sección 1.13). |
 | **Cargar** de la ranura **Rápido** (en Estados) | U | Vuelve al estado de la ranura rápida. |
 | **?** | H | Abre o cierra la ayuda. |
