@@ -45,11 +45,12 @@ const EXPORTS = ['STATES_FILE_FORMAT', 'STATES_FILE_VERSION', 'STATES_FILE_MAX',
 const SOURCE = ['"use strict";', ...DEPS.map(uiVar), ...HELPERS.map(uiFunction), uiSection('estados guardados: archivos'),
   'return { ' + EXPORTS.join(', ') + ' };'].join('\n');
 
-// La sección, con lo que en la consola viene de otras partes.
+// La sección, con lo que en la consola viene de otras partes. archiveRomBytes, como en la consola con una
+// entrada del archivo que no trae ROM (las que registra la API), devuelve null si no se pasa otra.
 function load(env = {}) {
   const fn = new Function('Core', 'window', 'demos', 'library', 'stateStore', 'archiveLookup', 'archiveRomBytes', SOURCE);
   return fn(Core, { atob, btoa }, env.demos || [], env.library || { items: [] }, env.stateStore || { version: 1, roms: {} },
-    env.archiveLookup || (() => null), env.archiveRomBytes);
+    env.archiveLookup || (() => null), env.archiveRomBytes || (() => Promise.resolve(null)));
 }
 const F = load();
 
@@ -514,9 +515,9 @@ describe('findCartridge, de dónde es y cómo se llama un cartucho', () => {
     }
   });
 
-  it('un juego del archivo de Octo: sin archiveRomBytes no se puede cargar; con él, sí (si los bytes son los suyos)', async () => {
+  it('un juego del archivo de Octo se carga con los bytes de archiveRomBytes (si son los suyos); una entrada sin ROM, no', async () => {
     const lookup = (s) => (s === SHA ? entry : null);
-    const without = load({ archiveLookup: lookup });
+    const without = load({ archiveLookup: lookup });   // archiveRomBytes da null: una entrada registrada sin ROM
     assert.equal(await without.findCartridge(SHA), null);
     assert.equal(without.cartridgeOrigin(SHA), 'archivo');
     assert.equal(without.cartridgeName(SHA), 'Juego del archivo');

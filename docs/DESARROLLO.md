@@ -2498,6 +2498,7 @@ tercera:
 | 74 | La lista de todos los estados: grupos y de dónde es cada cartucho, pantallitas con sus colores, Cargar (también con un dedo), lo que no se puede cargar, Borrar y «Deshacer» (mouse y teclado), Esc y el fondo la cierran, y las teclas no van a la máquina. |
 | 75 | El giro en las pantallitas: 90° (también un estado guardado antes), 180° y 270° en «Estados», en la lista, en la pregunta y en el archivo exportado; Sub-Terr8nia, del archivo, a 270°. |
 | 76 | Diseño de «Estados», de la lista y de la pregunta a 1440, 768 y 360 px, y 60 fps a 10.000 IPF con la lista abierta. |
+| 77 | Integración: el desensamblado muestra las etiquetas del programa del Taller (y no las de otro cartucho), y «Ver todos» carga el estado de un juego del archivo con sus ROMs embebidas aunque haya otro cartucho en la ranura. |
 
 `node tools/e2e.js --help` imprime esta misma lista (sale del comentario del principio del
 archivo).

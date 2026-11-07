@@ -5327,8 +5327,10 @@ globalThis.CHIP8_ARCHIVE.data = {
 /*
  * Interfaz de la consola: pantalla, keypad, controles, monitor de depuración,
  * sonido y bucle principal. Solo usa globalThis.Chip8Core (el núcleo),
- * globalThis.CHIP8_DEMOS (los cartuchos incluidos) y globalThis.CHIP8_ARCHIVE (la
- * tabla del archivo de Octo); la emulación vive toda en el bloque chip8-core.
+ * globalThis.Chip8Asm (el ensamblador, para el Taller), globalThis.CHIP8_DEMOS (los
+ * cartuchos incluidos), globalThis.CHIP8_SOURCES (los fuentes de los demos y de los
+ * ejemplos del tutorial) y globalThis.CHIP8_ARCHIVE (la tabla del archivo de Octo y, en
+ * .data, sus ROMs comprimidas); la emulación vive toda en el bloque chip8-core.
  *
  * Ajustes por cartucho: cada ROM se reconoce por su SHA-1 (Core.sha1). Al cargarla,
  * antes del primer frame, se le aplican por prioridad los ajustes recordados para
@@ -5350,6 +5352,11 @@ globalThis.CHIP8_ARCHIVE.data = {
  *   loadCartridge(bytes, nombre, opc.) carga con los ajustes del cartucho (todas las cargas pasan por acá).
  *   setCartridgeColors(colores|null)   la opción «Del cartucho» de la paleta.
  *   setRotation(grados)                gira la imagen: 0, 90, 180 o 270.
+ *   archiveRomBytes(sha1)              promesa con los bytes de un juego del archivo (o null).
+ *   findCartridge(sha1)                promesa con un cartucho que no está en la ranura: demo,
+ *                                      «Tus cartuchos» o archivo ({ name, bytes, source }) o null.
+ *   workshopSymbols()                  etiquetas y listado del programa del Taller que está en la
+ *                                      ranura, o null; disasmLabel(dirección) las usa en el monitor.
  * Las funciones que cambian ajustes (applyProfile, applyPlatform, applyQuirks, setIpf) cuentan como
  * un cambio de la persona salvo que se las llame con auto (la autoconfiguración usa auto).
  *
@@ -5366,6 +5373,13 @@ globalThis.CHIP8_ARCHIVE.data = {
  * ajustes de la persona. Los estados se exportan e importan como archivos de texto (STATES_FILE_FORMAT) y
  * «Ver todos» los muestra todos, por cartucho; findCartridge(sha1) busca los bytes de un cartucho que no
  * está en la ranura (demos, «Tus cartuchos» y, con archiveRomBytes, el archivo de Octo).
+ *
+ * Depurador: el monitor tiene cuatro pestañas (Código, Traza, Memoria y Sprites). Los puntos de corte, el
+ * paso por encima (O), la salida de la subrutina (K), la traza, el mapa de accesos y el registro de dibujos
+ * son del núcleo (cpu.setBreakpoint, cpu.runTo, cpu.trace, cpu.access, cpu.spriteLog); los puntos de corte
+ * son de cada cartucho y duran la sesión. El Taller (Y) edita y ensambla programas con Chip8Asm y los
+ * carga con loadCartridge (origin 'taller'); lo guarda en 'chip8-consola.taller'. La ventana del archivo
+ * de la comunidad (L) muestra los 104 juegos y los carga con un clic (origin 'explorador').
  */
 (function () {
   'use strict';
@@ -7105,8 +7119,9 @@ globalThis.CHIP8_ARCHIVE.data = {
   // sus ajustes (resolveConfig: los recordados, los del archivo de Octo, la plataforma del demo o los
   // tuyos), sus colores, su giro y sus banderas RPL; apagado, todo queda como estaba (como siempre).
   // opts: { demoId, quiet, origin: 'archivo' (selector o arrastre) | 'biblioteca' | 'demo' | 'api' |
-  // 'taller' (no va a la biblioteca), fileName, item (el cartucho de la biblioteca), platform (la que
-  // pide el programa: el Taller la manda, y vale por encima de la recordada) }. Devuelve true si cargó.
+  // 'taller' | 'explorador' (la ventana del archivo de la comunidad; estos dos no van a la biblioteca),
+  // fileName, item (el cartucho de la biblioteca), platform (la que pide el programa: el Taller la manda,
+  // y vale por encima de la recordada) }. Devuelve true si cargó.
   function loadCartridge(bytes, name, opts) {
     opts = opts || {};
     var arr = toBytes(bytes);
@@ -8913,7 +8928,8 @@ globalThis.CHIP8_ARCHIVE.data = {
   // a enganchar. Con el mapa de accesos, una palabra que el programa solo leyó o escribió se muestra como datos
   // (DB), el operando de un F000 NNNN ejecutado como tal, y lo que nunca se ejecutó va más tenue.
   // La fila elegida (dis.sel, o la del PC si es -1) es a la que le actúan «Punto de corte» y «Hasta acá».
-  // disasmLabel(dirección) es el punto de extensión para las etiquetas de un programa (hoy no hay: null).
+  // disasmLabel(dirección) da la etiqueta de esa dirección si el cartucho de la ranura salió del Taller
+  // (workshopSymbols); si no, null.
   var A = Core.ACCESS;
   var dis = { list: null, parity: 0, follow: true, sel: -1, jumpKey: -1, lastInstr: 0 };
   var dbg = {
@@ -8932,7 +8948,22 @@ globalThis.CHIP8_ARCHIVE.data = {
     var s = cpu.debugStop;
     return !!s && s.kind === 'breakpoint' && s.addr === (cpu.pc & memMask());
   }
-  function disasmLabel() { return null; }
+  // Las etiquetas del programa del Taller que está en la ranura, por dirección: la primera que se definió en
+  // cada una (las constantes EQU no están: el ensamblador las guarda aparte). Se arma de nuevo solo cuando
+  // cambia el programa ensamblado.
+  var disLabels = { from: null, byAddr: null };
+  function disasmLabel(a) {
+    var sym = workshopSymbols();
+    if (!sym) return null;
+    if (disLabels.from !== sym.labels) {
+      var byAddr = {};
+      Object.keys(sym.labels).forEach(function (name) {
+        if (!hasOwn(byAddr, sym.labels[name])) byAddr[sym.labels[name]] = name;
+      });
+      disLabels = { from: sym.labels, byAddr: byAddr };
+    }
+    return hasOwn(disLabels.byAddr, a) ? disLabels.byAddr[a] : null;
+  }
   function memMask() { return cpu.memory.length - 1; }
   function addrText(a) { return '0x' + hex(a, addrDigits); }
   function wordAt(a) {
@@ -11199,16 +11230,14 @@ globalThis.CHIP8_ARCHIVE.data = {
         return Promise.resolve({ name: item.name, bytes: bytes, source: 'biblioteca', item: item });
       }
     }
-    // >>> FUENTE DEL ARCHIVO DE OCTO: los juegos del archivo, con sus bytes embebidos. archiveRomBytes(sha1)
-    // es de otra parte de la consola (una promesa con un Uint8Array o null); mientras no exista, un juego del
-    // archivo que no está en la ranura ni en «Tus cartuchos» no se puede cargar desde la lista.
+    // Los juegos del archivo de Octo, con los bytes embebidos que da archiveRomBytes (sección «archivo de la
+    // comunidad: las ROMs»; null si la huella es de una entrada sin ROM, como las que registra la API).
     var arch = archiveLookup(sha);
-    if (arch && typeof archiveRomBytes === 'function') {
+    if (arch) {
       return Promise.resolve(archiveRomBytes(sha)).then(function (b) {
         return b && b.length && Core.sha1(b) === sha ? { name: arch.title, bytes: b, source: 'archivo' } : null;
       }, function () { return null; });
     }
-    // <<<
     return Promise.resolve(null);
   }
   // Cómo se ve la pantalla de un cartucho: { colors, rotation }. El de la ranura, como se ve ahora; otro, como
@@ -11675,6 +11704,7 @@ globalThis.CHIP8_ARCHIVE.data = {
   function cartridgeLoadOptions(c) {
     if (c.source === 'demo') return { demoId: c.demoId, origin: 'demo' };
     if (c.source === 'biblioteca') return { origin: 'biblioteca', item: c.item };
+    if (c.source === 'archivo') return { origin: 'explorador' };   // como desde la ventana del archivo
     return {};
   }
   // Borrar desde la lista: la línea de mensajes trae «Deshacer» (y, si se borró con el teclado, el foco).
@@ -13222,7 +13252,7 @@ globalThis.CHIP8_ARCHIVE.data = {
     clearBreakpoints: function () { return clearAllBreakpoints(true); },
     setMonitorTab: function (id) { return showTab(id); },
     getMonitorTab: function () { return mon.tab; },
-    debugState: function () { return debugState(); },   // { stop, run, disasm, memory, sprite }
+    debugState: function () { return debugState(); },   // { stop, atBreakpoint, run, tab, disasm, memory, sprite }
     frame: function () { return frameOnce(); },
     reset: function () { return doReset(); },
     setIpf: function (n) { return setIpf(n); },

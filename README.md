@@ -93,7 +93,7 @@ npm test
 Son **1602 pruebas** en 22 archivos y tardan unos segundos. Además de cada instrucción y cada
 quirk, revisan el ensamblador, los demos, los estados guardados, la tabla del archivo y que
 la documentación no mienta: los ejemplos del manual y del tutorial se ensamblan y se
-ejecutan. `npm run e2e` corre 76 escenarios en Chrome o Edge sin ventana, con teclado, mouse
+ejecutan. `npm run e2e` corre 77 escenarios en Chrome o Edge sin ventana, con teclado, mouse
 y toques de verdad.
 
 Las otras herramientas:

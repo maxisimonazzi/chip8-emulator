@@ -168,6 +168,9 @@
  *      la lista, la pregunta y el archivo exportado; Sub-Terr8nia, del archivo, a 270°
  *   76 diseño de «Estados», de la lista y de la pregunta a 1440, 768 y 360 px, y 60 fps a 10.000 IPF con la
  *      lista abierta
+ *   77 integración: el desensamblado muestra las etiquetas del programa del Taller (y no las de otro
+ *      cartucho), y «Ver todos» carga el estado de un juego del archivo con sus ROMs embebidas aunque haya
+ *      otro cartucho en la ranura
  */
 
 const { spawn, spawnSync } = require('node:child_process');
@@ -5562,7 +5565,6 @@ const ARCH_GAMES = JSON.parse(fs.readFileSync(archTool.DATA_PATH, 'utf8')).progr
   return { ...e, sha1: p.sha1, authors: /^your name here$/i.test(e.authors.trim()) ? '' : e.authors };
 });
 const archGame = (id) => ARCH_GAMES.find((g) => g.id === id);
-Object.assign(KEYS, { PageUp: { key: 'PageUp', vk: 33 }, PageDown: { key: 'PageDown', vk: 34 } });   // para recorrer la lista
 const archRom = (g) => fs.readFileSync(path.join(archTool.ROMS_DIR, g.id + '.ch8'));
 const ARCH_PLATFORM_NAME = { chip8: 'CHIP-8', schip: 'SUPER-CHIP', xochip: 'XO-CHIP' };
 // Como la búsqueda de la ventana: minúsculas, sin tildes y con los espacios de a uno.
@@ -6905,6 +6907,79 @@ bucle:  ADD V0, 1
     `con la lista abierta, la máquina sigue a ${rate.fps.toFixed(1)} frames por segundo con 10.000 IPF (${Math.round(rate.ips)} instrucciones por segundo)`, JSON.stringify(rate));
   s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
 }, 150000);
+
+// 77 -------------------------------------------------------------------------------
+scenario(77, 'Integración: el desensamblado muestra las etiquetas del programa del Taller (y no las de otro cartucho), y «Ver todos» carga el estado de un juego del archivo con sus ROMs embebidas aunque haya otro cartucho en la ranura', async (ctx, s) => {
+  const page = await freshApp(ctx, s, { width: 1440, height: 900 });
+  // La fila del desensamblado de una dirección, después de llevarlo ahí con «Ir a» (teclado de verdad).
+  const rowAt = async (addr) => {
+    await page.ev("document.getElementById('dis-goto').focus()");
+    await page.type(addr.toString(16).toUpperCase().padStart(3, '0'));
+    await page.press('Enter');
+    await sleep(150);
+    return page.ev(`(() => {
+      const li = Array.from(document.querySelectorAll('#disasm li')).find((l) => l.__key === ${addr});
+      return li ? li.__text.textContent : null;
+    })()`);
+  };
+
+  // 1. Un ejemplo del tutorial ensamblado en el Taller: sus etiquetas aparecen en el desensamblado.
+  await clickHit(page, '#btn-workshop');
+  await wsOpen(page);
+  await chooseWithMouse(page, '#ws-program', 'ejemplo:03-fantasma.asm');
+  await page.click('#ws-text');
+  await comboKey(page, 'Enter', 2);
+  await page.waitFor(`document.getElementById('cart-name').textContent === '03-fantasma'`, { timeout: 3000, desc: '«03-fantasma» en la ranura' });
+  await page.ev("window.chip8.pause(); window.chip8.setMonitorTab('codigo')");
+  const want = assemble(ejemplo('03-fantasma.asm'));
+  const first = {};   // la primera etiqueta de cada dirección, como la muestra el depurador
+  for (const [name, addr] of Object.entries(want.labels)) if (!(addr in first)) first[addr] = name;
+  const rows = [];
+  for (const [addr, name] of Object.entries(first)) rows.push({ addr: Number(addr), name, text: await rowAt(Number(addr)) });
+  s.check(rows.length >= 2 && rows.every((r) => r.text && r.text.startsWith(r.name + ': ')),
+    `cada etiqueta del programa del Taller encabeza su fila del desensamblado (${rows.map((r) => `${r.name} en 0x${r.addr.toString(16).toUpperCase()}`).join(', ')})`, JSON.stringify(rows));
+  // Otro cartucho en la ranura: las etiquetas del Taller ya no valen.
+  await clickCart(page, 'teclado');
+  await page.waitFor(`document.getElementById('cart-name').textContent === 'Teclado'`, { timeout: 3000, desc: 'Teclado en la ranura' });
+  await page.ev('window.chip8.pause()');
+  const other = await rowAt(rows[0].addr);
+  s.check(other !== null && !other.startsWith(rows[0].name + ': '), `con Teclado en la ranura, 0x${rows[0].addr.toString(16).toUpperCase()} no lleva la etiqueta «${rows[0].name}» («${other}»)`);
+
+  // 2. Un estado de Snake (del archivo de la comunidad) cargado desde «Ver todos» con Rebote en la ranura.
+  const snake = ARCH_GAMES.find((g) => g.id === 'snake');
+  const SNAP = '(() => { const c = window.chip8.cpu; return JSON.stringify({ V: Array.from(c.V), I: c.I, pc: c.pc, sp: c.sp, stack: Array.from(c.stack) }); })()';
+  await page.ev(`window.chip8.archiveLoad('${snake.sha1}')`);
+  await page.waitFor(`document.getElementById('cart-name').textContent === 'Snake'`, { timeout: 5000, desc: 'Snake en la ranura' });
+  const saved = await page.ev(`(async () => {
+    window.chip8.pause();
+    for (let i = 0; i < 90; i++) {
+      if (i % 20 === 0) window.chip8.pressKey(8);
+      if (i % 20 === 5) window.chip8.releaseKey(8);
+      window.chip8.frame();
+    }
+    const snap = ${SNAP};
+    return { snap, ok: window.chip8.saveSlot(4) };
+  })()`);
+  await clickCart(page, 'rebote');
+  await page.waitFor(`document.getElementById('cart-name').textContent === 'Rebote'`, { timeout: 3000, desc: 'Rebote en la ranura' });
+  const before = await page.ev(`(() => { window.chip8.pause(); for (let i = 0; i < 20; i++) window.chip8.frame(); return ${SNAP}; })()`);
+  await clickHit(page, '#states-open');
+  await page.waitFor("document.getElementById('states-list').open", { timeout: 2000, desc: 'la lista abierta' });
+  const canLoad = await page.ev(`(() => { const b = document.querySelector('${cardSel(snake.sha1, '4', 'load')}'); return !!b && b.getAttribute('aria-disabled') !== 'true'; })()`);
+  // La máquina sigue corriendo después de cargar (como en el 74): se mira cómo quedó justo al cargar el estado.
+  await page.ev(`(() => { const c = window.chip8.cpu, ls = c.loadState;
+    c.loadState = function (st) { const r = ls.call(this, st); window.__alCargar = ${SNAP}; return r; }; return true; })()`);
+  await clickHit(page, cardSel(snake.sha1, '4', 'load'));
+  await page.waitFor(`document.getElementById('cart-name').textContent === 'Snake' && !document.getElementById('states-list').open`, { timeout: 5000, desc: 'Snake y su estado, cargados desde la lista' });
+  await sleep(200);
+  const after = await page.ev(`({ snap: window.__alCargar || null, info: window.chip8.romInfo(), lib: window.chip8.libraryList().length })`);
+  s.check(saved.ok && JSON.parse(saved.snap).pc !== 0x200 && before !== saved.snap, 'el estado de Snake se guardó con el juego andando, y Rebote lo cambió todo', JSON.stringify({ saved, before }));
+  s.check(canLoad && after.snap === saved.snap && after.info.archiveId === 'snake' && after.info.source === 'archivo',
+    '«Cargar» de la ranura 4 de Snake pone el juego desde las ROMs embebidas (con los ajustes del archivo) y deja la máquina exactamente como se guardó',
+    JSON.stringify({ canLoad, after, saved: saved.snap }));
+  s.check(after.lib === 0, 'el juego del archivo no se sumó a «Tus cartuchos»', String(after.lib));
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+}, 120000);
 
 // ---------------------------------------------------------------- principal
 async function runScenario(ctx, sc) {
