@@ -57,12 +57,15 @@ leé [DESARROLLO.md](DESARROLLO.md). La portada del proyecto es el [README](../R
 ### Qué necesitás
 
 - **Un navegador** moderno (Chrome, Edge, Firefox o Safari). Con eso alcanza para las
-  partes 1, 2, 6, 7 y 9, y para cargar los `.ch8` ya ensamblados de las demás.
+  partes 1, 2, 6, 7 y 9, y para cargar los `.ch8` ya ensamblados de las demás. Los
+  programas de las partes 4, 5 y 9 también los podés escribir, ensamblar y correr en el
+  **Taller** de la consola, sin nada más ([sección 4.8](#48-el-taller-ensamblar-sin-salir-de-la-consola)).
 - **Una terminal** (PowerShell en Windows, o la que uses en Linux o macOS) para crear
   el archivo de la parte 3.
-- **[Node.js](https://nodejs.org/)** para el ensamblador (partes 4 y 5, y los
-  ejercicios de la 9) y para el emulador mínimo (parte 8). No hay que instalar paquetes: todo el proyecto usa solo
-  lo que trae Node. Los tests se corren con Node 22 o más nuevo. Si en tu computadora
+- **[Node.js](https://nodejs.org/)** para el ensamblador de la terminal (partes 4 y 5, y
+  los ejercicios de la 9) y para el emulador mínimo (parte 8). No hay que instalar
+  paquetes: todo el proyecto usa solo lo que trae Node. Los tests se corren con Node 22 o
+  más nuevo. Si en tu computadora
   `node` no anda pero tenés un editor que trae el suyo, mirá
   [cómo usarlo](DESARROLLO.md#910-trabajar-sin-node-en-el-path).
 - Este repositorio. Todos los comandos de la terminal se escriben **parado en la
@@ -113,15 +116,17 @@ local, corré `node tools/serve.js` (o `npm run serve`) y entrá a
 Vas a ver una consolita beige con estas partes:
 
 - Arriba, la **pantalla** (un monitor de tubo, de fósforo verde) y dos luces: **RUN** y
-  **SONIDO**. El botón **?** abre la ayuda. Al pie del tubo hay cuatro botoncitos: el
-  rebobinado (⏪), el avance rápido, la captura y la pantalla completa (sección 1.10).
+  **SONIDO**. El botón **?** abre la ayuda, y el del lápiz, al lado, el **Taller**, donde
+  se escriben programas ([sección 4.8](#48-el-taller-ensamblar-sin-salir-de-la-consola)).
+  Al pie del tubo hay cuatro botoncitos: el rebobinado (⏪), el avance rápido, la captura
+  y la pantalla completa (sección 1.10).
 - Debajo de la pantalla, el **cartucho**: qué programa está cargado y cuánto ocupa, el
   botón **Cargar ROM** y, justo abajo, la fila **Incluidos:**, con un botón por cada
   programa de demostración (sección 1.2). Cuando cargues ROMs tuyas, aparece también la
   fila **Tuyos:** (sección 1.3).
-- Después, los botones de **ejecución** (Pausa, Paso, Frame y Reiniciar) y, debajo,
-  una **línea de estado** que te va contando lo que pasa: *En pausa.*, *Reiniciado
-  (en pausa).*, *Paso: PC = 0x20C.*
+- Después, los botones de **ejecución** (Pausa, Paso, Por encima, Salir, Frame y
+  Reiniciar) y, debajo, una **línea de estado** que te va contando lo que pasa: *En
+  pausa.*, *Reiniciado (en pausa).*, *Paso: PC = 0x20C.*
 - A la derecha, el **keypad** hexadecimal de 16 teclas. En una pantalla angosta (un
   teléfono, o una ventana de menos de unos 760 píxeles de ancho) todo va en una sola
   columna: el keypad queda pegado debajo de la pantalla, para que los dos entren
@@ -132,7 +137,8 @@ Vas a ver una consolita beige con estas partes:
   rebobinado).
 - Debajo de la consola, dos estantes: **Cartuchos incluidos**, con la descripción y los
   controles de cada programa de demostración, y **Tus cartuchos**, con las ROMs que
-  vayas cargando.
+  vayas cargando. En el título del primero está el botón **Archivo**, que abre los
+  juegos del archivo de la comunidad (sección 1.7).
 - El **monitor** de depuración: a la derecha si tu pantalla es ancha, o debajo de la
   consola si es angosta.
 
@@ -221,7 +227,8 @@ teclado. Y si navegás con Tab, podés mantener apretada la tecla enfocada con E
 Espacio.
 
 Las teclas no le llegan a la máquina mientras escribís en un campo de texto (por
-ejemplo, el número de IPF) ni mientras está abierta la ayuda. En cualquier otro lugar sí
+ejemplo, el número de IPF o el editor del Taller) ni mientras está abierta una ventana:
+la ayuda, el archivo de la comunidad o la lista de estados. En cualquier otro lugar sí
 le llegan, aunque haya un botón o un selector enfocado: por ejemplo, justo después de
 elegir un perfil en el selector **Perfil**, W, A, S, D y Retroceso siguen yendo a la
 consola.
@@ -332,11 +339,18 @@ dos cosas:
   recordado: si es un juego del archivo, vuelven los del archivo; si no, la próxima vez
   arranca con tus ajustes de siempre.
 
-**Las ROMs del archivo vienen con el proyecto.** Las 104 ROMs del archivo están en la
-carpeta [`roms/archivo/`](../roms/archivo/LEEME.md) del repositorio (el archivo es de
-dominio público, licencia CC0), con un índice, `LEEME.md`, que dice de cada juego la
-plataforma, la velocidad, quién lo hizo y para qué evento. Cargá cualquiera con
-**Cargar ROM** (o arrastrala) y mirá cómo la consola se configura sola.
+**Los juegos del archivo vienen con la consola.** Tocá **Archivo**, en el título del
+estante *Cartuchos incluidos*, o apretá **L**: se abre una ventana con los juegos, cada
+uno con su título, sus autores, el evento, la plataforma y una miniatura de su pantalla.
+Buscá por título o por autor, filtrá por plataforma o por evento, y con un clic (o con
+Enter) el juego arranca ya configurado y la ventana se cierra. Los que cargás así no
+ocupan lugar en **Tus cartuchos**: siempre están en la ventana.
+
+Las 104 ROMs del archivo están también en la carpeta
+[`roms/archivo/`](../roms/archivo/LEEME.md) del repositorio (el archivo es de dominio
+público, licencia CC0), con un índice, `LEEME.md`, que dice de cada juego la plataforma,
+la velocidad, quién lo hizo y para qué evento. Si cargás una con **Cargar ROM** (o la
+arrastrás), la consola también la reconoce y se configura sola.
 
 Una ROM que la consola no conoce y que nunca usaste arranca con tus últimos ajustes; un
 cartucho incluido, con su plataforma. Lo que la consola aplica sola no cuenta como una
@@ -443,13 +457,13 @@ un selector, un deslizador o el modo de pantalla.
 | Avance rápido (al pie del tubo) | T, mantenida | Mientras lo mantenés apretado, la máquina corre 4 veces más rápido, timers incluidos, y en la pantalla aparece «×4». Al soltar, vuelve a la velocidad de siempre. En pausa no hace nada. |
 | Pantalla completa (al pie del tubo) | P | La pantalla ocupa todo el monitor, siempre con píxeles enteros; en un teléfono, el keypad va al lado. Para volver, P o Esc. Si el navegador no tiene pantalla completa, como el del iPhone, el botón no aparece. |
 | Captura (al pie del tubo) | G | Baja una imagen PNG de la pantalla, con los colores exactos de la paleta y sin los efectos del tubo, de 640 × 320 (cada píxel, un cuadrado de 10 × 10, o de 5 × 5 en alta resolución). El archivo se llama `chip8-`, el nombre del cartucho y la fecha y la hora. |
-| Taller (el lápiz, arriba) | Y | Abre o cierra el Taller: escribís un programa, lo ensamblás y corre en la consola. |
+| Taller (el lápiz, al lado del **?**) | Y | Abre o cierra el Taller: escribís un programa, lo ensamblás y corre en la consola (sección 4.8). |
 | **Guardar** de la ranura **Rápido** (en Estados) | I | Guarda el estado de la máquina en la ranura rápida (sección 1.13). |
 | **Cargar** de la ranura **Rápido** (en Estados) | U | Vuelve al estado de la ranura rápida. |
 | **?** | H | Abre o cierra la ayuda. |
-| **Archivo** (en el título del estante de cartuchos) | L | Abre o cierra el archivo de la comunidad: los juegos de la Octojam, para cargarlos con un clic. |
+| **Archivo** (en el título del estante de cartuchos) | L | Abre o cierra el archivo de la comunidad: los juegos de la Octojam, para cargarlos con un clic (sección 1.7). |
 | | Flechas | Aprietan las teclas del keypad que elegiste en Controles (sección 1.9). |
-| | Esc | Cierra la ayuda o sale de la pantalla completa. |
+| | Esc | Cierra la ayuda y las otras ventanas, o sale de la pantalla completa. |
 
 Un detalle importante para depurar: **Paso no hace correr el tiempo**. Los timers
 bajan una vez por frame, así que con Paso quedan congelados; con Frame, o
@@ -459,13 +473,14 @@ de a frames enteros, con los timers como estaban en cada uno (sección 1.13).
 
 Y uno sobre el foco: los botones que tocás con el mouse no se quedan con el foco, así
 que Espacio siempre pausa. Si en cambio llegás a un botón o a un interruptor con Tab,
-Espacio y Enter lo activan (no pausan); las teclas del keypad, N, H, T, P, G, I, U, B y
-Retroceso siguen yendo a la consola.
+Espacio y Enter lo activan (no pausan); las teclas del keypad, N, O, K, H, L, T, P, G,
+Y, I, U, B y Retroceso siguen yendo a la consola.
 
 ### 1.11 El monitor
 
 El monitor muestra el estado completo de la máquina y se actualiza mientras corre. Con
-el botón **Ocultar** lo plegás.
+el botón **Ocultar** lo plegás. Tiene cuatro pestañas, y la que elegiste queda para la
+próxima vez. La primera, **Código**, tiene:
 
 - **ESTADO**: `PC` (la dirección de la próxima instrucción), `I`, `SP` (cuántas
   direcciones hay en la pila), `DT` y `ST` (los timers), las `IPF` elegidas y cuántas
@@ -477,16 +492,27 @@ el botón **Ocultar** lo plegás.
 - **REGISTROS V0–VF**: los 16 registros, en hexadecimal. Los que cambiaron desde la
   última actualización se resaltan: cuando avanzás con Paso, ves exactamente qué tocó
   cada instrucción.
-- **DESENSAMBLADO**: las instrucciones alrededor del PC (7 antes y 12 después), con su
-  dirección, sus bytes y su nombre. La del PC está resaltada y marcada con una flechita
-  (▶): es la que se va a ejecutar **a continuación**. Con el quirk `BXNN` prendido, las
-  instrucciones `BNNN` aparecen como `JP VX, NNN`, con el registro que de verdad se suma.
-  Las instrucciones de SUPER-CHIP y XO-CHIP aparecen con su nombre solo si la plataforma
-  elegida las tiene: con CHIP-8, `00FF` se lee `SYS 0x0FF`; con SUPER-CHIP, `HIGH`.
+- **DESENSAMBLADO**: las instrucciones de la memoria, con su dirección, sus bytes y su
+  nombre. La del PC está resaltada y marcada con una flechita (▶): es la que se va a
+  ejecutar **a continuación**. La lista sigue al PC: mientras se ve, se queda quieta, y
+  cuando se va, lo vuelve a poner arriba, con 7 instrucciones antes. Con la rueda del
+  mouse, arrastrando o con las flechas recorrés el resto de la memoria; **Ir a** salta a
+  una dirección y **Al PC** vuelve a seguirlo. Lo que el programa todavía no ejecutó se
+  ve más tenue. Con el quirk `BXNN` prendido, las instrucciones `BNNN` aparecen como
+  `JP VX, NNN`, con el registro que de verdad se suma. Las instrucciones de SUPER-CHIP y
+  XO-CHIP aparecen con su nombre solo si la plataforma elegida las tiene: con CHIP-8,
+  `00FF` se lee `SYS 0x0FF`; con SUPER-CHIP, `HIGH`.
 - **PILA**: los 16 lugares de la pila; el tope (la última dirección guardada) está
   marcado.
-- **MEMORIA EN I**: 32 bytes alrededor de la dirección a la que apunta I (el de I,
-  resaltado). Sirve para ver qué sprite está por dibujar un `DRW`.
+- **PUNTOS DE CORTE**: los que pusiste para que la máquina se detenga sola (los vas a usar
+  en la [parte 7](#7-depurar)).
+
+Las otras tres pestañas: **Traza**, las últimas instrucciones que se ejecutaron (con la
+máquina en pausa o detenida); **Memoria**, un mapa de toda la memoria que muestra qué se
+ejecutó, qué se leyó y qué se escribió, y debajo **MEMORIA EN I**, la memoria byte por
+byte, que sigue a la dirección a la que apunta I (el byte de I, resaltado) y sirve para
+ver qué sprite está por dibujar un `DRW`; y **Sprites**, que dibuja esos mismos bytes
+como los va a dibujar el `DRW`.
 
 Si la máquina se detiene por un error, el mensaje aparece también al pie del monitor.
 
@@ -524,9 +550,9 @@ haciendo la máquina: estos son partidas guardadas.)
 
 **Las ranuras.** El grupo **Estados**, el último del panel, tiene cinco ranuras: **Rápido**
 y de la **Ranura 1** a la **Ranura 4**. Cada una muestra en chiquito la pantalla del
-momento que guardaste, con los colores de tu paleta, y cuándo la guardaste (*recién*,
-*hace 5 min*, *ayer 18:20*); una vacía dice *VACÍA*. Las manejás con sus botones
-**Guardar**, **Cargar** y **Borrar**, y el aviso de Borrar trae **Deshacer**. La ranura
+momento que guardaste, con los colores y el giro con que se ve la pantalla, y cuándo la
+guardaste (*recién*, *hace 5 min*, *ayer 18:20*); una vacía dice *VACÍA*. Las manejás con
+sus botones **Guardar**, **Cargar** y **Borrar**, y el aviso de Borrar trae **Deshacer**. La ranura
 rápida se maneja además con el teclado, sin sacar las manos del juego: **I** guarda y
 **U** carga. Al guardar, la pantalla muestra un momento *GUARDADO*; al cargar, *CARGADO*.
 
@@ -535,6 +561,13 @@ reconocida por su huella (sección 1.7), tiene las suyas, y otra ROM no las ve. 
 guardadas en tu navegador aunque cierres la página. Si el navegador no deja guardar datos,
 o se quedó sin lugar, duran hasta que la cierres, y la consola te avisa. Si un estado
 guardado se dañó, su ranura dice *DAÑADO* y no se puede cargar.
+
+**Todos los estados, y en otro navegador.** **Ver todos**, al lado del título del grupo,
+abre una ventana con los estados de todos los cartuchos: desde ahí cargás cualquiera (si
+el cartucho no está en la ranura, la consola lo pone antes), lo borrás o lo exportás.
+**Exportar** baja un archivo `.json` con los estados del cartucho de la ranura, e
+**Importar**, o arrastrar ese archivo sobre la página, los trae en otro navegador; si una
+ranura ya tiene otro estado, la consola te pregunta antes de reemplazarlo.
 
 **Cargar no reinicia nada** y no toca la pausa: si la máquina estaba en pausa, queda en
 pausa en ese momento, con ese frame en la pantalla y en el monitor; si corría, sigue
@@ -912,7 +945,7 @@ Ahora vamos a ver cada instrucción hacer lo suyo:
 |---|---|---|
 | 1 | `CLS` | `PC = 0x202`. La pantalla ya estaba vacía. |
 | 2 | `LD V0, 0x0A` | V0 = `0A`, resaltado. |
-| 3 | `LD F, V0` | `I = 0x082`. En MEMORIA EN I, a partir del byte resaltado: `F0 90 F0 90 90`. ¡Es la A! |
+| 3 | `LD F, V0` | `I = 0x082`. En MEMORIA EN I (pestaña **Memoria**), a partir del byte resaltado: `F0 90 F0 90 90`. ¡Es la A! |
 | 4 | `LD V1, 0x1E` | V1 = `1E`. |
 | 5 | `LD V2, 0x0D` | V2 = `0D`. |
 | 6 | `DRW V1, V2, 5` | Aparece la A. VF = `00`: no se apagó ningún píxel. |
@@ -953,7 +986,10 @@ Escribir en hexadecimal es buenísimo para entender, pero para programar de verd
 suplicio: hay que calcular direcciones a mano y cualquier instrucción que agregás corre
 todas las que vienen después. Un **ensamblador** traduce texto como `DRW V1, V2, 5` a
 los bytes `D1 25`, y calcula las direcciones por vos a partir de **etiquetas**. El del
-proyecto es `tools/chip8asm.js`: un solo archivo, sin dependencias.
+proyecto vive adentro de `chip8.html`, como el núcleo, y no tiene dependencias. Se usa de
+dos maneras: desde la terminal, con `tools/chip8asm.js`, que es la que sigue este
+tutorial, o en el **Taller** de la consola, sin salir del navegador
+([sección 4.8](#48-el-taller-ensamblar-sin-salir-de-la-consola)).
 
 ### 4.1 El mismo programa, en ensamblador
 
@@ -1115,8 +1151,8 @@ LARGO   EQU 3
 tabla:  DB 1, 2, 3, 4
 ```
 
-La documentación completa de la sintaxis está en el comentario del principio de
-`tools/chip8asm.js`.
+La documentación completa de la sintaxis está en el comentario del principio del
+ensamblador: el bloque `<script id="chip8-asm">` de `chip8.html`.
 
 ### 4.5 Sprites propios con `DB`: HOLA
 
@@ -1237,6 +1273,11 @@ bucle:  CLS
 mal.asm: Línea 5: "bucle" ya estaba definido en la línea 3
 ```
 
+En el Taller (sección 4.8) el mismo programa no se carga: el número del renglón 5 queda
+en rojo en el margen, y debajo del editor aparece la lista de los errores, con el mismo
+mensaje sin el nombre del archivo. A diferencia de la terminal, que se detiene en el
+primero, el Taller los muestra todos de una vez.
+
 Lo que el ensamblador **no** puede ver son los errores de lógica: usar `SKP` donde iba
 `SKNP`, olvidarse de apuntar I antes de un `DRW`, pisar un registro que estabas usando.
 Para esos está el monitor, y la [parte 7](#7-depurar).
@@ -1247,9 +1288,37 @@ El DESENSAMBLADO del monitor usa exactamente esta misma sintaxis, así que cualq
 línea que veas ahí la podés copiar a un `.asm`. Las palabras que no son instrucciones
 válidas aparecen como `DW 0x....`, que también se puede ensamblar. Con el quirk `BXNN`
 prendido, `B300` aparece como `JP V3, 0x300`, que el ensamblador también entiende (y
-vuelve a dar `B300`). Eso sí: el monitor no sabe qué es código y qué es un dibujo. Los
-bytes del fantasmita que vas a dibujar en la parte 5 (`78 FC ...`) los muestra como
-`ADD V8, 0xFC`.
+vuelve a dar `B300`). Eso sí: el monitor no sabe de antemano qué es código y qué es un
+dibujo. Los bytes del fantasmita que vas a dibujar en la parte 5 (`78 FC ...`) aparecen
+primero como `ADD V8, 0xFC`, más tenues, como todo lo que todavía no se ejecutó. Cuando
+un `DRW` los lee, el monitor se entera de que son datos y los muestra como tales:
+`DB 0x78, 0xFC`. Y si en la ranura está un programa que ensamblaste en el Taller, el
+DESENSAMBLADO muestra además sus etiquetas: `fin: JP 0x20C`.
+
+### 4.8 El Taller: ensamblar sin salir de la consola
+
+Todo lo de esta parte se puede hacer también adentro de la consola. Tocá el botón del
+lápiz, al lado del **?**, o apretá **Y**, y se abre el **Taller**: un editor con el mismo
+ensamblador. En una computadora va a la derecha, con la pantalla a la vista; en una
+pantalla angosta, debajo de los estantes.
+
+- En **Programa** están los once ejemplos de este tutorial, con su nombre de archivo
+  (*01-a-mano.asm*, *02-hola.asm*...), los fuentes de los seis cartuchos incluidos y los
+  programas tuyos (**Nuevo** empieza uno, **Abrir .asm** trae un archivo).
+- **Ensamblar y correr**, o **Ctrl+Enter**, ensambla el programa y lo carga en la
+  consola, que lo corre enseguida. No pasa por *Tus cartuchos*. Para tocar el keypad con
+  el teclado, hacé clic en la pantalla: mientras escribís en el editor, las teclas son del
+  editor.
+- Si hay errores, el programa no se carga: se marcan en el margen y en la lista de abajo,
+  y el cursor va al primero (sección 4.6).
+- Lo que cambiás no se pierde: queda anotado en tu navegador como *sin guardar*, aunque
+  recargues la página, hasta que tocás **Guardar**. Un ejemplo o un cartucho que
+  cambiaste vuelve a como venía con **Restaurar el original**: los archivos del
+  repositorio no se tocan.
+- **Descargar .ch8** baja la ROM ensamblada, y **Descargar .asm**, el texto.
+
+Con un ejemplo cargado así, el DESENSAMBLADO muestra sus etiquetas, y todo lo demás
+(Paso, el monitor, la [parte 7](#7-depurar)) funciona igual que con el `.ch8`.
 
 ---
 
@@ -1265,6 +1334,10 @@ volvé a ensamblarlo, por ejemplo:
 ```sh
 node tools/chip8asm.js docs/ejemplos/04-mover.asm
 ```
+
+O hacelo en el Taller ([sección 4.8](#48-el-taller-ensamblar-sin-salir-de-la-consola)):
+las seis etapas están en **Programa**, de *03-fantasma.asm* a *08-sonido.asm*. Elegís una,
+la cambiás y **Ctrl+Enter** la corre; el archivo de `docs/ejemplos/` queda como estaba.
 
 Antes de empezar, dejá la consola como viene de fábrica: perfil **COSMAC VIP** y
 **15 IPF**. Las explicaciones de tiempos de esta parte suponen eso; cuando alguna etapa
@@ -2614,7 +2687,13 @@ dentro, instrucción por instrucción, hasta encontrarlos.
    El listado del ensamblador (`--listing`) te dice en qué dirección está cada línea.
 3. **Llevá la máquina hasta ahí.** Pausá (Espacio), reiniciá (Retroceso: sigue en
    pausa) y avanzá con **Paso** (N) de a una instrucción, o con **Frame** de a un frame.
-   Si te pasaste, **B** vuelve atrás de a un frame (sección 7.4).
+   Si el lugar que te interesa está lejos, poné un **punto de corte**: elegí la línea en
+   el DESENSAMBLADO (con un clic, o escribiendo su dirección en **Ir a**) y tocá
+   **Punto de corte**, o tocá el margen de la línea. Cuando el programa llega ahí, la
+   máquina queda en pausa justo antes de ejecutarla. Con un `CALL` en el PC, **Por
+   encima** (O) ejecuta la subrutina entera de una vez; adentro de una subrutina,
+   **Salir** (K) corre hasta que vuelve. Si te pasaste, **B** vuelve atrás de a un frame
+   (sección 7.4).
 4. **Compará** lo que esperabas con lo que muestra el monitor. Los registros que
    cambian se resaltan: con Paso, ves exactamente qué tocó cada instrucción.
 
@@ -2685,6 +2764,17 @@ siempre.
 No hace falta esperar a que termine la espera para darse cuenta, pero si querés verlo,
 fijate que con más Pasos DT sigue en 30 (el tiempo no corre); con **Frame** baja de a
 uno, y V0 lo sigue.
+
+**Con un punto de corte llegás más rápido**, sin reiniciar. Con el programa corriendo,
+escribí `20E` en **Ir a**, debajo del DESENSAMBLADO, apretá Enter y tocá **Punto de
+corte**. En menos de medio segundo el programa vuelve a llegar al `CALL` y la máquina se
+detiene antes de ejecutarlo; la línea de estado dice *Punto de corte en 0x20E («CALL
+0x21C»): en pausa, antes de ejecutarla.* El contador vale lo que se ve en pantalla:
+V0 = `01`. Ahora apretá **O**: la subrutina corre entera, medio segundo, y la máquina se
+detiene en `0x210`, la instrucción que sigue al `CALL`, con **V0 = `00`**. La subrutina
+se llevó el contador. Para ver dónde, sacá ese punto de corte (con la × de la lista PUNTOS
+DE CORTE), poné otro en `0x21E`, el `LD V0, DT`, y seguí con Espacio: cuando se detiene
+ahí, un Paso, y V0 pasa de `01` a `1E`.
 
 **El arreglo** es usar en la subrutina un registro que no le importe a nadie. El
 parámetro V3 sirve: `esperar` lo recibe y ya no lo necesita. Solo cambian dos
@@ -2792,6 +2882,13 @@ Presioná Reiniciar (Retroceso) para volver a empezar.
 El monitor muestra `PC = 0x050` y que se ejecutaron **1457 instrucciones** (el monitor
 lo escribe `1.457`). ¿Qué hace el PC en `0x050`, que es la fuente?
 
+Una primera pista está en la pestaña **Traza** (o en **Ver las últimas instrucciones**,
+debajo del error, en el monitor). La última fila, en rojo, es la culpable: `DW 0xF090`, en
+`0x050`. Arriba hay cientos de `SYS 0x000` en direcciones que suben de a 2 y dan la vuelta
+después de `0xFFE`: la CPU venía recorriendo memoria vacía. La traza guarda las últimas
+1024 instrucciones, y esta vez no alcanzan para ver de dónde vino: la más vieja es la de
+`0x852`, en medio del paseo.
+
 Para verlo desde el principio hay que reiniciar y quedar en pausa. Como la máquina
 estaba corriendo cuando se detuvo, Reiniciar la pone a correr otra vez (sección
 [1.10](#110-controles-de-ejecución-y-atajos)), así que son tres teclas:
@@ -2808,9 +2905,11 @@ Ahora avanzá con Paso (N):
 
 1. Las 5 primeras instrucciones dibujan el fantasmita. El PC queda en `0x20A`... que
    es donde empieza el dibujo.
-2. El DESENSAMBLADO muestra los bytes del dibujo como si fueran instrucciones: `78 FC`
-   es `ADD V8, 0xFC` y `B4 FC` es `JP V0, 0x4FC`. Paso: V8 = `FC`. Paso: como V0 vale
-   0, el PC salta a `0x4FC`.
+2. El DESENSAMBLADO sabe que esos bytes son el dibujo (el `DRW` los acaba de leer) y los
+   muestra como datos, `DB 0x78, 0xFC`, con la flechita del PC encima. La CPU, en cambio,
+   no sabe nada de eso. Paso: `78 FC` se ejecuta como `ADD V8, 0xFC` (V8 = `FC`, y la
+   fila pasa a decir eso). Paso: `B4 FC` es `JP V0, 0x4FC`, y como V0 vale 0, el PC salta
+   a `0x4FC`.
 3. De `0x4FC` en adelante la memoria está vacía. `0000` es `SYS 0x000`, que se ignora,
    así que la CPU avanza por 1410 instrucciones que no hacen nada hasta `0xFFE`, da la
    vuelta a `0x000`, sigue por los ceros y en `0x050` encuentra la fuente.
@@ -2824,8 +2923,8 @@ que no se termina), y los datos van donde la CPU nunca llega.
 
 Y un dato curioso: con los otros perfiles pasan otras cosas. Con **SUPER-CHIP**, el
 quirk `BXNN` hace que el `JP V0, 0x4FC` sume V4 (que vale 29) en lugar de V0, y salte a
-`0x519`, una dirección **impar**. (Con ese perfil, el DESENSAMBLADO ya te lo avisa:
-muestra esos bytes como `JP V4, 0x4FC`.) La CPU recorre la memoria desalineada, da la
+`0x519`, una dirección **impar**. (Con ese perfil, cuando la CPU ejecuta esos bytes, el
+DESENSAMBLADO los muestra como `JP V4, 0x4FC`.) La CPU recorre la memoria desalineada, da la
 vuelta, ejecuta como código unos bytes de la fuente chica (uno de ellos resulta ser un
 `CALL`) y cae en la fuente grande, que SUPER-CHIP guarda a partir de `0x0A0`. Ahí se
 detiene, casi al mismo tiempo que con el VIP:
@@ -2909,7 +3008,8 @@ datos.
 - **`SKP` por `SKNP`, `SE` por `SNE`.** Todas "saltean la siguiente": pensá siempre en
   qué caso se **ejecuta** la línea de abajo.
 - **I apunta a otra cosa.** Antes de cada `DRW`, `LD I, ...`. Si dibujás basura o un
-  número de la fuente, mirá I y MEMORIA EN I en el monitor.
+  número de la fuente, poné un punto de corte en el `DRW` y mirá I en el monitor: la
+  pestaña **Sprites** dibuja lo que hay ahí tal como lo va a dibujar el `DRW`.
 - **VF leído tarde.** VF lo pisan `DRW`, `ADD VX, VY`, las restas, los
   desplazamientos y (con el perfil COSMAC VIP) `OR`, `AND` y `XOR`. Leelo en la
   instrucción siguiente.
@@ -3123,6 +3223,10 @@ esperando una tecla y, con el quirk `VBLANK`, justo después de un `DRW`:
   };
 ```
 
+(El `// ...` del principio esconde unas líneas del depurador: con puntos de corte puestos,
+o mientras corre un **Por encima**, el frame lo corre otra función, que además mira cada
+dirección antes de ejecutarla. Sin eso, el frame es exactamente esto.)
+
 ¿Y quién llama a `runFrame` 60 veces por segundo? En la consola, el bucle de la
 interfaz usa `requestAnimationFrame`, que el navegador llama en cada refresco del
 monitor (60 veces por segundo en la mayoría, más en algunos). En cada llamada mide
@@ -3212,23 +3316,24 @@ línea. Y en la [parte 10](#10-ejercicios-y-próximos-pasos) hay ideas para mejo
 ### 8.9 Cómo está organizado `chip8.html`
 
 La consola es un único archivo HTML, sin dependencias, que funciona abierto
-directamente desde el disco. Adentro tiene seis partes:
+directamente desde el disco. Adentro tiene siete partes:
 
 | Bloque | Qué tiene |
 |---|---|
 | `<style id="chip8-style">` | Todo el aspecto de la consola. |
-| El HTML del `<body>` | La consola, el panel, los estantes de cartuchos, el monitor y la ayuda. |
-| `<script id="chip8-core">` | El núcleo del emulador: la clase `Chip8` con sus tres plataformas, los quirks, las dos fuentes, el desensamblador, la huella SHA-1 de las ROMs, los estados guardados (como objeto y como texto) y el buffer del rebobinado. No toca la página, así que también corre en Node. |
-| `<script id="chip8-roms">` | Los cartuchos incluidos. Lo genera `tools/embed-roms.js` a partir de `roms/*.asm`: no se edita a mano. |
-| `<script id="chip8-archive">` | La tabla del archivo de la comunidad: los ajustes de cada juego conocido, por su huella. Lo genera `tools/archive.js` a partir de `data/archive.json`: tampoco se edita a mano. |
-| `<script id="chip8-ui">` | La interfaz: pantalla, keypad, controles, monitor, sonido, los ajustes por cartucho, tus cartuchos, las ranuras de estados, el rebobinado y el bucle principal. |
+| El HTML del `<body>` | La consola, el panel, los estantes de cartuchos, el Taller, el monitor, la ayuda y las ventanas del archivo y de los estados. |
+| `<script id="chip8-core">` | El núcleo del emulador: la clase `Chip8` con sus tres plataformas, los quirks, las dos fuentes, el desensamblador, la huella SHA-1 de las ROMs, los estados guardados (como objeto y como texto), el buffer del rebobinado y lo que usa el depurador (la traza, el mapa de la memoria y los puntos de corte). No toca la página, así que también corre en Node. |
+| `<script id="chip8-asm">` | El ensamblador, el mismo que usa `tools/chip8asm.js`. También es código puro. |
+| `<script id="chip8-roms">` | Los cartuchos incluidos y los fuentes que trae el Taller (los de los cartuchos y los ejemplos de este tutorial). Lo genera `tools/embed-roms.js` a partir de `roms/*.asm` y `docs/ejemplos/*.asm`: no se edita a mano. |
+| `<script id="chip8-archive">` | La tabla del archivo de la comunidad (los ajustes de cada juego conocido, por su huella) y las ROMs de sus juegos, comprimidas. Lo genera `tools/archive.js` a partir de `data/archive.json` y `roms/archivo/`: tampoco se edita a mano. |
+| `<script id="chip8-ui">` | La interfaz: pantalla, keypad, controles, monitor y depurador, sonido, los ajustes por cartucho, tus cartuchos, la ventana del archivo, las ranuras de estados y sus archivos, el rebobinado, el Taller y el bucle principal. |
 
-Alrededor están las herramientas (`tools/chip8asm.js`, el ensamblador;
+Alrededor están las herramientas (`tools/chip8asm.js`, el ensamblador en la terminal;
 `tools/embed-roms.js`, que ensambla las demos y las incrusta; `tools/archive.js`, que
-arma la tabla del archivo; `tools/serve.js`, el servidor local; `tools/e2e.js`, las
-pruebas en un navegador de verdad) y los tests, que se corren con `node --test` desde la
-raíz. Los tests sacan los bloques de `chip8.html` y los ejecutan en Node, así que
-prueban exactamente el código que corre en tu navegador.
+arma la tabla del archivo y le suma las ROMs; `tools/serve.js`, el servidor local;
+`tools/e2e.js`, las pruebas en un navegador de verdad) y los tests, que se corren con
+`node --test` desde la raíz. Los tests sacan los bloques de `chip8.html` y los ejecutan
+en Node, así que prueban exactamente el código que corre en tu navegador.
 
 La arquitectura completa, las decisiones de diseño y cómo se verificó cada parte están
 en [DESARROLLO.md](DESARROLLO.md).
@@ -3494,7 +3599,8 @@ Y el resto, que *Planos* no usa:
   instrucción de 4 bytes. Los saltos condicionales la saltean entera. Si tu programa
   pasa de `0xFFF`, ensamblalo con `--xo` (por ejemplo,
   `node tools/chip8asm.js programa.asm --xo`): sin esa opción, el ensamblador te avisa
-  que no entra en 4 KB.
+  que no entra en 4 KB. En el Taller, lo mismo lo hace la etiqueta `; @platform xochip`
+  entre los comentarios del principio, que escribe el selector **Plataforma**.
 
 ### 9.8 Para practicar
 
@@ -3505,6 +3611,11 @@ exactamente ese. Tu copia es otra ROM (cambió su huella), así que la consola n
 es de XO-CHIP: elegí el perfil XO-CHIP antes de cargarla o, si se detiene pidiendo esa
 plataforma, tocá **Cambiar a XO-CHIP y reiniciar**, y la consola lo recuerda para esa
 ROM.
+
+En el Taller es más directo: elegí **Planos** en **Programa** (está con los cartuchos
+incluidos), cambiá lo que quieras y **Ctrl+Enter**. Su etiqueta `; @platform xochip` hace
+que se ensamble y corra en XO-CHIP, y lo que cambies queda en tu navegador, sin tocar
+`roms/planos.asm` (**Restaurar el original** lo devuelve a como venía).
 
 **1. Una octava más abajo.** Cambiá el patrón de sonido para que su ciclo se repita cada
 32 bits en lugar de cada 16, sin tocar ningún `PITCH`. ¿Qué nota suena ahora en la pared
@@ -3545,7 +3656,9 @@ cargar un estado las vuelve atrás con el resto de la máquina (sección 1.13).
 ### 10.1 Ejercicios
 
 Van de menor a mayor. Cada uno tiene una pista, escondida para que la mires solo si la
-necesitás.
+necesitás. Los que parten de un ejemplo se hacen cómodos en el Taller
+([sección 4.8](#48-el-taller-ensamblar-sin-salir-de-la-consola)): elegís el ejemplo, lo
+cambiás, **Ctrl+Enter**, y cuando terminás, **Restaurar el original** lo deja como venía.
 
 **1. Dos dígitos a mano.** Modificá el programa de la parte 3 para que muestre `42`,
 centrado, escribiendo los bytes a mano.
@@ -3659,10 +3772,11 @@ te sirve para comprobar que no rompiste nada.
 **9. ROMs de otros.** Conseguí ROMs de dominio público y cargalas. Las del archivo de la
 comunidad de John Earnest ([chip8Archive](https://github.com/JohnEarnest/chip8Archive),
 licencia CC0) ya las tenés: son las 104 ROMs del archivo de
-[`roms/archivo/`](../roms/archivo/LEEME.md), y la consola las reconoce y las configura
-sola. Elegí una en el índice, cargala, mirá en el aviso y en la ranura qué le puso, cambiá
-algo y fijate cómo **Olvidar ajustes** la devuelve a su lugar. Con las demás (hay muchas
-en los enlaces de abajo), probá vos cuáles necesitan otro perfil o más IPF.
+[`roms/archivo/`](../roms/archivo/LEEME.md), que vienen también adentro de la consola, y
+la consola las reconoce y las configura sola. Elegí una en la ventana del archivo (**L**),
+mirá en el aviso y en la ranura qué le puso, cambiá algo y fijate cómo **Olvidar ajustes**
+la devuelve a su lugar. Con las demás (hay muchas en los enlaces de abajo), probá vos
+cuáles necesitan otro perfil o más IPF.
 
 ### 10.2 Próximos pasos
 

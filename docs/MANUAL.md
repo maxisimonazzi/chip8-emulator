@@ -30,14 +30,16 @@ depurás uno ajeno.
   XO-CHIP. Este emulador ejecuta las instrucciones de las dos extensiones como Octo; donde
   eso se aparta de SUPER-CHIP 1.1, o donde este emulador se aparta de Octo, aparece un
   párrafo marcado **Diferencia con SUPER-CHIP 1.1** o **Diferencia con Octo**.
-- **"El monitor"** es el panel de depuración de la consola, el que se titula MONITOR:
-  registros, desensamblado alrededor del PC, pila y memoria. Cuando se habla del
-  sistema operativo en ROM del VIP, que también se llamaba así, se dice **"el programa
-  monitor del VIP"**.
+- **"El monitor"** es el panel de depuración de la consola, el que se titula MONITOR,
+  con cuatro pestañas: **Código** (registros, pila, el desensamblado, que sigue al PC, y
+  los puntos de corte), **Traza** (las últimas instrucciones ejecutadas), **Memoria** (un
+  mapa de la memoria y su contenido) y **Sprites**. Cuando se habla del sistema operativo
+  en ROM del VIP, que también se llamaba así, se dice **"el programa monitor del VIP"**.
 - Los mnemónicos son los de la referencia de Cowgod (`LD`, `DRW`, `SKP`, ...). Son los
-  mismos que acepta el ensamblador del proyecto (`tools/chip8asm.js`, con la sintaxis
-  que explica la [sección 4.4 del tutorial](TUTORIAL.md#44-la-sintaxis-completa)) y los
-  que muestra el desensamblador del monitor. Las instrucciones de SUPER-CHIP y XO-CHIP
+  mismos que acepta el ensamblador del proyecto (el que usa el **Taller** de la consola y,
+  desde la terminal, `tools/chip8asm.js`, con la sintaxis que explica la
+  [sección 4.4 del tutorial](TUTORIAL.md#44-la-sintaxis-completa)) y los que muestra el
+  desensamblador del monitor. Las instrucciones de SUPER-CHIP y XO-CHIP
   usan los mnemónicos del mismo ensamblador (`SCD`, `HIGH`, `PLANE`, ...; sección
   [13.11](#1311-referencia-de-las-instrucciones-de-super-chip-y-xo-chip)). Los ejemplos
   de este manual se ensamblan tal cual, salvo los que empiezan con `; Fragmento`: son
@@ -386,6 +388,15 @@ una instrucción y `tickTimers()` baja los timers. En la consola, el botón **Pa
 ejecuta una sola instrucción (sin tocar los timers) y el botón **Frame** ejecuta un
 frame completo; los dos dejan la máquina en pausa, y el monitor muestra cómo quedó.
 
+Un **punto de corte** (en el desensamblado del monitor) detiene la máquina en el medio de
+un frame, antes de ejecutar la instrucción marcada. Ese frame queda abierto: todavía no
+bajó los timers. Al seguir con **Continuar** o con **Frame**, primero se ejecutan las
+instrucciones que le faltaban a ese frame y recién entonces bajan los timers, así que
+detenerse y seguir no cambia lo que hace el programa (**Paso**, como siempre, ejecuta una
+instrucción sin tocar los timers). **Por encima** (O), **Salir** (K) y **Hasta acá** hacen
+correr la máquina, frame por frame y con sus tics, hasta la instrucción que buscan, y ahí
+se detienen como en un punto de corte: antes de ejecutarla y con el frame abierto.
+
 ---
 
 ## 3. Memoria
@@ -466,9 +477,16 @@ ocupar hasta 65.024 bytes. El mapa completo está en
   además los describe. Con un cartucho incluido en la ranura, debajo aparecen sus
   controles. Las ROMs que cargás desde un archivo quedan además en el estante **Tus
   cartuchos** (las cinco más recientes, también en la fila **Tuyos:**), listas para
-  volver a jugarlas ([11.11](#1111-ajustes-por-cartucho)).
+  volver a jugarlas ([11.11](#1111-ajustes-por-cartucho)). Los juegos del archivo de la
+  comunidad se cargan desde su ventana (la tecla L o el botón **Archivo** del estante), y
+  un programa escrito en el **Taller** (la tecla Y) entra en la ranura al ensamblarlo.
 - La zona `0x000`–`0x1FF` no está protegida: un programa puede escribirla (por
   ejemplo, pisar la fuente).
+- En el monitor, la pestaña **Memoria** dibuja este mapa con lo que el programa hizo con
+  cada byte desde el último reinicio: el código que se ejecutó, los datos que leyó (los
+  sprites de `DXYN`, `FX65`) o escribió (`FX55`, `FX33`), la fuente, los bytes de la ROM
+  que nadie tocó todavía y la memoria vacía, con el PC y la I marcados. Tocar una celda
+  lleva el desensamblado o el volcado de la memoria a esa dirección.
 
 > **Diferencia con el VIP.** En el VIP, un programa de 4 KB que escribiera en
 > `0xEA0`–`0xFFF` pisaba la pila, las variables o la pantalla; un programa podía, por
@@ -516,7 +534,9 @@ parche: LD   V1, 0x00        ; al ejecutarse, NN ya vale lo que tenía V0
 ```
 
 El monitor de la consola desensambla la memoria *actual*, así que si el programa se
-modifica a sí mismo vas a ver el código cambiado.
+modifica a sí mismo vas a ver el código cambiado. En el mapa de la pestaña **Memoria**,
+los bytes que el programa escribió aparecen como escritos, salvo los que además se
+ejecutaron, que aparecen como código.
 
 ### 3.6 Direcciones que dan la vuelta
 
@@ -531,7 +551,8 @@ ejecuta cada `0000` como `SYS 0x000`, que no hace nada (ver
 [0NNN](#0nnn--sys-nnn)), y el PC avanza de a 2 hasta dar la vuelta. Al llegar a
 `0x050` se encuentra con la fuente: `F0 90` se lee como `0xF090`, que no es una
 instrucción válida, y la máquina se detiene con un error que indica el opcode y su
-dirección.
+dirección. La pestaña **Traza** del monitor muestra el camino: las últimas 1024
+instrucciones que ejecutó, con la que falló al final, en rojo.
 
 ---
 
@@ -616,7 +637,11 @@ En este emulador la pila es `stack: Uint16Array(16)` y `sp` indica **cuántas**
 direcciones hay guardadas (de 0 a 16); la de arriba es `stack[sp - 1]`. Admite **16
 niveles** de anidamiento. Un `CALL` con la pila llena o un `RET` con la pila vacía
 detienen la máquina con un error (no corrompen memoria). El monitor muestra la pila en
-el recuadro PILA.
+el recuadro PILA. Para depurar subrutinas, la consola tiene **Por encima** (O), que con
+el PC en un `CALL` ejecuta la subrutina entera y se detiene en la instrucción siguiente,
+y **Salir** (K), que corre hasta que vuelve la subrutina en la que está el PC. Los dos
+miran el nivel de la pila, no solo la dirección: una subrutina recursiva que pasa otra
+vez por la misma dirección, más adentro, no los detiene.
 
 > **Diferencia con el VIP.** El intérprete del VIP reservaba 48 bytes para la pila,
 > que también usaba para sus propias cuentas; alcanzaban para **12 niveles** de
@@ -663,6 +688,14 @@ Para depurar (desde el monitor o desde la consola de JavaScript del navegador, c
 
 El arreglo `display` se reemplaza por otro cuando cambia la resolución: si lo mirás desde
 la consola de JavaScript, volvé a leer `cpu.display` en lugar de guardarlo.
+
+Para el depurador, el objeto tiene además, fuera del estado de la máquina (no se guardan
+con los estados ni se rebobinan), el mapa de accesos `access` (qué hizo el programa con
+cada dirección: ejecutarla, leerla, escribirla), la traza (`cpu.trace()`: las últimas 1024
+instrucciones), los últimos 16 dibujos (`cpu.spriteLog()`), los puntos de corte
+(`setBreakpoint`, `breakpoints`) y `debugStop`, que dice dónde y por qué se detuvo el
+último frame: en un punto de corte o en la instrucción que buscaban **Por encima**,
+**Salir** o **Hasta acá**. Los detalles están en [DESARROLLO.md](DESARROLLO.md).
 
 ---
 
@@ -753,6 +786,10 @@ habilita con el primer clic o la primera tecla.
   congelados y el beep se calla. El botón **Paso** ejecuta una instrucción sin
   tocarlos; el botón **Frame** ejecuta un frame entero, que incluye un tic de los
   timers.
+- Un **punto de corte** detiene la máquina en el medio de un frame, antes del tic: los
+  timers bajan recién cuando ese frame se completa, al seguir. Entre un tic y el
+  siguiente el programa ejecuta las mismas instrucciones que sin el punto de corte
+  ([2.3](#23-el-modelo-de-frame-de-este-emulador)).
 
 ---
 
@@ -826,6 +863,11 @@ pelota: DB   0x3C, 0x7E, 0xFF, 0x7E, 0x3C
 
 Para dibujar algo más grande que 8 píxeles de ancho, se dibujan varios sprites uno al
 lado del otro.
+
+En la consola, la pestaña **Sprites** del monitor dibuja los bytes a los que apunta `I`
+como los dibujaría el próximo `DXYN` (con el alto del último, o con el que elijas), con cada
+fila en hexadecimal y en bits, y lista los últimos 16 dibujos: desde qué dirección, en qué
+lugar de la pantalla, de qué tamaño y si chocaron.
 
 ### 6.3 XOR y detección de colisiones
 
@@ -979,15 +1021,28 @@ Los atajos de la consola no chocan con ninguna tecla del mapeo:
 |---|---|
 | Espacio | Pausa / continuar |
 | N | Paso: ejecutar una sola instrucción (y dejar la máquina en pausa) |
+| O | Paso por encima: si la instrucción es un `CALL`, ejecutar la subrutina entera y detenerse en la siguiente |
+| K | Salir de la subrutina: seguir hasta que la subrutina en la que está el PC vuelve con `RET` |
 | Retroceso (Backspace) | Reiniciar la ROM |
 | H (o el botón **?**) | Abrir o cerrar la ayuda |
+| L (o el botón **Archivo**, en el estante) | Abrir o cerrar la ventana del archivo de la comunidad |
+| T, mantenida | Avance rápido |
+| P | Pantalla completa |
+| G | Guardar una captura de la pantalla (PNG) |
+| Y (o el botón del lápiz) | Abrir o cerrar el Taller |
+| I | Guardar el estado en la ranura rápida |
+| U | Cargar el estado de la ranura rápida |
+| B, mantenida | Rebobinar |
+| Flechas | Las teclas del keypad que elegiste en «Controles» |
 | Esc | Cerrar diálogos |
 
 Los botones, interruptores y enlaces que tocás con el mouse o con el dedo no se quedan
 con el foco, así que **Espacio** siempre pausa. Si llegás a un control con **Tab**, en
-cambio, Espacio y Enter lo activan (no pausan). Las teclas del keypad, N, H y Retroceso
-van a la consola aunque haya un control enfocado, incluso un selector; solo los campos
-donde se escribe, como el número de IPF, se quedan con las teclas.
+cambio, Espacio y Enter lo activan (no pausan). Las teclas del keypad y los atajos de
+letra van a la consola aunque haya un control enfocado, incluso un selector; solo los
+campos donde se escribe, como el número de IPF o el editor del Taller, se quedan con las
+teclas. Mientras está abierta una ventana (la ayuda, el archivo de la comunidad o la
+lista de estados), las teclas son de esa ventana y no le llegan a la máquina.
 
 ### 7.3 Leer el teclado sin detenerse: EX9E y EXA1
 
@@ -1251,8 +1306,10 @@ PC queda apuntando **a la instrucción culpable** y `error` guarda un mensaje en
 castellano con el opcode y su dirección en hexadecimal. La consola muestra ese mensaje
 sobre la pantalla y en el monitor, y lo anuncia una sola vez en la línea de estado
 («Error: ...»). Lo mismo pasa con un `CALL` con la pila llena o un `RET` con la pila
-vacía. El desensamblador muestra estos opcodes como `DW 0x5121` (una palabra de datos),
-y el ensamblador acepta esa misma sintaxis. El desensamblador del monitor usa además los
+vacía. Debajo del error, el monitor ofrece **Ver las últimas instrucciones**: la pestaña
+**Traza**, con las instrucciones que llevaron hasta ahí y la culpable al final, en rojo.
+El desensamblador muestra estos opcodes como `DW 0x5121` (una palabra de datos), y el
+ensamblador acepta esa misma sintaxis. El desensamblador del monitor usa además los
 mnemónicos de la plataforma elegida: con CHIP-8, `F130` se ve como `DW 0xF130`; con
 SUPER-CHIP, como `LD HF, V1`.
 
@@ -2634,11 +2691,30 @@ debajo de los incluidos, con la que jugaste por última vez primero; las cinco m
 recientes aparecen también en la fila **Tuyos:**, debajo de la ranura. Entran hasta 60
 ROMs y unos 2,5 MB entre todas, y quedan guardadas en este navegador.
 
+**Los juegos del archivo vienen adentro de la consola.** Además de la tabla, `chip8.html`
+trae las ROMs de los 104 programas, comprimidas. El botón **Archivo**, en el título del
+estante de cartuchos, o la tecla **L** abren la ventana *Archivo de la comunidad*: cada
+juego con su título, sus autores, el evento, el año, la plataforma, el tamaño y una
+miniatura de su pantalla de título. Se busca por título o por autor (sin importar
+mayúsculas ni tildes), se filtra por plataforma y por evento o año, y se ordena por
+título, por fecha o por evento. Un clic, o **Enter**, carga el juego con los ajustes de
+la tabla (o con los que le recordaste; con el interruptor apagado, con los tuyos) y
+cierra la ventana. Los juegos que se cargan así no van a **Tus cartuchos**: siempre
+están en la ventana. Si el navegador no puede descomprimirlos (le falta
+`DecompressionStream`), la ventana lo dice, y el juego se puede cargar igual desde la
+carpeta `roms/archivo/` del repositorio con **Cargar ROM**.
+
 Los **estados guardados** también son de cada ROM: las cinco ranuras del grupo
 **Estados** (la rápida, con **I** y **U**, y cuatro más) se guardan por la huella del
 cartucho, y otra ROM no las ve. Cargar un estado, o rebobinar con **B**, vuelve la máquina
 entera a ese momento, timers (DT y ST) y banderas RPL incluidos: un récord que el juego
-guardó después se pierde. Cómo se usan, en la
+guardó después se pierde. **Ver todos**, al lado del título del grupo, muestra los estados
+de todos los cartuchos, agrupados por cartucho, y carga cualquiera (si el cartucho no está
+en la ranura, la consola lo pone antes, siempre que tenga su ROM). **Exportar** baja los
+estados en un archivo `.json` y **Importar** (o arrastrar ese archivo sobre la página) los
+trae a otro navegador; el archivo lleva también la ROM cuando no es un demo ni un juego
+del archivo, y si una ranura ya tiene otro estado, la consola pregunta antes de
+reemplazarlo. Cómo se usan, en la
 [parte 1.13 del tutorial](TUTORIAL.md#113-estados-guardados-y-rebobinado).
 
 ### 11.12 Otras diferencias con el VIP que no son configurables
@@ -2986,10 +3062,16 @@ y de la especificación de XO-CHIP.
   plataforma es, y `SYS 0x0FF` sigue valiendo lo mismo que `HIGH`. Con la opción `--xo`
   (o `{ xochip: true }` en la API) el programa puede pasar de `0xFFF` y llegar hasta
   `0xFFFF`; `LD I, LONG` acepta direcciones de 16 bits con o sin esa opción.
+- En el **Taller** de la consola, la plataforma de un programa es la que dice la etiqueta
+  `; @platform` de sus comentarios del principio (`chip8`, `schip` o `xochip`; sin la
+  etiqueta, CHIP-8), la misma que usan los cartuchos incluidos. El selector
+  **Plataforma** del Taller escribe esa etiqueta. Al correr el programa, la consola pasa
+  a esa plataforma; con `xochip`, además, lo ensambla con la opción de 64 KB.
 - El desensamblador del monitor usa los mnemónicos de la plataforma elegida: con CHIP-8,
   `00FF` se ve como `SYS 0x0FF` y `F130` como `DW 0xF130`; con SUPER-CHIP o XO-CHIP,
-  como `HIGH` y `LD HF, V1`. Con XO-CHIP, `F000 NNNN` ocupa una sola fila de 4 bytes y
-  las direcciones tienen 4 dígitos.
+  como `HIGH` y `LD HF, V1`. Con XO-CHIP, la fila del `F000` muestra la instrucción
+  entera (`LD I, LONG 0x8000`) y, una vez que se ejecutó, la fila siguiente, la de
+  `NNNN`, dice «(operando)»; las direcciones tienen 4 dígitos.
 - El campo MÁQUINA del monitor muestra la plataforma, la resolución y, con XO-CHIP, los
   planos elegidos (por ejemplo, «XO-CHIP · 128×64 · planos 1+2»). La placa de la consola
   dice el modelo, la memoria y la resolución más grande de la plataforma.
@@ -3331,9 +3413,12 @@ fin:    JP   fin
 
 **Para ensamblar** un programa que pasa de `0xFFF`, usá
 `node tools/chip8asm.js programa.asm --xo` (o `assemble(fuente, { xochip: true })`):
-sin esa opción, el ensamblador avisa que el programa no entra en 4 KB. Con XO-CHIP, el
-monitor muestra las direcciones con 4 dígitos, y los mensajes de error también
-(«... en la dirección 0x020A»).
+sin esa opción, el ensamblador avisa que el programa no entra en 4 KB. En el Taller de la
+consola, lo mismo lo hace la etiqueta `; @platform xochip` al principio del programa
+([13.3](#133-las-plataformas-de-este-emulador)). Con XO-CHIP, el monitor muestra las
+direcciones con 4 dígitos, y los mensajes de error también («... en la dirección
+0x020A»); el mapa de la pestaña **Memoria** muestra la memoria de a páginas de 4 KB, con
+una tira arriba que resume las 16.
 
 ### 13.10 El audio de XO-CHIP: patrón y tono
 
@@ -3780,9 +3865,10 @@ La única instrucción de 4 bytes: la palabra `F000` y después la dirección. L
 la memoria de 64 KB, mientras que `ANNN` no pasa de `0xFFF`
 ([13.9](#139-la-memoria-de-64-kb-y-la-carga-larga)). En el ensamblador se escribe
 `LD I, LONG` y una expresión de 0 a `0xFFFF`. Los saltos condicionales la saltean
-entera, y en el monitor ocupa una sola fila (`LD I, LONG 0x8000`). Con CHIP-8 o
-SUPER-CHIP detiene la máquina con un error de plataforma; `FX00` con X distinto de 0 no
-existe en ninguna.
+entera, y en el monitor la fila del `F000` la muestra completa (`LD I, LONG 0x8000`);
+cuando ya se ejecutó, la fila siguiente, la de la dirección, dice «(operando)». Con
+CHIP-8 o SUPER-CHIP detiene la máquina con un error de plataforma; `FX00` con X distinto
+de 0 no existe en ninguna.
 
 ```asm
 ; Plataforma: XO-CHIP
@@ -4011,7 +4097,8 @@ por DMA y genera la señal de video para el monitor o el televisor.
 **Archivo de la comunidad.** El *Chip8 Community Archive* de John Earnest: un
 repositorio con programas de CHIP-8, SUPER-CHIP y XO-CHIP, sus autores y las opciones con
 que se juegan en Octo, con licencia CC0. Esta consola trae su tabla para configurar sola
-los juegos que reconoce ([11.11](#1111-ajustes-por-cartucho)).
+los juegos que reconoce, y sus ROMs, que se cargan con un clic desde la ventana del archivo
+([11.11](#1111-ajustes-por-cartucho)).
 
 **Banderas RPL.** Los 16 bytes, fuera de la memoria, que guardan `FX75` y leen `FX85`
 en SUPER-CHIP y XO-CHIP. Sobreviven a los reinicios, y los juegos los usan para guardar
@@ -4067,11 +4154,13 @@ frame de 1/60 s.
 **Máquina virtual.** Una computadora definida por software: su "hardware" es un
 programa que la interpreta.
 
-**Monitor.** En este manual, el panel de depuración de la consola: estado (PC, I, SP,
-DT, ST, IPF, la plataforma y su resolución), registros V0–VF, desensamblado alrededor
-del PC, pila y memoria en I. En
-el VIP, *el programa monitor* era el sistema operativo en ROM, con el que se leía y
-escribía la memoria desde el teclado hex y se grababan y leían cassettes.
+**Monitor.** En este manual, el panel de depuración de la consola, con cuatro pestañas:
+Código (estado: PC, I, SP, DT, ST, IPF, la plataforma y su resolución; registros V0–VF;
+el desensamblado de toda la memoria, que sigue al PC; la pila y los puntos de corte),
+Traza, Memoria (un mapa de lo que el programa hizo con cada byte y el volcado de la
+memoria en I) y Sprites. En el VIP, *el programa monitor* era el sistema operativo en ROM,
+con el que se leía y escribía la memoria desde el teclado hex y se grababan y leían
+cassettes.
 
 **Nibble.** Medio byte: 4 bits, un dígito hexadecimal.
 
@@ -4109,6 +4198,11 @@ cuatro colores; `FN01` elige en cuáles se dibuja (sección [13.6](#136-planos-y
 Decide el juego de instrucciones, la memoria y la pantalla; los quirks se eligen aparte
 ([13.3](#133-las-plataformas-de-este-emulador)).
 
+**Punto de corte (*breakpoint*).** Una marca en una dirección del programa: cuando el PC
+llega ahí, la máquina queda en pausa antes de ejecutar esa instrucción. En la consola se
+ponen desde el desensamblado del monitor, son de cada cartucho y duran hasta que se
+cierra la página ([2.3](#23-el-modelo-de-frame-de-este-emulador)).
+
 **Quirk.** Una diferencia de comportamiento entre implementaciones de las que dependen
 los programas (sección [11](#11-quirks)).
 
@@ -4134,6 +4228,11 @@ las calculadoras HP-48: alta resolución, desplazamientos de pantalla, sprites d
 **Tono (pitch).** En XO-CHIP, el registro que fija a qué velocidad se reproduce el
 patrón de audio: 4000 × 2^((pitch − 64) / 48) bits por segundo. Se carga con `FX3A`
 (sección [13.10](#1310-el-audio-de-xo-chip-patrón-y-tono)).
+
+**Traza.** La lista de las últimas instrucciones que ejecutó la máquina, en orden. La de
+esta consola guarda las últimas 1024, con su dirección y su opcode, y se ve en la pestaña
+Traza del monitor con la máquina en pausa o detenida
+([3.6](#36-direcciones-que-dan-la-vuelta)).
 
 **Vblank (borrado vertical).** El momento entre dos cuadros de video en que no se está
 dibujando la imagen; el VIP esperaba la interrupción de video antes de dibujar.

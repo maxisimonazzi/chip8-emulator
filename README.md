@@ -19,15 +19,26 @@ cambian con interruptores; de fábrica se comporta como el VIP.
 
 Trae seis cartuchos escritos para este proyecto: una pelotita que rebota, un visor del
 teclado, un juego de atrapar bloques, un programa que se prueba a sí mismo, la fuente
-hexadecimal y una muestra de XO-CHIP. En [`roms/archivo/`](roms/archivo/LEEME.md) están
-además los 104 juegos del archivo de la comunidad que mantiene John Earnest, el autor de Octo,
-que son de dominio público. La consola los reconoce por su huella SHA-1 y se configura sola
-con la plataforma, la velocidad y los colores de cada uno. Una ROM que no está en esa lista
-arranca con tus ajustes; si los cambiás mientras la jugás, los recuerda para la próxima vez.
+hexadecimal y una muestra de XO-CHIP. Trae también los 104 juegos del archivo de la
+comunidad que mantiene John Earnest, el autor de Octo, que son de dominio público. La L abre
+una ventana con todos, con buscador, filtros y una miniatura de cada juego, y un clic carga
+el que elijas. La consola reconoce esos juegos por su huella SHA-1 y se configura sola con la
+plataforma, la velocidad y los colores de cada uno, también si cargás la ROM desde
+[`roms/archivo/`](roms/archivo/LEEME.md). Una ROM que no está en esa lista arranca con tus
+ajustes; si los cambiás mientras la jugás, los recuerda para la próxima vez.
 
-Para entender un programa hay un monitor con los registros, la pila, el desensamblado y la
-memoria, ejecución de a una instrucción, cinco ranuras de estado por cartucho y rebobinado:
-mientras mantenés apretada la B, la máquina vuelve hacia atrás hasta medio minuto.
+Para entender un programa está el monitor, con cuatro pestañas: el código (registros, pila
+y el desensamblado de toda la memoria), la traza de las últimas 1024 instrucciones, un mapa
+de la memoria que muestra qué se ejecutó, qué se leyó y qué se escribió, y un visor de
+sprites. Se pueden poner puntos de corte, avanzar de a una instrucción y pasar por encima de
+una subrutina o salir de ella. Cada cartucho tiene cinco ranuras para guardar el estado de
+la máquina; «Ver todos» muestra juntos los estados de todos los cartuchos, y se pueden
+exportar a un archivo e importar en otro navegador. Y hay rebobinado: mientras mantenés
+apretada la B, la máquina vuelve hacia atrás hasta medio minuto.
+
+Para escribir programas está el Taller (la Y): un editor con el ensamblador del proyecto
+adentro. Trae los once ejemplos del tutorial y los fuentes de los seis cartuchos, marca los
+errores en su renglón y con Ctrl+Enter el programa corre en la consola.
 
 ## Cómo se usa
 
@@ -53,15 +64,15 @@ Z X C V        A 0 B F
 |---|---|
 | Espacio | Pausa o sigue |
 | N | Ejecuta una sola instrucción |
-| O | Paso por encima: ejecuta un `CALL` entero |
-| K | Sale de la subrutina |
+| O | Paso por encima: ejecuta un `CALL` entero y se detiene en la instrucción siguiente |
+| K | Sale de la subrutina: sigue hasta que vuelve con `RET` |
 | Retroceso | Reinicia la ROM |
 | H | Abre la ayuda |
-| L | Abre el archivo de la comunidad: los juegos de la Octojam, para cargarlos con un clic |
+| L | Abre la ventana del archivo de la comunidad |
 | T (mantenida) | Avance rápido: cuatro veces más rápido, timers incluidos |
 | P | Pantalla completa |
 | G | Guarda una captura en PNG |
-| Y | Abre o cierra el Taller: escribís un programa, lo ensamblás y corre en la consola |
+| Y | Abre o cierra el Taller |
 | I | Guarda el estado en la ranura rápida |
 | U | Carga la ranura rápida |
 | B (mantenida) | Rebobina |
@@ -91,31 +102,34 @@ npm test
 ```
 
 Son **1602 pruebas** en 22 archivos y tardan unos segundos. Además de cada instrucción y cada
-quirk, revisan el ensamblador, los demos, los estados guardados, la tabla del archivo y que
-la documentación no mienta: los ejemplos del manual y del tutorial se ensamblan y se
-ejecutan. `npm run e2e` corre 77 escenarios en Chrome o Edge sin ventana, con teclado, mouse
-y toques de verdad.
+quirk, revisan el ensamblador, el depurador, los demos, los estados guardados y sus archivos,
+la tabla del archivo y sus ROMs, y que la documentación no mienta: los ejemplos del manual y
+del tutorial se ensamblan y se ejecutan. `npm run e2e` corre 77 escenarios en Chrome o Edge
+sin ventana, con teclado, mouse y toques de verdad.
 
 Las otras herramientas:
 
-- `npm run asm -- programa.asm` ensambla un programa. La sintaxis está explicada al principio
-  de `tools/chip8asm.js`.
-- `npm run roms` vuelve a armar los cartuchos incluidos a partir de `roms/*.asm`.
-- `npm run archive -- download` baja las ROMs del archivo; `update` actualiza su tabla y
-  `test` corre todos los juegos y arma una hoja con sus pantallas.
+- `npm run asm -- programa.asm` ensambla un programa desde la terminal. El ensamblador vive
+  en `chip8.html`, porque lo usa el Taller, y la herramienta lo saca de ahí; la sintaxis está
+  explicada al principio de su bloque, `chip8-asm`.
+- `npm run roms` vuelve a armar los cartuchos incluidos a partir de `roms/*.asm`, junto con
+  los fuentes que trae el Taller.
+- `npm run archive -- download` baja las ROMs del archivo; `update` actualiza su tabla,
+  `embed` mete la tabla y las ROMs comprimidas en `chip8.html`, y `test` corre todos los
+  juegos y arma una hoja con sus pantallas.
 - `npm run serve` sirve el proyecto en localhost:8008. Para usar la consola no hace falta:
   está para las pruebas.
 
 ## Estructura del repositorio
 
 ```
-chip8.html                   La consola entera: estilos, interfaz, núcleo, cartuchos y la tabla del archivo.
+chip8.html                   La consola entera: estilos, interfaz, núcleo, ensamblador, cartuchos y el archivo.
 roms/                        Los seis cartuchos incluidos, en assembler (.asm) y ensamblados (.ch8).
 roms/archivo/                Los 104 juegos del archivo de la comunidad y su índice.
 data/archive.json            Los datos del archivo: huellas, plataformas y opciones de Octo.
-tools/chip8asm.js            El ensamblador.
-tools/embed-roms.js          Arma el bloque de cartuchos de chip8.html.
-tools/archive.js             Baja el archivo, arma su tabla y prueba sus juegos.
+tools/chip8asm.js            El ensamblador en la terminal: usa el que está en chip8.html.
+tools/embed-roms.js          Arma el bloque de cartuchos de chip8.html, con los fuentes del Taller.
+tools/archive.js             Baja el archivo, mete su tabla y sus ROMs en chip8.html y prueba sus juegos.
 tools/e2e.js                 Las pruebas de punta a punta en el navegador.
 tools/serve.js               Un servidor estático mínimo.
 tests/                       Las pruebas, con node:test; harness.js carga los bloques de chip8.html.
@@ -125,15 +139,20 @@ docs/ejemplos/               Los programas del tutorial.
 docs/DESARROLLO.md           La documentación del desarrollo.
 ```
 
+`chip8.html` pesa unos 1,5 MB: casi la mitad son las 104 ROMs del archivo, comprimidas.
+
 ## Lo que no hace
 
 No ejecuta código de máquina del RCA 1802: las instrucciones `0NNN` se ignoran. Tampoco imita
 las rarezas de SUPER-CHIP en la calculadora HP-48 (el scroll de medio píxel en baja
-resolución, las colisiones que cuentan filas). No compila fuentes de Octo (`.8o`); hay que
-cargar la ROM ya armada. Las pruebas de navegador corren en Chrome: no se probó en un
-teléfono de verdad, con un joystick físico ni en Firefox o Safari. De los 104 juegos del
-archivo, *supersquare* se detiene en su pantalla de fin por un desborde de pila que también
-tiene en Octo.
+resolución, las colisiones que cuentan filas). Ni la consola ni el Taller entienden el
+lenguaje de Octo (`.8o`): hay que cargar la ROM ya armada o escribir el programa en el
+assembler del proyecto. Los puntos de corte son por dirección: no hay puntos de corte con
+condiciones ni al leer o escribir la memoria, y desde el monitor no se cambian los registros
+ni la memoria. Las pruebas de navegador corren en Chrome: no se probó en un teléfono de
+verdad, con un joystick físico ni en Firefox o Safari. De los 104 juegos del archivo,
+*supersquare* se detiene en su pantalla de fin por un desborde de pila que también tiene en
+Octo.
 
 ## Licencia
 
