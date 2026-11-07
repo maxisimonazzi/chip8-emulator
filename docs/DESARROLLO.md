@@ -312,7 +312,7 @@ consola en los dos casos.
 
 ### 3.1 API pública
 
-El bloque define un único global, `globalThis.Chip8Core`, con 28 claves:
+El bloque define un único global, `globalThis.Chip8Core`, con 31 claves:
 
 | Clave | Valor |
 |---|---|
@@ -339,6 +339,8 @@ El bloque define un único global, `globalThis.Chip8Core`, con 28 claves:
 | `encodeState(estado)` | Un estado (`saveState()`) como texto JSON compacto: los arreglos en base64 y la memoria y la pantalla con las corridas de ceros comprimidas. Un estado típico ocupa de 1 a 4 KB. |
 | `decodeState(texto)` | La vuelta: valida todo y tira un `Error` que empieza con "Estado inválido: " si algo no cierra. |
 | `RewindBuffer({ maxEntries, maxBytes })` | El buffer del rebobinado (de fábrica, 600 fotos y 32 MB): `push(cpu)`, `pop()`, `peek()`, `clear()`, `length` y `bytes`. Guarda la memoria en páginas de 256 bytes y reusa las que no cambiaron desde la foto anterior. |
+| `ACCESS` | `{ EXEC: 1, READ: 2, WRITE: 4, OPERAND: 8 }`, congelado: los bits del mapa de accesos del depurador (`cpu.access`). |
+| `TRACE_SIZE`, `SPRITE_LOG_SIZE` | `1024` y `16`: las instrucciones que recuerda la traza del depurador y los `DXYN` de su registro de dibujos. |
 
 `new Chip8({ platform, quirks, random })` acepta tres opciones: `platform` (`'chip8'` si
 falta; una desconocida es un `RangeError`: "Plataforma desconocida: "x" (tiene que ser
@@ -1128,7 +1130,8 @@ que el bloque 1-4 / Q-R / A-F / Z-V es el mismo en QWERTY, AZERTY o Dvorak:
    Z  X  C  V             A  0  B  F
 ```
 
-**Atajos.** Espacio (pausa o continúa), N (un paso; se repite si se mantiene), Retroceso
+**Atajos.** Espacio (pausa o continúa), N (un paso; se repite si se mantiene), O (paso por
+encima de un CALL), K (salir de la subrutina), Retroceso
 (reiniciar), H (abrir o cerrar la ayuda), T (avance rápido, mientras se mantiene), P
 (pantalla completa, si el navegador la tiene), G (captura), Y (abrir o cerrar el Taller), I
 (guardar el estado en la ranura rápida), U (cargar la ranura rápida), B (rebobinar, mientras
@@ -1620,6 +1623,7 @@ cada campo por separado y descarta lo que no tenga el tipo esperado:
 | `muted` | `false` | booleano |
 | `volume` | 0,6 | número finito, limitado a 0–1 |
 | `monitorOpen` | `true` | booleano |
+| `monitorTab` | `'codigo'` | una de `MONITOR_TABS`: la pestaña del monitor a la vista |
 | `perRom` | `true` | booleano |
 | `keymap` | WASD de Octo | `'octo'`, `'vip'` o `{ preset: 'custom', keys }` con seis teclas de 0 a 15 |
 | `customKeys` | `null` | seis teclas de 0 a 15 |
@@ -1674,6 +1678,10 @@ La interfaz expone `window.chip8` para depurar desde la consola del navegador y 
 | `loadDemo(id)`, `loadRomBytes(bytes, nombre)` | Cargan un cartucho o bytes (con sus ajustes por cartucho); devuelven `true` o `false`. |
 | `pause()`, `resume()`, `isPaused()` | Pausa. `resume()` no hace nada con la máquina detenida; `isPaused()` es `true` también después de un error. |
 | `step()`, `frame()`, `reset()` | Como los botones: `step()` devuelve lo que devolvió `cpu.step()`, `frame()` la cantidad de instrucciones y `reset()` un booleano. |
+| `stepOver()`, `stepOut()`, `runTo(dirección)` | Paso por encima (O), salir de la subrutina (K) y «Hasta acá», como los botones; devuelven `true` si arrancaron. |
+| `setBreakpoint(dirección, on)`, `getBreakpoints()`, `clearBreakpoints()` | Los puntos de corte del cartucho de la ranura (`setBreakpoint` devuelve si quedó puesto, o `null` con una dirección fuera de la memoria). |
+| `setMonitorTab(id)`, `getMonitorTab()` | La pestaña del monitor: `'codigo'`, `'traza'`, `'memoria'` o `'sprites'`. |
+| `debugState()` | `{ stop, atBreakpoint, run, tab, disasm, memory, sprite }`: por qué se detuvo, hacia dónde corre y qué muestra cada vista. |
 | `setIpf(n)`, `getIpf()` | Velocidad (se limita a 1–10.000 y devuelve el valor aplicado). |
 | `setPreset('vip' \| 'schip' \| 'xochip')` | Perfil completo: plataforma y quirks. |
 | `setPlatform(p)`, `getPlatform()` | Solo la plataforma. |
@@ -2181,6 +2189,7 @@ Antes de dar por terminado un cambio: `node --test` y, si tocaste la interfaz,
 | `tests/archive.test.js` | `tools/archive.js` (las opciones de Octo pasadas a los ajustes, colores, giro, eventos, `toEntry`), `data/archive.json` (fuente, licencia, commit; huellas únicas, plataformas válidas, tamaños que entran), las ROMs de `roms/archivo/` (una por programa, con su huella y su tamaño, y el índice `LEEME.md` al día) y el bloque incrustado (al día, una entrada válida por programa, sin `</script` ni comentarios HTML, entre `chip8-roms` y `chip8-ui`, `embedInto` idempotente y con CRLF). |
 | `tests/estados.test.js` | Los estados guardados y el rebobinado: guardar a mitad de un programa y cargar en otra máquina sigue igual frame a frame (timers, `CALL`/`RET`, `FX0A`, SUPER-CHIP, XO-CHIP con dos planos, audio y memoria de 64 KB, máquinas detenidas y terminadas); `loadState` cambia de plataforma sin recargar la ROM; 54 validaciones que dejan la máquina intacta; el formato de texto (ida y vuelta, también con estados al azar; la compresión en los bordes de la base 128; tamaños; cada error; 400 textos cambiados al azar); y `RewindBuffer` (orden, páginas compartidas y la cuenta exacta de los bytes, límites, `clear`, cambios de plataforma entre fotos, `push` y `pop` intercalados y el rendimiento). |
 | `tests/taller.test.js` | Los fuentes del Taller (`CHIP8_SOURCES`): el de cada cartucho y los once ejemplos del tutorial, iguales a sus archivos y con sus `.ch8`, la descripción de cada ejemplo, los textos escapados; y `embed-roms.js` con los ejemplos (`@platform`, `@description`, errores en castellano, CRLF, `--check` y sin la carpeta `docs/ejemplos/`). |
+| `tests/depurador.test.js` | El depurador del núcleo: la traza (orden, tope, la instrucción que falla), el mapa de accesos (cada instrucción que lee o escribe, el operando de `F000 NNNN`, la vuelta en `0xFFF`), el registro de dibujos, los puntos de corte (se detiene antes y al seguir ejecuta, el frame abierto, frenar y seguir da lo mismo frame por frame, no son parte del estado), `runTo` (paso por encima con recursión, salir, «hasta acá», una subrutina que no vuelve) y qué borran `reset` y `loadState`. |
 | `tests/tutorial.test.js` | El tutorial y sus ejemplos ([6.6](#66-pruebas-de-la-documentación)). |
 | `tests/manual.test.js` | El manual, el README y este documento ([6.6](#66-pruebas-de-la-documentación)). |
 | `tests/single-file.test.js` | El contrato del archivo único: los seis bloques, cada uno una vez, con la etiqueta de apertura exacta y en orden; ningún `</script` ni `</style` adentro; ninguna dirección `http(s)`, `@import`, ni `src`/`href`/`url()` que no sea `data:` o `#ancla`; y que los cinco bloques de código compilen. |
@@ -2188,7 +2197,7 @@ Antes de dar por terminado un cambio: `node --test` y, si tocaste la interfaz,
 ### 6.3 Números actuales
 
 Medido el 6 de noviembre de 2026 con Node 24.18 (`node --test` desde la raíz):
-**1516 pruebas en 214 grupos**, todas pasan y ninguna salteada, en unos 5 s.
+**1557 pruebas en 221 grupos**, todas pasan y ninguna salteada, en unos 5 s.
 
 | Archivo | Pruebas |
 |---|---|
@@ -2205,6 +2214,7 @@ Medido el 6 de noviembre de 2026 con Node 24.18 (`node --test` desde la raíz):
 | `tests/tutorial.test.js` | 84 |
 | `tests/display.test.js` | 49 |
 | `tests/timers-keys.test.js` | 46 |
+| `tests/depurador.test.js` | 41 |
 | `tests/manual.test.js` | 38 |
 | `tests/quirks.test.js` | 30 |
 | `tests/archive.test.js` | 20 |
@@ -2212,7 +2222,7 @@ Medido el 6 de noviembre de 2026 con Node 24.18 (`node --test` desde la raíz):
 | `tests/mutation-gaps.test.js` | 12 |
 | `tests/taller.test.js` | 9 |
 | `tests/single-file.test.js` | 4 |
-| **Total** | **1516** |
+| **Total** | **1557** |
 
 Todas pasan cuando los cartuchos y la tabla del archivo incrustados están al día y
 `roms/archivo/` está completa. Las pruebas del grupo "chip8.html tiene las demos
@@ -2460,6 +2470,14 @@ tercera:
 | 55 | Taller sin almacenamiento (en memoria, sin avisos flotantes), sin lugar (el aviso y Guardar para reintentar) y con datos dañados (todo o una parte). |
 | 56 | Diseño con el Taller abierto: a 1440 y 1280 px al costado sin tapar la pantalla; a 768 y 360 px debajo de los estantes (a 360, abierto con un toque y el foco en el título); botones enteros y el margen alineado. |
 | 57 | Teclado y lector de pantalla: Tab y Enter abren, las teclas escritas no llegan al keypad, Esc y Tab salen del editor, Plataforma con las flechas (no reescribe la etiqueta a cada paso), Guardar con Enter no pierde el foco, Esc cierra, Y desde la pantalla completa; roles y nombres; 60 fps a 10.000 IPF mientras se escribe. |
+| 58 | Puntos de corte con el mouse y el teclado: se detiene antes de la instrucción, avisa, al seguir la ejecuta; Frame completa el frame abierto; la × y «Sacar todos». |
+| 59 | Paso por encima (O, el botón y un dedo) con recursión, «Hasta acá», salir (K) y una subrutina que no vuelve (Espacio la pausa). |
+| 60 | La traza después de un error (la culpable al final, los bucles agrupados), corriendo y en pausa; un clic o Enter llevan al desensamblado. |
+| 61 | El mapa de memoria: los colores de cada clase, el PC y la I, un clic o un dedo llevan al desensamblado o a la memoria, «Ir a», REGIONES y las páginas de XO-CHIP. |
+| 62 | El visor de sprites: 8×N y 16×16, el alto elegido, los planos de XO-CHIP con la paleta y los últimos dibujos. |
+| 63 | El desensamblado que se recorre (rueda, «Ir a», Av Pág, datos como DB) y el monitor en 1440, 768 y 360 px con cada pestaña. |
+| 64 | Los puntos de corte por cartucho y fuera del estado; el mapa y la traza al reiniciar, al cargar un estado y al rebobinar; la pestaña se recuerda. |
+| 65 | 60 fps a 10.000 IPF con un punto de corte puesto y con Planos en cada pestaña del monitor. |
 
 `node tools/e2e.js --help` imprime esta misma lista (sale del comentario del principio del
 archivo).
@@ -3328,8 +3346,8 @@ El mapa está repetido en varios lugares a propósito (cada uno lo muestra o lo 
 - el README, la parte 1.4 del tutorial (que `tests/tutorial.test.js` compara con
   `KEY_BY_CODE`) y la §7.2 del manual.
 
-Que ninguna tecla del mapa choque con los atajos (Espacio, N, Retroceso, H, T, P, G, Y, I, U
-y B). Los mapas de las flechas y el joystick están en `KEYMAP_PRESETS` y en las opciones
+Que ninguna tecla del mapa choque con los atajos (Espacio, N, O, K, Retroceso, H, T, P, G,
+Y, I, U y B). Los mapas de las flechas y el joystick están en `KEYMAP_PRESETS` y en las opciones
 del selector `#keymap` (el texto de cada opción repite las teclas; el tutorial los cita).
 Un atajo nuevo va en `onKeyDown` (y en `onKeyUp` si se mantiene), en la tabla de atajos
 de la ayuda, en la del README, en la de la parte 1.10 del tutorial y en

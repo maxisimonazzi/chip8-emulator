@@ -127,6 +127,22 @@
  *   56 diseño con el Taller abierto: 1440 y 1280 px al costado, 768 y 360 px debajo (a 360, con un toque)
  *   57 Taller con el teclado y para lectores de pantalla (roles, nombres, Tab, Esc, foco, Plataforma con las
  *      flechas, Y desde la pantalla completa) y a 60 fps con 10.000 IPF mientras se escribe
+ *   58 puntos de corte con el mouse (la línea elegida y «Punto de corte», el margen) y el teclado (flechas, Enter,
+ *      Inicio): la máquina se detiene antes de la instrucción, avisa y al seguir la ejecuta; Frame completa el frame
+ *      abierto; la × y «Sacar todos»
+ *   59 paso por encima (O, el botón y con un dedo) con recursión, «Hasta acá», salir de la subrutina (K) y una
+ *      subrutina que no vuelve nunca (Espacio la pausa y cancela el paso)
+ *   60 traza: después de un error, la culpable al final y los bucles agrupados; corriendo, el aviso; un clic o Enter
+ *      llevan la instrucción al desensamblado
+ *   61 mapa de memoria: los colores de cada clase, las marcas del PC y de I, un clic (y un dedo) lleva al
+ *      desensamblado o a la memoria, «Ir a», REGIONES con el teclado y las páginas de XO-CHIP
+ *   62 visor de sprites: 8×N con el alto del último DXYN o el elegido, 16×16, los dos planos de XO-CHIP con la
+ *      paleta y los últimos dibujos
+ *   63 desensamblado que se recorre (rueda, «Ir a», Av Pág, datos como DB, «Al PC») y el monitor en 1440, 768 y
+ *      360 px con cada pestaña
+ *   64 puntos de corte por cartucho y fuera del estado; el mapa y la traza al reiniciar, al cargar un estado y al
+ *      rebobinar; la pestaña se recuerda
+ *   65 velocidad con el depurador: 10.000 IPF con un punto de corte y Planos con cada pestaña a 60 fps
  */
 
 const { spawn, spawnSync } = require('node:child_process');
@@ -438,6 +454,8 @@ Object.assign(KEYS, {
   Tab: { key: 'Tab', vk: 9 },
   Home: { key: 'Home', vk: 36 },
   End: { key: 'End', vk: 35 },
+  PageUp: { key: 'PageUp', vk: 33 },
+  PageDown: { key: 'PageDown', vk: 34 },
   ArrowLeft: { key: 'ArrowLeft', vk: 37 },
   ArrowUp: { key: 'ArrowUp', vk: 38 },
   ArrowRight: { key: 'ArrowRight', vk: 39 },
@@ -4796,6 +4814,717 @@ scenario(57, 'Taller con el teclado y para lectores de pantalla: Tab hasta el bo
   s.info(`a 10.000 IPF, escribiendo ${secs.toFixed(1)} s: ${fps.toFixed(1)} frames por segundo, ${Math.round(ips)} instrucciones por segundo`);
   s.check(fps >= 55 && fps <= 66 && ips >= 10000 * fps * 0.98, `a 10.000 IPF, mientras se escriben 70 caracteres en el editor, la máquina sigue a ${fps.toFixed(1)} frames por segundo con 10.000 instrucciones cada uno`, JSON.stringify({ fps, ips }));
   await page.shot('57-taller-teclado');
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// ---------------------------------------------------------------- ayudas de los escenarios del depurador (58 en adelante)
+// La fila del desensamblado de una dirección par (las filas van de a 2 bytes: la fila N es la dirección 2N).
+const disRow = (a) => `#dis-view-${a >> 1}`;
+// Clic con el mouse en un elemento que ya está a la vista, sin mover nada (page.click lo centraría, y eso movería
+// también la lista del monitor, que cuenta como un movimiento de la persona).
+async function clickInPlace(page, selector) {
+  const r = await page.rect(selector, false);
+  if (r.y < 0 || r.y + r.h > page.viewport.height) throw new Error(`${selector} no está a la vista (y = ${Math.round(r.y)})`);
+  await page.clickAt(r.cx, r.cy);
+  return r;
+}
+async function tapAt(page, x, y) {
+  const tp = { x, y, id: 3, radiusX: 2, radiusY: 2, force: 1 };
+  await page.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [tp] });
+  await sleep(60);
+  await page.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+}
+async function tap(page, selector) {
+  const r = await page.rect(selector);
+  await tapAt(page, r.cx, r.cy);
+}
+// Espera a que la máquina quede en pausa con el PC en una dirección.
+function waitPausedAt(page, addr, timeout = 4000, desc) {
+  return page.waitFor(`window.chip8.isPaused() && window.chip8.cpu.pc === ${addr}`, { timeout, desc: desc || `en pausa en ${hx(addr)}` });
+}
+const DBG = 'window.chip8.debugState()';
+// Los colores de cada clase del mapa de memoria (CAT_INFO en chip8-ui).
+const MAP_RGB = { code: [125, 255, 154], read: [255, 212, 121], write: [255, 128, 96], font: [150, 168, 255], rom: [46, 104, 68], empty: [18, 42, 28] };
+// El color de la celda de una dirección en el lienzo del mapa (64 × 64: un píxel por byte de la página).
+function mapPixelExpr(addr) {
+  return `(() => { const d = document.getElementById('map').getContext('2d').getImageData(${addr & 63}, ${(addr >> 6) & 63}, 1, 1).data; return [d[0], d[1], d[2]]; })()`;
+}
+// El centro de la celda de una dirección del mapa, en la pantalla.
+async function mapCellCenter(page, addr) {
+  return page.ev(`(() => { const r = document.getElementById('map').getBoundingClientRect(), c = r.width / 64;
+    return { x: r.left + ((${addr} & 63) + 0.5) * c, y: r.top + (((${addr} >> 6) & 63) + 0.5) * c, cell: c }; })()`);
+}
+// El monitor con la pestaña a la vista: alto, ancho y si algo se sale por la derecha.
+const MONITOR_FIT = `(() => {
+  const over = [];
+  document.querySelectorAll('body *').forEach((el) => { const b = el.getBoundingClientRect(); if (b.width && b.right > innerWidth + 0.5 && getComputedStyle(el).position !== 'fixed') over.push((el.id ? '#' + el.id : el.tagName.toLowerCase() + '.' + el.className).slice(0, 40)); });
+  const m = document.getElementById('monitor').getBoundingClientRect();
+  return { sw: document.documentElement.scrollWidth, iw: innerWidth, ih: innerHeight, monH: Math.round(m.height), monW: Math.round(m.width), over: over.slice(0, 6) };
+})()`;
+
+// 200: LD V0, 0  202: ADD V0, 1  204: LD V1, V0  206: CALL 20C  208: LD V3, V2  20A: JP 202  20C: ADD V2, 1  20E: RET
+function romDepura() {
+  return asm(`
+        LD V0, 0
+bucle:  ADD V0, 1
+        LD V1, V0
+        CALL rutina
+        LD V3, V2
+        JP bucle
+rutina: ADD V2, 1
+        RET`);
+}
+// Paso por encima con recursión: cada llamada más adentro vuelve a llamar desde 0x202, así que también vuelve por
+// 0x204 (con la pila más llena); V6 cuenta la profundidad. Después: una subrutina común, una que no vuelve nunca.
+function romPasos() {
+  return asm(`
+        LD V0, 2
+otra:   CALL rutina            ; 202: O acá
+atras:  ADD V1, 1           ; 204: se llega tres veces, con la pila en 2, 1 y 0
+        SE V6, 0            ; 206
+        JP sube             ; 208
+        JP sigue            ; 20A
+sube:   ADD V6, -1          ; 20C
+        RET                 ; 20E
+rutina: SE V0, 0            ; 210
+        JP adentro          ; 212
+        RET                 ; 214
+adentro: ADD V0, -1         ; 216
+        ADD V6, 1           ; 218
+        JP otra             ; 21A
+sigue:  CALL plana          ; 21C: O, una subrutina común
+        LD V4, 7            ; 21E: O sobre algo que no es un CALL: un paso
+        CALL tres           ; 220: N entra, K sale
+        CALL sinfin         ; 222: O corre para siempre
+fin:    JP fin              ; 224
+plana:  ADD V2, 1           ; 226
+        RET                 ; 228
+tres:   ADD V3, 1           ; 22A
+        ADD V3, 1           ; 22C
+        ADD V3, 1           ; 22E
+        RET                 ; 230
+sinfin: ADD V7, 1           ; 232
+        JP sinfin           ; 234`);
+}
+
+// 58 -------------------------------------------------------------------------------
+scenario(58, 'Puntos de corte con el mouse y el teclado: la máquina se detiene antes de la instrucción, avisa, al seguir la ejecuta y el frame queda abierto', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  await loadWithButton(page, writeFixture(ctx, 'depura.ch8', romDepura()), 'depura.ch8');
+  await page.click('.tagline');
+  await page.press('Space');
+  await page.waitFor('window.chip8.isPaused()', { timeout: 2000 });
+  await sleep(150);
+  // Con el mouse: elegir la línea 0x204 y tocar «Punto de corte».
+  await clickInPlace(page, disRow(0x204) + ' .d-text');
+  await sleep(60);
+  const sel = await page.ev(`({ d: ${DBG}, pressed: document.getElementById('dis-bp').getAttribute('aria-pressed'), aria: document.querySelector('${disRow(0x204)}').getAttribute('aria-selected') })`);
+  s.check(sel.d.disasm.selected === 0x204 && sel.pressed === 'false' && sel.aria === 'true', 'un clic en la línea 0x204 la elige (aria-selected) y «Punto de corte» todavía no está apretado', JSON.stringify(sel));
+  await page.click('#dis-bp');
+  await sleep(80);
+  const on = await page.ev(`({ bps: window.chip8.getBreakpoints(), row: document.querySelector('${disRow(0x204)}').classList.contains('is-bp'),
+    sr: document.querySelector('${disRow(0x204)}').textContent, pressed: document.getElementById('dis-bp').getAttribute('aria-pressed'),
+    list: Array.from(document.querySelectorAll('#bp-list .bp-go')).map((b) => b.textContent), empty: !document.getElementById('bp-empty').hidden,
+    status: document.getElementById('status').textContent })`);
+  s.check(on.bps.join() === String(0x204) && on.row && /punto de corte/.test(on.sr) && on.pressed === 'true' && on.list.join() === '0x204 LD V1, V0' && !on.empty &&
+    on.status === 'Punto de corte en 0x204 («LD V1, V0»).', `«Punto de corte» lo pone: la línea lo marca (también para el lector de pantalla), la lista dice «${on.list.join()}» y la línea de estado lo anuncia`, JSON.stringify(on));
+  // El margen de una línea pone y saca otro.
+  await clickInPlace(page, disRow(0x20A) + ' .d-mark');
+  await sleep(60);
+  const two = await page.ev('window.chip8.getBreakpoints()');
+  await clickInPlace(page, disRow(0x20A) + ' .d-mark');
+  await sleep(60);
+  const back = await page.ev('window.chip8.getBreakpoints()');
+  s.check(two.join() === [0x204, 0x20A].join() && back.join() === String(0x204), 'un clic en el margen de la línea 0x20A pone un punto de corte y otro clic lo saca', JSON.stringify({ two, back }));
+  await page.shot('58-punto-de-corte');
+  // Seguir (Espacio): se detiene en 0x204 antes de ejecutarla.
+  await page.press('Space');
+  await waitPausedAt(page, 0x204);
+  await sleep(100);
+  const hit = await page.ev(`({ d: ${DBG}, v0: window.chip8.cpu.V[0], v1: window.chip8.cpu.V[1], badge: document.getElementById('mon-badge').textContent,
+    tag: !document.getElementById('tag-pause').hidden, led: document.getElementById('led-run').className, status: document.getElementById('status').textContent,
+    pause: document.getElementById('btn-pause-label').textContent, title: document.getElementById('btn-pause').title,
+    pcRow: document.querySelector('#disasm li.is-pc .d-addr').textContent, bpRow: document.querySelector('#disasm li.is-pc').classList.contains('is-bp') })`);
+  s.check(hit.d.stop && hit.d.stop.kind === 'breakpoint' && hit.d.atBreakpoint && hit.v1 === ((hit.v0 - 1) & 0xFF) && hit.badge === 'Punto de corte' && hit.tag && /is-amber/.test(hit.led) &&
+    hit.status === 'Punto de corte en 0x204 («LD V1, V0»): en pausa, antes de ejecutarla.' && hit.pause === 'Continuar' && /próximo punto de corte/.test(hit.title) && hit.pcRow === '0x204' && hit.bpRow,
+  `Espacio sigue y la máquina se detiene en 0x204 sin ejecutarla (V0 = ${hit.v0}, V1 = ${hit.v1}): monitor «${hit.badge}», PAUSA en la pantalla, LED ámbar y el aviso «${hit.status}»`, JSON.stringify(hit));
+  await page.shot('58-detenida');
+  // Al seguir, la instrucción del punto de corte se ejecuta y el bucle vuelve a detenerse en ella.
+  await page.press('Space');
+  await page.waitFor(`window.chip8.isPaused() && window.chip8.cpu.pc === 0x204 && window.chip8.cpu.V[0] === ${(hit.v0 + 1) & 0xFF}`, { timeout: 3000, desc: 'una vuelta más' });
+  const lap = await page.ev('({ v0: window.chip8.cpu.V[0], v1: window.chip8.cpu.V[1] })');
+  s.check(lap.v0 === ((hit.v0 + 1) & 0xFF) && lap.v1 === hit.v0, `Espacio otra vez: ejecuta 0x204 (V1 = ${lap.v1}) y da una vuelta más hasta el mismo punto de corte (V0 = ${lap.v0}): no se queda trabada`, JSON.stringify(lap));
+  // El frame quedó abierto (15 IPF): Frame ejecuta solo lo que le faltaba. Una vuelta del bucle son 7 instrucciones:
+  // si entran y sobra, vuelve a detenerse en el punto de corte; si no, completa el frame (y recién ahí bajan los timers).
+  const open = await page.ev('window.chip8.cpu._frameDone');
+  const i0 = await page.ev(`${E2E}.instr`);
+  await page.click('#btn-frame');
+  await sleep(120);
+  const fr = await page.ev(`({ d: ${DBG}, instr: ${E2E}.instr - ${i0}, pc: window.chip8.cpu.pc, open: window.chip8.cpu._frameDone, status: document.getElementById('status').textContent })`);
+  const stops = 15 - open > 7;   // con 7 justas, el frame termina antes de mirar el punto de corte
+  s.check(open > 0 && open < 15 && fr.instr === Math.min(7, 15 - open) && (stops
+    ? fr.pc === 0x204 && fr.d.stop && fr.d.stop.kind === 'breakpoint' && /^Punto de corte en 0x204/.test(fr.status) && fr.open === open + 7
+    : !fr.d.stop && fr.open === 0 && fr.status === `Frame: ${15 - open} instrucciones.`),
+  `el frame quedó abierto con ${open} de sus 15 instrucciones: Frame ejecuta ${fr.instr} (${stops ? 'una vuelta, hasta el punto de corte' : 'las que le faltaban, y lo cierra'})`, JSON.stringify({ open, fr }));
+  if (!stops) {
+    await page.press('Space');
+    await waitPausedAt(page, 0x204);
+  }
+  // Con el teclado: la lista enfocada, flechas hasta 0x20C y Enter pone un punto de corte; Inicio vuelve al PC.
+  await clickInPlace(page, disRow(0x204) + ' .d-text');
+  for (let i = 0; i < 4; i++) await page.press('ArrowDown', 20);
+  const kb = await page.ev(`({ d: ${DBG}, focus: document.activeElement.id, ad: document.getElementById('dis-view').getAttribute('aria-activedescendant') })`);
+  await page.press('Enter');
+  await sleep(60);
+  const kb2 = await page.ev('window.chip8.getBreakpoints()');
+  await page.press('Home');
+  await sleep(60);
+  const kb3 = await page.ev(DBG);
+  s.check(kb.focus === 'dis-view' && kb.d.disasm.selected === 0x20C && kb.ad === 'dis-view-' + (0x20C >> 1) && kb2.join() === [0x204, 0x20C].join() && kb3.disasm.follow && kb3.disasm.selected === 0x204,
+    'con la lista enfocada, cuatro flechas abajo eligen 0x20C (aria-activedescendant), Enter le pone un punto de corte e Inicio vuelve al PC', JSON.stringify({ kb, kb2, kb3 }));
+  // Espacio con la lista enfocada sigue pausando: corre hasta el próximo punto de corte (0x20C, dentro de la subrutina).
+  await page.press('Space');
+  await waitPausedAt(page, 0x20C);
+  const sub = await page.ev(`({ d: ${DBG}, sp: window.chip8.cpu.sp })`);
+  s.check(sub.d.stop.addr === 0x20C && sub.sp === 1, 'Espacio (con la lista enfocada) sigue hasta el próximo punto de corte: 0x20C, dentro de la subrutina (SP = 1)', JSON.stringify(sub));
+  // La × de la lista lo saca; con dos o más, «Sacar todos».
+  await page.click('#bp-list li:nth-child(2) .bp-del');
+  await sleep(60);
+  const del = await page.ev(`({ bps: window.chip8.getBreakpoints(), list: Array.from(document.querySelectorAll('#bp-list .bp-go')).map((b) => b.textContent) })`);
+  await page.ev('window.chip8.setBreakpoint(0x208)');
+  await sleep(60);
+  await page.click('#bp-list .bp-all button');
+  await sleep(60);
+  const none = await page.ev(`({ bps: window.chip8.getBreakpoints(), empty: !document.getElementById('bp-empty').hidden, list: document.getElementById('bp-list').hidden, status: document.getElementById('status').textContent })`);
+  s.check(del.bps.join() === String(0x204) && del.list.join() === '0x204 LD V1, V0' && none.bps.length === 0 && none.empty && none.list && none.status === 'Saqué los 2 puntos de corte.',
+    'la × saca un punto de corte y «Sacar todos» los saca todos («Saqué los 2 puntos de corte.»)', JSON.stringify({ del, none }));
+  // Sin puntos de corte, Espacio sigue corriendo sin detenerse.
+  await page.click('.tagline');
+  await page.press('Space');
+  await sleep(500);
+  s.check(await page.ev('!window.chip8.isPaused() && !window.chip8.cpu.halted'), 'sin puntos de corte, la máquina corre como siempre');
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 59 -------------------------------------------------------------------------------
+scenario(59, 'Paso por encima (O y el botón), salir de la subrutina (K) y «Hasta acá»: con recursión, una subrutina común y una que no vuelve nunca (Espacio la pausa)', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  await loadWithButton(page, writeFixture(ctx, 'pasos.ch8', romPasos()), 'pasos.ch8');
+  await page.click('.tagline');
+  await page.press('Space');
+  await page.press('Backspace');   // en pausa en 0x200
+  await sleep(100);
+  await page.press('KeyN');
+  await sleep(60);
+  // O sobre el CALL de 0x202, con recursión: se detiene en 0x204 recién con la pila en 0.
+  await page.press('KeyO');
+  await waitPausedAt(page, 0x204, 3000, 'el paso por encima termina en 0x204');
+  const rec = await page.ev(`({ d: ${DBG}, sp: window.chip8.cpu.sp, v1: window.chip8.cpu.V[1], v6: window.chip8.cpu.V[6], status: document.getElementById('status').textContent, badge: document.getElementById('mon-badge').textContent })`);
+  s.check(rec.sp === 0 && rec.v1 === 2 && rec.v6 === 0 && rec.d.stop.kind === 'target' && rec.status === 'Paso por encima: la subrutina volvió. PC = 0x204 («ADD V1, 0x01»).' && rec.badge === 'Pausado',
+    `O sobre un CALL recursivo corre la subrutina entera: pasa por 0x204 dos veces más adentro (V1 = ${rec.v1}) y se detiene ahí con la pila en 0; «${rec.status}»`, JSON.stringify(rec));
+  // O sobre algo que no es un CALL es un paso común.
+  const s0 = await page.ev(`${E2E}.steps`);
+  await page.press('KeyO');
+  await sleep(80);
+  const st = await page.ev(`({ pc: window.chip8.cpu.pc, steps: ${E2E}.steps - ${s0}, paused: window.chip8.isPaused() })`);
+  s.check(st.pc === 0x206 && st.steps === 1 && st.paused, 'O sobre ADD (no es un CALL) es un paso común: una instrucción y en pausa', JSON.stringify(st));
+  // 0x206 (SE V6, 0 saltea) y 0x20A (JP sigue): el PC queda en el CALL de 0x21C.
+  await page.press('KeyN');
+  await page.press('KeyN');
+  await sleep(80);
+  // El botón «Por encima» (con el mouse) sobre el CALL de una subrutina común.
+  await page.click('#btn-over');
+  await waitPausedAt(page, 0x21E, 3000, 'el botón «Por encima» termina en 0x21E');
+  const btn = await page.ev('({ v2: window.chip8.cpu.V[2], sp: window.chip8.cpu.sp })');
+  s.check(btn.v2 === 1 && btn.sp === 0, 'el botón «Por encima» ejecuta la subrutina de 0x226 entera (V2 = 1) y queda en 0x21E', JSON.stringify(btn));
+  // «Hasta acá» con el mouse: elegir la línea 0x220 y tocar el botón.
+  await clickInPlace(page, disRow(0x220) + ' .d-text');
+  await page.click('#dis-here');
+  await waitPausedAt(page, 0x220, 3000, '«Hasta acá» llega a 0x220');
+  const here = await page.ev(`({ d: ${DBG}, v4: window.chip8.cpu.V[4], status: document.getElementById('status').textContent })`);
+  s.check(here.d.stop.kind === 'target' && here.v4 === 7 && here.status === 'Hasta acá: llegó a 0x220 («CALL 0x22A»).', `«Hasta acá» corre hasta la línea elegida: «${here.status}»`, JSON.stringify(here));
+  // N entra a la subrutina de 0x22A y K sale: vuelve a 0x222 con V3 = 3.
+  await page.click('.tagline');
+  await page.press('KeyN');
+  await page.press('KeyN');
+  await sleep(80);
+  const inSub = await page.ev('({ pc: window.chip8.cpu.pc, sp: window.chip8.cpu.sp })');
+  await page.press('KeyK');
+  await waitPausedAt(page, 0x222, 3000, 'K vuelve a 0x222');
+  const out = await page.ev(`({ v3: window.chip8.cpu.V[3], sp: window.chip8.cpu.sp, status: document.getElementById('status').textContent })`);
+  s.check(inSub.pc === 0x22C && inSub.sp === 1 && out.v3 === 3 && out.sp === 0 && out.status === 'Salir: la subrutina volvió. PC = 0x222 («CALL 0x232»).',
+    `N entra a la subrutina (y un paso más: PC 0x22C, SP 1) y K corre hasta que vuelve: PC 0x222, V3 = ${out.v3}, «${out.status}»`, JSON.stringify({ inSub, out }));
+  // K con la pila vacía no hace nada y lo dice.
+  await page.press('KeyK');
+  await sleep(60);
+  s.check((await statusText(page)) === 'Salir: la pila está vacía, el PC no está en una subrutina.' && (await page.ev('window.chip8.cpu.pc')) === 0x222, 'K con la pila vacía avisa y no se mueve');
+  // Por encima de una subrutina que no vuelve nunca (con un dedo): la máquina corre; Espacio la pausa y cancela el paso.
+  await page.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+  await tap(page, '#btn-over');
+  await page.send('Emulation.setTouchEmulationEnabled', { enabled: false });
+  await sleep(500);
+  const run = await page.ev(`({ d: ${DBG}, paused: window.chip8.isPaused(), v7: window.chip8.cpu.V[7], badge: document.getElementById('mon-badge').textContent })`);
+  s.check(!run.paused && run.d.run && run.d.run.kind === 'over' && run.d.run.addr === 0x224 && run.v7 > 0 && run.badge === 'Ejecutando',
+    `con un dedo en «Por encima» sobre CALL 0x232 (que no vuelve): la máquina sigue corriendo (V7 = ${run.v7}) mientras espera llegar a 0x224`, JSON.stringify(run));
+  await page.click('.tagline');
+  await page.press('Space');
+  await sleep(100);
+  const cancel = await page.ev(`({ d: ${DBG}, paused: window.chip8.isPaused(), target: window.chip8.cpu.runTarget() })`);
+  await page.press('Space');
+  await sleep(300);
+  const after = await page.ev(`({ paused: window.chip8.isPaused(), pc: window.chip8.cpu.pc })`);
+  s.check(cancel.paused && !cancel.d.run && cancel.target === null && !after.paused && after.pc >= 0x232,
+    'Espacio la pausa y cancela el paso por encima: al seguir, corre sin detenerse en 0x224', JSON.stringify({ cancel, after }));
+  await page.shot('59-paso-por-encima');
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 60 -------------------------------------------------------------------------------
+scenario(60, 'Traza: después de un error muestra las últimas instrucciones con la culpable al final y los bucles agrupados; corriendo, el aviso; un clic o Enter llevan al desensamblado', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  // 200..206: un bucle de 3 instrucciones que da 5 vueltas, después una subrutina con una instrucción inválida.
+  const rom = asm(`
+        LD V0, 0
+bucle:  ADD V0, 1
+        SE V0, 5
+        JP bucle
+        CALL rutina
+fin:    JP fin
+rutina: LD V2, 9
+        DW 0x5121`);
+  await loadWithButton(page, writeFixture(ctx, 'traza.ch8', rom), 'traza.ch8');
+  await page.waitFor('window.chip8.cpu.halted', { timeout: 3000, desc: 'la máquina se detiene por el error' });
+  await sleep(150);
+  const link = await page.ev("({ shown: !document.getElementById('mon-trace-link').hidden, text: document.getElementById('mon-trace-btn').textContent })");
+  s.check(link.shown && link.text === 'Ver las últimas instrucciones', 'con el error, el monitor ofrece «Ver las últimas instrucciones»', JSON.stringify(link));
+  await page.click('#mon-trace-btn');
+  await sleep(150);
+  const rows = () => page.ev(`Array.from(document.querySelectorAll('#trace li:not([hidden])')).map((li) => ({ addr: li.querySelector('.d-addr').textContent, text: li.querySelector('.d-text').textContent, rep: li.querySelector('.t-rep').textContent, cls: li.className.replace(/__\\S*/g, '').trim() }))`);
+  const t = await rows();
+  const note = await page.ev("document.getElementById('trace-note').textContent");
+  const tab = await page.ev('window.chip8.getMonitorTab()');
+  const last = t[t.length - 1] || {};
+  const loopRows = t.filter((r) => /is-loop/.test(r.cls));
+  s.check(tab === 'traza' && last.addr === '0x20E' && last.text === 'DW 0x5121' && last.rep === 'error' && /is-err/.test(last.cls) && !t.some((r) => r.rep === 'PC'),
+    `la traza termina en la instrucción culpable (${last.addr} ${last.text}, marcada «error») y, con la máquina detenida, no muestra la próxima`, JSON.stringify(t));
+  s.check(loopRows.length === 3 && loopRows[0].rep === '×4' && /is-loop-first/.test(loopRows[0].cls) && t.length === 9,
+    `el bucle de 3 instrucciones va agrupado una vez con «${loopRows[0] && loopRows[0].rep}»: ${t.length} filas en vez de 18 instrucciones; «${note}»`, JSON.stringify(t));
+  s.check(note === '18 instrucciones, de la más vieja a la más nueva; los bucles van agrupados (×N: las veces seguidas). La última detuvo la máquina.', `la nota lo explica: «${note}»`);
+  await page.shot('60-traza-error');
+  // Un clic en una fila la lleva al desensamblado.
+  await clickInPlace(page, '#trace li:nth-child(1) .d-text');
+  await sleep(120);
+  const go = await page.ev(DBG);
+  s.check(go.tab === 'codigo' && go.disasm.selected === 0x200 && !go.disasm.follow, 'un clic en la primera fila muestra 0x200 en el desensamblado (elegida, sin seguir al PC)', JSON.stringify(go));
+  // Con el teclado: la traza enfocada, flecha arriba hasta la culpable... Enter la lleva al desensamblado con el foco.
+  await page.ev("window.chip8.setMonitorTab('traza')");
+  await sleep(100);
+  await clickInPlace(page, '#trace li:nth-child(2) .d-text');   // vuelve al desensamblado: es un clic
+  await page.ev("window.chip8.setMonitorTab('traza')");
+  await sleep(100);
+  await page.ev("document.getElementById('trace-view').focus()");
+  await page.press('End');
+  await page.press('ArrowUp');
+  await page.press('Enter');
+  await sleep(120);
+  const kb = await page.ev(`({ d: ${DBG}, focus: document.activeElement.id })`);
+  s.check(kb.d.tab === 'codigo' && kb.d.disasm.selected === 0x20C && kb.focus === 'dis-view', 'con el teclado: Fin, flecha arriba y Enter muestran 0x20C en el desensamblado y le pasan el foco', JSON.stringify(kb));
+  // Reiniciar: corriendo, la traza avisa que hay que pausar; en pausa muestra lo que corrió desde el reinicio.
+  await page.ev("window.chip8.setMonitorTab('traza')");
+  await page.click('.tagline');
+  const rom2 = asm(`
+bucle:  ADD V0, 1
+        JP bucle`);
+  await loadWithButton(page, writeFixture(ctx, 'bucle.ch8', rom2), 'bucle.ch8');
+  await sleep(300);
+  const running = await page.ev("({ note: document.getElementById('trace-note').textContent, list: document.getElementById('trace-view').hidden })");
+  await page.press('Space');
+  await sleep(150);
+  const paused = await rows();
+  // (Una vuelta a medias al principio o al final de la traza queda suelta: 3 o 4 filas.)
+  s.check(running.note === 'Corriendo: pausá (Espacio) para ver las últimas instrucciones.' && running.list && paused.length >= 3 && paused.length <= 4 &&
+    paused.some((r) => /^×\d/.test(r.rep) && /is-loop-first/.test(r.cls)) && paused[paused.length - 1].rep === 'PC',
+    `corriendo, «${running.note}»; en pausa, el bucle de 2 instrucciones agrupado (${paused.map((r) => r.rep).filter(Boolean).join(' ')}) y al final la próxima, marcada «PC»`, JSON.stringify({ running, paused }));
+  await page.shot('60-traza-pausa');
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 61 -------------------------------------------------------------------------------
+scenario(61, 'Mapa de memoria: código, leído, escrito, fuente, ROM sin tocar y vacío con sus colores; el PC y la I marcados; tocar una celda lleva al desensamblado o a la memoria; XO-CHIP por páginas', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  const built = assemble(`
+        LD I, sprite
+        LD V0, 10
+        LD V1, 5
+        DRW V0, V1, 4       ; lee los 4 bytes del sprite
+        LD I, 0x400
+        LD V2, 123
+        LD B, V2            ; escribe 0x400..0x402
+        LD I, tabla
+        LD V3, [I]          ; lee tabla..tabla+3
+        LD I, sprite
+fin:    JP fin
+sprite: DB 0xF0, 0x90, 0x90, 0xF0
+tabla:  DB 1, 2, 3, 4
+resto:  DB 9, 9, 9, 9, 9, 9`);
+  const rom = Array.from(built.bytes), labels = built.labels;
+  await loadWithButton(page, writeFixture(ctx, 'mapa.ch8', rom), 'mapa.ch8');
+  await waitSelfJump(page);
+  await page.click('.tagline');
+  await page.press('Space');
+  await page.click('#mon-tab-memoria');
+  await sleep(200);
+  const px = {};
+  for (const [name, a] of [['code', 0x200], ['code2', 0x201], ['read', labels.sprite], ['read2', labels.tabla + 3], ['write', 0x402], ['font', 0x050], ['rom', labels.resto], ['empty', 0x800]]) px[name] = await page.ev(mapPixelExpr(a));
+  const want = { code: MAP_RGB.code, code2: MAP_RGB.code, read: MAP_RGB.read, read2: MAP_RGB.read, write: MAP_RGB.write, font: MAP_RGB.font, rom: MAP_RGB.rom, empty: MAP_RGB.empty };
+  const wrong = Object.keys(want).filter((k) => px[k].join() !== want[k].join());
+  s.check(wrong.length === 0, 'cada clase tiene su color en el mapa: código (también el segundo byte), leído (DXYN y FX65), escrito (FX33), fuente, ROM sin tocar y vacío', JSON.stringify({ wrong, px }));
+  const marks = await page.ev(`(() => { const r = (id) => { const e = document.getElementById(id), m = document.getElementById('map').getBoundingClientRect(), b = e.getBoundingClientRect(); return e.hidden ? null : { x: Math.round(b.left - m.left), y: Math.round(b.top - m.top), w: Math.round(b.width) }; };
+    return { pc: r('map-pc'), i: r('map-i'), cell: document.getElementById('map').getBoundingClientRect().width / 64, cpu: [window.chip8.cpu.pc, window.chip8.cpu.I] }; })()`);
+  const cellAt = (a) => ({ x: Math.round((a & 63) * marks.cell), y: Math.round(((a >> 6) & 63) * marks.cell) });
+  s.check(marks.pc && marks.i && marks.pc.x === cellAt(marks.cpu[0]).x && marks.pc.y === cellAt(marks.cpu[0]).y && marks.pc.w === Math.round(2 * marks.cell) && marks.i.x === cellAt(marks.cpu[1]).x && marks.i.y === cellAt(marks.cpu[1]).y,
+    `el PC (dos celdas, en ${hx(marks.cpu[0])}) y la I (${hx(marks.cpu[1])}) van marcados en su lugar`, JSON.stringify(marks));
+  await page.shot('61-mapa');
+  // Un clic en una celda de datos lleva la memoria ahí; en una de código, el desensamblado.
+  const cData = await mapCellCenter(page, labels.tabla + 1);
+  await page.clickAt(cData.x, cData.y);
+  await sleep(120);
+  const m1 = await page.ev(`({ d: ${DBG}, title: document.getElementById('mem-title').textContent, target: (document.querySelector('#memview .m-b.is-target') || {}).textContent, info: document.getElementById('map-info').textContent })`);
+  s.check(m1.d.memory.target === labels.tabla + 1 && !m1.d.memory.follow && m1.title === 'MEMORIA EN ' + hx(labels.tabla + 1) && m1.target === '02',
+    `un clic en ${hx(labels.tabla + 1)} (leído) lleva la memoria ahí: «${m1.title}», con el byte 02 marcado`, JSON.stringify(m1));
+  const cCode = await mapCellCenter(page, 0x207);
+  await page.clickAt(cCode.x, cCode.y);
+  await sleep(120);
+  const m2 = await page.ev(DBG);
+  s.check(m2.tab === 'codigo' && m2.disasm.selected === 0x206, 'un clic en 0x207 (el segundo byte de una instrucción) muestra la instrucción de 0x206 en el desensamblado', JSON.stringify(m2));
+  // Con un dedo, en la ROM sin tocar: a la memoria.
+  await page.ev("window.chip8.setMonitorTab('memoria')");
+  await sleep(100);
+  await page.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+  const cRom = await mapCellCenter(page, labels.resto + 2);
+  await tapAt(page, cRom.x, cRom.y);
+  await page.send('Emulation.setTouchEmulationEnabled', { enabled: false });
+  await sleep(120);
+  s.check((await page.ev(DBG)).memory.target === labels.resto + 2, 'con un dedo, tocar la ROM sin tocar también lleva la memoria ahí');
+  // «A la I» vuelve a seguir a I (justo después del toque: el puntero sale del mapa y lo de abajo no se mueve);
+  // «Ir a» lleva a una dirección y avisa si no es válida.
+  const infoH0 = await page.ev("document.getElementById('map-info').getBoundingClientRect().height");
+  await page.click('#mem-follow');
+  await sleep(80);
+  const infoH1 = await page.ev("document.getElementById('map-info').getBoundingClientRect().height");
+  s.check(infoH0 === infoH1, `la línea de información del mapa mide siempre lo mismo (${infoH0} px), diga lo que diga`, JSON.stringify({ infoH0, infoH1 }));
+  const f = await page.ev(`({ d: ${DBG}, title: document.getElementById('mem-title').textContent })`);
+  await page.click('#mem-goto');
+  await page.type('xyz');
+  await page.press('Enter');
+  await sleep(60);
+  const bad = await page.ev("({ inv: document.getElementById('mem-goto').getAttribute('aria-invalid'), msg: document.getElementById('mem-goto-msg').textContent, shown: !document.getElementById('mem-goto-msg').hidden })");
+  await page.ev("document.getElementById('mem-goto').value = ''");
+  await page.type('401');
+  await page.press('Enter');
+  await sleep(80);
+  const good = await page.ev(`({ d: ${DBG}, inv: document.getElementById('mem-goto').getAttribute('aria-invalid'), cell: (document.querySelector('#memview .m-b.is-target') || {}).className })`);
+  s.check(f.d.memory.follow && f.title === 'MEMORIA EN I' && bad.inv === 'true' && bad.shown && bad.msg === 'Escribí una dirección en hexadecimal, de 000 a FFF.' &&
+    good.d.memory.target === 0x401 && good.inv === 'false' && /c-write/.test(good.cell),
+  '«A la I» vuelve a seguir a I; «Ir a» con «xyz» avisa abajo del campo y con «401» lleva ahí (un byte escrito)', JSON.stringify({ f, bad, good }));
+  // REGIONES: los tramos de cada clase; con el teclado, Enter muestra el elegido.
+  const regs = await page.ev("Array.from(document.querySelectorAll('#regions li:not([hidden])')).map((li) => li.querySelector('.r-range').textContent + ' ' + li.querySelector('.r-name').textContent)");
+  await page.ev("document.getElementById('regions-view').focus()");
+  await page.press('Home');
+  await page.press('ArrowDown');
+  await page.press('Enter');
+  await sleep(100);
+  const r2 = await page.ev(`({ d: ${DBG}, focus: document.activeElement.id })`);
+  s.check(regs[0] === '0x050–0x09F fuente' && regs.some((r) => r.startsWith('0x200–') && r.endsWith(' código')) && regs.some((r) => r.endsWith(' escrito')) && r2.d.tab === 'codigo' && r2.d.disasm.selected === 0x200 && r2.focus === 'dis-view',
+    `REGIONES lista los tramos (${regs.join('; ')}) y con el teclado Enter muestra el de código en el desensamblado`, JSON.stringify({ regs, r2 }));
+  // XO-CHIP: código y datos más allá de 0x0FFF, en otras páginas.
+  const xo = asm(`
+        LD I, LONG 0x2000
+        LD V0, 0x55
+        LD [I], V0          ; escribe 0x2000
+        JP 0xFF8
+        ${Array.from({ length: (0xFF8 - 0x20A) / 2 }, () => 'DW 0').join('\n        ')}
+lejos:  ADD V1, 1           ; 0xFF8
+        ADD V1, 1
+        ADD V1, 1
+        ADD V1, 1
+        ADD V2, 1           ; 0x1000
+        JP 0xFF8`, true);
+  await loadWithButton(page, writeFixture(ctx, 'paginas.ch8', xo), 'paginas.ch8');
+  await chooseWithMouse(page, '#preset', 'xochip');
+  await sleep(500);
+  await page.click('.tagline');
+  await page.press('Space');
+  await page.ev("window.chip8.setMonitorTab('memoria')");
+  await sleep(150);
+  const xs = await page.ev(`({ sel: !document.getElementById('map-page').hidden, opts: document.getElementById('map-page').options.length, strip: !document.getElementById('map-strip-box').hidden, page: ${DBG}.memory.page, pc: window.chip8.cpu.pc })`);
+  await chooseSelect(page, '#map-page', '1');
+  await sleep(120);
+  const p1 = await page.ev(`({ page: ${DBG}.memory.page, px: ${mapPixelExpr(0x1000)}, label: document.getElementById('map-page').selectedOptions[0].textContent })`);
+  const strip = await page.rect('#map-strip', false);
+  await page.clickAt(strip.x + strip.w * (2.5 / 16), strip.cy);
+  await sleep(150);
+  const p2 = await page.ev(`({ page: ${DBG}.memory.page, px: ${mapPixelExpr(0x2000)}, sel: document.getElementById('map-page').value })`);
+  s.check(xs.sel && xs.opts === 16 && xs.strip && p1.page === 1 && p1.px.join() === MAP_RGB.code.join() && p1.label === '0x1000–0x1FFF' && p2.page === 2 && p2.sel === '2' && p2.px.join() === MAP_RGB.write.join(),
+    `XO-CHIP: el mapa va por páginas de 4 KB (selector de 16 y la tira de arriba); la página 1 muestra el código de 0x1000 y la tira lleva a la 2, con el byte escrito en 0x2000`, JSON.stringify({ xs, p1, p2 }));
+  await page.shot('61-mapa-xochip');
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 62 -------------------------------------------------------------------------------
+scenario(62, 'Visor de sprites: los bytes en I con el alto del último DXYN (8×N y 16×16) o el elegido, los dos planos de XO-CHIP con los colores de la paleta y los últimos dibujos', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  const SPR = [0x3C, 0x42, 0xA5, 0x81, 0x7E];
+  const rom = asm(`
+        LD I, spr
+        LD V0, 3
+        LD V1, 4
+        DRW V0, V1, 5
+        LD V0, 20
+        DRW V0, V1, 5
+fin:    JP fin
+spr:    ${db(SPR)}`);
+  await loadWithButton(page, writeFixture(ctx, 'sprite.ch8', rom), 'sprite.ch8');
+  await waitSelfJump(page);
+  await page.click('.tagline');
+  await page.press('Space');
+  await page.click('#mon-tab-sprites');
+  await sleep(200);
+  // El lienzo del visor: un píxel por píxel del sprite, con los colores de la paleta (fósforo).
+  const canvasBits = `(() => { const c = document.getElementById('spr-canvas'), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data, out = [];
+    for (let i = 0; i < d.length; i += 4) out.push('#' + [d[i], d[i + 1], d[i + 2]].map((v) => v.toString(16).padStart(2, '0')).join('').toUpperCase());
+    return { w: c.width, h: c.height, px: out, css: [c.style.width, c.style.height], label: c.getAttribute('aria-label'), info: document.getElementById('spr-info').textContent }; })()`;
+  const expectBits = (bytes, w, colors) => {
+    const out = [];
+    bytes.forEach((b) => { for (let x = 0; x < w; x++) out.push(colors[(b >> (w - 1 - x)) & 1]); });
+    return out;
+  };
+  const v1 = await page.ev(canvasBits);
+  const sprAddr = 0x20E;
+  s.check(v1.w === 8 && v1.h === 5 && v1.px.join() === expectBits(SPR, 8, FOSFORO).join() && v1.info === `I = ${hx(sprAddr)} · 8 × 5 (el alto del último DXYN)` && v1.label === `Sprite de ${hx(sprAddr)}, 8 × 5`,
+    `el visor dibuja los 5 bytes de I (${hx(sprAddr)}) como 8 × 5, el alto del último DXYN, con los colores de la paleta: «${v1.info}»`, JSON.stringify(v1));
+  const bytes = await page.ev("Array.from(document.querySelectorAll('#spr-bytes li')).map((li) => li.textContent)");
+  s.check(bytes.length === 5 && bytes[0] === `${hx(sprAddr)}  3C  ··████··` && bytes[2] === `${hx(sprAddr + 2)}  A5  █·█··█·█`, 'al lado, cada fila en hexadecimal y en bits', JSON.stringify(bytes));
+  // El alto elegido con el selector (mouse): 8 × 3.
+  await chooseWithMouse(page, '#spr-height', '3');
+  await sleep(120);
+  const v2 = await page.ev(canvasBits);
+  s.check(v2.h === 3 && v2.px.join() === expectBits(SPR.slice(0, 3), 8, FOSFORO).join() && v2.info === `I = ${hx(sprAddr)} · 8 × 3 (el alto elegido)`, `con «8 × 3» en Alto, el visor muestra 3 filas: «${v2.info}»`, JSON.stringify(v2));
+  await chooseWithMouse(page, '#spr-height', 'auto');
+  // Los últimos dibujos: los dos DXYN, el más nuevo primero, con su posición.
+  const dr = await page.ev("Array.from(document.querySelectorAll('#draws li:not([hidden])')).map((li) => li.querySelector('.dr-l1').textContent + ' | ' + li.querySelector('.dr-l2').textContent)");
+  s.check(dr.length === 2 && dr[0] === `${hx(sprAddr)} → (20, 4) | 8 × 5` && dr[1] === `${hx(sprAddr)} → (3, 4) | 8 × 5`, `ÚLTIMOS DIBUJOS: ${dr.join(' / ')}`, JSON.stringify(dr));
+  // La paleta cambia los colores del visor.
+  await page.ev("window.chip8.setPalette('ambar')");
+  await sleep(150);
+  const v3 = await page.ev(canvasBits);
+  s.check(v3.px.join() === expectBits(SPR, 8, AMBAR).join(), 'con la paleta Ámbar, el visor usa sus colores');
+  await page.ev("window.chip8.setPalette('fosforo')");
+  // SUPER-CHIP: DXY0 es un sprite de 16 × 16.
+  const big = [];
+  for (let i = 0; i < 32; i++) big.push(i % 2 ? 0x0F : 0xF0);
+  const rom2 = asm(`
+        LD I, spr
+        LD V0, 8
+        DRW V0, V0, 0
+fin:    JP fin
+spr:    ${db(big)}`);
+  await loadWithButton(page, writeFixture(ctx, 'grande.ch8', rom2), 'grande.ch8');
+  await chooseWithMouse(page, '#preset', 'schip');
+  await waitSelfJump(page);
+  await page.click('.tagline');
+  await page.press('Space');
+  await sleep(150);
+  const v4 = await page.ev(canvasBits);
+  const words = [];
+  for (let i = 0; i < 16; i++) words.push((big[2 * i] << 8) | big[2 * i + 1]);
+  s.check(v4.w === 16 && v4.h === 16 && v4.px.join() === expectBits(words, 16, FOSFORO).join() && /16 × 16 \(el alto del último DXYN\)/.test(v4.info), `SUPER-CHIP: DXY0 se ve como 16 × 16: «${v4.info}»`, JSON.stringify(v4.info));
+  // XO-CHIP con los dos planos: el bloque del plano 2 sigue al del plano 1 y se ven los cuatro colores.
+  const P1 = [0xF0, 0xF0, 0x0F, 0x0F], P2 = [0xFF, 0x00, 0xFF, 0x00];
+  const rom3 = asm(`
+        PLANE 3
+        LD I, spr
+        DRW V0, V0, 4
+fin:    JP fin
+spr:    ${db(P1)}
+        ${db(P2)}`, true);
+  await loadWithButton(page, writeFixture(ctx, 'planos.ch8', rom3), 'planos.ch8');
+  await chooseWithMouse(page, '#preset', 'xochip');
+  await waitSelfJump(page);
+  await page.click('.tagline');
+  await page.press('Space');
+  await sleep(150);
+  const v5 = await page.ev(canvasBits);
+  const four = [];
+  for (let y = 0; y < 4; y++) for (let x = 0; x < 8; x++) four.push(FOSFORO[((P1[y] >> (7 - x)) & 1) | (((P2[y] >> (7 - x)) & 1) << 1)]);
+  const pl = await page.ev("({ field: !document.getElementById('spr-planes-field').hidden, rows: document.querySelectorAll('#spr-bytes .sb-plane').length })");
+  s.check(v5.w === 8 && v5.h === 4 && v5.px.join() === four.join() && new Set(v5.px).size === 4 && pl.field && pl.rows === 2 && /planos 1\+2/.test(v5.info),
+    `XO-CHIP con los dos planos: los cuatro colores de la paleta, como DXYN («${v5.info}»), y las filas de cada plano`, JSON.stringify({ v5, pl }));
+  // Elegir un dibujo de la lista (Enter) lo lleva al visor; «A la I» vuelve.
+  await page.ev("document.getElementById('draws-view').focus()");
+  await page.press('ArrowDown');
+  await page.press('Enter');
+  await sleep(100);
+  const pick = await page.ev(`({ d: ${DBG}, status: document.getElementById('status').textContent })`);
+  await page.click('#spr-follow');
+  await sleep(80);
+  s.check(!pick.d.sprite.follow && pick.status === `Visor de sprites: ${hx(0x208, 4)}, 8 × 4, planos 1+2.` && (await page.ev(DBG)).sprite.follow,
+    `Enter en un dibujo lo lleva al visor («${pick.status}») y «A la I» vuelve a seguir a I`, JSON.stringify(pick));
+  await page.shot('62-sprites');
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 63 -------------------------------------------------------------------------------
+scenario(63, 'Desensamblado que se recorre (rueda, «Ir a», Av Pág, datos como DB, «Al PC») y el monitor en 1440, 768 y 360 px: cada pestaña entra en el ancho y, en las ventanas grandes, en el alto', async (ctx, s) => {
+  const page = await freshApp(ctx, s, { width: 1440, height: 900 });
+  const rom = asm(`
+        LD I, spr
+        DRW V0, V0, 4
+fin:    JP fin
+spr:    DB 0xF0, 0x90, 0x90, 0xF0`);
+  await loadWithButton(page, writeFixture(ctx, 'datos.ch8', rom), 'datos.ch8');
+  await waitSelfJump(page);
+  await page.click('.tagline');
+  await page.press('Space');
+  await sleep(150);
+  const dataRows = await page.ev(`[${0x206 >> 1}, ${0x208 >> 1}, ${0x204 >> 1}].map((i) => { const li = document.getElementById('dis-view-' + i); return li ? li.querySelector('.d-text').textContent + (li.classList.contains('is-data') ? ' (datos)' : '') : null; })`);
+  s.check(dataRows[0] === 'DB 0xF0, 0x90 (datos)' && dataRows[1] === 'DB 0x90, 0xF0 (datos)' && dataRows[2] === 'JP 0x204', 'los bytes que DXYN leyó y nunca se ejecutaron se ven como datos (DB) y el código, como instrucciones', JSON.stringify(dataRows));
+  // La rueda del mouse mueve la lista y deja de seguir al PC; «Al PC» vuelve.
+  const view = await page.rect('#dis-view', false);
+  const top0 = await page.ev("document.getElementById('dis-view').scrollTop");
+  await page.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: view.cx, y: view.cy, deltaX: 0, deltaY: 360 });
+  await sleep(250);
+  const wheel = await page.ev(`({ d: ${DBG}, top: document.getElementById('dis-view').scrollTop, lit: document.getElementById('dis-follow').classList.contains('is-lit') })`);
+  s.check(wheel.top > top0 && !wheel.d.disasm.follow && wheel.lit, `la rueda baja la lista (${top0} → ${wheel.top} px) y deja de seguir al PC («Al PC» se enciende)`, JSON.stringify(wheel));
+  await page.click('#dis-follow');
+  await sleep(100);
+  const follow = await page.ev(`({ d: ${DBG}, pc: !!document.querySelector('#disasm li.is-pc') })`);
+  s.check(follow.d.disasm.follow && follow.pc, '«Al PC» vuelve a mostrar la línea del PC', JSON.stringify(follow));
+  // «Ir a» con el teclado.
+  await page.click('#dis-goto');
+  await page.type('3A0');
+  await page.press('Enter');
+  await sleep(100);
+  const gotoA = await page.ev(`({ d: ${DBG}, row: !!document.getElementById('dis-view-${0x3A0 >> 1}'), focus: document.activeElement.id, value: document.getElementById('dis-goto').value })`);
+  s.check(gotoA.d.disasm.selected === 0x3A0 && !gotoA.d.disasm.follow && gotoA.row && gotoA.focus === 'dis-view' && gotoA.value === '', '«Ir a» 3A0 + Enter lleva la lista a 0x3A0, la elige y le pasa el foco', JSON.stringify(gotoA));
+  await page.press('PageDown');
+  await sleep(60);
+  const pg = await page.ev(DBG);
+  s.check(pg.disasm.selected === 0x3A0 + 2 * (pg.disasm.rows - 1), `Av Pág baja una página: ${pg.disasm.rows - 1} líneas`, JSON.stringify(pg.disasm));
+  // El monitor en cada ancho y con cada pestaña.
+  for (const [w, h, mobile] of [[1440, 900, false], [768, 1024, false], [360, 640, true]]) {
+    await page.setViewport(w, h, mobile ? 2 : 1, mobile);
+    await page.reload();
+    await page.waitFor("document.getElementById('cart-name').textContent !== 'Ranura vacía'", { timeout: 3000 });
+    await sleep(300);
+    for (const tab of ['codigo', 'traza', 'memoria', 'sprites']) {
+      await page.ev(`window.chip8.setMonitorTab('${tab}')`);
+      await sleep(200);
+      const m = await page.ev(MONITOR_FIT);
+      s.check(m.sw <= m.iw && m.over.length === 0, `${w}px, pestaña ${tab}: sin scroll horizontal (${m.sw} ≤ ${m.iw})`, 'se salen: ' + m.over.join(', '));
+      if (w >= 768) s.check(m.monH <= m.ih, `${w}×${h}, pestaña ${tab}: el monitor (${m.monH} px) entra en el alto de la ventana`, JSON.stringify(m));
+      else s.info(`${w}×${h}, pestaña ${tab}: el monitor mide ${m.monH} px de alto`);
+      await page.ev("document.getElementById('monitor').scrollIntoView({ block: 'start' })");
+      await page.shot(`63-${w}-${tab}`);
+    }
+  }
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+}, 120000);
+
+// 64 -------------------------------------------------------------------------------
+scenario(64, 'Puntos de corte, mapa y traza al reiniciar, al cambiar de cartucho, al cargar un estado y al rebobinar: los puntos de corte son del cartucho y no del estado; la pestaña se recuerda', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  await loadWithButton(page, writeFixture(ctx, 'depura.ch8', romDepura()), 'depura.ch8');
+  await page.click('.tagline');
+  await page.press('Space');
+  await sleep(100);
+  await page.ev('window.chip8.setBreakpoint(0x204); window.chip8.setBreakpoint(0x20C)');
+  const sha = await page.ev('window.chip8.romInfo().sha1');
+  // Reiniciar: los puntos de corte quedan; el mapa y la traza empiezan de cero.
+  await page.press('Backspace');
+  await sleep(100);
+  const r = await page.ev('({ bps: window.chip8.getBreakpoints(), trace: window.chip8.cpu.traceLength(), touched: window.chip8.cpu.access.some((v) => v !== 0) })');
+  s.check(r.bps.join() === [0x204, 0x20C].join() && r.trace === 0 && !r.touched, 'Reiniciar conserva los puntos de corte y vacía el mapa y la traza', JSON.stringify(r));
+  // Otro cartucho no los ve; al volver, están.
+  await clickCart(page, 'rebote');
+  await sleep(200);
+  const other = await page.ev('({ bps: window.chip8.getBreakpoints(), list: document.getElementById("bp-list").hidden })');
+  await page.click('#lib-chips .chip:nth-child(1)');
+  await page.waitFor("document.getElementById('cart-name').textContent === 'depura'", { timeout: 3000, desc: 'depura desde «Tuyos:»' });
+  await sleep(100);
+  const backBps = await page.ev('window.chip8.getBreakpoints()');
+  s.check(other.bps.length === 0 && other.list && backBps.join() === [0x204, 0x20C].join(), 'otro cartucho (Rebote) no tiene puntos de corte; al volver a cargar depura, vuelven los suyos', JSON.stringify({ other, backBps }));
+  // Corriendo con puntos de corte: se detiene en el primero. Guardar el estado ahí (I) y comparar el texto con el de saveState sin puntos de corte.
+  await page.waitFor('window.chip8.isPaused() && window.chip8.cpu.pc === 0x204', { timeout: 3000, desc: 'se detiene en 0x204' });
+  await page.click('.tagline');
+  await page.press('KeyI');
+  await sleep(150);
+  const saved = await page.ev(`(() => { const st = JSON.parse(localStorage.getItem('chip8-consola.estados')).roms['${sha}'].slots.rapido.text; return { keys: Object.keys(JSON.parse(st)), same: st === window.Chip8Core.encodeState(window.chip8.cpu.saveState()) }; })()`);
+  s.check(saved.same && !saved.keys.some((k) => /break|stop|trace|access/i.test(k)), 'el estado guardado no tiene nada del depurador: es el mismo texto de siempre', JSON.stringify(saved));
+  // Seguir hasta el otro punto de corte; cargar el estado: los puntos de corte quedan, la traza se vacía y el mapa queda.
+  await page.press('Space');
+  await waitPausedAt(page, 0x20C);
+  const before = await page.ev('({ code: window.chip8.cpu.access[0x206], trace: window.chip8.cpu.traceLength() })');
+  await page.press('KeyU');
+  await sleep(150);
+  const loaded = await page.ev(`({ pc: window.chip8.cpu.pc, bps: window.chip8.getBreakpoints(), trace: window.chip8.cpu.traceLength(), code: window.chip8.cpu.access[0x206], d: ${DBG}, badge: document.getElementById('mon-badge').textContent })`);
+  s.check(loaded.pc === 0x204 && loaded.bps.join() === [0x204, 0x20C].join() && before.code === 1 && before.trace > 0 && loaded.trace === 0 && loaded.code === 1 && loaded.badge === 'Pausado',
+    'U vuelve a 0x204: los puntos de corte siguen, la traza empieza de cero, el mapa recuerda el CALL de 0x206 (que se ejecutó después de guardar) y el monitor dice «Pausado»', JSON.stringify({ before, loaded }));
+  // Al seguir desde el estado cargado, la instrucción de 0x204 se ejecuta (no se queda trabada) y se detiene en 0x20C.
+  await page.press('Space');
+  await waitPausedAt(page, 0x20C, 3000, 'desde el estado cargado, sigue hasta 0x20C');
+  // Rebobinar (en pausa, un toque de B: un frame atrás): la traza se vacía y el mapa queda.
+  await page.ev('window.chip8.clearBreakpoints()');
+  await page.press('Space');
+  await sleep(800);
+  await page.press('Space');
+  await sleep(100);
+  const rw0 = await page.ev('window.chip8.cpu.traceLength()');
+  await page.press('KeyB', 80);
+  await sleep(150);
+  const rw = await page.ev('({ trace: window.chip8.cpu.traceLength(), code: window.chip8.cpu.access[0x204] & 1, paused: window.chip8.isPaused() })');
+  s.check(rw0 > 0 && rw.trace === 0 && rw.code === 1 && rw.paused, 'en pausa, un toque de B vuelve un frame: la traza se vacía y el mapa queda', JSON.stringify({ rw0, rw }));
+  // La pestaña del monitor se recuerda al recargar.
+  await page.click('#mon-tab-memoria');
+  await sleep(100);
+  await page.reload();
+  await sleep(300);
+  const tab = await page.ev("({ tab: window.chip8.getMonitorTab(), sel: document.getElementById('mon-tab-memoria').getAttribute('aria-selected'), panel: !document.getElementById('mon-panel-memoria').hidden, saved: JSON.parse(localStorage.getItem('chip8-consola.ajustes')).monitorTab })");
+  s.check(tab.tab === 'memoria' && tab.sel === 'true' && tab.panel && tab.saved === 'memoria', 'la pestaña del monitor (Memoria) se recuerda al recargar', JSON.stringify(tab));
+  // Con las pestañas del teclado: flecha derecha pasa a Sprites (patrón tablist).
+  await page.ev("document.getElementById('mon-tab-memoria').focus()");
+  await page.press('ArrowRight');
+  await sleep(80);
+  const kt = await page.ev("({ tab: window.chip8.getMonitorTab(), focus: document.activeElement.id })");
+  s.check(kt.tab === 'sprites' && kt.focus === 'mon-tab-sprites', 'con el foco en las pestañas, flecha derecha pasa a Sprites', JSON.stringify(kt));
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 65 -------------------------------------------------------------------------------
+scenario(65, 'Velocidad con el depurador: 60 frames por segundo a 10.000 IPF con un punto de corte puesto, y con Planos a 1000 IPF en cada pestaña del monitor', async (ctx, s) => {
+  const page = await freshApp(ctx, s);
+  await page.ev("window.chip8.loadRomBytes([0x70, 0x01, 0x12, 0x00], 'bucle')");
+  await page.ev(`window.chip8.setIpf(${IPF_MAX})`);
+  await page.ev('window.chip8.setBreakpoint(0xF00)');   // nunca se alcanza: runFrame mira cada dirección
+  await sleep(300);
+  const r = await measureRate(page, 2000);
+  s.info(`${IPF_MAX} IPF con un punto de corte puesto: ${r.fps.toFixed(1)} frames/s, ${Math.round(r.ips)} instrucciones/s`);
+  s.check(r.fps >= 55 && r.fps <= 66 && r.ips >= IPF_MAX * r.fps * 0.99, `${IPF_MAX} IPF con un punto de corte: ~60 frames/s y ${IPF_MAX} instrucciones por frame (${Math.round(r.ips)}/s)`);
+  const cost = await page.ev(`(() => { const cpu = window.chip8.cpu; window.chip8.pause(); const t0 = performance.now(); for (let i = 0; i < 60; i++) cpu.runFrame(${IPF_MAX}); return performance.now() - t0; })()`);
+  s.info(`CPU del núcleo por segundo emulado a ${IPF_MAX} IPF, mirando los puntos de corte: ${cost.toFixed(1)} ms`);
+  s.check(cost < 250, `mirar los puntos de corte cuesta una fracción de la CPU (${cost.toFixed(0)} ms por segundo emulado)`);
+  await page.ev('window.chip8.clearBreakpoints()');
+  await clickCart(page, 'planos');
+  await page.click('#ipf-chips .chip:nth-child(6)');   // 1000
+  await page.click('.tagline');
+  for (const tab of ['codigo', 'traza', 'memoria', 'sprites']) {
+    await page.click('#mon-tab-' + tab);
+    await page.click('.tagline');
+    await sleep(600);
+    const m = await measureRate(page, 1500);
+    s.check(m.fps >= 55 && m.fps <= 66, `Planos a 1000 IPF con la pestaña ${tab} a la vista: ${m.fps.toFixed(1)} frames por segundo`);
+  }
+  await page.shot('65-planos-sprites');
   s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
 });
 

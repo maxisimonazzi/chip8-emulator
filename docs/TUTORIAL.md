@@ -435,6 +435,8 @@ un selector, un deslizador o el modo de pantalla.
 |---|---|---|
 | **Pausa / Continuar** | Espacio | Detiene la máquina o la vuelve a poner en marcha. |
 | **Paso** | N | Ejecuta **una sola instrucción**. Si estaba corriendo, primero la pausa. |
+| **Por encima** | O | Si la instrucción es un `CALL`, ejecuta la subrutina entera y se detiene en la siguiente; si no, es un Paso. |
+| **Salir** | K | Sigue hasta que la subrutina en la que está el PC vuelve con `RET`. |
 | **Frame** | | Ejecuta **un frame**: hasta IPF instrucciones y un tic de los timers. También pausa. |
 | **Reiniciar** | Retroceso | Reinicia la máquina y vuelve a cargar el mismo programa. Si estaba en pausa, sigue en pausa; si estaba corriendo, arranca. Después de un error, vuelve a como estaba justo antes del error: si ibas con Paso o con Frame, queda en pausa; si corría, arranca de nuevo. |
 | Rebobinar, ⏪ (al pie del tubo) | B, mantenida | Mientras lo mantenés apretado, la máquina vuelve atrás en el tiempo, frame por frame, al doble de velocidad, y en la pantalla aparece «⏪». Al soltar, sigue desde ahí. En pausa, un toque vuelve un frame (sección 1.13). |
@@ -3107,6 +3109,7 @@ esperando una tecla y, con el quirk `VBLANK`, justo después de un `DRW`:
    * displayWait, justo después de un DXYN (el VIP esperaba el vblank para dibujar).
    */
   Chip8.prototype.runFrame = function (ipf) {
+    // ...
     if (this.halted) return 0;
     var executed = 0;
     for (var i = 0; i < ipf; i++) {

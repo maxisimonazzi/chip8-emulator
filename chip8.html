@@ -793,7 +793,7 @@
   }
   .badge--run { color: #7dff9a; }
   .badge--wait { color: #7dff9a; animation: hint-pulse 1.2s ease-in-out infinite; }
-  .badge--paused { color: #ffc15e; }
+  .badge--paused, .badge--break { color: #ffc15e; }
   .badge--error { color: #ff7b6b; }
   .badge--exit { color: #ffc15e; }
   .mon-toggle {
@@ -858,6 +858,150 @@
   .mon-fix { margin: 0; padding: 4px 10px 10px; border: 1px solid var(--term-err); border-top: 0; border-radius: 0 0 6px 6px; }
   .mon-fix .mon-toggle { margin: 0; text-shadow: none; }
   .mon-foot { margin: 10px 0 0; color: var(--term-dim); font-size: 11px; text-shadow: none; }
+
+  /* Depurador: pestañas, listas con scroll propio (solo se dibujan las filas a la vista), puntos de corte, traza,
+     mapa de memoria y sprites. Todo con los verdes del terminal; el rojo de los puntos de corte es el del LED. */
+  .mon-tabs { display: flex; gap: 3px; margin: 0 0 12px; border-bottom: 1px solid rgba(120, 255, 160, .25); }
+  .mon-tab {
+    flex: 1 1 0; min-width: 0; margin-bottom: -1px; padding: 6px 4px 5px;
+    border: 1px solid transparent; border-bottom: 0; border-radius: 6px 6px 0 0; background: none;
+    color: var(--term-dim); font: 700 11px/1.2 var(--font-mono); letter-spacing: .12em; text-transform: uppercase;
+    text-shadow: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .mon-tab:hover { color: var(--term-fg); }
+  .mon-tab[aria-selected="true"] {
+    color: var(--term-fg); border-color: rgba(120, 255, 160, .25);
+    background: linear-gradient(180deg, rgba(125, 255, 154, .1), var(--term-bg) 80%); text-shadow: 0 0 6px rgba(120, 255, 160, .35);
+  }
+  .mon-tab:focus-visible { outline-offset: -3px; }
+  .mon-panel > h3:first-child, .mon-panel > .mon-headrow:first-child { margin-top: 0; }
+  .mon-headrow { display: flex; align-items: center; gap: 8px; margin: 12px 0 6px; }
+  .mon-headrow h3 { flex: 1; margin: 0; }
+  .mon-list { position: relative; overflow-x: hidden; overflow-y: auto; border-radius: 4px; scrollbar-width: thin; scrollbar-color: #2f6b45 transparent; }
+  .mon-list > ol { position: absolute; top: 0; left: 0; right: 0; display: block; margin: 0; padding: 0; list-style: none; }
+  .mon-spacer { width: 1px; }
+  .mon-list:focus-visible { outline-offset: 1px; }
+  .mon-list li { height: 18px; line-height: 18px; white-space: pre; overflow: hidden; border-radius: 3px; }
+  .mon-list li.is-sel { box-shadow: inset 0 0 0 1px rgba(125, 255, 154, .55); }
+  .mon-list:focus-visible li.is-sel { box-shadow: inset 0 0 0 2px var(--focus); }
+  .mon-note { margin: 6px 0 0; color: var(--term-dim); font-size: 11.5px; line-height: 1.4; text-shadow: none; }
+  .mon-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 10px; }
+  .mon-tools .mon-toggle { margin-left: 0; text-shadow: none; }
+  .mon-toggle.is-lit { border-color: var(--term-dim); color: var(--term-fg); }
+  .mon-toggle[aria-pressed="true"] { border-color: #ff7a5c; color: #ffe1d8; }
+  .mon-goto { display: inline-flex; align-items: center; gap: 6px; color: var(--term-dim); font: 700 11px/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; text-shadow: none; }
+  .mon-input, .mon-select {
+    padding: 4px 6px; border: 1px solid #3c6249; border-radius: 6px; background: #020805;
+    color: var(--term-fg); font: 12.5px/1.2 var(--font-mono); text-shadow: none; color-scheme: dark;
+  }
+  .mon-input { width: 6.2em; text-transform: uppercase; }
+  .mon-input::placeholder { color: #2f6b45; }
+  .mon-input[aria-invalid="true"] { border-color: var(--term-err); color: var(--term-err); }
+  .mon-select { max-width: 100%; }
+  #dis-goto-msg, #mem-goto-msg { color: var(--term-err); }
+  .bp-dot { width: 9px; height: 9px; border-radius: 50%; background: #ff5a47; box-shadow: 0 0 5px rgba(255, 90, 71, .6); }
+  /* La pila no pasa del alto del desensamblado (fitMonitor achica los dos con la ventana). */
+  .stack { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #2f6b45 transparent; }
+  .stack li { height: 18px; line-height: 18px; }
+  /* Desensamblado: el margen de cada línea lleva el punto de corte (y encima, la flecha del PC). */
+  .disasm li { grid-template-columns: 14px 46px 42px minmax(0, 1fr); }
+  .monitor.is-wide .disasm li { grid-template-columns: 14px 54px 42px minmax(0, 1fr); }
+  .disasm .d-mark { position: relative; cursor: pointer; text-align: center; }
+  .disasm li.is-pc .d-mark::before { position: relative; z-index: 1; }
+  .disasm li.is-bp .d-mark::after {
+    content: ""; position: absolute; left: 2px; top: 4px; width: 10px; height: 10px; border-radius: 50%;
+    background: #ff5a47; box-shadow: 0 0 6px rgba(255, 90, 71, .75);
+  }
+  .disasm li.is-bp.is-pc .d-mark::before { color: #fff; }
+  .disasm li.is-cold .d-text { color: #4f9c68; }
+  .disasm li.is-data .d-text, .disasm li.is-operand .d-text { color: #c8a45e; }
+  .disasm li.is-bp:not(.is-pc) { background: rgba(255, 90, 71, .1); }
+  .bp-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+  .bp-list li { display: inline-flex; min-width: 0; max-width: 100%; border: 1px solid rgba(255, 90, 71, .5); border-radius: 6px; overflow: hidden; }
+  .bp-list button {
+    min-height: 26px; padding: 3px 8px; border: 0; background: rgba(255, 90, 71, .08);
+    color: var(--term-fg); font: 12px/1.2 var(--font-mono); text-shadow: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .bp-list .bp-go { min-width: 0; }
+  .bp-list .bp-del { flex: none; border-left: 1px solid rgba(255, 90, 71, .4); color: #ffb3a6; font-size: 15px; }
+  .bp-list .bp-all { border-color: #5b544c; }
+  .bp-list .bp-all button { background: none; color: #e2d8c6; }
+  .bp-list button:focus-visible { outline-offset: -3px; }
+  /* Traza: los bucles con una barra a la izquierda y «×N»; la última instrucción, la culpable de un error y la próxima. */
+  .trace li { display: grid; grid-template-columns: 46px 42px minmax(0, 1fr) auto; gap: 2px; padding: 0 4px 0 6px; border-left: 2px solid transparent; cursor: pointer; }
+  .monitor.is-wide .trace li { grid-template-columns: 54px 42px minmax(0, 1fr) auto; }
+  .trace .d-addr { color: var(--term-dim); }
+  .trace .d-op { color: #5fbf7d; }
+  .trace li.is-loop { border-left-color: rgba(255, 212, 121, .6); }
+  .trace .t-rep { color: var(--term-hot); padding-left: 6px; }
+  .trace li.is-last { background: rgba(125, 255, 154, .12); color: #e2ffe9; }
+  .trace li.is-err { background: rgba(255, 123, 107, .16); color: var(--term-err); }
+  .trace li.is-err .t-rep { color: var(--term-err); }
+  .trace li.is-next { color: var(--term-dim); }
+  .trace li.is-next .t-rep { color: var(--term-dim); }
+  /* Mapa de memoria: una celda por byte (el lienzo de 64 × 64 agrandado sin suavizar) con una grilla encima. */
+  .map-box { position: relative; width: max-content; max-width: 100%; margin: 0 auto; line-height: 0; --cell: 5px; }
+  .map { display: block; width: 320px; height: 320px; image-rendering: pixelated; cursor: crosshair; border-radius: 2px; }
+  .map-box::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(90deg, rgba(0, 0, 0, .55) 1px, transparent 1px) 0 0 / var(--cell) var(--cell),
+      linear-gradient(rgba(0, 0, 0, .55) 1px, transparent 1px) 0 0 / var(--cell) var(--cell);
+  }
+  .map-mark { position: absolute; z-index: 1; pointer-events: none; border-radius: 1px; }
+  .map-mark--pc, .reg-sw.map-key-pc { box-shadow: 0 0 0 2px #fff, 0 0 6px 1px rgba(255, 255, 255, .8); }
+  .map-mark--i, .reg-sw.map-key-i { box-shadow: 0 0 0 2px #ffb347, 0 0 6px 1px rgba(255, 179, 71, .8); }
+  .map-strip-box { position: relative; margin: 0 0 8px; line-height: 0; cursor: pointer; }
+  .map-strip { display: block; width: 100%; height: 16px; image-rendering: pixelated; border-radius: 2px; }
+  .map-strip-sel { position: absolute; top: -2px; bottom: -2px; width: 6.25%; border: 1px solid #fff; border-radius: 2px; pointer-events: none; }
+  .map-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 8px 0 0; padding: 0; list-style: none; color: var(--term-dim); font-size: 11.5px; text-shadow: none; }
+  .map-legend li { display: inline-flex; align-items: center; gap: 5px; }
+  .reg-sw { flex: none; display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
+  .reg-sw.map-key-pc, .reg-sw.map-key-i { width: 8px; height: 8px; margin: 1px; background: transparent; }
+  .reg-sw.c-code { background: #7dff9a; }
+  .reg-sw.c-read { background: #ffd479; }
+  .reg-sw.c-write { background: #ff8060; }
+  .reg-sw.c-font { background: #96a8ff; }
+  .reg-sw.c-rom { background: #2e6844; }
+  .reg-sw.c-empty { background: #122a1c; box-shadow: inset 0 0 0 1px #2f6b45; }
+  .map-info { min-height: 2.8em; }   /* dos renglones siempre: pasar el mouse por el mapa no mueve lo de abajo */
+  /* Volcado de memoria: el color de cada byte es su clase en el mapa. */
+  .memview li.mrow { display: grid; padding: 0 2px; }
+  .mrow .m-b.c-code { color: var(--term-fg); }
+  .mrow .m-b.c-read { color: #ffd479; }
+  .mrow .m-b.c-write { color: #ff9a80; }
+  .mrow .m-b.c-font { color: #a9b7ff; }
+  .mrow .m-b.c-rom { color: #4f9c68; }
+  .mrow .m-b.c-empty { color: #2f6b45; }
+  .mrow .m-b.is-target { box-shadow: inset 0 0 0 1px #fff; color: #fff; }
+  .regions li { display: grid; grid-template-columns: 10px auto minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 0 6px; cursor: pointer; }
+  .regions .r-range { overflow: hidden; text-overflow: ellipsis; }
+  .regions .r-name { color: var(--term-dim); overflow: hidden; text-overflow: ellipsis; }
+  .regions .r-size { color: var(--term-dim); }
+  /* Sprites: el visor (con la paleta de la pantalla) y sus filas en bits; los últimos dibujos, con su miniatura. */
+  .spr-box { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px 14px; margin-top: 8px; }
+  .spr-well {
+    flex: none; padding: 4px; border-radius: 6px; line-height: 0; background: #000;
+    box-shadow: inset 0 0 0 1px rgba(120, 255, 160, .25), 0 0 0 1px #000;
+  }
+  .spr-canvas, .dr-canvas { display: block; image-rendering: pixelated; }
+  .spr-bytes { flex: 1 1 150px; min-width: 0; max-height: 300px; margin: 0; padding: 0; overflow: auto; list-style: none; font-size: 11.5px; line-height: 1.35; white-space: pre; }
+  .spr-bytes .sb-plane { color: var(--term-dim); letter-spacing: .14em; text-transform: uppercase; }
+  .spr-bytes .sb-bits { color: var(--term-hot); letter-spacing: -.05em; }
+  .draws li { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 8px; align-items: center; height: 40px; padding: 2px 6px; line-height: 1.3; cursor: pointer; }
+  .dr-well { display: grid; place-items: center; width: 38px; height: 36px; border-radius: 4px; background: #000; }
+  .dr-text { display: grid; min-width: 0; }
+  .dr-l1, .dr-l2 { overflow: hidden; text-overflow: ellipsis; }
+  .dr-l2 { color: var(--term-dim); font-size: 11.5px; }
+  .mon-trace-link { margin: 6px 0 0; }
+  .mon-trace-link .mon-toggle { margin: 0; text-shadow: none; }
+  /* La consola: los seis botones de ejecución en dos filas de tres (en una fila cuando la cubierta es angosta y ancha). */
+  .transport { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 12px; }
+  @media (max-width: 760px) and (min-width: 600px) { .transport { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+  @media (max-width: 480px) {
+    .mon-tab { letter-spacing: .04em; padding-left: 2px; padding-right: 2px; }
+    .mon-tools { gap: 6px; }
+    .stack li.is-top::after { display: none; }   /* en cuatro columnas no entra: el tope ya va resaltado */
+  }
 
   /* ---------- Superposiciones ---------- */
   .drop {
@@ -1140,7 +1284,7 @@
     .grille { width: 84px; }
     .slot-area { flex-direction: column; }
     .mon-split { grid-template-columns: minmax(0, 1fr); }
-    .stack { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 10px; }
+    .stack { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: 8px; }
     .mon-regs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .reg--wide { grid-column: span 2; }
     .help-inner { padding: 18px 16px 22px; }
@@ -1278,6 +1422,14 @@
                 <button class="tbtn" id="btn-step" type="button" title="Ejecutar una sola instrucción (N)">
                   <span class="tbtn-cap" aria-hidden="true"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M5 5v14l10-7zM16 5h3v14h-3z"/></svg></span>
                   <span class="tbtn-label">Paso</span><kbd>N</kbd>
+                </button>
+                <button class="tbtn" id="btn-over" type="button" title="Paso por encima: si la instrucción es un CALL, ejecuta la subrutina entera y se detiene en la siguiente; si no, es un paso común (O)">
+                  <span class="tbtn-cap" aria-hidden="true"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M3 18.5a9 9 0 0 1 16.2-5.4l1.8-1.6V18h-6.5l2.4-2.2A6 6 0 0 0 6 18.5zM10 18.5a2.5 2.5 0 1 1 5 0 2.5 2.5 0 0 1-5 0z"/></svg></span>
+                  <span class="tbtn-label">Por encima</span><kbd>O</kbd>
+                </button>
+                <button class="tbtn" id="btn-out" type="button" title="Salir de la subrutina: sigue hasta que vuelve el RET de la subrutina en la que está el PC (K)">
+                  <span class="tbtn-cap" aria-hidden="true"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M11 21V8.8l-4.3 4.3L5 11.4 12 4.4l7 7-1.7 1.7L13 8.8V21zM4 2h16v2.5H4z"/></svg></span>
+                  <span class="tbtn-label">Salir</span><kbd>K</kbd>
                 </button>
                 <button class="tbtn" id="btn-frame" type="button" title="Ejecutar un frame completo (1/60 s)">
                   <span class="tbtn-cap" aria-hidden="true"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M3 6v12l7-6zM10.5 6v12l7-6zM18.5 6h2.5v12h-2.5z"/></svg></span>
@@ -1471,28 +1623,109 @@
         </button>
       </div>
       <div class="monitor-body" id="mon-body">
-        <h3>ESTADO</h3>
-        <div class="mon-regs">
-          <div class="reg"><b>PC</b><span id="mon-pc">0x200</span></div>
-          <div class="reg"><b>I</b><span id="mon-i">0x000</span></div>
-          <div class="reg"><b>SP</b><span id="mon-sp">0</span></div>
-          <div class="reg"><b>DT</b><span id="mon-dt">0</span></div>
-          <div class="reg"><b>ST</b><span id="mon-st">0</span></div>
-          <div class="reg"><b>IPF</b><span id="mon-ipf">15</span></div>
-          <div class="reg reg--wide"><b>INSTRUCCIONES</b><span id="mon-instr">0</span></div>
-          <div class="reg reg--wide reg--mode"><b>MÁQUINA</b><span id="mon-mode">CHIP-8 · 64×32</span></div>
+        <div class="mon-tabs" id="mon-tabs" role="tablist" aria-label="Vistas del monitor">
+          <button class="mon-tab" id="mon-tab-codigo" type="button" role="tab" aria-selected="true" aria-controls="mon-panel-codigo" data-tab="codigo">Código</button>
+          <button class="mon-tab" id="mon-tab-traza" type="button" role="tab" aria-selected="false" aria-controls="mon-panel-traza" data-tab="traza" tabindex="-1">Traza</button>
+          <button class="mon-tab" id="mon-tab-memoria" type="button" role="tab" aria-selected="false" aria-controls="mon-panel-memoria" data-tab="memoria" tabindex="-1">Memoria</button>
+          <button class="mon-tab" id="mon-tab-sprites" type="button" role="tab" aria-selected="false" aria-controls="mon-panel-sprites" data-tab="sprites" tabindex="-1">Sprites</button>
         </div>
-        <h3>REGISTROS V0–VF</h3>
-        <div class="vgrid" id="vgrid"></div>
-        <div class="mon-split">
-          <div><h3>DESENSAMBLADO</h3><ol class="disasm" id="disasm" aria-label="Instrucciones alrededor del PC"></ol></div>
-          <div><h3>PILA</h3><ol class="stack" id="stack" aria-label="Pila de retorno"></ol></div>
-        </div>
-        <h3>MEMORIA EN I</h3>
-        <div class="memview" id="memview"></div>
+        <section class="mon-panel" id="mon-panel-codigo" role="tabpanel" aria-labelledby="mon-tab-codigo">
+          <h3>ESTADO</h3>
+          <div class="mon-regs">
+            <div class="reg"><b>PC</b><span id="mon-pc">0x200</span></div>
+            <div class="reg"><b>I</b><span id="mon-i">0x000</span></div>
+            <div class="reg"><b>SP</b><span id="mon-sp">0</span></div>
+            <div class="reg"><b>DT</b><span id="mon-dt">0</span></div>
+            <div class="reg"><b>ST</b><span id="mon-st">0</span></div>
+            <div class="reg"><b>IPF</b><span id="mon-ipf">15</span></div>
+            <div class="reg reg--wide"><b>INSTRUCCIONES</b><span id="mon-instr">0</span></div>
+            <div class="reg reg--wide reg--mode"><b>MÁQUINA</b><span id="mon-mode">CHIP-8 · 64×32</span></div>
+          </div>
+          <h3>REGISTROS V0–VF</h3>
+          <div class="vgrid" id="vgrid"></div>
+          <div class="mon-split">
+            <div>
+              <h3 id="dis-title">DESENSAMBLADO</h3>
+              <div class="mon-list dis-view" id="dis-view" role="listbox" tabindex="0" aria-labelledby="dis-title" aria-describedby="dis-help">
+                <div class="mon-spacer" aria-hidden="true"></div>
+                <ol class="disasm" id="disasm" role="presentation"></ol>
+              </div>
+            </div>
+            <div><h3>PILA</h3><ol class="stack" id="stack" aria-label="Pila de retorno"></ol></div>
+          </div>
+          <div class="mon-tools" role="group" aria-label="Desensamblado">
+            <label class="mon-goto"><span>Ir a</span><input class="mon-input" id="dis-goto" type="text" inputmode="text" maxlength="7" autocomplete="off" spellcheck="false" placeholder="200" aria-describedby="dis-goto-msg"></label>
+            <button class="mon-toggle" id="dis-follow" type="button" title="El desensamblado vuelve a seguir al PC (Inicio, con la lista enfocada)">Al PC</button>
+            <button class="mon-toggle" id="dis-bp" type="button" aria-pressed="false" title="Pone o saca un punto de corte en la línea elegida (Enter, con la lista enfocada)"><span class="bp-dot" aria-hidden="true"></span>Punto de corte</button>
+            <button class="mon-toggle" id="dis-here" type="button" title="Corre hasta la línea elegida y queda en pausa ahí">Hasta acá</button>
+          </div>
+          <p class="mon-note" id="dis-goto-msg" hidden></p>
+          <p class="visually-hidden" id="dis-help">Flechas para elegir una línea, Re Pág y Av Pág para pasar de a una página, Inicio para volver al PC y Enter para poner o sacar un punto de corte.</p>
+          <h3 id="bp-title">PUNTOS DE CORTE</h3>
+          <ul class="bp-list" id="bp-list" aria-labelledby="bp-title" hidden></ul>
+          <p class="mon-note" id="bp-empty">Ninguno. Elegí una línea y tocá «Punto de corte», o tocá el margen de la línea.</p>
+        </section>
+        <section class="mon-panel" id="mon-panel-traza" role="tabpanel" aria-labelledby="mon-tab-traza" hidden>
+          <h3 id="trace-title">ÚLTIMAS INSTRUCCIONES</h3>
+          <p class="mon-note" id="trace-note"></p>
+          <div class="mon-list trace-view" id="trace-view" role="listbox" tabindex="0" aria-labelledby="trace-title" aria-describedby="trace-help">
+            <div class="mon-spacer" aria-hidden="true"></div>
+            <ol class="trace" id="trace" role="presentation"></ol>
+          </div>
+          <p class="visually-hidden" id="trace-help">De la más vieja a la más nueva. Enter muestra la instrucción elegida en el desensamblado.</p>
+        </section>
+        <section class="mon-panel" id="mon-panel-memoria" role="tabpanel" aria-labelledby="mon-tab-memoria" hidden>
+          <div class="mon-headrow"><h3 id="map-title">MAPA DE MEMORIA</h3><select class="mon-select" id="map-page" aria-label="Página del mapa (4 KB)" hidden></select></div>
+          <div class="map-strip-box" id="map-strip-box" aria-hidden="true" title="Las 16 páginas de 4 KB: tocá una para verla" hidden><canvas class="map-strip" id="map-strip" width="256" height="16"></canvas><span class="map-strip-sel" id="map-strip-sel"></span></div>
+          <div class="map-box" id="map-box">
+            <canvas class="map" id="map" width="64" height="64" aria-hidden="true"></canvas>
+            <span class="map-mark map-mark--i" id="map-i" hidden></span>
+            <span class="map-mark map-mark--pc" id="map-pc" hidden></span>
+          </div>
+          <ul class="map-legend" id="map-legend"></ul>
+          <p class="mon-note map-info" id="map-info">Tocá una celda: el código va al desensamblado y lo demás, a la memoria.</p>
+          <h3 id="mem-title">MEMORIA EN I</h3>
+          <div class="mon-tools" role="group" aria-label="Memoria">
+            <label class="mon-goto"><span>Ir a</span><input class="mon-input" id="mem-goto" type="text" inputmode="text" maxlength="7" autocomplete="off" spellcheck="false" placeholder="300" aria-describedby="mem-goto-msg"></label>
+            <button class="mon-toggle" id="mem-follow" type="button" title="La memoria vuelve a seguir a I">A la I</button>
+          </div>
+          <p class="mon-note" id="mem-goto-msg" hidden></p>
+          <div class="mon-list mem-view" id="mem-view" role="listbox" tabindex="0" aria-labelledby="mem-title">
+            <div class="mon-spacer" aria-hidden="true"></div>
+            <ol class="memview" id="memview" role="presentation"></ol>
+          </div>
+          <h3 id="regions-title">REGIONES</h3>
+          <div class="mon-list regions-view" id="regions-view" role="listbox" tabindex="0" aria-labelledby="regions-title" aria-describedby="regions-help">
+            <div class="mon-spacer" aria-hidden="true"></div>
+            <ol class="regions" id="regions" role="presentation"></ol>
+          </div>
+          <p class="mon-note" id="regions-empty" hidden>Esta página no tiene nada todavía: ni código, ni datos, ni la ROM.</p>
+          <p class="visually-hidden" id="regions-help">Los tramos seguidos de la misma clase. Enter muestra el elegido: el código en el desensamblado y lo demás en la memoria.</p>
+        </section>
+        <section class="mon-panel" id="mon-panel-sprites" role="tabpanel" aria-labelledby="mon-tab-sprites" hidden>
+          <h3 id="spr-title">SPRITE</h3>
+          <div class="mon-tools spr-tools" role="group" aria-labelledby="spr-title">
+            <label class="mon-goto"><span>Alto</span><select class="mon-select" id="spr-height"></select></label>
+            <label class="mon-goto" id="spr-planes-field" hidden><span>Planos</span><select class="mon-select" id="spr-planes"></select></label>
+            <button class="mon-toggle" id="spr-follow" type="button" title="El visor vuelve a mostrar los bytes que apunta I">A la I</button>
+          </div>
+          <p class="mon-note" id="spr-info"></p>
+          <div class="spr-box">
+            <div class="spr-well"><canvas class="spr-canvas" id="spr-canvas" width="8" height="8" role="img" aria-label="Sprite"></canvas></div>
+            <ol class="spr-bytes" id="spr-bytes" aria-label="Bytes del sprite"></ol>
+          </div>
+          <h3 id="draws-title">ÚLTIMOS DIBUJOS</h3>
+          <p class="mon-note" id="draws-note"></p>
+          <div class="mon-list draws-view" id="draws-view" role="listbox" tabindex="0" aria-labelledby="draws-title" aria-describedby="draws-help">
+            <div class="mon-spacer" aria-hidden="true"></div>
+            <ol class="draws" id="draws" role="presentation"></ol>
+          </div>
+          <p class="visually-hidden" id="draws-help">Del más nuevo al más viejo. Enter muestra el elegido en el visor.</p>
+        </section>
         <p class="mon-error" id="mon-error" hidden></p>
         <p class="mon-fix" id="mon-fix" hidden><button class="mon-toggle" id="mon-fix-btn" type="button">Cambiar de plataforma y reiniciar</button></p>
-        <p class="mon-foot">Espacio: pausa · N: paso · Retroceso: reiniciar</p>
+        <p class="mon-trace-link" id="mon-trace-link" hidden><button class="mon-toggle" id="mon-trace-btn" type="button">Ver las últimas instrucciones</button></p>
+        <p class="mon-foot">Espacio: pausa · N: paso · O: por encima · K: salir · Retroceso: reiniciar</p>
       </div>
     </aside>
   </div>
@@ -1530,6 +1763,8 @@
         <tbody>
           <tr><th><kbd>Espacio</kbd></th><td>Pausa / continuar</td></tr>
           <tr><th><kbd>N</kbd></th><td>Ejecutar una instrucción (pausa automáticamente)</td></tr>
+          <tr><th><kbd>O</kbd></th><td>Paso por encima: si la instrucción es un <code>CALL</code>, ejecuta la subrutina entera y se detiene en la siguiente (si no, es un paso común)</td></tr>
+          <tr><th><kbd>K</kbd></th><td>Salir de la subrutina: sigue hasta que la subrutina en la que está el PC vuelve con <code>RET</code></td></tr>
           <tr><th><kbd>Retroceso</kbd></th><td>Reiniciar la ROM</td></tr>
           <tr><th><kbd>H</kbd></th><td>Abrir o cerrar esta ayuda</td></tr>
           <tr><th><kbd>T</kbd></th><td>Mantenela apretada: avance rápido (la máquina corre 4 veces más rápido)</td></tr>
@@ -1543,7 +1778,7 @@
           <tr><th><kbd>Esc</kbd></th><td>Cerrar diálogos</td></tr>
         </tbody>
       </table>
-      <p>Los botones que tocás con el mouse no se quedan con el foco, así el teclado sigue manejando la consola. Si llegás a un control con <kbd>Tab</kbd>, <kbd>Espacio</kbd> y <kbd>Enter</kbd> lo activan (no pausan); las teclas del keypad, <kbd>N</kbd>, <kbd>H</kbd>, <kbd>T</kbd>, <kbd>P</kbd>, <kbd>G</kbd>, <kbd>Y</kbd>, <kbd>I</kbd>, <kbd>U</kbd>, <kbd>B</kbd> y <kbd>Retroceso</kbd> siguen yendo a la consola, y las flechas también, salvo en los selectores, los deslizadores y el modo de pantalla, que las usan para elegir.</p>
+      <p>Los botones que tocás con el mouse no se quedan con el foco, así el teclado sigue manejando la consola. Si llegás a un control con <kbd>Tab</kbd>, <kbd>Espacio</kbd> y <kbd>Enter</kbd> lo activan (no pausan); las teclas del keypad, <kbd>N</kbd>, <kbd>O</kbd>, <kbd>K</kbd>, <kbd>H</kbd>, <kbd>T</kbd>, <kbd>P</kbd>, <kbd>G</kbd>, <kbd>Y</kbd>, <kbd>I</kbd>, <kbd>U</kbd>, <kbd>B</kbd> y <kbd>Retroceso</kbd> siguen yendo a la consola, y las flechas también, salvo en los selectores, los deslizadores y el modo de pantalla, que las usan para elegir.</p>
 
       <h3>Avance rápido, pantalla completa y capturas</h3>
       <p>Mientras mantenés apretada la <kbd>T</kbd> (o el botón de avance rápido, debajo de la pantalla), la máquina corre 4 veces más rápido, timers incluidos, y en la pantalla aparece «×4»: sirve para pasar rápido una presentación lenta. Al soltar vuelve a la velocidad de siempre, sin atrasos que recuperar; en pausa no hace nada.</p>
@@ -1601,8 +1836,10 @@
       <h3>Diagnóstico</h3>
       <p>Si una ROM usa una instrucción de pantalla de SUPER-CHIP o XO-CHIP que la plataforma elegida no tiene, la consola la ignora, como hacía un intérprete de la época, y te avisa una vez con un botón para pasar a la plataforma que hace falta. Si la instrucción no se puede ignorar, la máquina se detiene y el mensaje de error trae el botón <strong>Cambiar a … y reiniciar</strong>. Cuando un programa termina con <code>EXIT</code> (<code>00FD</code>) no es un error: la pantalla muestra «FIN DEL PROGRAMA» y el LED RUN queda en ámbar.</p>
 
-      <h3>Monitor</h3>
-      <p>El monitor muestra PC, I, SP, los timers, la plataforma con su modo de video, los registros V0–VF (se resaltan los que cambiaron), la pila, el desensamblado alrededor del PC y la memoria a la que apunta I. Con XO-CHIP las direcciones tienen 4 dígitos (64 KB). Pausá con <kbd>Espacio</kbd> y avanzá de a una instrucción con <kbd>N</kbd>; con <kbd>B</kbd> volvés atrás de a un frame.</p>
+      <h3>Monitor y depurador</h3>
+      <p>El monitor tiene cuatro pestañas. <strong>Código</strong> muestra PC, I, SP, los timers, la plataforma con su modo de video, los registros V0–VF (se resaltan los que cambiaron), la pila y el desensamblado, que sigue al PC; podés recorrerlo (con la rueda, arrastrando o con las flechas) o ir a una dirección con <strong>Ir a</strong>, y <strong>Al PC</strong> lo vuelve a seguir. Con XO-CHIP las direcciones tienen 4 dígitos (64 KB). Pausá con <kbd>Espacio</kbd> y avanzá de a una instrucción con <kbd>N</kbd>; <kbd>O</kbd> pasa por encima de un <code>CALL</code> (ejecuta la subrutina entera) y <kbd>K</kbd> sale de la subrutina; con <kbd>B</kbd> volvés atrás de a un frame.</p>
+      <p><strong>Puntos de corte.</strong> Elegí una línea del desensamblado y tocá <strong>Punto de corte</strong> (o <kbd>Enter</kbd>, o el margen de la línea): cuando el programa llega ahí, la máquina queda en pausa antes de ejecutarla y la línea de estado lo avisa. Al seguir, esa instrucción se ejecuta. <strong>Hasta acá</strong> corre hasta la línea elegida. Los timers no bajan en el medio de un frame: frenar y seguir no cambia lo que hace el programa. Los puntos de corte son de cada cartucho y duran hasta que cierres la página.</p>
+      <p><strong>Traza</strong> muestra las últimas 1024 instrucciones ejecutadas (con la máquina en pausa o detenida; después de un error, la última es la culpable), con los bucles agrupados. <strong>Memoria</strong> tiene el mapa de toda la memoria: el código que se ejecutó, los datos que se leyeron (sprites, <code>FX65</code>, el patrón de audio) o se escribieron (<code>FX55</code>, <code>FX33</code>), la fuente y lo que no se tocó, con el PC y la I marcados; tocar una celda lleva el desensamblado o la memoria a esa dirección. <strong>Sprites</strong> dibuja los bytes que apunta I con el alto del último <code>DXYN</code> (o el que elijas) y lista los últimos dibujos. El mapa y la traza empiezan de cero al reiniciar o cargar otro cartucho; cargar un estado o rebobinar vacía la traza y deja el mapa.</p>
 
       <h3>Consejos</h3>
       <ul>
@@ -1650,6 +1887,12 @@
  * Estados guardados: cpu.saveState() y cpu.loadState(estado), Chip8Core.encodeState y
  * decodeState (el estado como texto) y Chip8Core.RewindBuffer (rebobinado). Están al
  * final, en «Estados guardados y rebobinado».
+ *
+ * Depurador: step anota cada instrucción en una traza circular y en un mapa de accesos
+ * (cpu.access: qué direcciones se ejecutaron, se leyeron o se escribieron), y los DXYN,
+ * en un registro de los últimos dibujos; runFrame se detiene antes de una instrucción
+ * con un punto de corte o en el objetivo de runTo (paso por encima, salir de la
+ * subrutina, «hasta acá»). Todo eso se explica en «Depurador», después de runFrame.
  */
 (function () {
   'use strict';
@@ -1665,6 +1908,14 @@
   var HIRES_HEIGHT = 64;
   var STACK_SIZE = 16;
   var FLAG_COUNT = 16;     // banderas persistentes de FX75/FX85
+  // Depurador (ver «Depurador», después de runFrame).
+  var DEBUG_SPACE = 65536;          // el mapa de accesos y los puntos de corte cubren la memoria más grande
+  var TRACE_SIZE = 1024;            // instrucciones que recuerda la traza (potencia de 2)
+  var TRACE_MASK = TRACE_SIZE - 1;
+  var SPRITE_LOG_SIZE = 16;         // DXYN que recuerda el registro de dibujos (potencia de 2)
+  var SPRITE_LOG_MASK = SPRITE_LOG_SIZE * 2 - 1;   // dos enteros por dibujo
+  var ACCESS = Object.freeze({ EXEC: 1, READ: 2, WRITE: 4, OPERAND: 8 });
+  var STOP_BREAK = 1, STOP_TARGET = 2;   // las marcas de cada dirección en _stops
 
   // Fuente hexadecimal estándar: 16 glifos de 4x5 píxeles (5 bytes cada uno; los
   // 4 bits altos de cada byte son los píxeles).
@@ -1893,6 +2144,10 @@
     this.hint = null;       // primera instrucción de otra plataforma que se ignoró
     this.displayDirty = true;
     this.rom = new Uint8Array(0);
+    // Depurador: lo que el programa hizo con cada dirección desde el último reset (bits de
+    // Chip8Core.ACCESS) y por qué se detuvo runFrame la última vez (null: no se detuvo).
+    this.access = new Uint8Array(DEBUG_SPACE);
+    this.debugStop = null;
     // Estado interno.
     this._level = level;    // nivel de la plataforma (0, 1 o 2)
     this._mask = this.memory.length - 1; // máscara de las direcciones: 0xFFF (4 KB) o 0xFFFF (64 KB)
@@ -1900,6 +2155,19 @@
     this._waitKey = -1;     // FX0A: tecla presionada durante la espera (-1 = ninguna todavía)
     this._drew = false;     // la última instrucción ejecutada fue un DXYN
     this._hinted = false;   // ya se dejó un aviso en hint desde el último reset
+    this._trace = new Int32Array(TRACE_SIZE);   // traza: (dirección << 16) | opcode, circular
+    this._tracePos = 0;     // dónde va la próxima instrucción de la traza
+    this._traceFull = false;   // la traza ya dio la vuelta: tiene TRACE_SIZE instrucciones
+    this._sprites = new Int32Array(SPRITE_LOG_SIZE * 2);   // los últimos DXYN, dos enteros cada uno
+    this._spritePos = 0;
+    this._spriteLen = 0;
+    this._stops = new Uint8Array(DEBUG_SPACE);   // STOP_BREAK y STOP_TARGET de cada dirección
+    this._stopCount = 0;    // puntos de corte más el objetivo de runTo: con 0, runFrame no mira nada
+    this._breakCount = 0;   // puntos de corte
+    this._target = -1;      // el objetivo de runTo (-1: ninguno) y el nivel de pila que tiene que tener
+    this._targetSp = 0;
+    this._skipStop = -1;    // al seguir, la instrucción de esta dirección se ejecuta aunque tenga un punto de corte
+    this._frameDone = 0;    // instrucciones del frame que dejó abierto un punto de corte
     this.reset();
   }
 
@@ -1934,6 +2202,7 @@
     this._waitKey = -1;
     this._drew = false;
     this._hinted = false;
+    this._clearDebug(true);
   };
 
   Chip8.prototype.loadRom = function (bytes) {
@@ -1965,6 +2234,7 @@
     this._level = level;
     if (this.memory.length !== info.memorySize) this.memory = new Uint8Array(info.memorySize);
     this._mask = info.memorySize - 1;
+    this._dropStopsFrom(info.memorySize);
     this.reset();
   };
 
@@ -2125,7 +2395,7 @@
 
   // DXYN en CHIP-8: siempre 64x32, un solo plano, 8xN.
   Chip8.prototype._draw = function (vx, vy, n) {
-    var V = this.V, memory = this.memory, display = this.display;
+    var V = this.V, memory = this.memory, display = this.display, access = this.access;
     var x0 = vx % DISPLAY_WIDTH;
     var y0 = vy % DISPLAY_HEIGHT;
     var clip = this.quirks.clipping;
@@ -2136,7 +2406,9 @@
         if (clip) break;
         y -= DISPLAY_HEIGHT;
       }
-      var bits = memory[(this.I + row) & 0xFFF];
+      var addr = (this.I + row) & 0xFFF;
+      access[addr] |= 2;   // ACCESS.READ
+      var bits = memory[addr];
       if (bits === 0) continue;
       var base = y * DISPLAY_WIDTH;
       for (var col = 0; col < 8; col++) {
@@ -2157,6 +2429,22 @@
     }
     V[0xF] = collision;
     this.displayDirty = true;
+    this._logSprite(x0, y0, n, (1 << 21) | (collision << 23));   // un plano, baja resolución
+  };
+
+  /*
+   * Anota un DXYN en el registro de los últimos dibujos (circular, SPRITE_LOG_SIZE): dos enteros,
+   *   (I) | (N << 16) | flags   con flags = 16×16 (bit 20) | planos (bits 21-22) | choque (bit 23)
+   *                             | alta resolución (bit 24)
+   *   x | (y << 8)              la posición en la pantalla (ya con el módulo de su ancho y su alto)
+   * Una llamada por DXYN, no por instrucción.
+   */
+  Chip8.prototype._logSprite = function (x, y, n, flags) {
+    var s = this._spritePos, log = this._sprites;
+    log[s] = (this.I & 0xFFFF) | (n << 16) | flags;
+    log[s + 1] = x | (y << 8);
+    this._spritePos = (s + 2) & SPRITE_LOG_MASK;
+    if (this._spriteLen < SPRITE_LOG_SIZE) this._spriteLen++;
   };
 
   /*
@@ -2167,7 +2455,7 @@
    * VF = 1 si algún píxel encendido se apagó, en cualquiera de los planos.
    */
   Chip8.prototype._drawExt = function (vx, vy, n) {
-    var memory = this.memory, display = this.display, mask = this._mask;
+    var memory = this.memory, display = this.display, mask = this._mask, access = this.access;
     var width = this.displayWidth, height = this.displayHeight;
     var x0 = vx % width;
     var y0 = vy % height;
@@ -2175,7 +2463,7 @@
     var planes = this._planeMask();
     var wide = n === 0;
     var rows = wide ? 16 : n, cols = wide ? 16 : 8, left = wide ? 0x8000 : 0x80;
-    var addr = this.I, collision = 0;
+    var addr = this.I, collision = 0, a;
     for (var plane = 1; plane <= 2; plane++) {
       if ((planes & plane) === 0) continue;
       for (var row = 0; row < rows; row++) {
@@ -2184,9 +2472,17 @@
           if (clip) break;
           y -= height;
         }
-        var bits = wide ?
-          (memory[(addr + 2 * row) & mask] << 8) | memory[(addr + 2 * row + 1) & mask] :
-          memory[(addr + row) & mask];
+        var bits;
+        if (wide) {
+          a = (addr + 2 * row) & mask;
+          access[a] |= 2;   // ACCESS.READ
+          access[(a + 1) & mask] |= 2;
+          bits = (memory[a] << 8) | memory[(a + 1) & mask];
+        } else {
+          a = (addr + row) & mask;
+          access[a] |= 2;
+          bits = memory[a];
+        }
         if (bits === 0) continue;
         var base = y * width;
         for (var col = 0; col < cols; col++) {
@@ -2205,6 +2501,7 @@
     }
     this.V[0xF] = collision;
     this.displayDirty = true;
+    this._logSprite(x0, y0, n, (wide ? 1 << 20 : 0) | (planes << 21) | (collision << 23) | (this.hires ? 1 << 24 : 0));
   };
 
   /*
@@ -2241,11 +2538,14 @@
   Chip8.prototype._op5 = function (opcode, x, y, n) {
     if (n !== 0x2 && n !== 0x3) return this._invalid(opcode);
     if (this._level < 2) return this._unsupported(opcode);
-    var V = this.V, memory = this.memory, mask = this._mask, I = this.I;
+    var V = this.V, memory = this.memory, mask = this._mask, I = this.I, access = this.access;
     var dir = x <= y ? 1 : -1, count = (x <= y ? y - x : x - y) + 1;
+    var mark = n === 0x2 ? 4 : 2;   // ACCESS.WRITE o ACCESS.READ
     for (var k = 0; k < count; k++) {
-      if (n === 0x2) memory[(I + k) & mask] = V[x + k * dir];
-      else V[x + k * dir] = memory[(I + k) & mask];
+      var a = (I + k) & mask;
+      if (n === 0x2) memory[a] = V[x + k * dir];
+      else V[x + k * dir] = memory[a];
+      access[a] |= mark;
     }
     return true;
   };
@@ -2255,10 +2555,12 @@
     var entry = extendedEntry(opcode);
     if (entry === null) return this._invalid(opcode);
     if (this._level < entry.level) return this._unsupported(opcode);
-    var V = this.V, memory = this.memory, mask = this._mask, i, value, changed;
+    var V = this.V, memory = this.memory, mask = this._mask, access = this.access, i, value, changed;
     switch (nn) {
       case 0x00: // F000 NNNN: I := NNNN, la palabra que sigue
         this.I = (memory[this.pc] << 8) | memory[(this.pc + 1) & mask];
+        access[this.pc] |= 8;   // ACCESS.OPERAND: NNNN es parte de la instrucción
+        access[(this.pc + 1) & mask] |= 8;
         this.pc = (this.pc + 2) & mask;
         break;
       case 0x01: this.planes = x; break;
@@ -2267,6 +2569,7 @@
         // primero desde el reset (deja de sonar el beep de siempre).
         changed = !this.audioPatternSet;
         for (i = 0; i < 16; i++) {
+          access[(this.I + i) & mask] |= 2;   // ACCESS.READ
           value = memory[(this.I + i) & mask];
           if (this.audioPattern[i] !== value) {
             this.audioPattern[i] = value;
@@ -2301,6 +2604,9 @@
    * corto y rápido: la lectura del opcode usa máscaras constantes en cada rama y
    * adentro del switch la máscara se lee de this._mask donde hace falta (mantenerla
    * en una variable durante todo el switch lo hacía más lento).
+   * Para el depurador, cada instrucción que se intenta ejecutar (también la que falla) va a
+   * la traza y marca su dirección como código en cpu.access: tres escrituras en arreglos
+   * tipados, sin objetos ni llamadas. Los puntos de corte no se miran acá: los mira runFrame.
    */
   Chip8.prototype.step = function () {
     if (this.halted || this.waitingForKey) return false;
@@ -2316,6 +2622,11 @@
       this.pc = (pc + 2) & 0xFFFF;
     }
     this._drew = false;
+    var t = this._tracePos;
+    this._trace[t] = (pc << 16) | opcode;
+    this._tracePos = (t + 1) & TRACE_MASK;
+    if (t === TRACE_MASK) this._traceFull = true;
+    this.access[pc] |= 1;   // ACCESS.EXEC
 
     var x = (opcode >> 8) & 0xF;
     var y = (opcode >> 4) & 0xF;
@@ -2449,13 +2760,22 @@
             memory[this.I & this._mask] = (vx / 100) | 0;
             memory[(this.I + 1) & this._mask] = ((vx / 10) | 0) % 10;
             memory[(this.I + 2) & this._mask] = vx % 10;
+            this.access[this.I & this._mask] |= 4;   // ACCESS.WRITE
+            this.access[(this.I + 1) & this._mask] |= 4;
+            this.access[(this.I + 2) & this._mask] |= 4;
             break;
           case 0x55:
-            for (var i = 0; i <= x; i++) memory[(this.I + i) & this._mask] = V[i];
+            for (var i = 0; i <= x; i++) {
+              memory[(this.I + i) & this._mask] = V[i];
+              this.access[(this.I + i) & this._mask] |= 4;   // ACCESS.WRITE
+            }
             if (this.quirks.memory) this.I = (this.I + x + 1) & 0xFFFF;
             break;
           case 0x65:
-            for (var j = 0; j <= x; j++) V[j] = memory[(this.I + j) & this._mask];
+            for (var j = 0; j <= x; j++) {
+              V[j] = memory[(this.I + j) & this._mask];
+              this.access[(this.I + j) & this._mask] |= 2;   // ACCESS.READ
+            }
             if (this.quirks.memory) this.I = (this.I + x + 1) & 0xFFFF;
             break;
           default:
@@ -2472,6 +2792,10 @@
    * displayWait, justo después de un DXYN (el VIP esperaba el vblank para dibujar).
    */
   Chip8.prototype.runFrame = function (ipf) {
+    // Con puntos de corte, un objetivo de runTo o un frame que cortó uno de ellos, el frame
+    // lo corre _runFrameWatched (ver «Depurador»); sin eso, el bucle de siempre.
+    this.debugStop = null;
+    if (this._stopCount !== 0 || this._frameDone !== 0) return this._runFrameWatched(ipf);
     if (this.halted) return 0;
     var executed = 0;
     for (var i = 0; i < ipf; i++) {
@@ -2481,6 +2805,227 @@
     }
     this.tickTimers();
     return executed;
+  };
+
+  /*
+   * ------------------------------------------------------------------------
+   * Depurador
+   * ------------------------------------------------------------------------
+   * Mapa de accesos: cpu.access (Uint8Array de 65536, aunque la memoria sea de 4 KB) marca,
+   * desde el último reset, qué hizo el programa con cada dirección (bits de Chip8Core.ACCESS):
+   *   EXEC     ahí empezó una instrucción ejecutada (su segundo byte no se marca)
+   *   READ     se leyó como dato: los sprites de DXYN, FX65, 5XY3 y el patrón de F002
+   *   WRITE    se escribió: FX55, FX33 y 5XY2
+   *   OPERAND  es la dirección NNNN de un F000 NNNN ejecutado (XO-CHIP)
+   * Traza: las últimas TRACE_SIZE instrucciones que step intentó ejecutar (también la que
+   * detuvo la máquina con un error), con su dirección y su opcode; cpu.trace() las devuelve.
+   * Dibujos: los últimos SPRITE_LOG_SIZE DXYN (dónde, desde qué dirección, de qué tamaño, en
+   * qué planos y si chocaron); cpu.spriteLog() los devuelve.
+   *
+   * Puntos de corte (setBreakpoint, hasBreakpoint, breakpoints, clearBreakpoints) y un objetivo
+   * (runTo: una dirección y el nivel de pila más alto con que vale): runFrame mira la marca de
+   * cada dirección antes de ejecutarla, solo si hay alguno puesto (si no, corre el bucle de
+   * siempre, sin ninguna comprobación). Al llegar a uno se detiene antes de ejecutar esa
+   * instrucción y deja en cpu.debugStop { kind: 'breakpoint' | 'target', addr }; el objetivo
+   * se borra al detenerse por cualquier motivo. Al seguir (la próxima runFrame, o después de
+   * skipBreakpointOnce), la instrucción en la que se detuvo se ejecuta sin volver a detenerse.
+   * Paso por encima de un CALL en la dirección A: runTo(A + 2, sp); salir de la subrutina:
+   * runTo(stack[sp - 1], sp - 1); «hasta acá»: runTo(dirección). Con el nivel de pila, una
+   * subrutina recursiva que pasa por A + 2 más adentro no detiene la máquina.
+   *
+   * Los timers: un frame que se detiene en un punto de corte queda abierto, sin el tic de los
+   * timers. La próxima runFrame lo completa (ejecuta lo que le faltaba de sus `ipf`
+   * instrucciones) y recién ahí baja los timers: detenerse y seguir no cambia lo que hace el
+   * programa. Las instrucciones sueltas de step, como siempre, no cuentan para el frame.
+   *
+   * Nada de esto es parte del estado: saveState no lo guarda. reset (y loadRom y setPlatform,
+   * que lo llaman) borra el mapa, la traza, los dibujos, el objetivo y el frame abierto;
+   * loadState borra lo mismo salvo el mapa, que se conserva si la memoria es del mismo tamaño
+   * (es del mismo programa). Los puntos de corte no los borra nadie más que clearBreakpoints y
+   * setBreakpoint (los que quedan fuera de una memoria que se achica se pierden).
+   */
+  // runFrame con el depurador: completa el frame abierto, si lo hay, y mira la marca de cada
+  // dirección antes de ejecutarla. Si se detiene en una, el frame queda abierto (sin el tic).
+  Chip8.prototype._runFrameWatched = function (ipf) {
+    if (this.halted) return 0;
+    var executed = this._runWatched(ipf - this._frameDone);
+    if (this.debugStop !== null) {
+      this._frameDone += executed;
+      return executed;
+    }
+    this._frameDone = 0;
+    this.tickTimers();
+    return executed;
+  };
+
+  // Corre hasta `budget` instrucciones mirando los puntos de corte y el objetivo antes de cada
+  // una. Devuelve cuántas ejecutó; si se detuvo en una marca, debugStop queda puesto. Mientras
+  // FX0A espera una tecla no se mira nada: la instrucción del PC todavía no se puede ejecutar
+  // (se detiene recién cuando llega la tecla, justo antes de ejecutarla).
+  Chip8.prototype._runWatched = function (budget) {
+    var stops = this._stops, skip = this._skipStop, executed = 0;
+    for (var i = 0; i < budget; i++) {
+      var pc = this.pc & this._mask;
+      if (stops[pc] !== 0 && pc !== skip && !this.waitingForKey && this._stopAt(pc)) break;
+      if (!this.step()) break;
+      if (skip !== -1) {   // la instrucción que había que pasar ya se ejecutó
+        skip = -1;
+        this._skipStop = -1;
+      }
+      executed++;
+      if (this.waitingForKey || (this._drew && this.quirks.displayWait)) break;
+    }
+    return executed;
+  };
+
+  // ¿Se detiene antes de la instrucción de pc? En el objetivo, solo con la pila a su nivel o
+  // más afuera; en un punto de corte, siempre.
+  Chip8.prototype._stopAt = function (pc) {
+    var flags = this._stops[pc];
+    var reached = (flags & STOP_TARGET) !== 0 && this.sp <= this._targetSp;
+    if (!reached && (flags & STOP_BREAK) === 0) return false;
+    this.cancelRunTo();
+    this.debugStop = { kind: reached ? 'target' : 'breakpoint', addr: pc };
+    this._skipStop = pc;   // al seguir, esta instrucción se ejecuta
+    return true;
+  };
+
+  // Una dirección de la memoria de esta plataforma, o un RangeError.
+  Chip8.prototype._debugAddr = function (addr) {
+    if (typeof addr !== 'number' || Math.floor(addr) !== addr || addr < 0 || addr > this._mask) {
+      throw new RangeError('Dirección inválida: ' + shownValue(addr) + ' (en ' + PLATFORM_INFO[this.platform].label +
+        ' tiene que ser un entero de ' + hex(0, this._level === 2 ? 4 : 3) + ' a ' + hex(this._mask, this._level === 2 ? 4 : 3) + ').');
+    }
+    return addr;
+  };
+
+  // Pone (on = true o sin on) o saca (on = false) un punto de corte. Devuelve si quedó puesto.
+  Chip8.prototype.setBreakpoint = function (addr, on) {
+    addr = this._debugAddr(addr);
+    on = on === undefined ? true : !!on;
+    if (on !== ((this._stops[addr] & STOP_BREAK) !== 0)) {
+      this._stops[addr] ^= STOP_BREAK;
+      var d = on ? 1 : -1;
+      this._breakCount += d;
+      this._stopCount += d;
+    }
+    return on;
+  };
+
+  Chip8.prototype.hasBreakpoint = function (addr) {
+    return typeof addr === 'number' && Math.floor(addr) === addr && addr >= 0 && addr <= this._mask &&
+      (this._stops[addr] & STOP_BREAK) !== 0;
+  };
+
+  // Las direcciones con un punto de corte, de menor a mayor.
+  Chip8.prototype.breakpoints = function () {
+    var out = [], stops = this._stops;
+    if (this._breakCount === 0) return out;
+    for (var a = 0; a <= this._mask; a++) if (stops[a] & STOP_BREAK) out.push(a);
+    return out;
+  };
+
+  Chip8.prototype.clearBreakpoints = function () {
+    if (this._breakCount === 0) return;
+    var stops = this._stops;
+    for (var a = 0; a < DEBUG_SPACE; a++) stops[a] &= ~STOP_BREAK;
+    this._stopCount -= this._breakCount;
+    this._breakCount = 0;
+  };
+
+  // Los puntos de corte que quedaron fuera de una memoria de `size` bytes se borran.
+  Chip8.prototype._dropStopsFrom = function (size) {
+    var stops = this._stops;
+    for (var a = size; a < DEBUG_SPACE && this._breakCount > 0; a++) {
+      if (stops[a] & STOP_BREAK) {
+        stops[a] &= ~STOP_BREAK;
+        this._breakCount--;
+        this._stopCount--;
+      }
+    }
+  };
+
+  /*
+   * El objetivo: runFrame se detiene antes de la instrucción de `addr` si en ese momento sp es
+   * menor o igual que maxSp (sin maxSp, a cualquier nivel). Hay uno solo: otro lo reemplaza.
+   */
+  Chip8.prototype.runTo = function (addr, maxSp) {
+    addr = this._debugAddr(addr);
+    var sp = maxSp === undefined || maxSp === null ? STACK_SIZE : maxSp;
+    if (typeof sp !== 'number' || Math.floor(sp) !== sp || sp < 0 || sp > STACK_SIZE) {
+      throw new RangeError('Nivel de pila inválido: ' + shownValue(maxSp) + ' (tiene que ser un entero de 0 a ' + STACK_SIZE + ').');
+    }
+    this.cancelRunTo();
+    this._target = addr;
+    this._targetSp = sp;
+    this._stops[addr] |= STOP_TARGET;
+    this._stopCount++;
+  };
+
+  Chip8.prototype.cancelRunTo = function () {
+    var t = this._target;
+    if (t < 0) return;
+    this._target = -1;
+    this._stops[t] &= ~STOP_TARGET;
+    this._stopCount--;
+  };
+
+  // { addr, maxSp } del objetivo de runTo, o null.
+  Chip8.prototype.runTarget = function () {
+    return this._target < 0 ? null : { addr: this._target, maxSp: this._targetSp };
+  };
+
+  // La próxima instrucción que se ejecute, si es la del PC de ahora, no se detiene en su punto
+  // de corte (la interfaz lo pide al seguir desde una pausa: si no, seguir no avanzaría).
+  Chip8.prototype.skipBreakpointOnce = function () {
+    this._skipStop = this.pc & this._mask;
+  };
+
+  // Cuántas instrucciones tiene la traza (sin armarla: para saber si cambió).
+  Chip8.prototype.traceLength = function () {
+    return this._traceFull ? TRACE_SIZE : this._tracePos;
+  };
+
+  // La traza, de la instrucción más vieja a la más nueva: [{ addr, opcode }].
+  Chip8.prototype.trace = function () {
+    var count = this._traceFull ? TRACE_SIZE : this._tracePos;
+    var start = this._traceFull ? this._tracePos : 0;
+    var out = new Array(count);
+    for (var i = 0; i < count; i++) {
+      var v = this._trace[(start + i) & TRACE_MASK];
+      out[i] = { addr: v >>> 16, opcode: v & 0xFFFF };
+    }
+    return out;
+  };
+
+  /*
+   * Los últimos DXYN, del más nuevo al más viejo: [{ addr, x, y, n, width, height, planes,
+   * collision, hires }]. addr es I en ese momento, x e y la posición en la pantalla, n el N de
+   * la instrucción; width × height es 8 × N, o 16 × 16 con N = 0 en SUPER-CHIP y XO-CHIP.
+   * planes es la máscara de planos (1 fuera de XO-CHIP) y collision, lo que quedó en VF.
+   */
+  Chip8.prototype.spriteLog = function () {
+    var out = [], log = this._sprites;
+    for (var i = 1; i <= this._spriteLen; i++) {
+      var s = (this._spritePos - 2 * i) & SPRITE_LOG_MASK;
+      var a = log[s], b = log[s + 1], wide = (a & (1 << 20)) !== 0, n = (a >> 16) & 0xF;
+      out.push({ addr: a & 0xFFFF, x: b & 0xFF, y: (b >> 8) & 0xFF, n: n, width: wide ? 16 : 8, height: wide ? 16 : n,
+        planes: (a >> 21) & 3, collision: (a & (1 << 23)) !== 0, hires: (a & (1 << 24)) !== 0 });
+    }
+    return out;
+  };
+
+  // Borra lo que el depurador sabe de la ejecución (con map, también el mapa de accesos).
+  Chip8.prototype._clearDebug = function (map) {
+    if (map) this.access.fill(0);
+    this._tracePos = 0;
+    this._traceFull = false;
+    this._spritePos = 0;
+    this._spriteLen = 0;
+    this.cancelRunTo();
+    this._skipStop = -1;
+    this._frameDone = 0;
+    this.debugStop = null;
   };
 
   function reg(r) {
@@ -2723,7 +3268,8 @@
    * Error que empieza con «Estado inválido: » y la máquina queda como estaba. Después lo
    * copia: cambia de plataforma (y de memoria) si hace falta, pero no resetea ni toca
    * cpu.rom, así que un reset() posterior vuelve a empezar la ROM del cartucho. También
-   * borra hint, suelta todas las teclas y deja displayDirty y audioDirty en true. La
+   * borra hint, suelta todas las teclas, deja displayDirty y audioDirty en true y borra la
+   * traza, los dibujos y el objetivo del depurador (los puntos de corte quedan). La
    * interfaz tiene que volver a avisar con setKey(k, true) las teclas que siguen apretadas:
    * si entre ellas está waitKey, soltarla termina la espera igual que en la original (si no
    * está, la espera termina cuando esa tecla se apriete y se suelte). Desde ahí la máquina
@@ -2924,9 +3470,14 @@
     }
     // Validado: de acá en adelante nada falla. Los enteros pasan por | 0 para que un -0
     // del JSON no se guarde como número con coma en los campos que usa step.
+    // El depurador: la traza y los dibujos eran de otro momento y se borran; el mapa de accesos
+    // es del mismo programa y queda, salvo que la memoria cambie de tamaño (otra plataforma).
+    var resized = this.memory.length !== info.memorySize;
+    this._clearDebug(resized);
+    this._dropStopsFrom(info.memorySize);
     this.platform = platform;
     this._level = level;
-    if (this.memory.length !== info.memorySize) this.memory = new Uint8Array(info.memorySize);
+    if (resized) this.memory = new Uint8Array(info.memorySize);
     this._mask = info.memorySize - 1;
     this.memory.set(state.memory);
     for (var q = 0; q < QUIRK_KEYS.length; q++) this.quirks[QUIRK_KEYS[q]] = state.quirks[QUIRK_KEYS[q]];
@@ -3438,7 +3989,10 @@
     STATE_VERSION: STATE_VERSION,
     encodeState: encodeState,
     decodeState: decodeState,
-    RewindBuffer: RewindBuffer
+    RewindBuffer: RewindBuffer,
+    ACCESS: ACCESS,
+    TRACE_SIZE: TRACE_SIZE,
+    SPRITE_LOG_SIZE: SPRITE_LOG_SIZE
   };
 })();
 </script>
@@ -4529,6 +5083,7 @@ globalThis.CHIP8_ARCHIVE = {
   var IPF_MIN = 1, IPF_MAX = 10000, IPF_DEFAULT = 15;
   var IPF_PRESETS = [7, 15, 30, 100, 500, 1000, 5000, 10000];
   var DISASM_BEFORE = 7, DISASM_AFTER = 12, DISASM_ROWS = DISASM_BEFORE + 1 + DISASM_AFTER;
+  var MONITOR_TABS = ['codigo', 'traza', 'memoria', 'sprites'];   // las pestañas del monitor (la primera, de fábrica)
   var BEEP_HZ = 440, BEEP_LEVEL = 0.22;
 
   var QUIRK_KEYS = ['vfReset', 'memory', 'shifting', 'jumping', 'clipping', 'displayWait'];
@@ -4717,6 +5272,7 @@ globalThis.CHIP8_ARCHIVE = {
       ipf: IPF_DEFAULT, quirks: copyQuirks(Core.DEFAULT_QUIRKS), platform: 'chip8',
       palette: 'fosforo', customColors: DEFAULT_CUSTOM_COLORS.slice(), screenMode: 'crt',
       scanlines: true, persistence: true, muted: false, volume: 0.6, monitorOpen: true,
+      monitorTab: 'codigo',   // la pestaña del monitor que estaba a la vista (MONITOR_TABS)
       perRom: true,           // «Ajustes por cartucho»
       keymap: presetKeymap('octo'),   // «Controles»: tu último mapa elegido (con eso arranca una ROM que nunca usaste)
       customKeys: null,       // las seis teclas de «Personalizado» (null: todavía no lo usaste)
@@ -4739,6 +5295,7 @@ globalThis.CHIP8_ARCHIVE = {
     var colors = normalizeColors(raw.customColors);
     if (colors) s.customColors = colors;
     if (SCREEN_MODES.indexOf(raw.screenMode) >= 0) s.screenMode = raw.screenMode;
+    if (MONITOR_TABS.indexOf(raw.monitorTab) >= 0) s.monitorTab = raw.monitorTab;
     ['scanlines', 'persistence', 'muted', 'monitorOpen', 'perRom', 'rewind'].forEach(function (k) {
       if (typeof raw[k] === 'boolean') s[k] = raw[k];
     });
@@ -5270,6 +5827,7 @@ globalThis.CHIP8_ARCHIVE = {
   var slotEl = $('slot'), cartName = $('cart-name'), cartSize = $('cart-size'), cartForget = $('cart-forget');
   var fileInput = $('file-input');
   var btnPause = $('btn-pause'), pauseLabel = $('btn-pause-label'), btnStep = $('btn-step'), btnFrame = $('btn-frame'), btnReset = $('btn-reset');
+  var btnOver = $('btn-over'), btnOut = $('btn-out');
   var statusEl = $('status');
   var ipfRange = $('ipf-range'), ipfInput = $('ipf-input'), ipfChips = $('ipf-chips'), ipfRate = $('ipf-rate');
   var screenModeGroup = $('screen-mode');
@@ -5931,11 +6489,15 @@ globalThis.CHIP8_ARCHIVE = {
     var loaded = state.romLoaded, halted = cpu.halted;
     btnPause.disabled = !loaded || halted;
     btnStep.disabled = !loaded || halted;
+    btnOver.disabled = !loaded || halted;
+    btnOut.disabled = !loaded || halted;
     btnFrame.disabled = !loaded || halted;
     btnReset.disabled = !loaded;
     var showPlay = state.paused || halted || !loaded;
     btnPause.setAttribute('data-paused', showPlay ? 'true' : 'false');
     pauseLabel.textContent = showPlay ? 'Continuar' : 'Pausa';
+    // Con puntos de corte puestos, Continuar sigue hasta el próximo.
+    btnPause.title = showPlay && dbg.bpCount ? 'Continuar hasta el próximo punto de corte (Espacio)' : 'Pausa / continuar (Espacio)';
   }
 
   function updateSlot() {
@@ -6174,6 +6736,7 @@ globalThis.CHIP8_ARCHIVE = {
     rewindRestart();
     updateSlot();
     renderStates();   // las ranuras de estados de este cartucho
+    debugCartridgeLoaded();   // los puntos de corte de este cartucho
     updateShelfSelection();
     updateTransport();
     updatePlatformUI();
@@ -6353,12 +6916,82 @@ globalThis.CHIP8_ARCHIVE = {
     if (state.paused !== p) {
       state.paused = p;
       acc = 0;
-      if (p) syncFlags();
+      if (p) {
+        syncFlags();
+        disFollowPc(true);   // en pausa, el desensamblado muestra dónde quedó
+      } else {
+        debugResume();
+      }
       if (!quiet && state.romLoaded) announce(p ? 'En pausa.' : 'Ejecutando «' + state.romName + '».');
     }
+    if (p) debugCancelRun();
     updateTransport();
   }
   function togglePause() { if (state.romLoaded) setPaused(!state.paused); }
+
+  // Depurador: seguir desde una pausa ejecuta la instrucción del PC aunque tenga un punto de corte (si no, seguir se
+  // quedaría ahí); pausar cancela un paso por encima, un salir o un «hasta acá» que estuviera corriendo.
+  function debugResume() { cpu.skipBreakpointOnce(); }
+  function debugCancelRun() {
+    if (!dbg.run && !cpu.runTarget()) return;
+    dbg.run = null;
+    cpu.cancelRunTo();
+  }
+  // La máquina se detuvo antes de una instrucción (cpu.debugStop): un punto de corte o el objetivo de un paso por
+  // encima, un salir o un «hasta acá». Queda en pausa ahí, con el frame abierto (los timers bajan al seguir, así
+  // frenar no cambia lo que hace el programa), y lo avisa la línea de estado. El desensamblado vuelve al PC.
+  function handleDebugStop() {
+    var stop = cpu.debugStop, run = stop.kind === 'target' ? dbg.run : null;
+    dbg.run = null;
+    rewind.top = false;   // la foto más nueva del rebobinado es la del final del frame anterior
+    setPaused(true, true);
+    var where = addrText(stop.addr) + ' («' + insnText(stop.addr) + '»)';
+    if (stop.kind === 'breakpoint') announce('Punto de corte en ' + where + ': en pausa, antes de ejecutarla.');
+    else if (run === 'over') announce('Paso por encima: la subrutina volvió. PC = ' + where + '.');
+    else if (run === 'out') announce('Salir: la subrutina volvió. PC = ' + where + '.');
+    else announce('Hasta acá: llegó a ' + where + '.');
+    updateMonitor(true);
+  }
+  // Paso por encima (O): si la instrucción del PC es un CALL, la máquina corre (frame a frame, como siempre) hasta que
+  // la subrutina vuelve a la instrucción siguiente con la pila a este nivel (así anda con recursión) y queda en pausa
+  // ahí; si la subrutina no vuelve nunca, Espacio la pausa. Si no es un CALL (o espera una tecla), es un Paso.
+  function stepOver() {
+    if (!state.romLoaded) return false;
+    setPaused(true, true);
+    if (cpu.halted) return false;
+    var m = memMask(), pc = cpu.pc & m;
+    if (cpu.waitingForKey || (wordAt(pc) & 0xF000) !== 0x2000) return stepOnce();
+    return startRunTo((pc + 2) & m, cpu.sp, 'over');
+  }
+  // Salir de la subrutina (K): corre hasta que la subrutina en la que está el PC vuelve (a la dirección del tope de la
+  // pila, con la pila un nivel más afuera).
+  function stepOut() {
+    if (!state.romLoaded) return false;
+    setPaused(true, true);
+    if (cpu.halted) return false;
+    if (cpu.sp === 0) {
+      announce('Salir: la pila está vacía, el PC no está en una subrutina.');
+      return false;
+    }
+    return startRunTo(cpu.stack[cpu.sp - 1] & memMask(), cpu.sp - 1, 'out');
+  }
+  // «Hasta acá»: corre hasta una dirección (a cualquier nivel de la pila) y queda en pausa ahí.
+  function runToAddress(a) {
+    if (!state.romLoaded || !isInt(a, 0, memMask())) return false;
+    if (cpu.halted) {
+      announce(cpu.exited ? 'El programa terminó: reiniciá para volver a empezar.' : 'La máquina se detuvo por un error: reiniciá para seguir.');
+      return false;
+    }
+    var ok = startRunTo(a, Core.STACK_SIZE, 'here');
+    announce('Hasta acá: corriendo hasta ' + addrText(a) + ' (Espacio pausa).');
+    return ok;
+  }
+  function startRunTo(a, maxSp, kind) {
+    cpu.runTo(a, maxSp);
+    setPaused(false, true);   // seguir: la instrucción del PC se ejecuta aunque tenga un punto de corte
+    dbg.run = kind;
+    return true;
+  }
 
   // soundSeen: en lo que va del cuadro, algún tick dejó el timer de sonido andando. Con un tick por
   // cuadro es lo mismo que mirar el timer; con varios (avance rápido) un beep corto igual suena.
@@ -6366,9 +6999,13 @@ globalThis.CHIP8_ARCHIVE = {
   function tick() {
     state.instr += cpu.runFrame(liveIpf);
     if (cpu.soundTimer > 0) soundSeen = true;
-    rewindPush();   // la foto de este frame, para el rebobinado
+    if (cpu.debugStop) handleDebugStop();   // el frame quedó abierto: su foto llega cuando se complete
+    else rewindPush();   // la foto de este frame, para el rebobinado
     syncDisplay(true);
-    if (cpu.halted) handleHalt();
+    if (cpu.halted) {
+      debugCancelRun();   // un paso por encima (o un salir) que terminó en un error ya no va a llegar
+      handleHalt();
+    }
   }
 
   function stepOnce() {
@@ -6378,6 +7015,7 @@ globalThis.CHIP8_ARCHIVE = {
     var ok = cpu.step();
     if (ok || cpu.halted) rewind.top = false;   // la máquina ya no es la última foto del rebobinado
     if (ok) state.instr++;
+    disFollowPc(true);
     syncDisplay(false);
     if (cpu.halted) { handleHalt(); return ok; }   // handleHalt ya anunció el error: no se lo pisa
     syncFlags();
@@ -6390,9 +7028,10 @@ globalThis.CHIP8_ARCHIVE = {
     setPaused(true, true);
     if (cpu.halted) return 0;
     var before = state.instr;
+    debugResume();   // la instrucción del PC se ejecuta aunque tenga un punto de corte
     tick();
     syncFlags();
-    if (!cpu.halted) announce('Frame: ' + (state.instr - before) + ' instrucciones.');
+    if (!cpu.halted && !cpu.debugStop) announce('Frame: ' + (state.instr - before) + ' instrucciones.');
     return state.instr - before;
   }
 
@@ -6626,6 +7265,14 @@ globalThis.CHIP8_ARCHIVE = {
       case 'KeyN':
         e.preventDefault();
         stepOnce();
+        break;
+      case 'KeyO':   // paso por encima de un CALL
+        e.preventDefault();
+        if (!e.repeat) stepOver();
+        break;
+      case 'KeyK':   // salir de la subrutina
+        e.preventDefault();
+        if (!e.repeat) stepOut();
         break;
       case 'Backspace':
         e.preventDefault();
@@ -7494,6 +8141,7 @@ globalThis.CHIP8_ARCHIVE = {
     run: { badge: 'Ejecutando', led: 'led is-green' },
     wait: { badge: 'Esperando tecla', led: 'led is-green is-blink' },
     paused: { badge: 'Pausado', led: 'led is-amber' },
+    break: { badge: 'Punto de corte', led: 'led is-amber' },   // en pausa, detenida en un punto de corte
     exit: { badge: 'Terminado', led: 'led is-amber' },
     error: { badge: 'Error', led: 'led is-red' }
   };
@@ -7502,7 +8150,7 @@ globalThis.CHIP8_ARCHIVE = {
   function computeMode() {
     if (!state.romLoaded) return 'idle';
     if (cpu.halted) return cpu.exited ? 'exit' : 'error';
-    if (state.paused) return 'paused';
+    if (state.paused) return atBreakpoint() ? 'break' : 'paused';
     if (cpu.waitingForKey) return 'wait';
     return 'run';
   }
@@ -7514,7 +8162,7 @@ globalThis.CHIP8_ARCHIVE = {
       ledRun.className = MODE_INFO[mode].led;
       monBadge.textContent = MODE_INFO[mode].badge;
       monBadge.className = 'badge badge--' + mode;
-      tagPause.hidden = mode !== 'paused';
+      tagPause.hidden = mode !== 'paused' && mode !== 'break';
       consoleEl.setAttribute('data-mode', mode);
       updateTransport();
     }
@@ -7545,12 +8193,17 @@ globalThis.CHIP8_ARCHIVE = {
   }
 
   // ------------------------------------------------------------------ monitor
+  // Cuatro pestañas (MONITOR_TABS): «Código» (estado, registros, desensamblado, pila y puntos de corte), «Traza»,
+  // «Memoria» (mapa, volcado y regiones) y «Sprites». Solo se pone al día la pestaña a la vista. Las listas largas
+  // tienen scroll propio y dibujan solo las filas que se ven (makeList): el desensamblado de XO-CHIP tiene 32.768.
+  // fitMonitor le da a la lista principal de la pestaña las filas que entran en la ventana. Lo que es del depurador
+  // (desensamblado navegable, puntos de corte, traza, mapa y sprites) está en las secciones que siguen.
+  var MON_ROW = 18;   // alto de una fila de las listas del monitor, en px
   var mon = {
     open: true, onScreen: true, lastInstr: -1, prevV: new Uint8Array(16),
-    vVals: [], vCells: [], rows: [], stackRows: [], memAddr: [], memCells: [],
+    vVals: [], vCells: [], stackRows: [],
     digits: 0,   // dígitos de las direcciones con que se escribió la última vez (3, o 4 en XO-CHIP)
-    // Lo que se desensambló la última vez: se vuelve a desensamblar solo si algo cambió.
-    dis: { start: -1, pc: -1, platform: '', jumping: null, bytes: new Uint8Array(DISASM_ROWS * 4) }
+    tab: 'codigo', tabs: {}, panels: {}
   };
   var PLANES_TEXT = ['sin planos', 'plano 1', 'plano 2', 'planos 1+2'];
 
@@ -7570,6 +8223,11 @@ globalThis.CHIP8_ARCHIVE = {
     el[key] = on;
     el.classList.toggle(name, on);
   }
+  function setText(el, text) {
+    if (el.__t === text) return;
+    el.__t = text;
+    el.textContent = text;
+  }
   // Plataforma, resolución y (en XO-CHIP) los planos donde dibuja: «XO-CHIP · 128×64 · planos 1+2».
   function machineText() {
     var text = platformLabel(cpu.platform) + ' · ' + cpu.displayWidth + '×' + cpu.displayHeight;
@@ -7587,19 +8245,6 @@ globalThis.CHIP8_ARCHIVE = {
       mon.vCells.push(cell);
       mon.vVals.push(val);
     }
-    var list = $('disasm');
-    for (var r = 0; r < DISASM_ROWS; r++) {
-      var li = make('li');
-      li.appendChild(make('span', 'd-mark'));
-      li.__addr = make('span', 'd-addr', '');
-      li.__op = make('span', 'd-op', '');
-      li.__text = make('span', 'd-text', '');
-      li.appendChild(li.__addr);
-      li.appendChild(li.__op);
-      li.appendChild(li.__text);
-      list.appendChild(li);
-      mon.rows.push(li);
-    }
     var stack = $('stack');
     for (var s = 0; s < Core.STACK_SIZE; s++) {
       var sli = make('li');
@@ -7609,55 +8254,83 @@ globalThis.CHIP8_ARCHIVE = {
       stack.appendChild(sli);
       mon.stackRows.push(sli);
     }
-    var mem = $('memview');
-    for (var m = 0; m < 4; m++) {
-      var row = make('div', 'mrow');
-      var a = make('span', 'm-addr', '');
-      row.appendChild(a);
-      mon.memAddr.push(a);
-      for (var c = 0; c < 8; c++) {
-        var b = make('span', 'm-b', '00');
-        row.appendChild(b);
-        mon.memCells.push(b);
-      }
-      mem.appendChild(row);
-    }
+    // Pestañas: el patrón tablist (las flechas, Inicio y Fin cambian de pestaña; solo la elegida está en el Tab).
+    MONITOR_TABS.forEach(function (id) {
+      mon.tabs[id] = $('mon-tab-' + id);
+      mon.panels[id] = $('mon-panel-' + id);
+      mon.tabs[id].addEventListener('click', function () { showTab(id); });
+    });
+    $('mon-tabs').addEventListener('keydown', function (e) {
+      var i = MONITOR_TABS.indexOf(mon.tab), n = MONITOR_TABS.length, to = -1;
+      if (e.key === 'ArrowRight') to = (i + 1) % n;
+      else if (e.key === 'ArrowLeft') to = (i + n - 1) % n;
+      else if (e.key === 'Home') to = 0;
+      else if (e.key === 'End') to = n - 1;
+      if (to < 0) return;
+      e.preventDefault();
+      showTab(MONITOR_TABS[to]);
+      mon.tabs[MONITOR_TABS[to]].focus();
+    });
+    $('mon-trace-btn').addEventListener('click', function (e) {
+      showTab('traza');
+      if (e.detail === 0) trace.list.view.focus();
+    });
   }
 
   // Cambió el ancho de las direcciones (otra plataforma): todo lo que muestra direcciones se reescribe.
   function invalidateAddresses() {
     monPc.__v = monI.__v = null;
-    mon.dis.start = -1;
-    for (var r = 0; r < mon.rows.length; r++) mon.rows[r].__a = null;
     for (var s = 0; s < mon.stackRows.length; s++) mon.stackRows[s].__v = null;
-    for (var m = 0; m < mon.memAddr.length; m++) mon.memAddr[m].__v = null;
+    [dis.list, trace.list, memv.list, regions.list, draws.list].forEach(function (list) {
+      if (list) list.pool.forEach(function (li) { li.__key = null; });
+    });
+    dbg.bpShown = -1;
   }
-  // ¿Hay que volver a desensamblar? Sí si cambió el PC, la plataforma, el quirk de saltos o algún
-  // byte de la ventana (que con filas de 4 bytes puede ocupar hasta DISASM_ROWS * 4 bytes).
-  function disasmStale(start, mask) {
-    var d = mon.dis, mem = cpu.memory, bytes = d.bytes, stale = false;
-    if (d.start !== start || d.pc !== cpu.pc || d.platform !== cpu.platform || d.jumping !== cpu.quirks.jumping) {
-      d.start = start;
-      d.pc = cpu.pc;
-      d.platform = cpu.platform;
-      d.jumping = cpu.quirks.jumping;
-      stale = true;
+
+  // Muestra una pestaña del monitor (y la recuerda en los ajustes).
+  function showTab(id) {
+    if (MONITOR_TABS.indexOf(id) < 0) return mon.tab;
+    var changed = id !== mon.tab;
+    mon.tab = id;
+    MONITOR_TABS.forEach(function (t) {
+      var on = t === id;
+      mon.tabs[t].setAttribute('aria-selected', on ? 'true' : 'false');
+      mon.tabs[t].tabIndex = on ? 0 : -1;
+      mon.panels[t].hidden = !on;
+    });
+    // Una lista oculta pierde su scroll: vuelve a donde estaba.
+    [dis.list, trace.list, memv.list, regions.list, draws.list].forEach(function (list) {
+      if (list && !list.view.closest('[hidden]')) list.view.scrollTop = list.top;
+    });
+    if (changed) {
+      settings.monitorTab = id;
+      saveSettings();
     }
-    for (var k = 0; k < bytes.length; k++) {
-      var b = mem[(start + k) & mask];
-      if (bytes[k] !== b) { bytes[k] = b; stale = true; }
-    }
-    return stale;
+    fitMonitor();
+    updateMonitor(true);
+    return id;
   }
 
   function updateMonitor(force) {
     if (!mon.open || document.hidden) return;
     if (!mon.onScreen && !force) return;
-    var mem = cpu.memory, V = cpu.V, mask = mem.length - 1, digits = addrDigits;
-    if (mon.digits !== digits) {
-      mon.digits = digits;
+    if (mon.digits !== addrDigits) {
+      mon.digits = addrDigits;
       invalidateAddresses();
+      force = true;
     }
+    if (dbg.run && !cpu.runTarget()) dbg.run = null;   // reiniciar o cargar un estado borra el objetivo del núcleo
+    var traceLink = cpu.halted && !cpu.exited && mon.tab !== 'traza';
+    if (monTraceLink.hidden === traceLink) monTraceLink.hidden = !traceLink;
+    if (mon.tab === 'codigo') updateCodeTab(force);
+    else if (mon.tab === 'traza') updateTrace(force);
+    else if (mon.tab === 'memoria') updateMemoryTab(force);
+    else updateSprites(force);
+  }
+
+  // «Código»: el estado, los registros, la pila, el desensamblado y los puntos de corte.
+  function updateCodeTab(force) {
+    var V = cpu.V, digits = addrDigits;
     setHexText(monPc, cpu.pc, digits, '0x');
     setHexText(monI, cpu.I, digits, '0x');
     setDecText(monSp, cpu.sp);
@@ -7680,29 +8353,6 @@ globalThis.CHIP8_ARCHIVE = {
       }
     }
 
-    // Desensamblado alrededor del PC (misma paridad que el PC), con disassembleRange: en XO-CHIP
-    // una fila puede ocupar 4 bytes (F000 NNNN), así que se resalta la fila que contiene al PC
-    // (después de una fila de 4 bytes queda una más arriba). Con el quirk jumping, BNNN se muestra
-    // como JP VX (el registro que de verdad se suma).
-    var start = (cpu.pc - 2 * DISASM_BEFORE) & mask;
-    if (disasmStale(start, mask)) {
-      var rows = Core.disassembleRange(mem, start, DISASM_ROWS, cpu.quirks, cpu.platform);
-      for (var r = 0; r < DISASM_ROWS; r++) {
-        var row = rows[r], li = mon.rows[r];
-        var isPc = ((cpu.pc - row.addr) & mask) < row.size;
-        if (li.__a !== row.addr) { li.__a = row.addr; li.__addr.textContent = '0x' + hex(row.addr, digits); }
-        if (li.__o !== row.opcode) { li.__o = row.opcode; li.__op.textContent = hex(row.opcode, 4); }
-        if (li.__t !== row.text) { li.__t = row.text; li.__text.textContent = row.text; }
-        var tip = row.size === 4 ? 'Instrucción de 4 bytes: F000 ' + hex(row.long, 4) : '';
-        if (li.__tip !== tip) { li.__tip = tip; li.title = tip; }
-        setClass(li, 'is-pc', isPc);
-        if (li.__cur !== isPc) {
-          li.__cur = isPc;
-          if (isPc) li.setAttribute('aria-current', 'true'); else li.removeAttribute('aria-current');
-        }
-      }
-    }
-
     // Pila: 16 niveles, el tope marcado.
     var sp = cpu.sp;
     for (var s = 0; s < mon.stackRows.length; s++) {
@@ -7713,27 +8363,180 @@ globalThis.CHIP8_ARCHIVE = {
       setClass(sli, 'is-top', s === sp - 1);
     }
 
-    // Memoria alrededor de I.
-    var iAddr = cpu.I & mask;
-    var base = ((iAddr & ~7) - 8) & mask;
-    for (var m = 0; m < 4; m++) {
-      var rowAddr = (base + 8 * m) & mask;
-      setHexText(mon.memAddr[m], rowAddr, digits, '0x');
-      for (var c = 0; c < 8; c++) {
-        var a = (rowAddr + c) & mask;
-        var cell = mon.memCells[m * 8 + c];
-        var bv = mem[a];
-        if (cell.__v !== bv) { cell.__v = bv; cell.textContent = HEX2[bv]; }
-        setClass(cell, 'is-i', a === iAddr);
-      }
-    }
+    updateDisasm(force);
+    if (force || dbg.bpShown !== dbg.bpVersion) renderBreakpoints();
   }
 
-  // En la pantalla ancha el monitor va pegado arriba (sticky). Si es más alto que la ventana (con un error y
-  // su botón ya no entra en 900 px de alto), se pega más arriba, con su final a la vista: así, scrolleando un
-  // poco, se llega al botón del error y al pie. Pegado a 20 px del borde, eso quedaba fuera de la ventana
-  // hasta el final de la página, y el navegador no podía mostrar el botón al enfocarlo.
+  // ------------------------------------------------------------------ monitor: listas con scroll propio
+  // Una lista del monitor (desensamblado, traza, memoria, regiones y dibujos): un role=listbox con su propio
+  // scroll, filas de rowH px y en el DOM solo las que se ven (unos pocos <li> que se reusan). opts:
+  //   rows, min, max       filas a la vista (fitMonitor ajusta las de la lista principal de cada pestaña)
+  //   count()              cuántas filas hay
+  //   create(li)           arma un <li> nuevo;  paint(li, i)  lo llena con la fila i (li.__key evita reescribir)
+  //   select(i)            la persona eligió la fila i (con las flechas o un clic)
+  //   activate(i, teclado) Enter o un clic en la fila
+  //   moved()              la persona movió la lista (rueda, arrastre, barra o una fila elegida fuera de la vista)
+  //   home()               Inicio (si no, va a la primera fila)
+  // La fila elegida (sel) lleva is-sel y aria-selected, y aria-activedescendant la apunta mientras está dibujada.
+  // El scroll que pone el programa (scrollListTo) no cuenta como un movimiento de la persona.
+  function makeList(view, opts) {
+    var list = {
+      view: view, ol: view.querySelector('ol'), spacer: view.querySelector('.mon-spacer'), opts: opts,
+      rowH: opts.rowH || MON_ROW, rows: opts.rows, min: opts.min || opts.rows, max: opts.max || opts.rows,
+      pool: [], first: -1, top: 0, setTop: -1, total: -1, sel: -1, active: '', dirty: false
+    };
+    view.style.height = list.rows * list.rowH + 'px';
+    view.addEventListener('scroll', function () {
+      var top = view.scrollTop;
+      if (list.setTop >= 0 && Math.abs(top - list.setTop) <= 1) return;   // lo puso el programa
+      list.setTop = -1;
+      list.top = top;
+      if (opts.moved) opts.moved();
+      paintList(list, false);
+    });
+    view.addEventListener('keydown', function (e) { listKey(list, e); });
+    view.addEventListener('click', function (e) {
+      var li = e.target && e.target.closest ? e.target.closest('li') : null;
+      if (!li || !list.ol.contains(li) || li.__i < 0) return;
+      list.sel = li.__i;
+      if (opts.select) opts.select(li.__i);
+      if (opts.click) opts.click(li.__i, e);
+      else if (opts.activate) opts.activate(li.__i, false);
+      paintList(list, false);
+    });
+    return list;
+  }
+  function setListRows(list, rows) {
+    list.rows = rows;
+    list.view.style.height = rows * list.rowH + 'px';
+    if (list.opts.onRows) list.opts.onRows(rows);
+    paintList(list, false);
+  }
+  // El alto del contenido sigue a la cantidad de filas; se pone al día antes de mover el scroll (si no, el navegador
+  // recorta el scroll al alto viejo).
+  function syncListTotal(list) {
+    var total = list.opts.count();
+    if (total !== list.total) {
+      list.total = total;
+      list.spacer.style.height = total * list.rowH + 'px';
+      list.dirty = true;
+    }
+    return total;
+  }
+  // Lleva la lista a que la fila `row` sea la primera a la vista (dentro de lo que se puede).
+  function scrollListTo(list, row) {
+    var total = syncListTotal(list);
+    var top = clamp(row, 0, Math.max(0, total - list.rows)) * list.rowH;
+    list.top = top;
+    list.setTop = top;
+    list.view.scrollTop = top;
+  }
+  // Si la fila no se ve entera, la lista se mueve lo justo para mostrarla. Devuelve si se movió.
+  function revealListRow(list, i) {
+    var first = Math.ceil(list.top / list.rowH), last = Math.floor(list.top / list.rowH) + list.rows - 1;
+    if (i >= first && i <= last) return false;
+    scrollListTo(list, i < first ? i : i - list.rows + 1);
+    return true;
+  }
+  function paintList(list, force) {
+    var total = syncListTotal(list);
+    if (list.dirty) {
+      list.dirty = false;
+      force = true;
+    }
+    var first = clamp(Math.floor(list.top / list.rowH), 0, Math.max(0, total - 1));
+    var n = Math.max(0, Math.min(list.rows + 1, total - first));
+    var pool = list.pool, li, k;
+    while (pool.length < n) {
+      li = make('li');
+      li.setAttribute('role', 'option');
+      li.__i = -1;
+      if (list.opts.create) list.opts.create(li);
+      list.ol.appendChild(li);
+      pool.push(li);
+    }
+    if (first !== list.first) {
+      list.first = first;
+      list.ol.style.transform = 'translateY(' + first * list.rowH + 'px)';
+    }
+    var active = '';
+    for (k = 0; k < pool.length; k++) {
+      li = pool[k];
+      if (k >= n) {
+        if (!li.hidden) { li.hidden = true; li.__i = -1; li.removeAttribute('id'); }
+        continue;
+      }
+      var i = first + k;
+      if (li.hidden) li.hidden = false;
+      if (li.__i !== i || force) {
+        if (li.__i !== i) {
+          li.__i = i;
+          li.id = list.view.id + '-' + i;
+          li.setAttribute('aria-posinset', String(i + 1));
+        }
+        if (li.__setsize !== total) { li.__setsize = total; li.setAttribute('aria-setsize', String(total)); }
+        if (force) li.__key = null;
+      }
+      list.opts.paint(li, i);
+      var sel = i === list.sel;
+      setClass(li, 'is-sel', sel);
+      if (li.__as !== sel) { li.__as = sel; li.setAttribute('aria-selected', sel ? 'true' : 'false'); }
+      if (sel) active = li.id;
+    }
+    if (list.active !== active) {
+      list.active = active;
+      if (active) list.view.setAttribute('aria-activedescendant', active);
+      else list.view.removeAttribute('aria-activedescendant');
+    }
+  }
+  function listKey(list, e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    var total = list.opts.count(), cur = list.sel >= 0 && list.sel < total ? list.sel : -1, page = Math.max(1, list.rows - 1);
+    var from = cur >= 0 ? cur : Math.ceil(list.top / list.rowH), to;
+    switch (e.key) {
+      case 'ArrowDown': to = cur < 0 ? from : cur + 1; break;
+      case 'ArrowUp': to = cur < 0 ? from : cur - 1; break;
+      case 'PageDown': to = from + page; break;
+      case 'PageUp': to = from - page; break;
+      case 'Home':
+        e.preventDefault();
+        if (list.opts.home) { list.opts.home(); return; }
+        to = 0;
+        break;
+      case 'End': to = total - 1; break;
+      case 'Enter':
+        if (cur >= 0 && list.opts.activate) {
+          e.preventDefault();
+          list.opts.activate(cur, true);
+        }
+        return;
+      default: return;
+    }
+    e.preventDefault();
+    if (!total) return;
+    list.sel = clamp(to, 0, total - 1);
+    if (list.opts.select) list.opts.select(list.sel);
+    if (revealListRow(list, list.sel) && list.opts.moved) list.opts.moved();
+    paintList(list, false);
+  }
+  // La lista principal de la pestaña a la vista: la que crece o se achica con la ventana.
+  function mainList() {
+    return mon.tab === 'codigo' ? dis.list : mon.tab === 'traza' ? trace.list : mon.tab === 'memoria' ? memv.list : draws.list;
+  }
+
+  // En la pantalla ancha el monitor va pegado arriba (sticky). La lista principal de la pestaña toma las filas que
+  // entran en la ventana (entre su mínimo y su máximo), así el monitor no crece más que la ventana. Si igual es más
+  // alto (con un error y su botón, o una ventana muy baja), se pega más arriba, con su final a la vista: así,
+  // scrolleando un poco, se llega al botón del error y al pie. Pegado a 20 px del borde, eso quedaba fuera de la
+  // ventana hasta el final de la página, y el navegador no podía mostrar el botón al enfocarlo.
   function fitMonitor() {
+    var list = mainList();
+    if (mon.open && mon.tab === 'memoria') sizeMap();
+    if (mon.open && list && monitorEl.offsetHeight) {
+      var rest = monitorEl.offsetHeight - list.rows * list.rowH;
+      var rows = clamp(Math.floor((window.innerHeight - 40 - rest) / list.rowH), list.min, list.max);
+      if (rows !== list.rows) setListRows(list, rows);
+    }
     monitorEl.style.setProperty('--mon-top', Math.min(20, window.innerHeight - monitorEl.offsetHeight - 20) + 'px');
   }
 
@@ -7743,8 +8546,930 @@ globalThis.CHIP8_ARCHIVE = {
     monBody.hidden = !mon.open;
     monToggle.setAttribute('aria-expanded', mon.open ? 'true' : 'false');
     monToggleLabel.textContent = mon.open ? 'Ocultar' : 'Mostrar';
-    if (mon.open) updateMonitor(true);
+    if (mon.open) {
+      fitMonitor();
+      updateMonitor(true);
+    }
     if (!quiet) saveSettings();
+  }
+
+  // ------------------------------------------------------------------ depurador: desensamblado y puntos de corte
+  // El desensamblado recorre la memoria entera de a palabras de 2 bytes, con la paridad del PC (un salto a una
+  // dirección impar corre las filas). Sigue al PC (dis.follow) hasta que la persona lo mueve (rueda, arrastre,
+  // flechas, «Ir a», el mapa o la traza); «Al PC», Inicio, un paso, una pausa o una parada del depurador lo vuelven
+  // a enganchar. Con el mapa de accesos, una palabra que el programa solo leyó o escribió se muestra como datos
+  // (DB), el operando de un F000 NNNN ejecutado como tal, y lo que nunca se ejecutó va más tenue.
+  // La fila elegida (dis.sel, o la del PC si es -1) es a la que le actúan «Punto de corte» y «Hasta acá».
+  // disasmLabel(dirección) es el punto de extensión para las etiquetas de un programa (hoy no hay: null).
+  var A = Core.ACCESS;
+  var dis = { list: null, parity: 0, follow: true, sel: -1, jumpKey: -1, lastInstr: 0 };
+  var dbg = {
+    run: null,      // 'over', 'out' o 'here' mientras la máquina corre hacia el objetivo de runTo
+    rom: null, saved: {},   // el SHA-1 de la ROM de los puntos de corte puestos y los de las otras ROMs (por la sesión)
+    bpCount: 0, bpVersion: 0, bpShown: -1
+  };
+  var disBpBtn = $('dis-bp'), disFollowBtn = $('dis-follow'), bpList = $('bp-list'), bpEmpty = $('bp-empty');
+  var traceNote = $('trace-note'), monTraceLink = $('mon-trace-link');
+  var mapPageSel = $('map-page'), mapInfoEl = $('map-info'), mapPcEl = $('map-pc'), mapIEl = $('map-i');
+  var memTitle = $('mem-title'), memFollowBtn = $('mem-follow'), regionsEmpty = $('regions-empty');
+  var sprCanvas = $('spr-canvas'), sprHeightSel = $('spr-height'), sprPlanesSel = $('spr-planes'), sprPlanesField = $('spr-planes-field');
+  var sprInfo = $('spr-info'), sprFollowBtn = $('spr-follow'), sprBytes = $('spr-bytes'), drawsNote = $('draws-note');
+  // ¿Está detenida en un punto de corte? (cpu.debugStop lo borran el núcleo al seguir, al reiniciar y al cargar un estado.)
+  function atBreakpoint() {
+    var s = cpu.debugStop;
+    return !!s && s.kind === 'breakpoint' && s.addr === (cpu.pc & memMask());
+  }
+  function disasmLabel() { return null; }
+  function memMask() { return cpu.memory.length - 1; }
+  function addrText(a) { return '0x' + hex(a, addrDigits); }
+  function wordAt(a) {
+    var mem = cpu.memory, m = mem.length - 1;
+    return (mem[a & m] << 8) | mem[(a + 1) & m];
+  }
+  // El texto de la instrucción de una dirección, como la ve la máquina ahora (F000 NNNN con su operando en XO-CHIP).
+  function insnText(a) {
+    var op = wordAt(a);
+    if (op === 0xF000 && cpu.platform === 'xochip') return Core.disassemble(op, cpu.quirks, cpu.platform, wordAt(a + 2));
+    return Core.disassemble(op, cpu.quirks, cpu.platform);
+  }
+  // Qué es la palabra de una dirección según el mapa de accesos: 'code' (se ejecutó), 'operand' (NNNN de un F000
+  // ejecutado), 'data' (se leyó o se escribió y nunca se ejecutó) o 'cold' (no se tocó: puede ser código).
+  function wordKind(a) {
+    var acc = cpu.access, m = memMask(), v = acc[a & m];
+    if (v & A.EXEC) return 'code';
+    if (v & A.OPERAND) return 'operand';
+    if ((v | acc[(a + 1) & m]) & (A.READ | A.WRITE)) return 'data';
+    return 'cold';
+  }
+  function disRowAddr(i) { return (dis.parity + 2 * i) & memMask(); }
+  // Cuántas filas quedan arriba del PC al acomodar la lista (DISASM_BEFORE, o menos si la lista es corta).
+  function disBefore() { return Math.min(DISASM_BEFORE, Math.floor(dis.list.rows / 3)); }
+  function disRowOf(a) { return (a - dis.parity) >> 1; }
+  function disSelAddr() { return dis.sel >= 0 ? dis.sel : cpu.pc & memMask(); }
+  // Las filas pasan a la otra paridad (una dirección impar): la elegida y el scroll se mantienen en su lugar.
+  function setDisParity(p) {
+    if (p === dis.parity) return;
+    dis.parity = p;
+    dis.list.pool.forEach(function (li) { li.__key = null; });
+  }
+
+  function buildDisasm() {
+    dis.list = makeList($('dis-view'), {
+      rows: DISASM_ROWS, min: 8, max: 26,
+      count: function () { return cpu.memory.length >> 1; },
+      create: function (li) {
+        li.__mark = make('span', 'd-mark');
+        li.__mark.title = 'Poner o sacar un punto de corte';
+        li.__addr = make('span', 'd-addr');
+        li.__op = make('span', 'd-op');
+        li.__text = make('span', 'd-text');
+        li.__sr = make('span', 'visually-hidden');
+        li.appendChild(li.__mark);
+        li.appendChild(li.__addr);
+        li.appendChild(li.__op);
+        li.appendChild(li.__text);
+        li.appendChild(li.__sr);
+      },
+      paint: paintDisRow,
+      select: function (i) { dis.sel = disRowAddr(i); syncDisTools(); },
+      click: function (i, e) {
+        if (e.target && e.target.closest && e.target.closest('.d-mark')) toggleBreakpoint(disRowAddr(i));
+      },
+      activate: function (i) { toggleBreakpoint(disRowAddr(i)); },
+      moved: function () { dis.follow = false; syncDisTools(); },
+      home: function () { disFollowPc(); },
+      // La pila, al lado, no pasa del alto del desensamblado (si no, el monitor no se achicaría con la ventana).
+      onRows: function (rows) { $('stack').style.maxHeight = rows * MON_ROW + 'px'; }
+    });
+    $('stack').style.maxHeight = DISASM_ROWS * MON_ROW + 'px';
+    $('dis-follow').addEventListener('click', function () { disFollowPc(); });
+    $('dis-bp').addEventListener('click', function () { toggleBreakpoint(disSelAddr()); });
+    $('dis-here').addEventListener('click', function () { runToAddress(disSelAddr()); });
+    bindGoto($('dis-goto'), $('dis-goto-msg'), function (a, byKey) { showInDisasm(a, byKey); });
+  }
+
+  function paintDisRow(li, i) {
+    var m = memMask(), a = disRowAddr(i), op = wordAt(a), kind = wordKind(a);
+    var nw = op === 0xF000 && cpu.platform === 'xochip' && kind !== 'data' && kind !== 'operand' ? wordAt(a + 2) : -1;
+    var pc = cpu.pc & m, isPc = a === pc, bp = cpu.hasBreakpoint(a), label = disasmLabel(a);
+    if (li.__key !== a || li.__o !== op || li.__k !== kind || li.__nw !== nw || li.__jk !== dis.jumpKey || li.__lb !== label) {
+      li.__key = a;
+      li.__o = op;
+      li.__k = kind;
+      li.__nw = nw;
+      li.__jk = dis.jumpKey;
+      li.__lb = label;
+      li.__addr.textContent = addrText(a);
+      li.__op.textContent = hex(op, 4);
+      var text = kind === 'data' ? 'DB 0x' + HEX2[op >> 8] + ', 0x' + HEX2[op & 0xFF]
+        : kind === 'operand' ? '(operando)'
+        : nw >= 0 ? Core.disassemble(op, cpu.quirks, cpu.platform, nw) : Core.disassemble(op, cpu.quirks, cpu.platform);
+      li.__text.textContent = label ? label + ': ' + text : text;
+      li.title = kind === 'data' ? 'Datos: el programa los leyó o los escribió, pero nunca los ejecutó'
+        : kind === 'operand' ? 'La dirección de 16 bits de LD I, LONG (F000 NNNN)'
+        : nw >= 0 ? 'Instrucción de 4 bytes: F000 ' + hex(nw, 4)
+        : kind === 'cold' ? 'Todavía no se ejecutó' : '';
+      setClass(li, 'is-data', kind === 'data');
+      setClass(li, 'is-operand', kind === 'operand');
+      setClass(li, 'is-cold', kind === 'cold');
+    }
+    setClass(li, 'is-pc', isPc);
+    setClass(li, 'is-bp', bp);
+    if (li.__cur !== isPc) {
+      li.__cur = isPc;
+      if (isPc) li.setAttribute('aria-current', 'true'); else li.removeAttribute('aria-current');
+    }
+    var sr = (bp ? ', punto de corte' : '') + (isPc ? ', próxima instrucción (PC)' : '');
+    if (li.__srt !== sr) { li.__srt = sr; li.__sr.textContent = sr; }
+  }
+
+  // El desensamblado sigue al PC: mientras el PC se ve (sin pegarse a los bordes) la lista queda quieta; si se va,
+  // la lista lo deja en la fila DISASM_BEFORE + 1.
+  function updateDisasm(force) {
+    var list = dis.list, m = memMask(), pc = cpu.pc & m;
+    var jk = platformLevel(cpu.platform) * 2 + (cpu.quirks.jumping ? 1 : 0);
+    if (jk !== dis.jumpKey) { dis.jumpKey = jk; force = true; }
+    if (state.instr < dis.lastInstr) disFollowPc(true);   // la máquina volvió a empezar
+    dis.lastInstr = state.instr;
+    if (dis.follow) {
+      setDisParity(pc & 1);
+      var row = disRowOf(pc), first = Math.round(list.top / list.rowH);
+      if (force || row < first + 1 || row > first + list.rows - 3) scrollListTo(list, row - disBefore());
+    }
+    list.sel = dis.sel >= 0 ? ((dis.sel & 1) === dis.parity ? disRowOf(dis.sel) : -1) : ((pc & 1) === dis.parity ? disRowOf(pc) : -1);
+    paintList(list, force);
+    syncDisTools();
+  }
+  // Vuelve a seguir al PC y a elegir su fila.
+  function disFollowPc(quiet) {
+    dis.follow = true;
+    dis.sel = -1;
+    if (!quiet && mon.tab === 'codigo') updateDisasm(true);
+  }
+  // Muestra una dirección en el desensamblado (pasa a «Código»), elegida y sin seguir al PC.
+  function showInDisasm(a, focus) {
+    a &= memMask();
+    if (mon.tab !== 'codigo') showTab('codigo');
+    setDisParity(a & 1);
+    dis.follow = false;
+    dis.sel = a;
+    dis.list.sel = disRowOf(a);
+    if (!revealListRow(dis.list, dis.list.sel)) paintList(dis.list, false);
+    else scrollListTo(dis.list, dis.list.sel - disBefore());
+    updateMonitor(true);
+    if (focus) dis.list.view.focus();
+  }
+  // Los botones de la línea elegida: «Punto de corte» dice si ya tiene uno; «Al PC», si hay a dónde volver.
+  function syncDisTools() {
+    var on = cpu.hasBreakpoint(disSelAddr());
+    if (disBpBtn.__p !== on) { disBpBtn.__p = on; disBpBtn.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+    var at = !dis.follow || dis.sel >= 0;
+    if (disFollowBtn.__on !== at) { disFollowBtn.__on = at; disFollowBtn.classList.toggle('is-lit', at); }
+  }
+
+  // «Ir a»: una dirección hexadecimal (200, 0x200, $200 o #200) dentro de la memoria; si no, avisa abajo del campo.
+  function parseAddr(text) {
+    var t = String(text).trim().replace(/^(0x|\$|#)/i, '');
+    if (!/^[0-9a-f]{1,4}$/i.test(t)) return -1;
+    var a = parseInt(t, 16);
+    return a <= memMask() ? a : -1;
+  }
+  function bindGoto(input, msg, go) {
+    function setError(text) {
+      input.setAttribute('aria-invalid', text ? 'true' : 'false');
+      msg.textContent = text || '';
+      msg.hidden = !text;
+    }
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { setError(''); input.value = ''; return; }
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      var a = parseAddr(input.value);
+      if (a < 0) {
+        setError('Escribí una dirección en hexadecimal, de ' + hex(0, addrDigits) + ' a ' + hex(memMask(), addrDigits) + '.');
+        return;
+      }
+      setError('');
+      input.value = '';
+      go(a, true);
+    });
+    input.addEventListener('input', function () { if (input.getAttribute('aria-invalid') === 'true') setError(''); });
+  }
+
+  // Pone o saca un punto de corte y lo anuncia.
+  function toggleBreakpoint(a, quiet) {
+    a &= memMask();
+    var on = cpu.setBreakpoint(a, !cpu.hasBreakpoint(a));
+    dbg.bpCount += on ? 1 : -1;
+    dbg.bpVersion++;
+    if (mon.tab === 'codigo') updateMonitor(true);
+    updateTransport();   // con puntos de corte, Continuar dice que sigue hasta el próximo
+    if (!quiet) announce((on ? 'Punto de corte en ' : 'Saqué el punto de corte de ') + addrText(a) + ' («' + insnText(a) + '»).');
+    return on;
+  }
+  function clearAllBreakpoints(quiet) {
+    var n = cpu.breakpoints().length;
+    cpu.clearBreakpoints();
+    dbg.bpCount = 0;
+    dbg.bpVersion++;
+    if (mon.tab === 'codigo') updateMonitor(true);
+    updateTransport();
+    if (!quiet && n) announce(n === 1 ? 'Saqué el punto de corte.' : 'Saqué los ' + n + ' puntos de corte.');
+    return n;
+  }
+  // La lista de los puntos de corte: cada uno lleva al desensamblado y su × lo saca. Se rearma solo si cambió lo que
+  // dice (así un botón enfocado no pierde el foco). Si el foco del teclado estaba en uno de sus botones, pasa al mismo
+  // botón de la misma fila (o de la anterior, si esa se fue); si ya no queda ninguno, a «Punto de corte».
+  function renderBreakpoints() {
+    dbg.bpShown = dbg.bpVersion;
+    var addrs = cpu.breakpoints();
+    var texts = addrs.map(function (a) { return addrText(a) + ' ' + insnText(a); });
+    var sig = texts.join('|');
+    if (bpList.__sig === sig) return;
+    bpList.__sig = sig;
+    var ae = document.activeElement, focusAt = -1, focusKind = '';
+    if (ae && bpList.contains(ae) && focusVisible(ae)) {
+      focusAt = Number(ae.getAttribute('data-i'));
+      focusKind = ae.className;
+    }
+    bpList.textContent = '';
+    addrs.forEach(function (a, i) {
+      var li = make('li');
+      var go = make('button', 'bp-go', texts[i]);
+      go.type = 'button';
+      go.setAttribute('data-i', String(i));
+      go.title = 'Mostrar en el desensamblado';
+      go.addEventListener('click', function (e) { showInDisasm(a, e.detail === 0); });
+      var del = make('button', 'bp-del', '×');
+      del.type = 'button';
+      del.setAttribute('data-i', String(i));
+      del.setAttribute('aria-label', 'Sacar el punto de corte de ' + addrText(a));
+      del.title = 'Sacar este punto de corte';
+      del.addEventListener('click', function () { toggleBreakpoint(a); });
+      li.appendChild(go);
+      li.appendChild(del);
+      bpList.appendChild(li);
+    });
+    if (addrs.length > 1) {
+      var li = make('li', 'bp-all');
+      var all = make('button', 'bp-go', 'Sacar todos');
+      all.type = 'button';
+      all.addEventListener('click', function () { clearAllBreakpoints(); });
+      li.appendChild(all);
+      bpList.appendChild(li);
+    }
+    bpList.hidden = !addrs.length;
+    bpEmpty.hidden = !!addrs.length;
+    if (focusKind) {
+      var same = bpList.querySelectorAll('li:not(.bp-all) .' + (focusKind === 'bp-del' ? 'bp-del' : 'bp-go'));
+      var next = same.length ? same[Math.min(isFinite(focusAt) ? focusAt : 0, same.length - 1)] : null;
+      (next || disBpBtn).focus();
+    }
+  }
+
+  // Los puntos de corte son del cartucho de la ranura: al cargar otra ROM, los de la anterior se guardan (en memoria,
+  // por la sesión, por el SHA-1 de sus bytes) y vuelven los que tenía la nueva. Las vistas vuelven a seguir al PC y a I.
+  // Se llama desde loadRomBytes, antes del primer frame.
+  function debugCartridgeLoaded() {
+    var sha = Core.sha1(cpu.rom);
+    if (sha !== dbg.rom) {
+      if (dbg.rom) {
+        var list = cpu.breakpoints();
+        if (list.length) dbg.saved[dbg.rom] = list; else delete dbg.saved[dbg.rom];
+      }
+      cpu.clearBreakpoints();
+      (dbg.saved[sha] || []).forEach(function (a) { if (a <= memMask()) cpu.setBreakpoint(a); });
+      dbg.rom = sha;
+      dbg.bpCount = cpu.breakpoints().length;
+      dbg.bpVersion++;
+    }
+    dbg.run = null;
+    disFollowPc(true);
+    memv.follow = true;
+    memv.target = -1;
+    spr.follow = true;
+    spr.pick = null;
+    map.page = -1;
+    map.hover = -1;
+    mapInfo(-1);
+  }
+
+  // ------------------------------------------------------------------ depurador: traza
+  // Las últimas Core.TRACE_SIZE instrucciones de la traza del núcleo, de la más vieja a la más nueva, se muestran con
+  // la máquina en pausa o detenida (corriendo cambiarían 60 veces por segundo). Los bucles se agrupan: un bloque de
+  // hasta TRACE_LOOP_MAX instrucciones que se repite seguido se muestra una vez, con «×N». Después de un error, la
+  // última es la culpable; si no, al final va la próxima (la del PC). Enter o un clic la llevan al desensamblado.
+  var TRACE_LOOP_MAX = 32;   // el bucle más largo que se agrupa (el de un juego entero suele tener de 20 a 30)
+  var trace = { list: null, items: [], stamp: '' };
+  function buildTrace() {
+    trace.list = makeList($('trace-view'), {
+      rows: 16, min: 8, max: 34,
+      count: function () { return trace.items.length; },
+      create: function (li) {
+        li.__addr = make('span', 'd-addr');
+        li.__op = make('span', 'd-op');
+        li.__text = make('span', 'd-text');
+        li.__rep = make('span', 't-rep');
+        li.appendChild(li.__addr);
+        li.appendChild(li.__op);
+        li.appendChild(li.__text);
+        li.appendChild(li.__rep);
+      },
+      paint: paintTraceRow,
+      activate: function (i, byKey) {
+        var it = trace.items[i];
+        if (it) showInDisasm(it.addr, byKey);
+      }
+    });
+  }
+  // Agrupa los bucles: en cada posición, el bloque de 1 a TRACE_LOOP_MAX instrucciones que más instrucciones cubre
+  // repitiéndose seguido (al menos dos veces). Devuelve las filas: { addr, opcode, reps (0 o N), loop: '' | 'one' |
+  // 'first' | 'mid' | 'last' } (one: un bloque de una sola instrucción).
+  function groupTrace(raw) {
+    var out = [], n = raw.length, i = 0;
+    function same(a, b) { return raw[a].addr === raw[b].addr && raw[a].opcode === raw[b].opcode; }
+    while (i < n) {
+      var bestP = 0, bestK = 0;
+      for (var p = 1; p <= TRACE_LOOP_MAX && i + 2 * p <= n; p++) {
+        var k = 1;
+        for (;;) {
+          var b = i + k * p, j = 0;
+          if (b + p > n) break;
+          while (j < p && same(i + j, b + j)) j++;
+          if (j < p) break;
+          k++;
+        }
+        if (k >= 2 && k * p > bestK * bestP) { bestP = p; bestK = k; }
+      }
+      if (bestK) {
+        for (var q = 0; q < bestP; q++) {
+          out.push({ addr: raw[i + q].addr, opcode: raw[i + q].opcode, reps: q === 0 ? bestK : 0,
+            loop: bestP === 1 ? 'one' : q === 0 ? 'first' : q === bestP - 1 ? 'last' : 'mid' });
+        }
+        i += bestP * bestK;
+      } else {
+        out.push({ addr: raw[i].addr, opcode: raw[i].opcode, reps: 0, loop: '' });
+        i++;
+      }
+    }
+    return out;
+  }
+  function updateTrace(force) {
+    var running = isRunning() && !rewind.active;
+    var stamp = running ? 'corriendo' : state.instr + ':' + cpu.pc + ':' + cpu.traceLength() + ':' + cpu.halted + ':' + addrDigits + ':' + dis.jumpKey;
+    if (!force && stamp === trace.stamp) return;
+    trace.stamp = stamp;
+    if (running) {
+      trace.items = [];
+      setText(traceNote, 'Corriendo: pausá (Espacio) para ver las últimas instrucciones.');
+      trace.list.view.hidden = true;
+      return;
+    }
+    var raw = cpu.trace();
+    trace.items = groupTrace(raw);
+    var info = cpu.halted && !cpu.exited ? cpu.errorInfo : null;
+    if (trace.items.length) {
+      var last = trace.items[trace.items.length - 1];
+      last.mark = info && last.addr === info.addr ? 'err' : 'last';
+    }
+    if (state.romLoaded && !cpu.halted) trace.items.push({ addr: cpu.pc & memMask(), opcode: wordAt(cpu.pc), reps: 0, loop: '', mark: 'next' });
+    var count = raw.length;
+    setText(traceNote, !count ? 'Todavía no se ejecutó nada desde que la máquina empezó, se cargó un estado o se rebobinó.'
+      : formatInt(count) + (count === 1 ? ' instrucción' : ' instrucciones') + ', de la más vieja a la más nueva' +
+        (trace.items.length < count ? '; los bucles van agrupados (×N: las veces seguidas)' : '') +
+        (info ? '. La última detuvo la máquina.' : '.'));
+    trace.list.view.hidden = !trace.items.length;
+    trace.list.sel = -1;
+    trace.list.total = -1;
+    scrollListTo(trace.list, trace.items.length);   // al final: lo más nuevo
+    paintList(trace.list, true);
+  }
+  function paintTraceRow(li, i) {
+    var it = trace.items[i];
+    if (!it || li.__key === it) return;
+    li.__key = it;
+    li.__addr.textContent = addrText(it.addr);
+    li.__op.textContent = hex(it.opcode, 4);
+    var text = it.opcode === 0xF000 && cpu.platform === 'xochip' ? Core.disassemble(it.opcode, cpu.quirks, cpu.platform, wordAt(it.addr + 2))
+      : Core.disassemble(it.opcode, cpu.quirks, cpu.platform);
+    li.__text.textContent = text;
+    li.__rep.textContent = it.reps ? '×' + formatInt(it.reps) : it.mark === 'next' ? 'PC' : it.mark === 'err' ? 'error' : '';
+    setClass(li, 'is-loop', !!it.loop);
+    ['one', 'first', 'mid', 'last'].forEach(function (k) { setClass(li, 'is-loop-' + k, it.loop === k); });
+    setClass(li, 'is-last', it.mark === 'last');
+    setClass(li, 'is-err', it.mark === 'err');
+    setClass(li, 'is-next', it.mark === 'next');
+    li.title = it.reps ? 'Este bloque se ejecutó ' + it.reps + ' veces seguidas' : it.mark === 'next' ? 'La próxima instrucción (todavía no se ejecutó)'
+      : it.mark === 'err' ? 'Esta instrucción detuvo la máquina' : '';
+    li.setAttribute('aria-label', addrText(it.addr) + ', ' + text + (it.reps ? ', se repite ' + it.reps + ' veces' : '') +
+      (it.mark === 'next' ? ', la próxima' : it.mark === 'err' ? ', detuvo la máquina' : it.mark === 'last' ? ', la última' : ''));
+  }
+
+  // ------------------------------------------------------------------ depurador: mapa y memoria
+  // El mapa pinta cada byte de una página de 4 KB (la memoria entera en CHIP-8 y SUPER-CHIP; en XO-CHIP se elige la
+  // página, y una tira encima resume las 16) con su clase según el mapa de accesos del núcleo, en este orden de
+  // prioridad: código (se ejecutó), escrito, fuente, leído, ROM sin tocar y sin tocar. El PC y la I van marcados.
+  // Tocar una celda lleva el código al desensamblado y lo demás al volcado de MEMORIA, que sigue a I hasta que se
+  // elige otra dirección. REGIONES lista los tramos seguidos de una misma clase (también es la forma de recorrer el
+  // mapa con el teclado). Corriendo, el mapa se vuelve a pintar como mucho cada MAP_REDRAW_MS; en pausa, si cambió.
+  var MAP_REDRAW_MS = 100, STRIP_REDRAW_MS = 500;
+  var CAT = { EMPTY: 0, ROM: 1, FONT: 2, READ: 3, WRITE: 4, CODE: 5 };
+  var CAT_INFO = [   // nombre, clase de CSS y color de cada clase (los mismos que el CSS de .c-*)
+    { name: 'sin tocar', css: 'c-empty', rgb: [18, 42, 28] },
+    { name: 'ROM sin tocar', css: 'c-rom', rgb: [46, 104, 68] },
+    { name: 'fuente', css: 'c-font', rgb: [150, 168, 255] },
+    { name: 'leído', css: 'c-read', rgb: [255, 212, 121] },
+    { name: 'escrito', css: 'c-write', rgb: [255, 128, 96] },
+    { name: 'código', css: 'c-code', rgb: [125, 255, 154] }
+  ];
+  var LEGEND_ORDER = [CAT.CODE, CAT.READ, CAT.WRITE, CAT.FONT, CAT.ROM, CAT.EMPTY];
+  var map = { page: -1, pages: 0, cell: 5, ctx: null, img: null, px: null, pix: [], stamp: '', drawnAt: 0,
+    stripCtx: null, stripImg: null, stripPx: null, stripAt: 0, hover: -1 };
+  var memv = { list: null, follow: true, target: -1 };
+  var regions = { list: null, items: [] };
+
+  function fontEnd() {
+    return cpu.platform === 'chip8' ? Core.FONT_ADDR + Core.FONT.length : Core.BIG_FONT_ADDR + Core.BIG_FONT.length;
+  }
+  // La clase de un byte (CAT). El segundo byte de una instrucción ejecutada también es código.
+  function byteCat(a) {
+    var acc = cpu.access, m = memMask(), v = acc[a & m];
+    if ((v & (A.EXEC | A.OPERAND)) || (acc[(a - 1) & m] & A.EXEC)) return CAT.CODE;
+    if (v & A.WRITE) return CAT.WRITE;
+    if (a >= Core.FONT_ADDR && a < fontEnd()) return CAT.FONT;
+    if (v & A.READ) return CAT.READ;
+    if (a >= Core.PROGRAM_START && a < Core.PROGRAM_START + cpu.rom.length) return CAT.ROM;
+    return CAT.EMPTY;
+  }
+  // La instrucción que contiene un byte de código (para mostrarla en el desensamblado).
+  function codeStart(a) {
+    var acc = cpu.access, m = memMask();
+    if (acc[a] & A.EXEC) return a;
+    if (acc[(a - 1) & m] & A.EXEC) return (a - 1) & m;
+    if (acc[a] & A.OPERAND) return acc[(a - 2) & m] & A.EXEC ? (a - 2) & m : (a - 3) & m;
+    return a;
+  }
+  // Lleva una dirección a donde se entiende: el código al desensamblado y lo demás a la memoria.
+  function goAddress(a, focus) {
+    if (byteCat(a) === CAT.CODE) showInDisasm(codeStart(a), focus);
+    else showInMemory(a, focus);
+  }
+
+  function buildMemory() {
+    var canvas = $('map');
+    map.ctx = canvas.getContext('2d');
+    map.img = map.ctx.createImageData(64, 64);
+    map.px = new Uint32Array(map.img.data.buffer);
+    map.pix = CAT_INFO.map(function (c) { return packColor(c.rgb[0], c.rgb[1], c.rgb[2]); });
+    var strip = $('map-strip');
+    map.stripCtx = strip.getContext('2d');
+    map.stripImg = map.stripCtx.createImageData(256, 16);
+    map.stripPx = new Uint32Array(map.stripImg.data.buffer);
+    var legend = $('map-legend');
+    LEGEND_ORDER.forEach(function (c) {
+      var li = make('li');
+      li.appendChild(make('i', 'reg-sw ' + CAT_INFO[c].css));
+      li.appendChild(document.createTextNode(CAT_INFO[c].name));
+      legend.appendChild(li);
+    });
+    [['map-key-pc', 'PC'], ['map-key-i', 'I']].forEach(function (k) {
+      var li = make('li');
+      li.appendChild(make('i', 'reg-sw ' + k[0]));
+      li.appendChild(document.createTextNode(k[1]));
+      legend.appendChild(li);
+    });
+    canvas.addEventListener('click', function (e) {
+      var a = mapAddrAt(e);
+      if (a >= 0) goAddress(a, false);
+    });
+    canvas.addEventListener('pointermove', function (e) {
+      if (e.pointerType !== 'mouse') return;
+      var a = mapAddrAt(e);
+      if (a !== map.hover) { map.hover = a; mapInfo(a); }
+    });
+    canvas.addEventListener('pointerleave', function () { map.hover = -1; mapInfo(-1); });
+    strip.addEventListener('click', function (e) {
+      var r = strip.getBoundingClientRect();
+      setMapPage(Math.floor((e.clientX - r.left) / r.width * 16));
+    });
+    mapPageSel.addEventListener('change', function () { setMapPage(Number(mapPageSel.value)); });
+    returnFocusAfterChange(mapPageSel);
+
+    memv.list = makeList($('mem-view'), {
+      rows: 8, min: 4, max: 16,
+      count: function () { return cpu.memory.length >> 3; },
+      create: function (li) {
+        li.className = 'mrow';
+        li.__addr = make('span', 'm-addr');
+        li.appendChild(li.__addr);
+        li.__cells = [];
+        for (var c = 0; c < 8; c++) {
+          var b = make('span', 'm-b');
+          b.__cat = -1;
+          li.appendChild(b);
+          li.__cells.push(b);
+        }
+      },
+      paint: paintMemRow,
+      moved: function () {
+        if (memv.follow) { memv.follow = false; memv.target = -1; }
+      }
+    });
+    regions.list = makeList($('regions-view'), {
+      rows: 5,
+      count: function () { return regions.items.length; },
+      create: function (li) {
+        li.__sw = make('i', 'reg-sw');
+        li.__range = make('span', 'r-range');
+        li.__name = make('span', 'r-name');
+        li.__bytes = make('span', 'r-size');
+        li.appendChild(li.__sw);
+        li.appendChild(li.__range);
+        li.appendChild(li.__name);
+        li.appendChild(li.__bytes);
+      },
+      paint: paintRegionRow,
+      activate: function (i, byKey) {
+        var r = regions.items[i];
+        if (r) goAddress(r.start, byKey);
+      }
+    });
+    bindGoto($('mem-goto'), $('mem-goto-msg'), function (a, byKey) { showInMemory(a, byKey); });
+    $('mem-follow').addEventListener('click', function () {
+      memv.follow = true;
+      memv.target = -1;
+      updateMonitor(true);
+    });
+  }
+
+  function mapAddrAt(e) {
+    var r = $('map').getBoundingClientRect();
+    var col = Math.floor((e.clientX - r.left) / r.width * 64), row = Math.floor((e.clientY - r.top) / r.height * 64);
+    if (col < 0 || col > 63 || row < 0 || row > 63 || map.page < 0) return -1;
+    return (map.page << 12) + row * 64 + col;
+  }
+  var MAP_INFO = 'Tocá una celda: el código va al desensamblado y lo demás, a la memoria.';
+  function mapInfo(a) {
+    setText(mapInfoEl, a < 0 ? MAP_INFO : addrText(a) + ' · ' + CAT_INFO[byteCat(a)].name + ' · 0x' + HEX2[cpu.memory[a]] +
+      (a === (cpu.pc & memMask()) ? ' · PC' : '') + (a === (cpu.I & memMask()) ? ' · I' : ''));
+  }
+  function setMapPage(p) {
+    p = clamp(p | 0, 0, Math.max(0, (cpu.memory.length >> 12) - 1));
+    if (p === map.page) return;
+    map.page = p;
+    map.stamp = '';
+    updateMonitor(true);
+  }
+  // El tamaño de las celdas del mapa: de 3 a 6 px, lo que entre en el ancho del monitor.
+  function sizeMap() {
+    var w = mon.panels.memoria.clientWidth;
+    if (!w) return;
+    var cell = clamp(Math.floor(w / 64), 3, 6);
+    if (cell === map.cell && $('map').style.width) return;
+    map.cell = cell;
+    var box = $('map-box');
+    box.style.setProperty('--cell', cell + 'px');
+    $('map').style.width = $('map').style.height = 64 * cell + 'px';
+    map.stamp = '';
+  }
+
+  function updateMemoryTab(force) {
+    var m = memMask(), pages = cpu.memory.length >> 12, xo = pages > 1, now = performance.now();
+    if (pages !== map.pages) {
+      map.pages = pages;
+      mapPageSel.textContent = '';
+      for (var p = 0; p < pages; p++) {
+        var o = make('option', null, '0x' + hex(p << 12, 4) + '–0x' + hex((p << 12) + 0xFFF, 4));
+        o.value = String(p);
+        mapPageSel.appendChild(o);
+      }
+      mapPageSel.hidden = !xo;
+      $('map-strip-box').hidden = !xo;
+      map.page = -1;
+      force = true;
+    }
+    if (map.page < 0 || map.page >= pages) map.page = xo ? (cpu.pc & m) >> 12 : 0;
+    if (mapPageSel.value !== String(map.page)) mapPageSel.value = String(map.page);
+    var running = isRunning() && !rewind.active;
+    var stamp = map.page + ':' + state.instr + ':' + cpu.platform + ':' + cpu.rom.length + ':' + map.cell;
+    if (force || (stamp !== map.stamp && (!running || now - map.drawnAt >= MAP_REDRAW_MS))) {
+      map.stamp = stamp;
+      map.drawnAt = now;
+      drawMap();
+      if (xo && (force || !running || now - map.stripAt >= STRIP_REDRAW_MS)) {
+        map.stripAt = now;
+        drawStrip();
+      }
+    }
+    // Las marcas del PC y de I, en cada actualización.
+    placeMark(mapPcEl, cpu.pc & m, 2);
+    placeMark(mapIEl, cpu.I & m, 1);
+    if (map.hover >= 0) mapInfo(map.hover);
+    // El volcado: sigue a I (en la segunda fila) mientras I se ve; si no, a la dirección elegida.
+    var list = memv.list;
+    if (memv.follow) {
+      var row = (cpu.I & m) >> 3, first = Math.round(list.top / list.rowH);
+      if (force || row < first + 1 || row > first + list.rows - 2) scrollListTo(list, row - 1);
+    }
+    list.sel = memv.follow ? (cpu.I & m) >> 3 : memv.target >= 0 ? memv.target >> 3 : -1;
+    paintList(list, force);
+    setText(memTitle, memv.follow ? 'MEMORIA EN I' : 'MEMORIA EN ' + addrText(memv.target >= 0 ? memv.target : list.first << 3));
+    if (memFollowBtn.__on !== !memv.follow) { memFollowBtn.__on = !memv.follow; memFollowBtn.classList.toggle('is-lit', !memv.follow); }
+  }
+
+  // Pinta la página del mapa y arma la lista de REGIONES (los tramos de una misma clase; lo vacío no se lista).
+  function drawMap() {
+    var base = map.page << 12, px = map.px, pix = map.pix, items = [], start = -1, cur = -1;
+    for (var k = 0; k < 4096; k++) {
+      var c = byteCat(base + k);
+      px[k] = pix[c];
+      if (c !== cur) {
+        if (cur > CAT.EMPTY) items.push({ start: base + start, end: base + k - 1, cat: cur });
+        cur = c;
+        start = k;
+      }
+    }
+    if (cur > CAT.EMPTY) items.push({ start: base + start, end: base + 4095, cat: cur });
+    map.ctx.putImageData(map.img, 0, 0);
+    regions.items = items;
+    paintList(regions.list, true);
+    var empty = !items.length;
+    regions.list.view.hidden = empty;
+    regionsEmpty.hidden = !empty;
+  }
+  // La tira de XO-CHIP: las 16 páginas, cada una de 16 × 16 puntos de 16 bytes (la clase más importante de ellos).
+  function drawStrip() {
+    var px = map.stripPx, pix = map.pix;
+    for (var p = 0; p < 16; p++) {
+      for (var b = 0; b < 256; b++) {
+        var base = (p << 12) + (b << 4), c = 0;
+        for (var j = 0; j < 16 && c < CAT.CODE; j++) { var cj = byteCat(base + j); if (cj > c) c = cj; }
+        px[(b >> 4) * 256 + p * 16 + (b & 15)] = pix[c];
+      }
+    }
+    map.stripCtx.putImageData(map.stripImg, 0, 0);
+    $('map-strip-sel').style.left = (map.page / 16 * 100) + '%';
+  }
+  function placeMark(el, a, width) {
+    var on = map.page >= 0 && (a >> 12) === map.page, key = on ? a + ':' + map.cell : '';
+    if (el.__k === key) return;
+    el.__k = key;
+    el.hidden = !on;
+    if (!on) return;
+    var col = a & 63, row = (a >> 6) & 63, cell = map.cell;
+    el.style.left = col * cell + 'px';
+    el.style.top = row * cell + 'px';
+    el.style.width = Math.min(width, 64 - col) * cell + 'px';
+    el.style.height = cell + 'px';
+  }
+
+  // Muestra una dirección en el volcado de MEMORIA (pasa a «Memoria»), sin seguir a I.
+  function showInMemory(a, focus) {
+    a &= memMask();
+    if (mon.tab !== 'memoria') showTab('memoria');
+    memv.follow = false;
+    memv.target = a;
+    if ((a >> 12) !== map.page) setMapPage(a >> 12);
+    var row = a >> 3;
+    memv.list.sel = row;
+    if (revealListRow(memv.list, row)) scrollListTo(memv.list, row - 1);
+    updateMonitor(true);
+    mapInfo(a);
+    if (focus) memv.list.view.focus();
+  }
+
+  function paintMemRow(li, i) {
+    var base = i << 3, mem = cpu.memory, m = memMask(), iAddr = cpu.I & m, target = memv.follow ? -1 : memv.target;
+    var retitle = li.__key !== base;
+    if (retitle) { li.__key = base; li.__addr.textContent = addrText(base); }
+    for (var c = 0; c < 8; c++) {
+      var a = base + c, cell = li.__cells[c], v = mem[a], cat = byteCat(a);
+      if (cell.__v !== v) { cell.__v = v; cell.textContent = HEX2[v]; }
+      if (cell.__cat !== cat || retitle) {
+        if (cell.__cat >= 0) cell.classList.remove(CAT_INFO[cell.__cat].css);
+        cell.classList.add(CAT_INFO[cat].css);
+        cell.__cat = cat;
+        cell.title = addrText(a) + ': ' + CAT_INFO[cat].name;
+      }
+      setClass(cell, 'is-i', a === iAddr);
+      setClass(cell, 'is-target', a === target);
+    }
+  }
+  function paintRegionRow(li, i) {
+    var r = regions.items[i];
+    if (!r || li.__key === r) return;
+    li.__key = r;
+    li.__sw.className = 'reg-sw ' + CAT_INFO[r.cat].css;
+    li.__range.textContent = addrText(r.start) + '–' + addrText(r.end);
+    li.__name.textContent = CAT_INFO[r.cat].name;
+    var n = r.end - r.start + 1;
+    li.__bytes.textContent = formatInt(n) + (n === 1 ? ' byte' : ' bytes');
+  }
+
+  // ------------------------------------------------------------------ depurador: sprites
+  // El visor dibuja los bytes que apunta I como los dibujaría DXYN: 8 × N (un byte por fila) o, con N = 0 en
+  // SUPER-CHIP y XO-CHIP, 16 × 16 (dos bytes por fila), con el alto y los planos del último DXYN o los que se elijan;
+  // con los dos planos de XO-CHIP, el bloque del plano 2 sigue al del plano 1, como en DXYN. Al lado van las filas en
+  // hexadecimal y en bits. ÚLTIMOS DIBUJOS son los últimos DXYN del núcleo (cpu.spriteLog); elegir uno lo lleva al
+  // visor (con los bytes de ahora: si la memoria cambió, no es lo que se dibujó). Los colores son los de la paleta.
+  // Corriendo, se pone al día como mucho cada SPR_REDRAW_MS.
+  var SPR_REDRAW_MS = 250, SPR_BOX = 160;
+  var spr = { follow: true, addr: 0, pick: null, stamp: '', drawnAt: 0, ctx: null, platform: '' };
+  var draws = { list: null, items: [] };
+
+  function buildSprites() {
+    spr.ctx = sprCanvas.getContext('2d');
+    sprHeightSel.addEventListener('change', function () { updateMonitor(true); });
+    sprPlanesSel.addEventListener('change', function () { updateMonitor(true); });
+    returnFocusAfterChange(sprHeightSel);
+    returnFocusAfterChange(sprPlanesSel);
+    var planes = [['auto', 'Los de FN01'], ['1', 'Plano 1'], ['2', 'Plano 2'], ['3', 'Los dos']];
+    planes.forEach(function (p) {
+      var o = make('option', null, p[1]);
+      o.value = p[0];
+      sprPlanesSel.appendChild(o);
+    });
+    $('spr-follow').addEventListener('click', function () {
+      spr.follow = true;
+      spr.pick = null;
+      sprHeightSel.value = 'auto';
+      sprPlanesSel.value = 'auto';
+      updateMonitor(true);
+    });
+    draws.list = makeList($('draws-view'), {
+      rowH: 40, rows: 5, min: 2, max: 8,
+      count: function () { return draws.items.length; },
+      create: function (li) {
+        var well = make('span', 'dr-well');
+        li.__cv = make('canvas', 'dr-canvas');
+        li.__cv.width = 8;
+        li.__cv.height = 1;
+        well.appendChild(li.__cv);
+        var text = make('span', 'dr-text');
+        li.__l1 = make('span', 'dr-l1');
+        li.__l2 = make('span', 'dr-l2');
+        text.appendChild(li.__l1);
+        text.appendChild(li.__l2);
+        li.appendChild(well);
+        li.appendChild(text);
+      },
+      paint: paintDrawRow,
+      activate: function (i) {
+        var d = draws.items[i];
+        if (!d) return;
+        spr.follow = false;
+        spr.addr = d.addr;
+        spr.pick = d;
+        sprHeightSel.value = d.width === 16 ? '16' : String(d.height);
+        if (cpu.platform === 'xochip') sprPlanesSel.value = String(d.planes || 1);
+        updateMonitor(true);
+        announce('Visor de sprites: ' + spriteText(d.addr, d.width, d.height, d.planes) + '.');
+      }
+    });
+  }
+  // Las opciones del alto: «Del último DXYN», 8 × 1 a 8 × 15 y, en SUPER-CHIP y XO-CHIP, 16 × 16.
+  function fillHeightOptions() {
+    var keep = sprHeightSel.value || 'auto';
+    sprHeightSel.textContent = '';
+    var opts = [['auto', 'Del último DXYN']];
+    for (var n = 1; n <= 15; n++) opts.push([String(n), '8 × ' + n]);
+    if (cpu.platform !== 'chip8') opts.push(['16', '16 × 16']);
+    opts.forEach(function (o) {
+      var el = make('option', null, o[1]);
+      el.value = o[0];
+      sprHeightSel.appendChild(el);
+    });
+    sprHeightSel.value = keep === '16' && cpu.platform === 'chip8' ? 'auto' : keep;
+    sprPlanesField.hidden = cpu.platform !== 'xochip';
+  }
+  function spriteText(addr, w, h, planes) {
+    return addrText(addr) + ', ' + w + ' × ' + h + (cpu.platform === 'xochip' ? ', ' + PLANES_TEXT[planes & 3] : '');
+  }
+  // Un bit de un sprite: la fila y de un bloque de 8 (un byte por fila) o de 16 (dos bytes) de ancho.
+  function spriteBit(addr, w, x, y) {
+    var mem = cpu.memory, m = memMask();
+    if (w === 16) return ((((mem[(addr + 2 * y) & m] << 8) | mem[(addr + 2 * y + 1) & m]) >> (15 - x)) & 1);
+    return (mem[(addr + y) & m] >> (7 - x)) & 1;
+  }
+  // Dibuja un sprite (los bloques de sus planos, como DXYN) en un lienzo de w × h (con h = 0, una fila de fondo).
+  function paintSprite(cv, addr, w, h, planes) {
+    var rows = Math.max(1, h), p = activeColors;
+    if (cv.width !== w) cv.width = w;
+    if (cv.height !== rows) cv.height = rows;
+    var ctx = cv.getContext('2d'), img = ctx.createImageData(w, rows), px = new Uint32Array(img.data.buffer);
+    var colors = [p.bg, p.on, p.p2, p.both].map(function (c) { return packColor(c[0], c[1], c[2]); });
+    var a1 = planes & 1 ? addr : -1, a2 = planes & 2 ? (planes & 1 ? addr + (w === 16 ? 32 : h) : addr) : -1;
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        var v = (a1 >= 0 ? spriteBit(a1, w, x, y) : 0) | (a2 >= 0 ? spriteBit(a2, w, x, y) << 1 : 0);
+        px[y * w + x] = colors[v];
+      }
+    }
+    if (!h) px.fill(colors[0]);
+    ctx.putImageData(img, 0, 0);
+  }
+
+  function updateSprites(force) {
+    var now = performance.now(), running = isRunning() && !rewind.active;
+    if (!force && running && now - spr.drawnAt < SPR_REDRAW_MS) return;
+    if (spr.platform !== cpu.platform) { spr.platform = cpu.platform; fillHeightOptions(); force = true; }
+    var log = cpu.spriteLog(), last = log[0] || null, m = memMask();
+    var stamp = state.instr + ':' + cpu.I + ':' + cpu.pc + ':' + log.length + ':' + addrDigits + ':' + activePalette + ':' +
+      sprHeightSel.value + ':' + sprPlanesSel.value + ':' + spr.follow + ':' + spr.addr + ':' + cpu.planes;
+    if (!force && stamp === spr.stamp && spr.colors === activeColors) return;
+    spr.stamp = stamp;
+    spr.colors = activeColors;
+    spr.drawnAt = now;
+
+    // La forma: el alto elegido o el del último DXYN (sin ninguno todavía, 8 × 15); los planos elegidos o los de FN01.
+    var hv = sprHeightSel.value, addr = spr.follow ? cpu.I & m : spr.addr, w, h, from;
+    if (hv === 'auto') {
+      var ref = spr.pick || last;
+      w = ref ? ref.width : 8;
+      h = ref ? ref.height : 15;
+      from = ref ? (spr.pick ? 'el alto de ese dibujo' : 'el alto del último DXYN') : 'todavía no hubo un DXYN';
+    } else {
+      w = hv === '16' ? 16 : 8;
+      h = hv === '16' ? 16 : Number(hv);
+      from = 'el alto elegido';
+    }
+    var pv = sprPlanesSel.value, planes = cpu.platform !== 'xochip' ? 1 : pv === 'auto' ? (spr.pick ? spr.pick.planes : cpu.planes & 3) : Number(pv);
+    if (!planes) planes = 0;
+    paintSprite(sprCanvas, addr, w, h, planes);
+    var rows = Math.max(1, h), scale = clamp(Math.floor(Math.min(SPR_BOX / w, SPR_BOX / rows)), 2, 24);
+    sprCanvas.style.width = w * scale + 'px';
+    sprCanvas.style.height = rows * scale + 'px';
+    sprCanvas.setAttribute('aria-label', 'Sprite de ' + spriteText(addr, w, h, planes));
+    setText(sprInfo, (spr.follow ? 'I = ' : 'Desde ') + addrText(addr) + ' · ' + w + ' × ' + h + ' (' + from + ')' +
+      (cpu.platform === 'xochip' ? ' · ' + PLANES_TEXT[planes & 3] : '') +
+      (h === 0 ? ': en CHIP-8, DXY0 no dibuja nada' : planes === 0 ? ': sin planos, DXYN no dibuja nada' : ''));
+    if (sprFollowBtn.__on !== !spr.follow) { sprFollowBtn.__on = !spr.follow; sprFollowBtn.classList.toggle('is-lit', !spr.follow); }
+
+    // Las filas en hexadecimal y en bits (el bloque de cada plano dibujado).
+    sprBytes.textContent = '';
+    var blocks = [];
+    if (planes & 1) blocks.push([1, addr]);
+    if (planes & 2) blocks.push([2, planes & 1 ? addr + (w === 16 ? 32 : h) : addr]);
+    blocks.forEach(function (b) {
+      if (blocks.length > 1) sprBytes.appendChild(make('li', 'sb-plane', 'plano ' + b[0]));
+      for (var y = 0; y < h; y++) {
+        var ra = (b[1] + (w === 16 ? 2 * y : y)) & m, bits = '';
+        for (var x = 0; x < w; x++) bits += spriteBit(b[1], w, x, y) ? '█' : '·';
+        var bytes = w === 16 ? HEX2[cpu.memory[ra]] + HEX2[cpu.memory[(ra + 1) & m]] : HEX2[cpu.memory[ra]];
+        var li = make('li', null, addrText(ra) + '  ' + bytes + '  ');
+        li.appendChild(make('span', 'sb-bits', bits));
+        sprBytes.appendChild(li);
+      }
+    });
+
+    // Los últimos dibujos.
+    draws.items = log;
+    setText(drawsNote, log.length ? 'Los últimos ' + log.length + ' DXYN, del más nuevo al más viejo (con los bytes de ahora).'
+      : 'Todavía no se dibujó nada desde que la máquina empezó, se cargó un estado o se rebobinó.');
+    draws.list.view.hidden = !log.length;
+    paintList(draws.list, true);
+  }
+  function paintDrawRow(li, i) {
+    var d = draws.items[i];
+    if (!d) return;
+    li.__key = d;
+    paintSprite(li.__cv, d.addr, d.width, d.height, d.planes);
+    var rows = Math.max(1, d.height), scale = clamp(Math.floor(Math.min(32 / d.width, 32 / rows)), 1, 4);
+    li.__cv.style.width = d.width * scale + 'px';
+    li.__cv.style.height = rows * scale + 'px';
+    li.__l1.textContent = addrText(d.addr) + ' → (' + d.x + ', ' + d.y + ')';
+    li.__l2.textContent = d.width + ' × ' + d.height + (cpu.platform === 'xochip' ? ' · ' + PLANES_TEXT[d.planes & 3] : '') +
+      (d.collision ? ' · choque' : '') + (d.hires ? ' · 128×64' : '');
+    li.setAttribute('aria-label', 'Sprite de ' + spriteText(d.addr, d.width, d.height, d.planes) + ', dibujado en ' + d.x + ', ' + d.y +
+      (d.collision ? ', con choque' : ''));
+  }
+
+  // El depurador entero (el arranque lo llama justo después de buildMonitor): las cuatro vistas y la pestaña de los
+  // ajustes, sin dibujar nada todavía (lo dibuja updateMonitor cuando la interfaz ya está armada).
+  function buildDebugger() {
+    buildDisasm();
+    buildTrace();
+    buildMemory();
+    buildSprites();
+    var tab = MONITOR_TABS.indexOf(settings.monitorTab) >= 0 ? settings.monitorTab : 'codigo';
+    mon.tab = tab;
+    MONITOR_TABS.forEach(function (t) {
+      mon.tabs[t].setAttribute('aria-selected', t === tab ? 'true' : 'false');
+      mon.tabs[t].tabIndex = t === tab ? 0 : -1;
+      mon.panels[t].hidden = t !== tab;
+    });
+  }
+  // Lo que devuelve la API (window.chip8.debugState): por qué se detuvo, hacia dónde corre y qué muestra cada vista.
+  function debugState() {
+    var s = cpu.debugStop, t = cpu.runTarget();
+    return {
+      stop: s ? { kind: s.kind, addr: s.addr } : null, atBreakpoint: atBreakpoint(),
+      run: dbg.run && t ? { kind: dbg.run, addr: t.addr, maxSp: t.maxSp } : null,
+      tab: mon.tab,
+      disasm: { follow: dis.follow, selected: disSelAddr(), first: disRowAddr(Math.round(dis.list.top / dis.list.rowH)), rows: dis.list.rows },
+      memory: { follow: memv.follow, target: memv.target, page: map.page, rows: memv.list.rows },
+      sprite: { follow: spr.follow, addr: spr.follow ? cpu.I & memMask() : spr.addr }
+    };
   }
 
   // ------------------------------------------------------------------ estante de cartuchos
@@ -8500,6 +10225,8 @@ globalThis.CHIP8_ARCHIVE = {
 
     btnPause.addEventListener('click', togglePause);
     btnStep.addEventListener('click', function () { stepOnce(); });
+    btnOver.addEventListener('click', function () { stepOver(); });
+    btnOut.addEventListener('click', function () { stepOut(); });
     btnFrame.addEventListener('click', function () { frameOnce(); });
     btnReset.addEventListener('click', function () { doReset(); });
 
@@ -9597,6 +11324,22 @@ globalThis.CHIP8_ARCHIVE = {
     resume: function () { setPaused(false); },
     isPaused: function () { return state.paused; },
     step: function () { return stepOnce(); },
+    // Depurador: paso por encima, salir, «hasta acá», puntos de corte y lo que muestra el monitor.
+    stepOver: function () { return stepOver(); },
+    stepOut: function () { return stepOut(); },
+    runTo: function (addr) { return runToAddress(Number(addr)); },
+    setBreakpoint: function (addr, on) {
+      var a = Number(addr);
+      if (!isInt(a, 0, memMask())) return null;
+      on = on === undefined ? true : !!on;
+      if (cpu.hasBreakpoint(a) !== on) toggleBreakpoint(a, true);
+      return on;
+    },
+    getBreakpoints: function () { return cpu.breakpoints(); },
+    clearBreakpoints: function () { return clearAllBreakpoints(true); },
+    setMonitorTab: function (id) { return showTab(id); },
+    getMonitorTab: function () { return mon.tab; },
+    debugState: function () { return debugState(); },   // { stop, run, disasm, memory, sprite }
     frame: function () { return frameOnce(); },
     reset: function () { return doReset(); },
     setIpf: function (n) { return setIpf(n); },
@@ -9685,6 +11428,7 @@ globalThis.CHIP8_ARCHIVE = {
   buildKeypad();
   buildWorkshop();
   buildMonitor();
+  buildDebugger();
   buildShelf();
   buildHelpQuirks();
   buildControls();

@@ -53,6 +53,8 @@ Z X C V        A 0 B F
 |---|---|
 | Espacio | Pausa o sigue |
 | N | Ejecuta una sola instrucción |
+| O | Paso por encima: ejecuta un `CALL` entero |
+| K | Sale de la subrutina |
 | Retroceso | Reinicia la ROM |
 | H | Abre la ayuda |
 | T (mantenida) | Avance rápido: cuatro veces más rápido, timers incluidos |
@@ -87,10 +89,10 @@ herramientas.
 npm test
 ```
 
-Son **1516 pruebas** en 20 archivos y tardan unos segundos. Además de cada instrucción y cada
+Son **1557 pruebas** en 21 archivos y tardan unos segundos. Además de cada instrucción y cada
 quirk, revisan el ensamblador, los demos, los estados guardados, la tabla del archivo y que
 la documentación no mienta: los ejemplos del manual y del tutorial se ensamblan y se
-ejecutan. `npm run e2e` corre 57 escenarios en Chrome o Edge sin ventana, con teclado, mouse
+ejecutan. `npm run e2e` corre 65 escenarios en Chrome o Edge sin ventana, con teclado, mouse
 y toques de verdad.
 
 Las otras herramientas:
