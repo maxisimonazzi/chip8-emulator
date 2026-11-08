@@ -242,7 +242,9 @@ John Earnest mantiene además el **archivo de la comunidad** (*Chip8 Community A
 un repositorio con programas de CHIP-8, SUPER-CHIP y XO-CHIP, sus autores y las
 opciones con que se juegan en Octo, todo con licencia CC0. La mayoría son de las
 Octojam. Esta consola lo usa para configurar sola los juegos que reconoce
-([11.11](#1111-ajustes-por-cartucho)).
+([11.11](#1111-ajustes-por-cartucho)). Desde la sexta (2019), las entradas de la Octojam se
+publicaron en itch.io, y no todas llegaron al archivo: la consola trae también las de las
+Octojam 6 a 10 que faltan.
 
 Buena parte de lo que hoy se sabe con precisión sobre el comportamiento original viene
 de trabajo reciente de la comunidad: el análisis del intérprete del VIP publicado por
@@ -2508,7 +2510,7 @@ siete opciones de quirks empiezan apagadas. Coinciden con la columna de XO-CHIP,
 XO-CHIP se definió en Octo, y son exactamente los quirks del perfil XO-CHIP de este
 emulador. Importan aunque el programa no use nada de XO-CHIP: casi todos los juegos
 modernos se hicieron y se probaron en Octo, y en el archivo de la comunidad
-([11.11](#1111-ajustes-por-cartucho)) 96 de los 104 programas usan esa combinación, sean
+([11.11](#1111-ajustes-por-cartucho)) 89 de los 104 programas usan esa combinación, sean
 de CHIP-8, de SUPER-CHIP o de XO-CHIP.
 
 Las opciones de Octo tienen otros nombres; esta es la correspondencia (la misma que usa
@@ -2655,15 +2657,18 @@ se calcula con sus bytes y que cambia si cambia uno solo (el núcleo la calcula 
 `Chip8Core.sha1`). Con el interruptor **Ajustes por cartucho** prendido, que es como
 viene, la consola usa esa huella para dos cosas:
 
-- **Los juegos conocidos se configuran solos.** La consola trae una tabla con el archivo
-  de la comunidad de John Earnest (*Chip8 Community Archive*, licencia CC0), que
-  `tools/archive.js` genera a partir de `data/archive.json`. Tiene 104 programas: 50 de
-  CHIP-8, 26 de SUPER-CHIP y 28 de XO-CHIP, la mayoría de las Octojam, cada uno con la
-  plataforma, los quirks, la velocidad, los colores y la orientación de la pantalla con
-  que se juega en Octo. Si cargás uno, se configura antes de arrancar y en la ranura (en
-  la pestaña **Cartuchos** del cajón) dice «ajustes del archivo». Sus colores quedan en
-  la paleta **Del cartucho**, y si el juego se pensó para una pantalla girada, la imagen
-  se gira.
+- **Los juegos conocidos se configuran solos.** La consola trae una tabla con 172 juegos
+  de la comunidad, la mayoría de las Octojam, cada uno con la plataforma, los quirks, la
+  velocidad, los colores y la orientación de la pantalla con que se juega en Octo. Si
+  cargás uno, se configura antes de arrancar y en la ranura (en la pestaña **Cartuchos**
+  del cajón) dice «ajustes del archivo». Sus colores quedan en la paleta **Del cartucho**,
+  y si el juego se pensó para una pantalla girada, la imagen se gira. La tabla la genera
+  `tools/archive.js` a partir del archivo de la comunidad de John Earnest (*Chip8
+  Community Archive*, licencia CC0, en `data/archive.json`: 104 programas, 50 de CHIP-8,
+  26 de SUPER-CHIP y 28 de XO-CHIP) y de las exportaciones de Octo de las Octojam
+  publicadas en itch.io que no están en el archivo (en `data/octojam-itch.json`: 68
+  juegos de las Octojam 6 a 10, con CHIP-8: 22, SUPER-CHIP: 10 y XO-CHIP: 36, que son
+  de sus autores y no de dominio público).
 - **Lo que vos cambiás se recuerda.** Si mientras corre una ROM cambiás la plataforma,
   el perfil, un interruptor, las IPF, la paleta o los controles (en **Controles**, en la
   pestaña **Ajustes** del cajón de opciones, qué teclas del keypad aprietan las flechas
@@ -2686,7 +2691,7 @@ récords o partidas también se recuerdan por ROM ([13.8](#138-las-banderas-rpl)
 
 En el archivo, la plataforma de cada programa es la más chica en la que funciona bien
 (así lo pide el archivo), y por eso un juego "de CHIP-8" puede necesitar igual los
-quirks de Octo: 96 de los 104 usan exactamente los de Octo por defecto. Las velocidades
+quirks de Octo: 89 de los 104 usan exactamente los de Octo por defecto. Las velocidades
 van de 7 a 10.000 IPF ([12.2](#122-instrucciones-por-frame-ipf)).
 
 Con el interruptor apagado, la consola funciona como siempre: todas las ROMs usan los
@@ -2699,17 +2704,17 @@ primero, cada una con una miniatura de su pantalla. Entran hasta 60 ROMs y unos 
 entre todas, y quedan guardadas en este navegador.
 
 **Los juegos del archivo vienen adentro de la consola.** Además de la tabla,
-`chip8.html` trae las ROMs de los 104 programas, comprimidas. El botón **Archivo**, en
-la pestaña **Cartuchos** del cajón, o la tecla **L** abren la ventana *Archivo de la
-comunidad*: cada juego con su título, sus autores, el evento, el año, la plataforma, el
-tamaño y una miniatura de su pantalla de título. Se busca por título o por autor (sin
-importar mayúsculas ni tildes), se filtra por plataforma y por evento o año, y se ordena
-por título, por fecha o por evento. Un clic, o **Enter**, carga el juego con los ajustes
+`chip8.html` trae las ROMs de los 172 juegos de la comunidad, comprimidas. El botón
+**Archivo**, en la pestaña **Cartuchos** del cajón, o la tecla **L** abren la ventana
+*Archivo de la comunidad*, con todos juntos: cada juego con su título, sus autores, el
+evento, el año, la plataforma, el tamaño y una miniatura de su pantalla de título. Se
+busca por título o por autor (sin importar mayúsculas ni tildes), se filtra por
+plataforma y por evento o año, y se ordena por título, por fecha o por evento. Un clic, o **Enter**, carga el juego con los ajustes
 de la tabla (o con los que le recordaste; con el interruptor apagado, con los tuyos) y
 cierra la ventana. Los juegos que se cargan así no van a **Tus cartuchos**: siempre
 están en la ventana. Si el navegador no puede descomprimirlos (le falta
 `DecompressionStream`), la ventana lo dice, y el juego se puede cargar igual desde la
-carpeta `roms/archivo/` del repositorio con **Cargar ROM**.
+carpeta `roms/archivo/` o `roms/octojam/` del repositorio con **Cargar ROM**.
 
 Los **estados guardados** también son de cada ROM: las cinco ranuras de la pestaña
 **Estados** del cajón de opciones (la rápida, con **I** y **U**, y cuatro más) se
@@ -2833,7 +2838,7 @@ orden:
 2. **Si no, elegí el perfil según de dónde salió.** Los juegos hechos con Octo, que son
    casi todos los modernos (los de las Octojam incluidos), van con el perfil
    **XO-CHIP** aunque sean de CHIP-8 puro: sus quirks son exactamente los de Octo por
-   defecto, con los que se probaron (en el archivo, 96 de los 104 programas los usan).
+   defecto, con los que se probaron (en el archivo, 89 de los 104 programas los usan).
    Los clásicos de SUPER-CHIP de la HP-48 van con **SUPER-CHIP**, y los programas del
    VIP de los 70 y los 80, con **COSMAC VIP**. Ojo con este último fuera de su época:
    trae la espera de vblank (`displayWait`), como mucho un `DXYN` por frame

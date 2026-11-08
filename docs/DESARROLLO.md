@@ -46,14 +46,16 @@ castellano rioplatense (voseo); los identificadores del código, en inglés.
 chip8.html              la consola: estilos, marcado, núcleo, ensamblador, cartuchos, el archivo (tabla y ROMs) e interfaz
 roms/*.asm, *.ch8       fuentes y binarios de los seis cartuchos incluidos
 roms/archivo/           las 104 ROMs del archivo de la comunidad (CC0) y su índice, LEEME.md
+roms/octojam/           las 68 ROMs de las Octojam en itch.io que no están en el archivo (de sus autores) y su índice
 data/archive.json       los 104 programas del archivo de la comunidad: huella, plataforma y opciones de Octo
+data/octojam-itch.json  los 68 de itch.io: huella, plataforma, opciones de Octo y página; los que ya estaban y los salteados
 tools/chip8asm.js       el ensamblador en la línea de comandos y como módulo de Node: saca el bloque chip8-asm de chip8.html
 tools/embed-roms.js     ensambla roms/*.asm y los incrusta en chip8.html, con los fuentes del Taller
-tools/archive.js        baja el archivo de la comunidad y sus ROMs, los incrusta en chip8.html y prueba sus juegos
+tools/archive.js        baja el archivo de la comunidad, los juegos de itch.io y sus ROMs, los incrusta en chip8.html y prueba sus juegos
 tools/serve.js          servidor estático mínimo (http://localhost:8008/)
 tools/e2e.js            pruebas de punta a punta en Chrome o Edge, por DevTools Protocol
 tests/harness.js        saca los bloques <script> de chip8.html y los evalúa en Node
-tests/*.test.js         pruebas con node:test (23 archivos)
+tests/*.test.js         pruebas con node:test (24 archivos)
 docs/MANUAL.md          manual de referencia de CHIP-8, SUPER-CHIP y XO-CHIP
 docs/TUTORIAL.md        tutorial, con sus ejemplos en docs/ejemplos/
 docs/DESARROLLO.md      este documento
@@ -182,7 +184,20 @@ medían (el 40 y el 49) miden ahora adentro del cajón. La API suma `openDrawer`
 sacó (el keypad plegable, el ajuste `keypadFolded`, `setKeypadFolded` y `keypadInfo`) ya
 no está.
 
-### 1.7 Requisitos no funcionales
+### 1.7 La sexta ronda: las Octojam de itch.io
+
+El archivo de John Earnest no tiene todas las entradas de las Octojam: desde la sexta, en
+2019, se publicaron en itch.io. La sexta ronda sumó las que faltan
+([7.23](#723-sexta-ronda-las-octojam-de-itchio)):
+
+| Pieza | Dónde está | Cómo se verifica |
+|---|---|---|
+| **El comando `itch`**: recorre las Octojam 6 a 10 en itch.io, saca de cada juego la ROM y las opciones de la exportación de Octo de su versión jugable, descarta los que ya están en el archivo y escribe `data/octojam-itch.json`, `roms/octojam/` y su `LEEME.md`, con los que se saltearon y por qué | `cmdItch` y la sección «Octojam en itch.io» de `tools/archive.js` ([5.5](#55-toolsarchivejs)) | `tests/octojam.test.js` (17 pruebas: los datos, las ROMs, el índice, lo que lee de las páginas y su parte del bloque) |
+| **La plataforma de una ROM de Octo**: la exportación no la dice; sale del tamaño, de maxSize 3583 y de la instrucción de más nivel que ejecuta en un minuto | `detectPlatform` en `tools/archive.js` | `tests/octojam.test.js`: da la del archivo en sus 104 juegos y la de `data/octojam-itch.json` en los 68 |
+| **Las dos colecciones en el bloque**: `embed` mete los 68 junto a los 104, cada entrada con su `collection` (`'archivo'` o `'itch'`) y los de itch.io con su página sin `https://`; `embed --check` controla los dos | `withCollections`, `toEntry`, `readItchRoms` y `cmdEmbed` | `tests/archive.test.js` y `tests/octojam.test.js` |
+| **La ventana con todos juntos**: los 172 en un solo paquete, sin colecciones a la vista (ni filtro, ni marca, ni cuentas por colección; el aviso y el cartel son iguales para todos), con los filtros de plataforma y de evento o año de siempre | Las secciones «archivo de la comunidad» de `chip8-ui` ([4.25](#425-la-ventana-del-archivo-de-la-comunidad)) | E2E 66 a 70 |
+
+### 1.8 Requisitos no funcionales
 
 | Requisito | Cómo se cumple | Cómo se verifica |
 |---|---|---|
@@ -255,8 +270,9 @@ Quién usa a quién:
 - **`chip8-archive`** lo escribe `tools/archive.js`: la fuente, la licencia, el commit del
   archivo de la comunidad y, para cada uno de sus programas, indexado por la huella SHA-1
   de su ROM, el título, los autores, el evento, el año, la plataforma, el tamaño, las IPF,
-  los quirks, los cuatro colores y el giro; al final, aparte, la ROM de cada uno,
-  comprimida. Tampoco se edita a mano. Ver [5.5](#55-toolsarchivejs).
+  los quirks, los cuatro colores, el giro y su colección (`'archivo'`, o `'itch'` para los
+  de las Octojam en itch.io, que llevan además su página); al final, aparte, la ROM de cada
+  uno, comprimida. Tampoco se edita a mano. Ver [5.5](#55-toolsarchivejs).
 - **`chip8-ui`** es todo lo demás: pantalla, keypad, controles, monitor y depurador,
   sonido, ajustes por cartucho, biblioteca, la ventana del archivo, comodidades, estados
   guardados y sus archivos, rebobinado, el Taller y el bucle principal. Solo lee
@@ -2236,13 +2252,15 @@ Se abre y se cierra con el botón del lápiz (`#btn-workshop`, al lado del «?»
 
 **Dónde va.** Desde 1200 px de ancho, fijo a la derecha, de arriba abajo, y la consola se
 corre a la izquierda: la clase `has-workshop` del `<html>` le da al `.desk` un
-`padding-right` del ancho del Taller, así la pantalla nunca queda tapada. Ese ancho es
-`clamp(380px, 100vw − 800px × --con-z − 40px, 640px)`: toma lo que deja la consola,
-achicada o no ([4.28](#428-la-consola-entera-en-la-ventana)), entre 380 y 640 px; entre
-1200 y 1439 px el editor usa letra de 12 px. Mientras está abierto, el monitor baja debajo
-de la consola, salvo desde 1900 px, donde entran los tres. Por debajo de 1200 px va al
-final de la columna, debajo de la consola, y la página se corre hasta él al abrirlo. Con el
-mouse o con Y, el foco va al editor; con un toque, al título, así no salta el teclado del
+`padding-right` del ancho del Taller, así la pantalla nunca queda tapada. Con el monitor
+oculto (`no-monitor`), la consola va pegada al Taller, a 24 px, sin el hueco donde iría el
+monitor (la grilla, contra la derecha). Ese ancho es `clamp(380px, 100vw − 800px × --con-z
+− 40px, 640px)`: toma lo que deja la consola, achicada o no
+([4.28](#428-la-consola-entera-en-la-ventana)), entre 380 y 640 px; entre 1200 y 1439 px
+el editor usa letra de 12 px. Mientras está abierto, el monitor baja debajo de la consola,
+salvo desde 1900 px, donde entran los tres. Por debajo de 1200 px va al final de la
+columna, debajo de la consola, y la página se corre hasta él al abrirlo. Con el mouse o
+con Y, el foco va al editor; con un toque, al título, así no salta el teclado del
 teléfono. En pantalla completa, Y primero sale de ella
 ([8.36](#836-el-taller-va-al-costado-de-la-consola-no-encima)). Si el cajón de opciones
 está afuera y el Taller quedaría debajo (al costado, entre 1200 y 1899 px, o desde abajo),
@@ -2425,9 +2443,16 @@ ventanita con su pantalla de título, el título, los autores (o «Autor descono
 plataforma, el evento y el año, el tamaño, y las marcas «en tus cartuchos», «ajustes
 recordados» y «En la ranura». Arriba, **Buscar** (por título o por autor, sin importar
 mayúsculas ni tildes; con varias palabras tienen que estar todas: `explorerFold`),
-**Plataforma**, **Evento o año** (los eventos y los años, cada uno con cuántos juegos
-tiene) y **Orden** (`EXPLORER_SORTS`). La búsqueda, los filtros y el orden duran lo que la
-página.
+**Plataforma**, **Evento o año** (cada opción con cuántos juegos tiene) y **Orden**
+(`EXPLORER_SORTS`). La búsqueda, los filtros y el orden duran lo que la página.
+
+**Un solo paquete.** Desde la sexta ronda la tabla trae, además de los 104 del archivo,
+los 68 de las Octojam en itch.io ([7.23](#723-sexta-ronda-las-octojam-de-itchio)), y la
+ventana los muestra todos juntos: ni un filtro, ni una marca, ni una cuenta por colección,
+y el aviso de la carga y el cartel de la ranura dicen lo mismo para todos. Cada entrada
+trae su `collection` (y los de itch.io, su página, sin `https://`), pero la interfaz no la
+muestra: `normalizeArchiveEntry` la guarda solo para que el mensaje de una ROM dañada
+mande a la carpeta que corresponde (`archiveFolder`: `roms/archivo` o `roms/octojam`).
 
 **Cargar.** Un clic, Enter o Espacio en una tarjeta llaman a `explorerLoad(sha)`: pide
 los bytes y los carga con `loadCartridge(bytes, título, { origin: 'explorador' })`, así la
@@ -2453,7 +2478,7 @@ cada 50 ms), y ninguna con la ventana cerrada (ni con el cajón cerrado o en otr
 la cola, `thumbQueue`, junta las tarjetas a la vista de la ventana y las de «Cartuchos»).
 Cada pantalla queda guardada en `thumbSnaps` por cartucho y configuración (`thumbKey`): la
 de un juego del archivo que también está en tus cartuchos, con la misma configuración, se
-hace una sola vez. Las 104 cuestan unos 300 ms de CPU en total, y la consola sigue a 60
+hace una sola vez. Las 104 del archivo cuestan unos 300 ms de CPU en total, y la consola sigue a 60
 frames por segundo mientras se hacen (E2E 69). Se pintan con los cuatro colores del juego
 y su giro, con escala entera en píxeles físicos; si ni a 1:1 entran en su ventanita (una
 pantalla de 128×64 girada queda de 64×128), se achican a la mitad tomando el valor más
@@ -2583,13 +2608,16 @@ oculto la consola queda sola en el medio, y en una ventana de 1440 × 900 ya sob
 no, **desde abajo** (`'abajo'`, con la clase `drawer--abajo`).
 
 Al costado, el cajón empieza `DRAWER_TUCK` px debajo del borde derecho de la consola y
-termina en el borde derecho de la columna (sin columna, a lo sumo `DRAWER_SIDE_MAX` px,
-450, y 16 px antes del borde de la ventana). De alto ocupa la parte recta del borde de la
-consola, entre sus esquinas redondeadas (el radio, con la escala de la consola:
-`consoleRadius`), adentro de la ventana con 16 px de margen: así las esquinas del cajón,
-que son rectas del lado de la consola, quedan escondidas detrás de ella. Si la consola se
-fue de la ventana, el cajón conserva `DRAWER_MIN_H` (320 px) de alto. La columna que tapa
-(el monitor o el Taller) se esfuma mientras el cajón está afuera (la clase
+mide siempre lo de la columna del monitor: termina en el borde derecho del monitor, si
+está al lado, y si no (oculto, o abajo con el Taller al costado) mide `DRAWER_SIDE_MAX`
+px, 450, lo que mediría el monitor, como mucho hasta 16 px antes del borde de la ventana.
+Nunca se estira hasta el borde del Taller: si el Taller es más ancho, lo tapa en parte. De
+alto ocupa la parte recta del borde de la consola, entre sus esquinas redondeadas (el
+radio, con la escala de la consola: `consoleRadius`), adentro de la ventana con 16 px de
+margen: así las esquinas del cajón, que son rectas del lado de la consola, quedan
+escondidas detrás de ella. Si la consola se fue de la ventana, el cajón conserva
+`DRAWER_MIN_H` (320 px) de alto. La columna que tapa entera (el monitor, o el Taller si no
+es más ancho que el cajón) se esfuma mientras el cajón está afuera (la clase
 `is-under-drawer`: `opacity: 0` y, terminada la transición, `visibility: hidden`): así no
 asoma por arriba ni por abajo del cajón, que es más corto, y sus controles salen del orden
 del Tab. Al guardarse el cajón, vuelve. En una ventana de 1920 × 945, con la consola
@@ -3051,13 +3079,15 @@ Atrapa, y la [parte 9](TUTORIAL.md#9-más-allá-de-chip-8-super-chip-y-xo-chip),
 
 La tabla de autoconfiguración sale del archivo de la comunidad de John Earnest
 (*chip8Archive*, licencia CC0 1.0): los programas de las Octojam y otros eventos, cada uno
-con las opciones con que se juega en Octo. Cuatro comandos:
+con las opciones con que se juega en Octo, y desde la sexta ronda también los juegos de
+las Octojam en itch.io que no están en el archivo. Cinco comandos:
 
 ```sh
 node tools/archive.js update                 # baja el archivo y escribe data/archive.json (necesita internet)
 node tools/archive.js embed [--check] [--html otro.html]   # escribe <script id="chip8-archive">
 node tools/archive.js download               # baja las ROMs a roms/archivo/ y escribe su LEEME.md
-node tools/archive.js test [--frames N] [--sheet hoja.png] [--only id1,id2] [--json reporte.json]
+node tools/archive.js itch                   # los de itch.io: data/octojam-itch.json y roms/octojam/ (necesita internet)
+node tools/archive.js test [--itch] [--frames N] [--sheet hoja.png] [--only id1,id2] [--json reporte.json]
 ```
 
 - **`update`** baja `programs.json` y cada ROM del repositorio del archivo (a memoria: no
@@ -3099,6 +3129,11 @@ node tools/archive.js test [--frames N] [--sheet hoja.png] [--only id1,id2] [--j
   `update`), avisa si en la carpeta hay archivos que no son del archivo y escribe el
   índice, `roms/archivo/LEEME.md` (`buildReadme`). Necesita conexión solo para las que
   faltan. Como `update`, al terminar recuerda que hay que correr `embed`.
+- **`itch`** arma la colección de las Octojam en itch.io; el formato, la regla de la
+  plataforma y las decisiones están en [7.23](#723-sexta-ronda-las-octojam-de-itchio).
+  `embed` mete esos juegos en el mismo bloque, ordenados por huella con los del archivo y
+  con su `collection`; `--check` controla los dos y dice de qué carpeta son las ROMs que
+  no están al día.
 - **`test`** corre cada juego con su configuración en el núcleo de `chip8.html` (900
   frames, apretando teclas al azar de forma reproducible) e informa errores, salidas,
   instrucciones ignoradas, pantallas vacías, si usó alta resolución, dos planos o audio.
@@ -3107,6 +3142,7 @@ node tools/archive.js test [--frames N] [--sheet hoja.png] [--only id1,id2] [--j
   ROMs de `roms/archivo/` (`localOrFetch`) y baja a memoria solo las que falten o no
   coincidan con su huella: con la carpeta completa anda sin conexión, y los 104 juegos
   corren en menos de un segundo. Sale con código 1 si algún juego se detuvo con un error.
+  Con `--itch` corre los de `roms/octojam/`: los 68 corren sin errores.
 
 **`roms/archivo/`** tiene las 104 ROMs del archivo tal como estaban en su commit
 `761e3ff` (925 KB entre todas). El archivo es de dominio público (CC0), así que se pueden
@@ -3123,15 +3159,16 @@ La correspondencia con las opciones de Octo:
 | Octo | Consola |
 |---|---|
 | `tickrate` (20 si falta) | `ipf`, limitado a 1–10.000 |
-| `logicQuirks`, `shiftQuirks`, `jumpQuirks`, `clipQuirks`, `vBlankQuirks` | `vfReset`, `shifting`, `jumping`, `clipping`, `displayWait` |
+| `logicQuirks`, `shiftQuirks`, `jumpQuirks`, `clipQuirks`, `vBlankQuirks` | `vfReset`, `shifting`, `jumping`, `clipping`, `displayWait`; prendido es `true` o un número distinto de 0 (desde la sexta ronda: Octo guarda a veces 1 y 0) |
 | `loadStoreQuirks` | `memory`, **invertido** (en Octo, `true` = I no se mueve) |
 | `backgroundColor`, `fillColor`, `fillColor2`, `blendColor` (los de Octo si faltan) | `colors[0..3]`: fondo, plano 1, plano 2, ambos |
 | `screenRotation` | `rotation` (0, 90, 180 o 270) |
 | `vfOrderQuirks` | No existe en la consola (escribe VF siempre al final); se avisa. Ninguno de los 104 lo usa. |
 
 Los números de hoy (commit `761e3ff` del archivo): 104 programas, 50 de CHIP-8, 26 de
-SUPER-CHIP y 28 de XO-CHIP; 96 usan exactamente los quirks de Octo por defecto (los del
-perfil XO-CHIP); las velocidades van de 7 a 10.000 IPF. `node tools/archive.js test`
+SUPER-CHIP y 28 de XO-CHIP; 89 usan exactamente los quirks de Octo por defecto (los del
+perfil XO-CHIP; hasta la sexta ronda decía 96, porque 7 los traen como 1 y se tomaban por
+apagados); las velocidades van de 7 a 10.000 IPF. `node tools/archive.js test`
 informa que 103 de los 104 corren sin errores: *Super Square* desborda la pila en su
 pantalla de fin de partida, algo que con los 12 niveles de Octo pasaría todavía antes
 ([7.11](#711-integración-y-hallazgos-notables)). El manual cita estos números y
@@ -3274,6 +3311,7 @@ Antes de dar por terminado un cambio: `node --test` y, si tocaste la interfaz,
 | `tests/asm-bloque.test.js` | El ensamblador como bloque `chip8-asm` ([5.1](#51-el-ensamblador-chip8-asm-y-toolschip8asmjs)): código puro (en un contexto vacío define solo `Chip8Asm` y ensambla, y no nombra nada del navegador ni de Node); `tools/chip8asm.js` con `require` (las mismas funciones y los mismos resultados en los 17 fuentes del proyecto, sin dejar el global) y sin `chip8.html`, sin el bloque o con el bloque roto (el error en una línea; `--help` anda igual); `check()` contra `assemble()` en cada fuente del proyecto y en 600 fuentes rotas al azar (el primer error es el mismo; sin errores, el mismo resultado), sin errores en cascada, la memoria llena una vez y el tope de 100; y `headerTags()`. |
 | `tests/roms.test.js` | Los cartuchos: cada `.asm` ensambla idéntico a su `.ch8` y tiene sus etiquetas; `embed-roms --check` y el bloque incrustado; el propio `embed-roms.js` sobre un HTML temporal con CRLF, y la etiqueta `@platform`; 600 frames por demo y perfil sin ejecutar datos; y el comportamiento de cada uno: el movimiento y las velocidades de Rebote; las 16 teclas de Teclado; en Atrapa, la paleta, que todo bloque se pueda atrapar y el reinicio con apretar y soltar; Autotest con VD = 19 y VE = 0 en cada perfil e IPF, y los núcleos saboteados que tiene que detectar; la posición de cada glifo en Fuente; y en Planos, la pantalla, los planos limpios, los cuatro valores, las velocidades, el contador, el sonido, la tecla y que vaya igual con cualquier perfil e IPF. |
 | `tests/archive.test.js` | `tools/archive.js` (las opciones de Octo pasadas a los ajustes, colores, giro, eventos, `toEntry`), `data/archive.json` (fuente, licencia, commit; huellas únicas, plataformas válidas, tamaños que entran), las ROMs de `roms/archivo/` (una por programa, con su huella y su tamaño, y el índice `LEEME.md` al día) y el bloque incrustado (al día, una entrada válida por programa, sin `</script` ni comentarios HTML, entre `chip8-roms` y `chip8-ui`, `embedInto` idempotente y con CRLF). Desde la cuarta ronda, las ROMs embebidas (`CHIP8_ARCHIVE.data`): cada una se descomprime, con `zlib` y con el `DecompressionStream` de Node, a los bytes de `roms/archivo/`; una línea por ROM en base64url sin relleno; `packRom`, `readRoms`, `packRoms` y `readPacked`; y `embed --check` sobre un HTML con ROMs equivocadas, que después `embed` arregla. |
+| `tests/octojam.test.js` | Los juegos de las Octojam en itch.io ([7.23](#723-sexta-ronda-las-octojam-de-itchio)): `data/octojam-itch.json` (las cinco jams, cada entrada en una de las tres listas, ids y huellas únicos también contra el archivo, ninguno repetido del archivo por huella ni por jam y título, plataforma, tamaño, año y páginas), `roms/octojam/` (una ROM por juego con su huella, ningún archivo de más, `LEEME.md` al día), su parte del bloque (la entrada de cada uno, con `collection` y su página sin `https://`, y su ROM embebida), `detectPlatform` (la plataforma del archivo en sus 104 juegos y la de los 68, la regla con ROMs armadas en la prueba, `reachableOpcodes`) y lo que lee de las páginas (`parseOctoExport`, `exportRom`, `playableUrl`, `pageAuthors`, `cleanName`). |
 | `tests/estados.test.js` | Los estados guardados y el rebobinado: guardar a mitad de un programa y cargar en otra máquina sigue igual frame a frame (timers, `CALL`/`RET`, `FX0A`, SUPER-CHIP, XO-CHIP con dos planos, audio y memoria de 64 KB, máquinas detenidas y terminadas); `loadState` cambia de plataforma sin recargar la ROM; 54 validaciones que dejan la máquina intacta; el formato de texto (ida y vuelta, también con estados al azar; la compresión en los bordes de la base 128; tamaños; cada error; 400 textos cambiados al azar); y `RewindBuffer` (orden, páginas compartidas y la cuenta exacta de los bytes, límites, `clear`, cambios de plataforma entre fotos, `push` y `pop` intercalados y el rendimiento). |
 | `tests/estados-archivos.test.js` | Los archivos de estados, el giro de las pantallitas y `findCartridge` ([4.26](#426-estados-en-archivos-y-la-lista-de-todos)): evalúa sola la sección «estados guardados: archivos» de `chip8-ui`, con las ayudas que usa sacadas de `chip8.html`; el archivo que se arma (campos y su orden, ida y vuelta, estados reales de las tres plataformas, los nombres de archivo), el mensaje de cada archivo que no sirve (vacío, no JSON, otro programa, otra versión, un estado suelto, todo dañado), cada estado dañado con su motivo, ranuras y fechas, la ROM (buena, ajena, rota, del tamaño máximo), qué pasa con cada ranura al importar y el resumen, el giro contra una referencia escrita aparte, distinguir un archivo de estados de una ROM, y `findCartridge` con demos, «Tus cartuchos» y `archiveRomBytes`. |
 | `tests/depurador.test.js` | El depurador del núcleo: la traza (orden, tope, la instrucción que falla), el mapa de accesos (cada instrucción que lee o escribe, el operando de `F000 NNNN`, la vuelta en `0xFFF`), el registro de dibujos, los puntos de corte (se detiene antes y al seguir ejecuta, el frame abierto, frenar y seguir da lo mismo frame por frame, no son parte del estado), `runTo` (paso por encima con recursión, salir, «hasta acá», una subrutina que no vuelve) y qué borran `reset` y `loadState`. |
@@ -3286,8 +3324,9 @@ Antes de dar por terminado un cambio: `node --test` y, si tocaste la interfaz,
 ### 6.3 Números actuales
 
 Medido el 7 de noviembre de 2026 con Node 24.18 (`node --test` desde la raíz), al
-terminar la segunda vuelta de la quinta ronda: **1639 pruebas en 236 grupos**, todas
-pasan y ninguna salteada, en unos 6 s.
+terminar la sexta ronda: **1657 pruebas en 241 grupos**, todas pasan y ninguna
+salteada, en unos 9 s (la regla de la plataforma, que corre los 172 juegos un minuto cada
+uno, se lleva unos 7 s de `tests/octojam.test.js`, en paralelo con los demás archivos).
 
 | Archivo | Pruebas |
 |---|---|
@@ -3305,19 +3344,20 @@ pasan y ninguna salteada, en unos 6 s.
 | `tests/display.test.js` | 49 |
 | `tests/timers-keys.test.js` | 46 |
 | `tests/depurador.test.js` | 41 |
-| `tests/manual.test.js` | 38 |
-| `tests/estados-archivos.test.js` | 36 |
+| `tests/manual.test.js` | 39 |
 | `tests/cajon.test.js` | 37 |
+| `tests/estados-archivos.test.js` | 36 |
 | `tests/quirks.test.js` | 30 |
 | `tests/archive.test.js` | 29 |
 | `tests/asm-bloque.test.js` | 18 |
+| `tests/octojam.test.js` | 17 |
 | `tests/mutation-gaps.test.js` | 12 |
 | `tests/taller.test.js` | 9 |
 | `tests/single-file.test.js` | 4 |
-| **Total** | **1639** |
+| **Total** | **1657** |
 
 Todas pasan cuando los cartuchos, los fuentes del Taller, la tabla del archivo y sus ROMs
-incrustados están al día y `roms/archivo/` está completa. Las pruebas del grupo
+incrustados están al día y `roms/archivo/` y `roms/octojam/` están completas. Las pruebas del grupo
 "chip8.html tiene las demos incrustadas" (`embed-roms --check` y la comparación de
 `CHIP8_DEMOS` con las fuentes), las de `CHIP8_SOURCES` en `tests/taller.test.js`, la de
 `archive.js embed --check`, las de las ROMs embebidas y las de `roms/archivo/` fallan a
@@ -3325,7 +3365,8 @@ propósito si alguien cambia un `roms/*.asm`, un `docs/ejemplos/*.asm` o
 `data/archive.json` y no vuelve a incrustar o a bajar las ROMs.
 
 Fuera de `node --test`: `node tools/archive.js test` informa que 103 de los 104 juegos del
-archivo corren sin errores ([5.5](#55-toolsarchivejs)).
+archivo corren sin errores, y `node tools/archive.js test --itch`, que los 68 de las Octojam en
+itch.io también ([5.5](#55-toolsarchivejs)).
 
 La E2E: **89 escenarios** ([6.7](#67-los-escenarios-e2e)). En la segunda vuelta de la
 quinta ronda, la corrida completa final pasó 86 de 89, y los tres que fallaron pasaron
@@ -3597,9 +3638,9 @@ las opciones o los cartuchos abren el cajón como una persona ([5.7](#57-toolse2
 | 63 | El desensamblado que se recorre (rueda, «Ir a», Av Pág, datos como DB) y el monitor en 1440, 768 y 360 px con cada pestaña. |
 | 64 | Los puntos de corte por cartucho y fuera del estado; el mapa y la traza al reiniciar, al cargar un estado y al rebobinar; la pestaña se recuerda. |
 | 65 | 60 fps a 10.000 IPF con un punto de corte puesto y con Planos en cada pestaña del monitor. |
-| 66 | Archivo de la comunidad: el botón de la pestaña «Cartuchos» y L abren la ventana con los 104 juegos y sus datos; buscar, filtrar por plataforma y por evento o año, ordenar y «Mostrar todos»; las teclas no llegan a la consola; Esc, L, × y el fondo la cierran. |
-| 67 | Un clic o Enter cargan el juego con los ajustes del archivo, la ventana se cierra, la pantalla queda a la vista y el juego corre; flechas, Inicio, Fin y AvPág; «En la ranura», «en tus cartuchos» y «ajustes recordados»; también por `file://`. |
-| 68 | Las 104 ROMs embebidas se descomprimen en el navegador a su huella SHA-1; una dañada, un navegador sin `DecompressionStream` o una página sin las ROMs avisan claro y la consola sigue andando. |
+| 66 | Archivo de la comunidad: el botón de la pestaña «Cartuchos» y L abren la ventana con todos los juegos juntos (los del archivo y los de las Octojam en itch.io, sin colecciones a la vista) y sus datos; buscar, filtrar por plataforma y por evento o año, ordenar y «Mostrar todos»; las teclas no llegan a la consola; Esc, L, × y el fondo la cierran. |
+| 67 | Un clic o Enter cargan el juego con los ajustes del archivo (también uno de las Octojam en itch.io, igual que los demás), la ventana se cierra, la pantalla queda a la vista y el juego corre; flechas, Inicio, Fin y AvPág; «En la ranura», «en tus cartuchos» y «ajustes recordados»; también por `file://`. |
+| 68 | Todas las ROMs embebidas se descomprimen en el navegador a su huella SHA-1; una dañada, un navegador sin `DecompressionStream` o una página sin las ROMs avisan claro y la consola sigue andando. |
 | 69 | Miniaturas solo de las tarjetas a la vista, idénticas a correr la ROM aparte (colores y giro); mientras se hacen, la consola sigue a 60 fps con 10.000 IPF. |
 | 70 | Diseño de la ventana a 1440, 768 y 360 px: sin scroll horizontal, filtros enteros, tarjetas que no se pisan, miniaturas de escala entera y foco visible. |
 | 71 | Exportar: «Exportar» de «Estados», el de un estado de la lista y «Exportar todo» bajan el JSON (formato, fechas, el estado exacto, la pantallita en PNG píxel por píxel y la ROM solo si es de «Tus cartuchos»). |
@@ -3612,11 +3653,11 @@ las opciones o los cartuchos abren el cajón como una persona ([5.7](#57-toolse2
 | 78 | El cajón de opciones: lo abren y lo guardan el botón de la barra, M, Esc y su ×; el foco entra al título al abrirlo y vuelve al botón al guardarlo con el teclado (con el mouse, a la página); región con nombre, `aria-expanded` y `aria-controls`; M con un selector enfocado no elige nada; con la ayuda abierta, Esc cierra solo la ayuda. |
 | 79 | Las tres pestañas: un clic, las flechas, Inicio y Fin (con la vuelta), una sola a la vista y en el orden del Tab, Tab desde la pestaña entra a su panel, las flechas sobre una pestaña no aprietan teclas del CHIP-8, y la pestaña se recuerda al guardar el cajón y al recargar (la primera vez, «Cartuchos»); las cuatro secciones de «Ajustes», con su título, y `openDrawer('controles')` corre la bandeja hasta la suya. |
 | 80 | El cajón no es modal: abierto, las 16 teclas, las flechas, Espacio, N, el keypad con el mouse, el transporte y las tarjetas de «Cartuchos» andan (una tarjeta carga y el cajón sigue afuera, en su pestaña). |
-| 81 | Al costado, el cajón tapa el monitor (que se esfuma mientras tanto y vuelve al guardarlo) y nunca la pantalla, y sus esquinas quedan detrás del borde recto de la consola; con el cajón abierto, Píxeles puros, la paleta Ámbar y Tubo CRT se ven enseguida en una captura de la pantalla de verdad; abrir el Taller guarda el cajón y, abierto otra vez, tapa el Taller; a 1920×945 con el Taller, tapa el monitor y el Taller queda a la vista. |
-| 82 | Diseño del cajón a 1920×945, 1440, 768 y 360 px, en sus tres pestañas: al costado (a lo largo de la parte recta de la consola) o desde abajo (del ancho de la consola, tapando el keypad), adentro de la ventana, sin scroll de costado, con las pestañas enteras, el scroll adentro del cajón y la pantalla a la vista. |
+| 81 | Al costado, el cajón tapa el monitor (que se esfuma mientras tanto y vuelve al guardarlo) y nunca la pantalla, y sus esquinas quedan detrás del borde recto de la consola; con el cajón abierto, Píxeles puros, la paleta Ámbar y Tubo CRT se ven enseguida en una captura de la pantalla de verdad; abrir el Taller guarda el cajón y, abierto otra vez, tapa en parte el Taller, que se sigue viendo, con el ancho de la columna del monitor (450 px); a 1920×945 con el Taller, tapa el monitor y el Taller queda a la vista. |
+| 82 | Diseño del cajón a 1920×945, 1440, 768 y 360 px, en sus tres pestañas: al costado (a lo largo de la parte recta de la consola) o desde abajo (del ancho de la consola, tapando el keypad), adentro de la ventana, sin scroll de costado, con las pestañas enteras, el scroll adentro del cajón y la pantalla a la vista; en «Ajustes», el campo de la velocidad muestra 10000 entero y los ocho botones de velocidad tienen el mismo ancho, en filas parejas. |
 | 83 | Con el cajón abierto, en «Ajustes», en «Estados» con una pantallita y en «Cartuchos» mientras se hacen las miniaturas, 60 frames por segundo a 10.000 IPF. |
 | 84 | La consola entera en la ventana: a 1920×945, 1440×900 y 1280×800 (esta, con escala 1,25) se achica toda junta hasta entrar sin scroll, de la marca a la placa, con el parlante, el keypad y el monitor al lado; el lienzo sigue 1:1 con los píxeles físicos; se acomoda al cambiar la ventana sin recargar y no baja de su mínimo (teclas de 44 px); el bisel dice qué cartucho está puesto; a 768×1024 va a tamaño natural y en el teléfono no se achica; la línea de estado no se ve (un píxel) pero sigue anunciando, los botones de «Ejecución» son más grandes (58 px, con el nombre en letra de 14 px) sin que la consola crezca, ningún nombre se sale de su botón y el pie dice «Maximiliano Simonazzi - www.maxisimonazzi.com.ar». |
-| 85 | El monitor se oculta y se muestra con su botón de la barra (`aria-expanded`, con el mouse y con el teclado) y con «Ocultar» en su cabecera (el foco pasa al botón de la barra); oculto, la consola queda sola en el medio y el cajón sale a su costado (o desde abajo, si no hay lugar); se recuerda al recargar. |
+| 85 | El monitor se oculta y se muestra con su botón de la barra (`aria-expanded`, con el mouse y con el teclado) y con «Ocultar» en su cabecera (el foco pasa al botón de la barra); oculto, la consola queda sola en el medio y el cajón sale a su costado (o desde abajo, si no hay lugar); se recuerda al recargar; sin el monitor y con el Taller abierto (1920×945 y 1440×900), la consola va pegada al Taller y el cajón mide 450 px. |
 | 86 | La pestaña «Cartuchos»: cada tarjeta con la miniatura de su pantalla (igual, píxel por píxel, a correr la ROM aparte) y su nombre; el cartel propio con el mouse y con el teclado (Esc lo cierra y el cajón sigue afuera; ninguna tarjeta tiene `title`); Tab entra por la tarjeta de la ranura, y las flechas, Inicio y Fin recorren el grupo; un clic o Enter cargan y marcan el cartucho; «Cargar ROM» y una ROM arrastrada a la página van a «Tus cartuchos» con su miniatura; L abre el archivo. |
 | 87 | Carteles: ningún atributo `title` en la página (al arrancar, después de pausar, guardar un estado y abrir el cajón, en el Taller y en la ventana del archivo); con el mouse sobre «Paso», el cartel de la consola sale a los 350 ms, debajo del botón, sin quedarse con los clics, y se va al sacar el mouse; el texto queda en `data-tip` y en `aria-description` (el nombre sigue siendo «Paso»); el de Pausa, que el código cambia al pausar, también; con Tab hasta un interruptor de «Compatibilidad» sale su cartel y Esc lo cierra (y guarda el cajón); en la ventana del archivo, el cartel de un juego va encima de la ventana. |
 | 88 | La curvatura con la consola achicada, a 1920×945, 1440×900 y 1024×768: con una ROM que dibuja un marco en el borde de la pantalla, los márgenes de la imagen curvada son iguales a la izquierda y a la derecha, arriba y abajo, también cerca de las esquinas, y el mapa del filtro mide lo mismo que el lienzo en la ventana. |
@@ -3903,7 +3944,7 @@ se "emprolijaron". `650db04` (la integración de la primera ronda) pasa 725 de 7
 salteada hasta que existiera este documento; `199b896` deja cuatro en rojo hasta que se
 pongan al día el bloque de cartuchos y el tutorial; `1d966d0` todavía tiene en rojo las dos
 del bloque de cartuchos, que arregla `19d1dcd`. Los de la segunda ronda y los de esta
-pasan todas ([7.23](#723-cómo-creció-la-suite)).
+pasan todas ([7.24](#724-cómo-creció-la-suite)).
 
 Para correr las pruebas de un commit anterior a `63ad959` en Windows, sacalo con fin de
 línea LF: esos commits no tienen `.gitattributes`, y con `core.autocrlf` prendido los
@@ -4279,6 +4320,16 @@ carteles (66, 67 y 87), sin errores de consola. Los cuadros por segundo con el c
 abierto, también en «Cartuchos» mientras se hacen las miniaturas, siguen en 60 a 10.000
 IPF (escenario 83).
 
+Después del commit `08dd6a1`, una vuelta corta con tres pedidos del usuario: sin el
+monitor, el Taller se abría con un hueco entre él y la consola, donde iría el monitor
+(ahora la consola va pegada al Taller); el cajón se estiraba hasta el borde del Taller
+(ahora mide siempre lo de la columna del monitor, 450 px, y si el Taller es más ancho lo
+tapa en parte, sin esfumarlo); y el campo de la velocidad no mostraba entero el 10000 y el
+botón de 10000 quedaba solo en otro renglón (ahora el campo entra con cinco cifras y la
+flechita, y los ocho botones van en una grilla de cuatro columnas, o de ocho si la bandeja
+es ancha). Los escenarios 81, 82 y 85 lo prueban; pasaron con los otros del cajón, del
+Taller y de la velocidad (11, 40, 51, 56 y 79).
+
 Las medidas, sin recargar nada: a 1920 × 945 la consola va de y = 28 a 924 (896 px, escala
 0,946) y el monitor, de 28 a 923; el cajón, al costado, de x = 1112 a 1562 y de y = 54 a
 891. A 1440 × 900, la consola va de 28 a 878 (850 px, 0,898) y el cajón, de 853 a 1303 y
@@ -4290,7 +4341,96 @@ consola mide 968 px, la pantalla y el keypad entran juntos (el keypad, de 329 a 
 cajón sube desde 325. Las capturas de los escenarios se revisaron a mano, a 1920, 1440,
 1280, 768 y 360 px.
 
-### 7.23 Cómo creció la suite
+### 7.23 Sexta ronda: las Octojam de itch.io
+
+**El pedido.** El 7 de noviembre de 2026 el usuario pidió: «agregá las ROMs de las Octojam
+de itch.io que falten». Un agente lo hizo en su copia del repositorio, mientras otro tocaba
+el cajón de opciones, el Taller y el selector de velocidad, que esta ronda no toca.
+
+**De dónde salen.** Cada jam tiene su página de entradas
+(`https://itch.io/jam/octojam-N/entries`), que dice dónde está la lista en JSON
+(`entries_url`); de cada entrada, `fetchJam` toma el título, la página del juego, el
+usuario y la fecha. La página del juego trae su versión jugable en un iframe de
+`html-classic.itch.zone` (`playableUrl`), y esa página es una exportación de Octo: un
+`data={"program":…,"rom":[…],"options":{…}}` con el fuente, la ROM ya armada y las
+opciones. `parseOctoExport` lo recorta respetando las cadenas (`jsonObjectAt`) y lo lee
+con `JSON.parse`: nada de lo que se baja se ejecuta. Los autores salen de la tabla de la
+página (`pageAuthors`) o, si no está, del usuario. Las pedidas van de a dos, con el
+User-Agent `Mozilla/5.0 (chip8-emulator)`; si itch.io pide esperar (429), `fetchItch`
+espera lo que dice `Retry-After` y vuelve a probar.
+
+**Qué encontró.** Las listas públicas tienen 11, 26, 22, 14 y 13 entradas (Octojam 6 a 10);
+la página de la Octojam 9 dice 24, pero las otras 10 ya no son públicas. Son 86 entradas y
+85 páginas: *Octogon Trail* se presentó a la 9 y a la 10. De esas, 15 ya estaban en el
+archivo, 68 son nuevas (22 de CHIP-8, 10 de SUPER-CHIP y 36 de XO-CHIP) y 3 se saltearon.
+Los 68 corren sin errores con `node tools/archive.js test --itch`, y `chip8.html` creció
+unos 418 KB (de 1,63 a 2,06 MB): sus ROMs comprimidas ocupan unos 381 KB.
+
+| Jam | Año | Entradas | Ya en el archivo | Nuevas | Salteadas |
+|---|---:|---:|---:|---:|---:|
+| Octojam 6 | 2019 | 11 | 4 | 6 | 1 |
+| Octojam 7 | 2020 | 26 | 6 | 20 | 0 |
+| Octojam 8 | 2021 | 22 | 3 | 18 | 1 |
+| Octojam 9 | 2022 | 14 | 1 | 13 | 0 |
+| Octojam 10 | 2023 | 13 | 1 | 11 | 1 |
+
+**El formato.** `data/octojam-itch.json` tiene la fuente, `license` («de cada autor»: los
+juegos de itch.io no son de dominio público), la fecha (`fetched`), las cinco jams (evento,
+año, página, cuántas entradas tiene la lista y cuántas dice la página) y tres listas:
+`programs`, los nuevos (`id`, `title`, `authors`, `event` como «Octojam 7», `year`,
+`platform`, `size`, `sha1`, `options` tal cual las trae la exportación, `page` y `play`, la
+versión jugable); `inArchive`, los que ya estaban, con el `archiveId` y el motivo; y
+`skipped`, los salteados, con el motivo. `roms/octojam/<id>.ch8` tiene cada ROM y
+`roms/octojam/LEEME.md` (`buildItchReadme`), la tabla por jam, la de los juegos y las de los
+que ya estaban y los que se saltearon. El `id` es el final de la dirección del juego en
+itch.io; si se repite (los dos *CHIP-8 Snake*, los dos *Bad Apple*), lleva al final el
+usuario.
+
+**La plataforma.** La exportación no la dice: Octo acepta todas las instrucciones y solo
+limita el tamaño (`maxSize`). `detectPlatform` toma la más grande de tres: el tamaño (más
+de 3584 bytes solo entra en XO-CHIP), `maxSize` 3583 (el perfil SUPER-CHIP de Octo) y la
+instrucción de más nivel (`Chip8Core.extendedInfo`) que ejecuta en 3600 frames, un minuto,
+corriendo como XO-CHIP con sus quirks y teclas al azar reproducibles (`executedOpcodes`).
+`maxSize` 65024, el perfil XO-CHIP, no alcanza: en el archivo lo tienen también 5 juegos
+de CHIP-8 y de SUPER-CHIP. Así, la regla da en los 104 juegos del archivo la plataforma
+que les puso John Earnest. Seguir el flujo desde 0x200 (`reachableOpcodes`) era la otra
+opción, pero confunde datos con código (en el archivo, un `D010` entre los datos de
+*octojam1title*): queda como segunda opinión, y si pide más el comando lo avisa para
+revisarlo a mano. Con los 68 no avisó nada.
+
+**Las decisiones.**
+
+| Caso | Qué se hizo |
+|---|---|
+| La misma huella que una ROM del archivo (11) | No se suma: va a `inArchive` |
+| La misma jam y el mismo título que uno del archivo, con otra ROM: *Chicken Scratch* (2 bytes distintos), *Flutter By* (40) y *An Evening to Die For* (72) | No se suma, para no tener dos veces el mismo juego: va a `inArchive`, con cuántos bytes cambian |
+| *Octojam 6 Greeting*: la exportación es de una versión de Octo que armaba la ROM al abrir la página, y trae solo el fuente | No hay huella que comparar, pero es la pantalla *octojam6title* del archivo (`ITCH_SAME_AS`): va a `inArchive` |
+| *Octogon Trail*, presentado a la Octojam 9 y a la 10 | Cuenta para la primera; la entrada de la 10 se saltea |
+| *Alien Inv8sion*: la versión jugable es otro emulador (Silicon8), sin exportación de Octo | Se saltea |
+| *Dump Trump*: la página no tiene versión jugable ni descargas | Se saltea |
+| Quirks en 0 y 1 (los traen muchas exportaciones, y 7 programas del archivo) | `fromOctoOptions` toma un número distinto de 0 como prendido, como Octo; los 7 del archivo (*Applejak*, *Bulb*, *Super Octogon* y *Squad*, con los de SUPER-CHIP, y *Dino Run*, *Knumber Knower* y *Tick*, con los del VIP) ahora arrancan con sus quirks |
+| La página de cada juego en `chip8.html` | Va sin `https://`, como la fuente del archivo ([8.23](#823-ninguna-dirección-de-red-en-chip8html)) |
+| La licencia | Cada juego de itch.io es de sus autores: el README y el `LEEME.md` de `roms/octojam/` lo dicen |
+
+**La segunda vuelta: un solo paquete.** La primera versión separaba las colecciones en
+la ventana: un filtro «Colección», la marca «itch.io» en las tarjetas, la cuenta de cada
+una en la introducción y avisos propios para los de itch.io. El usuario vio los juegos y
+pidió: «no los separes por colecciones, porque el que llega de la nada no entiende de
+dónde es el archivo y qué es de itch.io; dejalos a todos en un solo paquetón, sacá ese
+selector. Sí dejalos separados por plataforma y por evento o año, como hasta ahora. Está
+buenísimo como queda». Se sacaron el filtro, la marca y las cuentas por colección; la
+introducción dice el total, el aviso de la carga y el cartel son los de cualquier juego
+del archivo, y la ayuda, el README y el manual ya no los distinguen al explicar cómo se
+usan. La colección sigue en los datos (`collection` en el bloque, `data/octojam-itch.json`
+y `roms/octojam/`) y en las herramientas, sin que se vea: de dónde sale cada juego importa
+para su licencia, que el README y los índices de cada carpeta dicen.
+
+**La verificación.** `node --test` entero y la E2E con los escenarios 66 a 70 al día:
+los 172 juntos con los filtros de plataforma y de evento o año, ninguna tarjeta ni aviso
+que hable de colecciones, un juego de itch.io cargado con un clic como cualquier otro y
+los cuatro controles enteros a 360 px.
+
+### 7.24 Cómo creció la suite
 
 | Momento | Commit | Pruebas | Resultado |
 |---|---|---|---|
@@ -4318,6 +4458,7 @@ cajón sube desde 325. Las capturas de los escenarios se revisaron a mano, a 192
 | Documentación de la cuarta ronda | `46e656f` | 1602 | todas pasan |
 | Quinta ronda, primera vuelta: el cajón de opciones y el keypad plegable, con su documentación | — | 1624 | todas pasan |
 | Quinta ronda, segunda vuelta: los cartuchos en el cajón, la consola entera en la ventana, el monitor que se oculta, el frente sin la línea de estado, los carteles y «Cuidado», con su documentación | — | 1639 | todas pasan |
+| Sexta ronda: las Octojam de itch.io (el comando `itch`, las dos colecciones en el bloque y, a pedido del usuario, todos juntos en la ventana, `tests/octojam.test.js`), con su documentación | — | 1657 | todas pasan |
 
 ---
 
@@ -4834,7 +4975,7 @@ Cada decisión, en formato corto: el contexto, qué se decidió y qué implica.
   leyó, cuáles fueron las últimas instrucciones) y detenerse antes de una dirección. Lo
   primero se anota en cada instrucción; lo segundo, mirado en cada instrucción, frenaría a
   la consola a 10.000 IPF, y la plataforma CHIP-8 no podía volverse más lenta
-  ([1.7](#17-requisitos-no-funcionales)).
+  ([1.8](#18-requisitos-no-funcionales)).
 - **Decisión:** todo en el núcleo, con arreglos tipados reservados una sola vez: en
   `step`, la traza y la marca de código son tres escrituras y un `|=`, sin objetos ni
   llamadas, y las marcas de los datos van dentro de las instrucciones que ya recorren esos
@@ -5001,13 +5142,16 @@ Cada decisión, en formato corto: el contexto, qué se decidió y qué implica.
   arriba, cuadrada, asomaba por la esquina redondeada de la consola: lo marcó el usuario
   en una captura ([7.22](#722-quinta-ronda-la-segunda-vuelta)).
 - **Decisión:** si hay una columna a la derecha de la consola, el cajón sale de abajo del
-  borde de la consola, llega hasta el borde de afuera de la columna y, de alto, ocupa solo
-  la parte recta del borde de la consola, sin sus esquinas redondeadas: así las dos
-  esquinas del cajón quedan escondidas detrás de ella. Como así queda más corto que la
-  columna, la columna se esfuma mientras el cajón está afuera (`opacity` y `visibility`),
-  en vez de asomar por arriba y por abajo. Sin columna (con el monitor oculto), sale igual
-  al costado si quedan 340 px libres; si no, sube desde abajo, del ancho de la consola,
-  debajo de la pantalla, tapando el keypad. Lo decide el lugar (`drawerColumn` y
+  borde de la consola, mide siempre lo de la columna del monitor (hasta su borde de
+  afuera, o 450 px si el monitor no está al lado: nunca hasta el borde del Taller) y, de
+  alto, ocupa solo la parte recta del borde de la consola, sin sus esquinas redondeadas:
+  así las dos esquinas del cajón quedan escondidas detrás de ella. Como así queda más
+  corto que la columna, la columna tapada entera se esfuma mientras el cajón está afuera
+  (`opacity` y `visibility`), en vez de asomar por arriba y por abajo; un Taller más ancho
+  que el cajón se sigue viendo al lado (la segunda vuelta corta,
+  [7.22](#722-quinta-ronda-la-segunda-vuelta)). Sin columna (con el monitor oculto), sale
+  igual al costado si quedan 340 px libres; si no, sube desde abajo, del ancho de la
+  consola, debajo de la pantalla, tapando el keypad. Lo decide el lugar (`drawerColumn` y
   `drawerSide`), no un ancho fijo: en 1200 px justos el monitor ya bajó y no hay columna.
   La caja la calcula una función sin DOM, `drawerBox`, y la ubica `position: fixed`. El
   monitor tapado se sigue poniendo al día.

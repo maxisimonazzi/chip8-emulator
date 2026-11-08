@@ -1,6 +1,8 @@
 'use strict';
 // Tabla de autoconfiguración: tools/archive.js, data/archive.json y el bloque
-// <script id="chip8-archive"> de chip8.html, con las ROMs del archivo embebidas al final.
+// <script id="chip8-archive"> de chip8.html, con las ROMs del archivo embebidas al final. El bloque trae
+// también los juegos de las Octojam en itch.io (data/octojam-itch.json): los prueba tests/octojam.test.js,
+// y acá cuentan donde el bloque es uno solo para las dos colecciones.
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -41,8 +43,10 @@ describe('tools/archive.js: opciones de Octo -> ajustes de la consola', () => {
       // Un false explícito es lo mismo que no traer la opción.
       assert.deepEqual(archive.fromOctoOptions({ [octo]: false }).quirks, base, octo + ' = false');
     }
-    // Solo true cuenta como verdadero (no "true" ni 1).
-    assert.deepEqual(archive.fromOctoOptions({ logicQuirks: 'true', clipQuirks: 1 }).quirks, base);
+    // Un número distinto de 0 cuenta como prendido, como en Octo (que a veces guarda 1 y 0); un texto, no.
+    assert.deepEqual(archive.fromOctoOptions({ logicQuirks: 'true', shiftQuirks: '1' }).quirks, base);
+    assert.deepEqual(archive.fromOctoOptions({ clipQuirks: 1, jumpQuirks: 2, loadStoreQuirks: 1, shiftQuirks: 0, vBlankQuirks: 0 }).quirks,
+      { ...base, clipping: true, jumping: true, memory: false });
   });
 
   it('el perfil COSMAC VIP de Octo da los quirks del perfil COSMAC VIP de la consola', () => {
@@ -79,7 +83,9 @@ describe('tools/archive.js: opciones de Octo -> ajustes de la consola', () => {
 
   it('vfOrderQuirks se informa: la consola siempre escribe VF al final', () => {
     assert.deepEqual(archive.fromOctoOptions({ vfOrderQuirks: true }).unsupported, ['vfOrderQuirks']);
+    assert.deepEqual(archive.fromOctoOptions({ vfOrderQuirks: 1 }).unsupported, ['vfOrderQuirks']);
     assert.deepEqual(archive.fromOctoOptions({ vfOrderQuirks: false }).unsupported, []);
+    assert.deepEqual(archive.fromOctoOptions({ vfOrderQuirks: 0 }).unsupported, []);
   });
 
   it('formatEvent separa el número de la Octojam y deja el resto igual', () => {
@@ -90,7 +96,7 @@ describe('tools/archive.js: opciones de Octo -> ajustes de la consola', () => {
     assert.equal(archive.formatEvent(undefined), '');
   });
 
-  it('toEntry arma la entrada embebida con el año de la fecha y los autores juntos', () => {
+  it('toEntry arma la entrada embebida con el año de la fecha, los autores juntos y su colección', () => {
     const e = archive.toEntry({
       id: 'demo', title: 'Demo', authors: ['Ana', 'Beto'], event: 'Octojam5', release: '2018-10-31',
       platform: 'schip', size: 300, sha1: 'x', options: { tickrate: 30, shiftQuirks: true },
@@ -98,10 +104,18 @@ describe('tools/archive.js: opciones de Octo -> ajustes de la consola', () => {
     assert.deepEqual(e, {
       id: 'demo', title: 'Demo', authors: 'Ana, Beto', event: 'Octojam 5', year: 2018, platform: 'schip', size: 300,
       ipf: 30, quirks: { ...archive.fromOctoOptions({ shiftQuirks: true }).quirks },
-      colors: OCTO_COLORS, rotation: 0,
+      colors: OCTO_COLORS, rotation: 0, collection: 'archivo',
     });
     assert.equal(archive.toEntry({ id: 'x', title: 'X', platform: 'otra', options: {} }).platform, 'chip8');
     assert.equal(archive.toEntry({ id: 'x', title: 'X', release: 'pronto', options: {} }).year, null);
+    // Uno de itch.io: el año es el suyo y la página va sin "https://" (chip8.html no tiene direcciones).
+    const itch = archive.toEntry({ id: 'turm8', title: 'Turm8', authors: ['Tobias'], event: 'Octojam 7', year: 2020, platform: 'schip',
+      size: 3377, options: {}, page: 'https://tvil.itch.io/turm8', collection: 'itch' });
+    assert.equal(itch.collection, 'itch');
+    assert.equal(itch.page, 'tvil.itch.io/turm8');
+    assert.equal(itch.year, 2020);
+    assert.equal(itch.event, 'Octojam 7');
+    assert.ok(!('page' in archive.toEntry({ id: 'x', title: 'X', options: {}, page: 'https://algo.itch.io/x' })), 'los del archivo no llevan página');
   });
 });
 
@@ -172,8 +186,8 @@ describe('bloque <script id="chip8-archive"> de chip8.html', () => {
     execFileSync(process.execPath, [path.join(ROOT, 'tools', 'archive.js'), 'embed', '--check'], { cwd: ROOT, stdio: 'pipe' });
   });
 
-  it('define CHIP8_ARCHIVE con una entrada válida por programa, indexada por la huella SHA-1', () => {
-    const data = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'archive.json'), 'utf8'));
+  it('define CHIP8_ARCHIVE con una entrada válida por programa de las dos colecciones, indexada por la huella SHA-1', () => {
+    const data = archive.withCollections(JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'archive.json'), 'utf8')), archive.readItch());
     const { code } = extractScript('chip8-archive');
     const sandbox = {};
     vm.runInNewContext(code, sandbox);
@@ -186,6 +200,7 @@ describe('bloque <script id="chip8-archive"> de chip8.html', () => {
       const p = data.programs.find((x) => x.sha1 === hash);
       assert.equal(e.id, p.id);
       assert.equal(e.title, p.title);
+      assert.equal(e.collection, p.collection, e.id);
       assert.ok(['chip8', 'schip', 'xochip'].includes(e.platform), e.id);
       assert.ok(Number.isInteger(e.ipf) && e.ipf >= 1 && e.ipf <= 10000, e.id);
       assert.deepEqual(Object.keys(e.quirks), QUIRK_KEYS, e.id);
@@ -237,9 +252,12 @@ describe('las ROMs embebidas en chip8.html (CHIP8_ARCHIVE.data)', () => {
   const os = require('node:os');
   const { spawnSync } = require('node:child_process');
   const data = JSON.parse(fs.readFileSync(archive.DATA_PATH, 'utf8'));
+  const itch = archive.readItch();
+  const all = archive.withCollections(data, itch);   // las dos colecciones: el bloque es uno solo
   const bySha = data.programs.slice().sort((a, b) => a.sha1.localeCompare(b.sha1));
+  const allBySha = all.programs.slice().sort((a, b) => a.sha1.localeCompare(b.sha1));
   const sha1 = (bytes) => crypto.createHash('sha1').update(bytes).digest('hex');
-  const romOf = (p) => fs.readFileSync(path.join(archive.ROMS_DIR, p.id + '.ch8'));
+  const romOf = (p) => fs.readFileSync(path.join(p.collection === 'itch' ? archive.ITCH_ROMS_DIR : archive.ROMS_DIR, p.id + '.ch8'));
   const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const embedded = () => {
     const sandbox = {};
@@ -253,10 +271,10 @@ describe('las ROMs embebidas en chip8.html (CHIP8_ARCHIVE.data)', () => {
     return Uint8Array.from(atob(s), (ch) => ch.charCodeAt(0));
   };
 
-  it('cada ROM del archivo está embebida y se descomprime a los bytes de roms/archivo/, con su huella y su tamaño', () => {
+  it('cada ROM del archivo está embebida y se descomprime a los bytes de roms/archivo/ (o de roms/octojam/), con su huella y su tamaño', () => {
     const table = embedded();
-    assert.deepEqual(Object.keys(table.data).sort(), data.programs.map((p) => p.sha1).sort(), 'una ROM por programa, sin otras');
-    for (const p of data.programs) {
+    assert.deepEqual(Object.keys(table.data).sort(), all.programs.map((p) => p.sha1).sort(), 'una ROM por programa, sin otras');
+    for (const p of all.programs) {
       const bytes = zlib.inflateSync(Buffer.from(table.data[p.sha1], 'base64url'));
       assert.equal(bytes.length, p.size, p.id);
       assert.equal(sha1(bytes), p.sha1, p.id);
@@ -266,7 +284,7 @@ describe('las ROMs embebidas en chip8.html (CHIP8_ARCHIVE.data)', () => {
 
   it('DecompressionStream("deflate"), lo que usa el navegador, da los mismos bytes', async () => {
     const table = embedded();
-    for (const p of data.programs) {
+    for (const p of all.programs) {
       const stream = new Blob([fromB64url(table.data[p.sha1])]).stream().pipeThrough(new DecompressionStream('deflate'));
       const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
       assert.equal(bytes.length, p.size, p.id);
@@ -283,18 +301,20 @@ describe('las ROMs embebidas en chip8.html (CHIP8_ARCHIVE.data)', () => {
     assert.ok(lines.slice(0, at).every((l) => l.length < 600), 'la tabla tiene una línea corta por juego');
     const rows = lines.slice(at + 1, -2);
     assert.deepEqual(lines.slice(-2), ['};', '']);
-    assert.deepEqual(rows.map((r) => r.slice(3, 43)), bySha.map((p) => p.sha1), 'una línea por ROM, en el orden de las huellas');
+    assert.deepEqual(rows.map((r) => r.slice(3, 43)), allBySha.map((p) => p.sha1), 'una línea por ROM, en el orden de las huellas');
     rows.forEach((r, i) => assert.match(r, i < rows.length - 1 ? /^ {2}"[0-9a-f]{40}": "[A-Za-z0-9_-]+",$/ : /^ {2}"[0-9a-f]{40}": "[A-Za-z0-9_-]+"$/));
-    const texts = Object.values(embedded().data);
+    const table = embedded(), texts = Object.values(table.data);
     assert.ok(texts.every((t) => t.length % 4 !== 1), 'largos posibles de base64 sin relleno');
-    // Unos 700 KB: se aceptó que chip8.html pase de unos 420 KB a cerca de 1,1 MB.
-    const total = texts.reduce((n, t) => n + t.length, 0);
-    assert.ok(total < 760 * 1024, `los bytes comprimidos ocupan ${Math.round(total / 1024)} KB`);
+    // Los del archivo, unos 700 KB: se aceptó que chip8.html pase de unos 420 KB a cerca de 1,1 MB. Los de
+    // itch.io, unos 380 KB más: chip8.html pasó de 1,6 MB a 2 MB.
+    const kb = (list) => list.reduce((n, p) => n + table.data[p.sha1].length, 0);
+    assert.ok(kb(data.programs) < 760 * 1024, `los bytes comprimidos del archivo ocupan ${Math.round(kb(data.programs) / 1024)} KB`);
+    assert.ok(kb(itch.programs) < 420 * 1024, `los bytes comprimidos de itch.io ocupan ${Math.round(kb(itch.programs) / 1024)} KB`);
   });
 
   it('readPacked lee lo embebido; sin bloque o con un bloque sin bytes, nada', () => {
     const packed = archive.readPacked(readHtml());
-    assert.deepEqual(Object.keys(packed).sort(), data.programs.map((p) => p.sha1).sort());
+    assert.deepEqual(Object.keys(packed).sort(), all.programs.map((p) => p.sha1).sort());
     assert.deepEqual(packed, { ...embedded().data });
     assert.deepEqual(archive.readPacked('<p>sin bloque</p>'), {});
     assert.deepEqual(archive.readPacked('<script id="chip8-archive">\nglobalThis.CHIP8_ARCHIVE = { roms: {} };\n</script>'), {});
@@ -399,14 +419,14 @@ describe('las ROMs embebidas en chip8.html (CHIP8_ARCHIVE.data)', () => {
       assert.equal(fix.status, 0, fix.stderr);
       const fixed = fs.readFileSync(file, 'utf8');
       const now = archive.readPacked(fixed);
-      assert.deepEqual(Object.keys(now), bySha.map((p) => p.sha1));
+      assert.deepEqual(Object.keys(now), allBySha.map((p) => p.sha1));
       for (const p of [a, b]) assert.ok(archive.unpackRom(now[p.sha1]).equals(romOf(p)), p.id + ' se rehízo');
       assert.equal(now[c.sha1], other, 'la que se descomprime bien queda como estaba');
-      for (const p of bySha.slice(3)) assert.equal(now[p.sha1], packed[p.sha1], p.id + ' no cambió');
+      for (const p of allBySha.filter((x) => ![a, b, c].some((y) => y.sha1 === x.sha1))) assert.equal(now[p.sha1], packed[p.sha1], p.id + ' no cambió');
       assert.equal(fixed.slice(0, fixed.indexOf(archive.DATA_OPEN)), html.slice(0, html.indexOf(archive.DATA_OPEN)), 'el resto de la página y la tabla, iguales');
       const again = run('--check');
       assert.equal(again.status, 0, again.stderr);
-      assert.match(again.stdout, new RegExp('Todo al día: ' + data.programs.length + ' programas del archivo embebidos, con sus ROMs'));
+      assert.match(again.stdout, new RegExp('Todo al día: ' + data.programs.length + ' programas del archivo y ' + itch.programs.length + ' juegos de las Octojam en itch.io embebidos, con sus ROMs'));
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

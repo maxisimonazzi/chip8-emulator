@@ -340,13 +340,13 @@ La consola reconoce cada ROM por su **huella**: un número que se calcula con su
 prendido, que es como viene (está en **Compatibilidad**, en la pestaña **Ajustes**), la
 huella le sirve para dos cosas:
 
-- **Los juegos conocidos se configuran solos.** La consola trae los datos de los 104
-  programas del archivo de la comunidad de John Earnest, casi todos de las Octojam (los
+- **Los juegos conocidos se configuran solos.** La consola trae los datos de 172 juegos
+  de la comunidad, casi todos de las Octojam (los
   concursos anuales de juegos para CHIP-8): con qué plataforma, quirks, velocidad y
   colores se juegan en Octo, y si la pantalla va girada. Si cargás uno, se configura
-  antes de arrancar, aparece un aviso que dice qué aplicó y en la ranura, al lado del
-  tamaño, dice *ajustes del archivo*. Sus colores quedan en la paleta **Del cartucho**
-  (sección 1.8).
+  antes de arrancar, aparece un aviso que dice qué aplicó y en la ranura, al
+  lado del tamaño, dice *ajustes del archivo*. Sus colores quedan en la paleta **Del
+  cartucho** (sección 1.8).
 - **Lo que cambiás se recuerda.** Si mientras corre una ROM cambiás la plataforma, el
   perfil, un interruptor, las IPF, la paleta o los controles, la consola lo anota para
   esa ROM: la próxima vez arranca así, y la ranura dice *ajustes recordados*. El botón
@@ -361,11 +361,13 @@ Buscá por título o por autor, filtrá por plataforma o por evento, y con un cl
 Enter) el juego arranca ya configurado y la ventana se cierra. Los que cargás así no
 ocupan lugar en **Tus cartuchos**: siempre están en la ventana.
 
-Las 104 ROMs del archivo están también en la carpeta
-[`roms/archivo/`](../roms/archivo/LEEME.md) del repositorio (el archivo es de dominio
-público, licencia CC0), con un índice, `LEEME.md`, que dice de cada juego la plataforma,
-la velocidad, quién lo hizo y para qué evento. Si cargás una con **Cargar ROM** (o la
-arrastrás), la consola también la reconoce y se configura sola.
+Las ROMs están también en el repositorio, en dos carpetas: las 104 ROMs del archivo de
+John Earnest en [`roms/archivo/`](../roms/archivo/LEEME.md) y las de las Octojam
+publicadas en itch.io en [`roms/octojam/`](../roms/octojam/LEEME.md). Cada carpeta tiene
+un índice, `LEEME.md`, que dice de cada juego la plataforma, la velocidad, quién lo hizo
+y para qué evento (el de `roms/archivo/` lista los 104 programas del archivo). Si cargás
+una con **Cargar ROM** (o la arrastrás), la consola también la reconoce y se configura
+sola.
 
 Una ROM que la consola no conoce y que nunca usaste arranca con tus últimos ajustes; un
 cartucho incluido, con su plataforma. Lo que la consola aplica sola no cuenta como una
@@ -3356,7 +3358,7 @@ directamente desde el disco. Adentro tiene siete partes:
 | `<script id="chip8-core">` | El núcleo del emulador: la clase `Chip8` con sus tres plataformas, los quirks, las dos fuentes, el desensamblador, la huella SHA-1 de las ROMs, los estados guardados (como objeto y como texto), el buffer del rebobinado y lo que usa el depurador (la traza, el mapa de la memoria y los puntos de corte). No toca la página, así que también corre en Node. |
 | `<script id="chip8-asm">` | El ensamblador, el mismo que usa `tools/chip8asm.js`. También es código puro. |
 | `<script id="chip8-roms">` | Los cartuchos incluidos y los fuentes que trae el Taller (los de los cartuchos y los ejemplos de este tutorial). Lo genera `tools/embed-roms.js` a partir de `roms/*.asm` y `docs/ejemplos/*.asm`: no se edita a mano. |
-| `<script id="chip8-archive">` | La tabla del archivo de la comunidad (los ajustes de cada juego conocido, por su huella) y las ROMs de sus juegos, comprimidas. Lo genera `tools/archive.js` a partir de `data/archive.json` y `roms/archivo/`: tampoco se edita a mano. |
+| `<script id="chip8-archive">` | La tabla del archivo de la comunidad (los ajustes de cada juego conocido, por su huella) y las ROMs de sus juegos, comprimidas. Lo genera `tools/archive.js` a partir de `data/archive.json` y `roms/archivo/`, y de `data/octojam-itch.json` y `roms/octojam/` (los juegos de itch.io): tampoco se edita a mano. |
 | `<script id="chip8-ui">` | La interfaz: pantalla, keypad, controles, monitor y depurador, sonido, los ajustes por cartucho, tus cartuchos, la ventana del archivo, las ranuras de estados y sus archivos, el rebobinado, el Taller y el bucle principal. |
 
 Alrededor están las herramientas (`tools/chip8asm.js`, el ensamblador en la terminal;

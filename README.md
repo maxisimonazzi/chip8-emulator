@@ -19,13 +19,15 @@ cambian con interruptores; de fábrica se comporta como el VIP.
 
 Trae seis cartuchos escritos para este proyecto: una pelotita que rebota, un visor del
 teclado, un juego de atrapar bloques, un programa que se prueba a sí mismo, la fuente
-hexadecimal y una muestra de XO-CHIP. Trae también los 104 juegos del archivo de la
-comunidad que mantiene John Earnest, el autor de Octo, que son de dominio público. La L abre
-una ventana con todos, con buscador, filtros y una miniatura de cada juego, y un clic carga
-el que elijas. La consola reconoce esos juegos por su huella SHA-1 y se configura sola con la
-plataforma, la velocidad y los colores de cada uno, también si cargás la ROM desde
-[`roms/archivo/`](roms/archivo/LEEME.md). Una ROM que no está en esa lista arranca con tus
-ajustes; si los cambiás mientras la jugás, los recuerda para la próxima vez.
+hexadecimal y una muestra de XO-CHIP. Trae también 172 juegos de la comunidad, casi todos
+hechos para la Octojam, la game jam de CHIP-8 que organizó John Earnest, el autor de Octo,
+entre 2014 y 2023 (de dónde sale cada uno está en [Licencia](#licencia)). La L abre una
+ventana con todos, con buscador, filtros y una miniatura de cada juego, y un
+clic carga el que elijas. La consola reconoce esos juegos por su huella SHA-1 y se configura
+sola con la plataforma, la velocidad y los colores de cada uno, también si cargás la ROM
+desde [`roms/archivo/`](roms/archivo/LEEME.md) o [`roms/octojam/`](roms/octojam/LEEME.md).
+Una ROM que no está en esas listas arranca con tus ajustes; si los cambiás mientras la
+jugás, los recuerda para la próxima vez.
 
 Para entender un programa está el monitor, con cuatro pestañas: el código (registros, pila y
 el desensamblado de toda la memoria), la traza de las últimas 1024 instrucciones, un mapa de
@@ -115,9 +117,9 @@ herramientas.
 npm test
 ```
 
-Son **1639 pruebas** en 23 archivos y tardan unos segundos. Además de cada instrucción y cada
+Son **1657 pruebas** en 24 archivos y tardan unos segundos. Además de cada instrucción y cada
 quirk, revisan el ensamblador, el depurador, los demos, los estados guardados y sus archivos,
-la tabla del archivo y sus ROMs, y que la documentación no mienta: los ejemplos del manual y
+la tabla del archivo, los juegos de itch.io y sus ROMs, y que la documentación no mienta: los ejemplos del manual y
 del tutorial se ensamblan y se ejecutan. `npm run e2e` corre 89 escenarios en Chrome o Edge
 sin ventana, con teclado, mouse y toques de verdad.
 
@@ -129,8 +131,9 @@ Las otras herramientas:
 - `npm run roms` vuelve a armar los cartuchos incluidos a partir de `roms/*.asm`, junto con
   los fuentes que trae el Taller.
 - `npm run archive -- download` baja las ROMs del archivo; `update` actualiza su tabla,
-  `embed` mete la tabla y las ROMs comprimidas en `chip8.html`, y `test` corre todos los
-  juegos y arma una hoja con sus pantallas.
+  `itch` suma los juegos de las Octojam en itch.io que no están en el archivo, `embed` mete
+  las tablas y las ROMs comprimidas de todos los juegos en `chip8.html`, y `test` corre
+  todos los juegos (con `--itch`, los de itch.io) y arma una hoja con sus pantallas.
 - `npm run serve` sirve el proyecto en localhost:8008. Para usar la consola no hace falta:
   está para las pruebas.
 
@@ -140,10 +143,12 @@ Las otras herramientas:
 chip8.html                   La consola entera: estilos, interfaz, núcleo, ensamblador, cartuchos y el archivo.
 roms/                        Los seis cartuchos incluidos, en assembler (.asm) y ensamblados (.ch8).
 roms/archivo/                Los 104 juegos del archivo de la comunidad y su índice.
+roms/octojam/                Los 68 juegos de las Octojam en itch.io que no están en el archivo, y su índice.
 data/archive.json            Los datos del archivo: huellas, plataformas y opciones de Octo.
+data/octojam-itch.json       Los datos de esos 68: huellas, plataformas, opciones de Octo y su página.
 tools/chip8asm.js            El ensamblador en la terminal: usa el que está en chip8.html.
 tools/embed-roms.js          Arma el bloque de cartuchos de chip8.html, con los fuentes del Taller.
-tools/archive.js             Baja el archivo, mete su tabla y sus ROMs en chip8.html y prueba sus juegos.
+tools/archive.js             Baja el archivo y los juegos de itch.io, mete sus tablas y sus ROMs en chip8.html y prueba sus juegos.
 tools/e2e.js                 Las pruebas de punta a punta en el navegador.
 tools/serve.js               Un servidor estático mínimo.
 tests/                       Las pruebas, con node:test; harness.js carga los bloques de chip8.html.
@@ -153,7 +158,7 @@ docs/ejemplos/               Los programas del tutorial.
 docs/DESARROLLO.md           La documentación del desarrollo.
 ```
 
-`chip8.html` pesa unos 1,5 MB: casi la mitad son las 104 ROMs del archivo, comprimidas.
+`chip8.html` pesa unos 2 MB: más de la mitad son las ROMs de los 172 juegos, comprimidas.
 
 ## Lo que no hace
 
@@ -164,11 +169,13 @@ lenguaje de Octo (`.8o`): hay que cargar la ROM ya armada o escribir el programa
 assembler del proyecto. Los puntos de corte son por dirección: no hay puntos de corte con
 condiciones ni al leer o escribir la memoria, y desde el monitor no se cambian los registros
 ni la memoria. Las pruebas de navegador corren en Chrome: no se probó en un teléfono de
-verdad, con un joystick físico ni en Firefox o Safari. De los 104 juegos del archivo,
+verdad, con un joystick físico ni en Firefox o Safari. De los 172 juegos,
 *supersquare* se detiene en su pantalla de fin por un desborde de pila que también tiene en
 Octo.
 
 ## Licencia
 
 El código es MIT. Las ROMs de `roms/archivo/` y los datos de `data/archive.json` vienen del
-[archivo de John Earnest](https://github.com/JohnEarnest/chip8Archive) y son CC0.
+[archivo de John Earnest](https://github.com/JohnEarnest/chip8Archive) y son CC0. Las de
+`roms/octojam/` son de sus autores: salen de las páginas de las Octojam en itch.io, que no les
+ponen una licencia común, y la de cada juego dice lo suyo.

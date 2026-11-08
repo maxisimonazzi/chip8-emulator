@@ -145,13 +145,14 @@
  *   64 puntos de corte por cartucho y fuera del estado; el mapa y la traza al reiniciar, al cargar un estado y al
  *      rebobinar; la pestaña se recuerda
  *   65 velocidad con el depurador: 10.000 IPF con un punto de corte y Planos con cada pestaña a 60 fps
- *   66 archivo de la comunidad: el botón de la pestaña «Cartuchos» y L abren la ventana con los 104 juegos y sus datos;
- *      buscar, filtrar por plataforma y por evento o año, ordenar y «Mostrar todos»; las teclas no llegan a la
- *      consola; Esc, L, × y el fondo la cierran
- *   67 un clic o Enter cargan el juego con los ajustes del archivo, la ventana se cierra, la pantalla queda a la
- *      vista y el juego corre; flechas, Inicio, Fin y AvPág; «En la ranura», «en tus cartuchos» y «ajustes
- *      recordados»; también por file://
- *   68 las 104 ROMs embebidas se descomprimen en el navegador a su huella SHA-1; dañada, sin DecompressionStream
+ *   66 archivo de la comunidad: el botón de la pestaña «Cartuchos» y L abren la ventana con todos los juegos
+ *      juntos (los del archivo y los de las Octojam en itch.io, sin colecciones a la vista) y sus datos; buscar,
+ *      filtrar por plataforma y por evento o año, ordenar y «Mostrar todos»; las teclas no llegan a la consola;
+ *      Esc, L, × y el fondo la cierran
+ *   67 un clic o Enter cargan el juego con los ajustes del archivo (también uno de las Octojam en itch.io, igual
+ *      que los demás), la ventana se cierra, la pantalla queda a la vista y el juego corre; flechas, Inicio, Fin y AvPág;
+ *      «En la ranura», «en tus cartuchos» y «ajustes recordados»; también por file://
+ *   68 todas las ROMs embebidas se descomprimen en el navegador a su huella SHA-1; dañada, sin DecompressionStream
  *      o sin las ROMs embebidas, un aviso claro y la consola sigue andando
  *   69 miniaturas solo de las tarjetas a la vista, idénticas a correr la ROM aparte (colores y giro); mientras se
  *      hacen, la consola sigue a 60 fps con 10.000 IPF
@@ -181,7 +182,7 @@
  *      guardarlo y al recargar (la primera vez, «Cartuchos»)
  *   80 el cajón no es modal: abierto, las 16 teclas, las flechas, Espacio, N, el keypad con el mouse, el
  *      transporte y las tarjetas de «Cartuchos» siguen andando
- *   81 al costado, el cajón tapa el monitor (o el Taller), que se esfuma mientras tanto, y nunca la pantalla, y
+ *   81 al costado, el cajón tapa el monitor (que se esfuma mientras tanto) o parte del Taller, y nunca la pantalla, y
  *      sus esquinas quedan detrás del borde recto de la consola; con el cajón abierto, Tubo CRT, Píxeles puros
  *      y la paleta cambian la pantalla a la vista (en una captura de verdad); 1920×945 con el Taller: tapa el
  *      monitor y el Taller queda a la vista
@@ -5768,15 +5769,16 @@ scenario(65, 'Velocidad con el depurador: 60 frames por segundo a 10.000 IPF con
 });
 
 // ---------------------------------------------------------------- ayudas de los escenarios 66 en adelante (archivo de la comunidad)
-// Los juegos del archivo como los muestra la ventana «Archivo de la comunidad», sacados de data/archive.json con
-// tools/archive.js (el autor de ejemplo de la plantilla no cuenta como autor, igual que en chip8-ui).
+// Los juegos del archivo como los muestra la ventana «Archivo de la comunidad», sacados con tools/archive.js de
+// data/archive.json y de data/octojam-itch.json (las dos colecciones, cada juego con su collection; el autor de
+// ejemplo de la plantilla no cuenta como autor, igual que en chip8-ui).
 const archTool = require(path.join(ROOT, 'tools', 'archive.js'));
-const ARCH_GAMES = JSON.parse(fs.readFileSync(archTool.DATA_PATH, 'utf8')).programs.map((p) => {
+const ARCH_GAMES = archTool.withCollections(JSON.parse(fs.readFileSync(archTool.DATA_PATH, 'utf8')), archTool.readItch()).programs.map((p) => {
   const e = archTool.toEntry(p);
   return { ...e, sha1: p.sha1, authors: /^your name here$/i.test(e.authors.trim()) ? '' : e.authors };
 });
 const archGame = (id) => ARCH_GAMES.find((g) => g.id === id);
-const archRom = (g) => fs.readFileSync(path.join(archTool.ROMS_DIR, g.id + '.ch8'));
+const archRom = (g) => fs.readFileSync(path.join(g.collection === 'itch' ? archTool.ITCH_ROMS_DIR : archTool.ROMS_DIR, g.id + '.ch8'));
 const ARCH_PLATFORM_NAME = { chip8: 'CHIP-8', schip: 'SUPER-CHIP', xochip: 'XO-CHIP' };
 // Como la búsqueda de la ventana: minúsculas, sin tildes y con los espacios de a uno.
 const archFold = (s) => String(s).toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/\s+/g, ' ').trim();
@@ -5822,6 +5824,7 @@ function explorerCardProblem(card, g) {
   for (const k of Object.keys(want)) if (card[k] !== want[k]) return `${g.id}: ${k} «${card[k]}» en vez de «${want[k]}»`;
   if (card.size.replace(/\D/g, '') !== String(g.size) || !card.size.endsWith(' bytes')) return `${g.id}: tamaño «${card.size}»`;
   if (card.tags[0] !== ARCH_PLATFORM_NAME[g.platform]) return `${g.id}: plataforma «${card.tags[0]}»`;
+  if (card.tags.some((t) => /itch|archivo/i.test(t))) return `${g.id}: la tarjeta dice su colección («${card.tags.join(', ')}»)`;
   return '';
 }
 // Escribe con el teclado (letras, números y espacios); lo demás, como lo escribiría un método de entrada.
@@ -5888,7 +5891,7 @@ const explorerThumbOfCard = (page, sha) => page.ev(`(() => {
 })()`);
 
 // 66 -------------------------------------------------------------------------------
-scenario(66, 'Archivo de la comunidad: el botón de la pestaña «Cartuchos» y L lo abren con los 104 juegos y sus datos; buscar, filtrar por plataforma y por evento o año, ordenar y «Mostrar todos»; las teclas no llegan a la consola; Esc, L, × y el fondo lo cierran', async (ctx, s) => {
+scenario(66, 'Archivo de la comunidad: el botón de la pestaña «Cartuchos» y L lo abren con todos los juegos juntos (los del archivo y los de las Octojam en itch.io, sin colecciones a la vista) y sus datos; buscar, filtrar por plataforma y por evento o año, ordenar y «Mostrar todos»; las teclas no llegan a la consola; Esc, L, × y el fondo lo cierran', async (ctx, s) => {
   const page = await freshApp(ctx, s, { width: 1440, height: 900 });
   const total = ARCH_GAMES.length;
   const btn = await page.ev(`(() => {
@@ -5904,7 +5907,10 @@ scenario(66, 'Archivo de la comunidad: el botón de la pestaña «Cartuchos» y 
   const all = archExpect();
   const bad = all.map((g, i) => explorerCardProblem(cards[i] && cards[i].sha === g.sha1 ? cards[i] : null, g)).filter(Boolean);
   s.check(st.open && st.count === total + ' juegos' && cards.length === total && bad.length === 0,
-    `con un clic se abre con los ${cards.length} juegos por título, cada uno con su título, autores, evento y año, plataforma y tamaño (el primero: «${cards[0].title}», «${cards[0].by}», «${cards[0].when}», ${cards[0].tags[0]}, «${cards[0].size}»)`, bad.slice(0, 3).join(' | '));
+    `con un clic se abre con los ${cards.length} juegos por título, cada uno con su título, autores, evento y año, plataforma y tamaño, y ninguno dice de qué colección es (el primero: «${cards[0].title}», «${cards[0].by}», «${cards[0].when}», ${cards[0].tags[0]}, «${cards[0].size}»)`, bad.slice(0, 3).join(' | '));
+  const intro = await page.ev("document.getElementById('explorer-intro').textContent");
+  s.check(ARCH_GAMES.some((g) => g.collection === 'itch') && intro.startsWith(`Los ${total} juegos de la comunidad, casi todos hechos para la Octojam.`) && !/itch|Earnest|colecci/i.test(intro),
+    `la introducción dice cuántos son, todos juntos, sin colecciones: «${intro.slice(0, 110)}…»`, intro);
   s.check(st.focus === 'explorer-q' && cards.filter((c) => c.tab === 0).length === 1 && cards[0].tab === 0,
     'el foco queda en la búsqueda, y una sola tarjeta (la primera) está en el orden del Tab', JSON.stringify({ focus: st.focus, tab: cards.filter((c) => c.tab === 0).map((c) => c.title) }));
   await page.shot('66-ventana');
@@ -5937,19 +5943,21 @@ scenario(66, 'Archivo de la comunidad: el botón de la pestaña «Cartuchos» y 
   await page.shot('66-buscar');
   await search('«TÍTLE ÓCTOJAM» (mayúsculas, tildes y dos palabras al revés)', () => page.send('Input.insertText', { text: 'TÍTLE ÓCTOJAM' }), 'TÍTLE ÓCTOJAM');
   await search('«johnearnest»', () => explorerType(page, 'johnearnest'), 'johnearnest');
+  await search('«langhoff» (un autor de itch.io)', () => explorerType(page, 'langhoff'), 'langhoff');
   await page.press('Escape');
   st = await page.ev(EXPLORER_STATE);
   s.check(st.open && st.q === '' && st.count === total + ' juegos', 'Esc con algo escrito en la búsqueda la borra, y la ventana sigue abierta', JSON.stringify(st));
 
   // Filtros con el mouse: plataforma, y evento o año (cada opción dice cuántos juegos tiene).
-  const opts = await page.ev(`({ platform: Array.from(document.querySelectorAll('#explorer-platform option')).map((o) => o.textContent),
+  const opts = await page.ev(`({ hasCollection: !!document.getElementById('explorer-collection'),
+    platform: Array.from(document.querySelectorAll('#explorer-platform option')).map((o) => o.textContent),
     groups: Array.from(document.querySelectorAll('#explorer-group optgroup')).map((g) => [g.label, Array.from(g.children).map((o) => o.textContent)]) })`);
   const n = (f) => ARCH_GAMES.filter(f).length;
   const wantPlat = [`Todas (${total})`].concat(['chip8', 'schip', 'xochip'].map((p) => `${ARCH_PLATFORM_NAME[p]} (${n((g) => g.platform === p)})`));
   const events = [...new Set(ARCH_GAMES.map((g) => g.event))].sort(archByEvent), years = [...new Set(ARCH_GAMES.map((g) => g.year))].sort((a, b) => a - b);
   const wantGroups = [['Eventos', events.map((e) => `${e || 'Sin evento'} (${n((g) => g.event === e)})`)], ['Años', years.map((y) => `${y} (${n((g) => g.year === y)})`)]];
-  s.check(sameList(opts.platform, wantPlat) && sameList(opts.groups, wantGroups),
-    `«Plataforma»: ${opts.platform.join(', ')}; «Evento o año»: ${opts.groups.map((g) => g[0] + ' (' + g[1].length + ')').join(' y ')}, con cuántos juegos tiene cada uno`, JSON.stringify({ opts, wantPlat, wantGroups }));
+  s.check(!opts.hasCollection && sameList(opts.platform, wantPlat) && sameList(opts.groups, wantGroups),
+    `sin selector de colección; «Plataforma»: ${opts.platform.join(', ')}; «Evento o año»: ${opts.groups.map((g) => g[0] + ' (' + g[1].length + ')').join(' y ')}, con cuántos juegos tiene cada uno, todos juntos`, JSON.stringify({ opts, wantPlat, wantGroups }));
   const filter = async (sel, value, wantFilter, label) => {
     const got = await chooseWithMouse(page, sel, value);
     await sleep(120);
@@ -6018,7 +6026,7 @@ scenario(66, 'Archivo de la comunidad: el botón de la pestaña «Cartuchos» y 
 });
 
 // 67 -------------------------------------------------------------------------------
-scenario(67, 'Archivo: un clic o Enter cargan el juego con los ajustes del archivo (plataforma, IPF, colores y giro), la ventana se cierra, la pantalla queda a la vista y el juego corre; las flechas, Inicio, Fin y AvPág recorren la lista; «En la ranura», «en tus cartuchos» y «ajustes recordados»; también desde file://', async (ctx, s) => {
+scenario(67, 'Archivo: un clic o Enter cargan el juego con los ajustes del archivo (plataforma, IPF, colores y giro; también uno de las Octojam en itch.io, igual que los demás), la ventana se cierra, la pantalla queda a la vista y el juego corre; las flechas, Inicio, Fin y AvPág recorren la lista; «En la ranura», «en tus cartuchos» y «ajustes recordados»; también desde file://', async (ctx, s) => {
   const page = await freshApp(ctx, s, { width: 1280, height: 900 });
   const sub8 = archGame('sub8');
   // Con el mouse, desde la pestaña «Cartuchos» del cajón.
@@ -6089,6 +6097,25 @@ scenario(67, 'Archivo: un clic o Enter cargan el juego con los ajustes del archi
     `la tarjeta de «${third.title}» dice «En la ranura» (aria-current) y ninguna otra`, JSON.stringify(cur));
   await page.press('Escape');
 
+  // Un juego de las Octojam en itch.io: su tarjeta es como las demás y un clic lo carga con los ajustes de su exportación
+  // de Octo (la misma autoconfiguración por la huella SHA-1); el aviso dice lo mismo que con cualquier otro.
+  const turm8 = archGame('turm8');
+  await page.press('KeyL');
+  await sleep(200);
+  const tc = (await page.ev(EXPLORER_CARDS)).find((c) => c.sha === turm8.sha1);
+  await clickHit(page, explorerCard(turm8.sha1));
+  await page.waitFor(`(window.chip8.romInfo() || {}).sha1 === ${JSON.stringify(turm8.sha1)}`, { timeout: 4000, desc: `«${turm8.title}», de las Octojam en itch.io` });
+  await sleep(300);
+  const vi = await consoleView(page);
+  const ti = await toastTexts(page);
+  // (La memoria no se compara con la ROM: a 10.000 IPF el juego ya escribió en ella. La huella de lo que se cargó sí.)
+  s.check(turm8.collection === 'itch' && tc && sameList(tc.tags, [ARCH_PLATFORM_NAME[turm8.platform]]) && vi.name === turm8.title && vi.source === 'archivo' &&
+    vi.sha1 === crypto.createHash('sha1').update(archRom(turm8)).digest('hex') &&
+    vi.platform === turm8.platform && vi.ipf === turm8.ipf && sameQuirks(vi.quirks, turm8.quirks) && vi.palette === 'cartucho' && !vi.halted,
+    `«${turm8.title}» (su tarjeta dice ${tc ? tc.tags.map((t) => '«' + t + '»').join(' y ') : '?'}) se carga con un clic, con la huella de roms/octojam/${turm8.id}.ch8 y los ajustes de su exportación de Octo: ${ARCH_PLATFORM_NAME[vi.platform]}, ${vi.ipf} IPF, sus quirks y sus colores`, JSON.stringify({ tc, vi }));
+  s.check(ti.some((t) => t.startsWith(`«${turm8.title}», del archivo de Octo (${turm8.event}): ${ARCH_PLATFORM_NAME[turm8.platform]}`)) && !ti.some((t) => /itch/i.test(t)),
+    'el aviso es el de cualquier juego del archivo, sin hablar de itch.io', JSON.stringify(ti));
+
   // «en tus cartuchos» y «ajustes recordados»: la misma ROM, cargada desde su archivo, y un cambio de velocidad con el mouse.
   const fuse = archGame('fuse');
   await loadWithButton(page, writeFixture(ctx, 'fuse.ch8', archRom(fuse)), fuse.title);
@@ -6134,7 +6161,7 @@ scenario(67, 'Archivo: un clic o Enter cargan el juego con los ajustes del archi
 });
 
 // 68 -------------------------------------------------------------------------------
-scenario(68, 'Archivo: las 104 ROMs embebidas se descomprimen en el navegador a los bytes de su huella SHA-1 (archiveRomBytes); una ROM dañada, un navegador sin DecompressionStream o una página sin las ROMs avisan claro y la consola sigue andando', async (ctx, s) => {
+scenario(68, 'Archivo: todas las ROMs embebidas se descomprimen en el navegador a los bytes de su huella SHA-1 (archiveRomBytes); una ROM dañada, un navegador sin DecompressionStream o una página sin las ROMs avisan claro y la consola sigue andando', async (ctx, s) => {
   const page = await freshApp(ctx, s);
   const res = await page.ev(`(async () => {
     const shas = Object.keys(CHIP8_ARCHIVE.data), out = [], t0 = performance.now();
@@ -7496,7 +7523,7 @@ scenario(80, 'Cajón de opciones no modal: abierto, las 16 teclas, las flechas, 
 });
 
 // 81 -------------------------------------------------------------------------------
-scenario(81, 'Cajón de opciones: al costado tapa el monitor (y, con el Taller abierto, el Taller), que se esfuma mientras tanto, y nunca la pantalla; sus esquinas quedan detrás del borde recto de la consola; con el cajón abierto, Tubo CRT ↔ Píxeles puros y la paleta cambian la pantalla a la vista', async (ctx, s) => {
+scenario(81, 'Cajón de opciones: al costado tapa el monitor, que se esfuma mientras tanto (y, con el Taller abierto, parte del Taller), y nunca la pantalla; sus esquinas quedan detrás del borde recto de la consola; con el cajón abierto, Tubo CRT ↔ Píxeles puros y la paleta cambian la pantalla a la vista', async (ctx, s) => {
   const page = await freshApp(ctx, s, { width: 1440, height: 900 });
   await clickCart(page, 'fuente');   // una imagen fija: sus colores son exactos
   await openDrawer(page, 'pantalla');
@@ -7544,8 +7571,8 @@ scenario(81, 'Cajón de opciones: al costado tapa el monitor (y, con el Taller a
   await openDrawer(page);
   await sleep(150);
   const g2 = await geo();
-  s.check(g2.info.covers === 'taller' && g2.wsCovered && g2.drawer.l <= g2.workshop.l && g2.drawer.r >= g2.workshop.r && !overlaps(g2.drawer, g2.bezel) && g2.screen && tucked(g2) && g2.wsVis === 'hidden/0',
-    `con el Taller abierto: el cajón tapa el Taller (${g2.workshop.l}–${g2.workshop.r} px, que se esfuma) y la pantalla sigue entera a la vista`, JSON.stringify(g2));
+  s.check(g2.info.covers === 'taller' && Math.abs(g2.drawer.r - g2.drawer.l - 450) <= 2 && g2.drawer.l < g2.workshop.l && g2.drawer.r < g2.workshop.r && !overlaps(g2.drawer, g2.bezel) && g2.screen && tucked(g2) && g2.wsVis === 'visible/1',
+    `con el Taller abierto: el cajón, del ancho de la columna del monitor (${g2.drawer.r - g2.drawer.l} px), tapa el Taller en parte (${g2.workshop.l}–${g2.workshop.r} px, que se sigue viendo al lado) y la pantalla sigue entera a la vista`, JSON.stringify(g2));
   await page.shot('81-cajon-taller-1440');
   // A 1920×945 entran la consola, el monitor y el Taller: el cajón tapa el monitor (al lado de la consola) y el Taller se sigue viendo.
   await page.setViewport(1920, 945);
@@ -7558,7 +7585,7 @@ scenario(81, 'Cajón de opciones: al costado tapa el monitor (y, con el Taller a
 });
 
 // 82 -------------------------------------------------------------------------------
-scenario(82, 'Cajón de opciones, diseño a 1920×945, 1440, 768 y 360 px: al costado o desde abajo, adentro de la ventana, sin scroll de costado, las pestañas enteras, lo que no entra se scrollea adentro del cajón (nunca la página) y la pantalla siempre a la vista', async (ctx, s) => {
+scenario(82, 'Cajón de opciones, diseño a 1920×945, 1440, 768 y 360 px: al costado o desde abajo, adentro de la ventana, sin scroll de costado, las pestañas enteras, lo que no entra se scrollea adentro del cajón (nunca la página), la pantalla siempre a la vista y la velocidad entera (el campo con 10000 y los botones en filas parejas)', async (ctx, s) => {
   for (const [w, h, mobile] of [[1920, 945, false], [1440, 900, false], [768, 1024, false], [360, 640, true]]) {
     const page = await freshApp(ctx, s, { width: w, height: h, mobile, dpr: mobile ? 2 : 1 });
     const side = w >= 1200 ? 'costado' : 'abajo';
@@ -7573,6 +7600,13 @@ scenario(82, 'Cajón de opciones, diseño a 1920×945, 1440, 768 y 360 px: al co
         return { info: window.chip8.drawerInfo(), d, crt: box('#crt'), bezel: box('#bezel'), keypad: box('#keypad'), console: box('#console'), iw: innerWidth, ih: innerHeight, corners: ${CONSOLE_CORNERS},
           sw: document.documentElement.scrollWidth, sy: scrollY, clipped: tabs, bodyH: body.clientHeight, contentH: body.scrollHeight, hscroll: body.scrollWidth > body.clientWidth + 1, screen: ${SCREEN_IN_VIEW} }; })()`);
       sizes.push(`${tab} ${m.contentH}/${m.bodyH}`);
+      if (tab === 'ajustes') {
+        const v = await page.ev(`(() => { const n = document.getElementById('ipf-input'), old = n.value; n.value = '10000'; const fit = n.scrollWidth <= n.clientWidth; n.value = old;
+          const c = Array.from(document.querySelectorAll('#ipf-chips .chip')).map((x) => ({ t: Math.round(x.offsetTop), w: Math.round(x.offsetWidth) }));
+          const rows = {}; c.forEach((x) => { rows[x.t] = (rows[x.t] || 0) + 1; });
+          return { fit, widths: [...new Set(c.map((x) => x.w))], rows: Object.values(rows) }; })()`);
+        if (!v.fit || v.widths.length !== 1 || v.rows.some((n) => n !== v.rows[0])) problems.push('velocidad: ' + JSON.stringify(v));
+      }
       const inside = m.d.l >= 0 && m.d.t >= 0 && m.d.r <= m.iw && m.d.b <= m.ih;
       const placed = side === 'costado'
         ? m.d.l >= m.console.r - 3 && m.d.t >= Math.floor(m.console.t + m.corners.top) - 1 && m.d.b <= Math.ceil(m.console.b - m.corners.bottom) + 1
@@ -7732,6 +7766,23 @@ scenario(85, 'El monitor se oculta y se muestra: su botón de la barra (aria-exp
   // La API.
   const api = await page.ev('[window.chip8.setMonitorOpen(true), window.chip8.getMonitorOpen(), document.getElementById("btn-monitor").getAttribute("aria-expanded")]');
   s.check(api[0] === true && api[1] === true && api[2] === 'true', 'setMonitorOpen(true) de la API lo muestra y el botón lo dice', JSON.stringify(api));
+  // Sin el monitor y con el Taller abierto: la consola va pegada al Taller (sin el hueco del monitor) y el cajón
+  // mide lo de la columna del monitor (no se estira hasta el borde del Taller).
+  for (const [w, h] of [[1920, 945], [1440, 900]]) {
+    const p2 = await freshApp(ctx, s, { width: w, height: h });
+    await p2.ev('window.chip8.setMonitorOpen(false)');
+    await clickHit(p2, '#btn-workshop');
+    await wsOpen(p2);
+    await openDrawer(p2);
+    await sleep(200);
+    const t = await p2.ev(`(() => { const b = (id) => { const q = document.getElementById(id).getBoundingClientRect(); return { l: Math.round(q.left), r: Math.round(q.right) }; };
+      return { con: b('console'), ws: b('workshop'), dr: b('drawer'), info: window.chip8.drawerInfo() }; })()`);
+    s.check(t.ws.l - t.con.r >= 0 && t.ws.l - t.con.r <= 32 && Math.abs(t.dr.r - t.dr.l - 450) <= 2 && t.dr.r < t.ws.r,
+      `${w}×${h} sin monitor y con el Taller: el Taller va pegado a la consola (${t.ws.l - t.con.r} px entre los dos) y el cajón mide ${t.dr.r - t.dr.l} px, como la columna del monitor`, JSON.stringify(t));
+    await p2.shot(`85-taller-sin-monitor-${w}`);
+    s.check(p2.errors.length === 0, `${w}×${h}: sin errores de consola`, p2.errors.join(' | '));
+    await p2.close();
+  }
   s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
 });
 

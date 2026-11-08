@@ -2,7 +2,8 @@
 'use strict';
 /*
  * tools/archive.js — tabla de autoconfiguración a partir del archivo de la comunidad CHIP-8
- * (chip8Archive de John Earnest: https://github.com/JohnEarnest/chip8Archive, licencia CC0).
+ * (chip8Archive de John Earnest: https://github.com/JohnEarnest/chip8Archive, licencia CC0) y de los
+ * juegos de las Octojam 6 a 10 publicados en itch.io que no están en el archivo (de sus autores).
  *
  * Cada programa del archivo trae las opciones con las que se juega en Octo: velocidad, quirks,
  * colores y rotación de la pantalla. Esta herramienta las pasa a los ajustes de la consola y las
@@ -17,8 +18,10 @@
  *       Necesita conexión a internet.
  *   node tools/archive.js embed [--html <ruta>] [--check]
  *       Escribe la tabla y las ROMs en <script id="chip8-archive"> de chip8.html (si el bloque no
- *       existe, lo agrega después de <script id="chip8-roms">). Las ROMs salen de roms/archivo/ y
- *       cada una tiene que tener la huella SHA-1 y el tamaño de data/archive.json. Al final del
+ *       existe, lo agrega después de <script id="chip8-roms">), con los juegos de las dos colecciones:
+ *       los del archivo (data/archive.json y roms/archivo/) y los de las Octojam en itch.io
+ *       (data/octojam-itch.json y roms/octojam/), cada uno con su campo collection ('archivo' o
+ *       'itch'). Cada ROM tiene que tener la huella SHA-1 y el tamaño de su JSON. Al final del
  *       bloque, CHIP8_ARCHIVE.data guarda cada ROM por su huella, comprimida por separado con
  *       deflate (formato zlib, el 'deflate' de DecompressionStream) y en base64url sin relleno. Lo
  *       que ya está embebido y se descomprime a los bytes correctos se deja como está: así el
@@ -28,11 +31,17 @@
  *       Baja las ROMs del archivo a roms/archivo/<id>.ch8 (las que ya están y coinciden con su
  *       huella no se vuelven a bajar) y escribe roms/archivo/LEEME.md, el índice de los juegos.
  *       Necesita conexión a internet.
- *   node tools/archive.js test [--frames N] [--sheet hoja.png] [--only id1,id2] [--json reporte.json]
- *       Corre cada juego del archivo con su configuración, apretando teclas al azar (de forma
- *       reproducible), y reporta errores, salidas y pantallas vacías. Con --sheet guarda una hoja de
- *       contactos PNG con la pantalla final de cada juego. Usa las ROMs de roms/archivo/ y, si
- *       falta alguna, la baja a memoria.
+ *   node tools/archive.js itch
+ *       Recorre las Octojam 6 a 10 en itch.io y, de cada juego, saca la ROM y las opciones de la
+ *       exportación de Octo de su versión jugable. Descarta los que ya están en el archivo (la misma
+ *       huella, o la misma jam y el mismo título) y escribe data/octojam-itch.json, roms/octojam/<id>.ch8
+ *       y roms/octojam/LEEME.md (con los que se saltearon y por qué). La plataforma sale de la regla de
+ *       detectPlatform. Necesita conexión a internet; después hay que correr embed.
+ *   node tools/archive.js test [--itch] [--frames N] [--sheet hoja.png] [--only id1,id2] [--json reporte.json]
+ *       Corre cada juego del archivo (con --itch, los de las Octojam en itch.io) con su configuración,
+ *       apretando teclas al azar (de forma reproducible), y reporta errores, salidas y pantallas vacías.
+ *       Con --sheet guarda una hoja de contactos PNG con la pantalla final de cada juego. Usa las ROMs de
+ *       roms/archivo/ (o de roms/octojam/) y, si falta alguna del archivo, la baja a memoria.
  *
  * Correspondencia con las opciones de Octo (los valores por defecto de Octo valen cuando el
  * archivo no trae la opción):
@@ -46,6 +55,7 @@
  *   backgroundColor, fillColor, fillColor2, blendColor -> colors[0..3] (fondo, plano 1, plano 2, ambos)
  *   screenRotation  -> rotation (0, 90, 180 o 270)
  *   vfOrderQuirks   -> no lo tiene la consola (escribe VF siempre al final); se avisa si aparece.
+ * Un quirk está prendido si vale true o un número distinto de 0 (Octo guarda a veces 1 y 0).
  */
 const fs = require('node:fs');
 const path = require('node:path');
@@ -61,7 +71,7 @@ const REPO = 'JohnEarnest/chip8Archive';
 const BRANCH = 'master';
 const RAW = `https://raw.githubusercontent.com/${REPO}/${BRANCH}/`;
 const BLOCK_ID = 'chip8-archive';
-const HEADER = '/* GENERADO por tools/archive.js a partir de data/archive.json y de roms/archivo/ — no editar a mano. */';
+const HEADER = '/* GENERADO por tools/archive.js a partir de data/archive.json, data/octojam-itch.json, roms/archivo/ y roms/octojam/ — no editar a mano. */';
 const DATA_HEADER = '/* Los bytes de cada ROM, por su huella: deflate (formato zlib) en base64url. La consola descomprime solo la que se pide. */';
 const DATA_OPEN = 'globalThis.CHIP8_ARCHIVE.data = {';
 
@@ -87,6 +97,10 @@ function normalizeColor(value, fallback) {
   return /^#[0-9a-f]{6}$/i.test(s) ? s.toUpperCase() : fallback;
 }
 
+// Un quirk de Octo prendido: true o un número distinto de 0. Octo guarda a veces 1 y 0 (así vienen 7 programas
+// del archivo y muchas exportaciones de itch.io) y los toma como prendido y apagado; un texto no cuenta.
+const quirkOn = (v) => v === true || (typeof v === 'number' && v !== 0);
+
 // Opciones de Octo -> ajustes de la consola.
 function fromOctoOptions(options) {
   const o = options && typeof options === 'object' ? options : {};
@@ -95,16 +109,16 @@ function fromOctoOptions(options) {
   ipf = Math.min(IPF_MAX, Math.max(IPF_MIN, ipf));
   const rotation = ROTATIONS.includes(Number(o.screenRotation)) ? Number(o.screenRotation) : 0;
   const unsupported = [];
-  if (o.vfOrderQuirks === true) unsupported.push('vfOrderQuirks');
+  if (quirkOn(o.vfOrderQuirks)) unsupported.push('vfOrderQuirks');
   return {
     ipf,
     quirks: {
-      vfReset: o.logicQuirks === true,
-      memory: o.loadStoreQuirks !== true,
-      shifting: o.shiftQuirks === true,
-      jumping: o.jumpQuirks === true,
-      clipping: o.clipQuirks === true,
-      displayWait: o.vBlankQuirks === true,
+      vfReset: quirkOn(o.logicQuirks),
+      memory: !quirkOn(o.loadStoreQuirks),
+      shifting: quirkOn(o.shiftQuirks),
+      jumping: quirkOn(o.jumpQuirks),
+      clipping: quirkOn(o.clipQuirks),
+      displayWait: quirkOn(o.vBlankQuirks),
     },
     colors: [
       normalizeColor(o.backgroundColor, OCTO_DEFAULTS.backgroundColor),
@@ -123,11 +137,14 @@ function formatEvent(event) {
   return event.trim().replace(/^Octojam\s*(\d+)$/i, 'Octojam $1');
 }
 
-// Programa de data/archive.json -> entrada de la tabla embebida.
+// Programa de data/archive.json o de data/octojam-itch.json -> entrada de la tabla embebida. collection dice de
+// qué colección es: 'archivo' (el de John Earnest) o 'itch' (las Octojam en itch.io; withCollections lo pone),
+// y los de itch.io llevan además su página, sin "https://". El año es el del programa o el de su fecha.
 function toEntry(program) {
   const s = fromOctoOptions(program.options);
-  const year = /^\d{4}/.test(program.release || '') ? Number(program.release.slice(0, 4)) : null;
-  return {
+  const year = Number.isInteger(program.year) ? program.year
+    : (/^\d{4}/.test(program.release || '') ? Number(program.release.slice(0, 4)) : null);
+  const entry = {
     id: program.id,
     title: program.title,
     authors: (program.authors || []).join(', '),
@@ -139,7 +156,17 @@ function toEntry(program) {
     quirks: s.quirks,
     colors: s.colors,
     rotation: s.rotation,
+    collection: program.collection === 'itch' ? 'itch' : 'archivo',
   };
+  if (entry.collection === 'itch' && program.page) entry.page = String(program.page).replace(/^https?:\/\//, '');
+  return entry;
+}
+
+// Los programas de las dos colecciones juntos, cada uno con su collection: { ...data, programs }. itch puede
+// faltar (null): entonces son solo los del archivo.
+function withCollections(data, itch) {
+  const mark = (list, collection) => (list || []).map((p) => ({ ...p, collection }));
+  return { ...data, programs: mark(data.programs, 'archivo').concat(itch ? mark(itch.programs, 'itch') : []) };
 }
 
 // ------------------------------------------------------------------ bloque embebido
@@ -191,11 +218,13 @@ function findBlock(html, id) {
   return { start, bodyStart, end, close: end + '</script>'.length };
 }
 
-// Devuelve el HTML con el bloque del archivo al día (lo agrega si no existe). roms: { [sha1]: bytes }
-// con la ROM de cada programa (readRoms). Lo que ya estaba embebido y sigue siendo correcto se conserva.
-function embedInto(html, data, roms = {}) {
+// Devuelve el HTML con el bloque del archivo al día (lo agrega si no existe), con los programas del archivo
+// (data) y, si está, los de las Octojam en itch.io (itch). roms: { [sha1]: bytes } con la ROM de cada programa
+// (readRoms y readItchRoms). Lo que ya estaba embebido y sigue siendo correcto se conserva.
+function embedInto(html, data, roms = {}, itch = null) {
   const eol = html.includes('\r\n') ? '\r\n' : '\n';
-  const content = buildBlock(data, packRoms(data, roms, readPacked(html)), eol);
+  const all = withCollections(data, itch);
+  const content = buildBlock(all, packRoms(all, roms, readPacked(html)), eol);
   const block = findBlock(html, BLOCK_ID);
   if (block) return html.slice(0, block.bodyStart) + content + html.slice(block.end);
   const demos = findBlock(html, 'chip8-roms');
@@ -224,23 +253,30 @@ function unpackRom(text) {
 // La ROM de cada programa, de roms/archivo/<id>.ch8, verificada contra su tamaño y su huella de
 // data/archive.json: { [sha1]: Buffer }. Si falta alguna o no coincide, tira un error que dice cuáles.
 function readRoms(data, dir = ROMS_DIR) {
+  return readRomsOf(data, dir, { folder: 'roms/archivo/', json: 'data/archive.json', command: 'download' });
+}
+// Lo mismo con las de las Octojam en itch.io: roms/octojam/<id>.ch8 contra data/octojam-itch.json.
+function readItchRoms(itch, dir = ITCH_ROMS_DIR) {
+  return readRomsOf(itch, dir, { folder: 'roms/octojam/', json: 'data/octojam-itch.json', command: 'itch' });
+}
+function readRomsOf(data, dir, where) {
   const roms = {}, missing = [], wrong = [];
   for (const p of data.programs) {
     const file = path.join(dir, p.id + '.ch8');
     if (!fs.existsSync(file)) { missing.push(p.id + '.ch8'); continue; }
     const rom = fs.readFileSync(file);
     if (rom.length !== p.size || sha1(rom) !== p.sha1) {
-      wrong.push(`${p.id}.ch8 (${rom.length} bytes y huella ${sha1(rom).slice(0, 7)}; data/archive.json dice ${p.size} bytes y ${p.sha1.slice(0, 7)})`);
+      wrong.push(`${p.id}.ch8 (${rom.length} bytes y huella ${sha1(rom).slice(0, 7)}; ${where.json} dice ${p.size} bytes y ${p.sha1.slice(0, 7)})`);
       continue;
     }
     roms[p.sha1] = rom;
   }
   const list = (a) => a.slice(0, 5).join(', ') + (a.length > 5 ? ` y ${a.length - 5} más` : '');
   if (missing.length) {
-    throw new Error(`Faltan ROMs en roms/archivo/: ${list(missing)}. Corré "node tools/archive.js download".`);
+    throw new Error(`Faltan ROMs en ${where.folder}: ${list(missing)}. Corré "node tools/archive.js ${where.command}".`);
   }
   if (wrong.length) {
-    throw new Error(`Las ROMs de roms/archivo/ no son las de data/archive.json: ${list(wrong)}. Corré "node tools/archive.js download".`);
+    throw new Error(`Las ROMs de ${where.folder} no son las de ${where.json}: ${list(wrong)}. Corré "node tools/archive.js ${where.command}".`);
   }
   return roms;
 }
@@ -278,15 +314,16 @@ function readPacked(html) {
 }
 
 // Qué ROMs del bloque de un HTML no están al día con roms: { missing: [ids], wrong: [ids] }.
+// (data puede traer las dos colecciones, de withCollections: wrongItch son las de roms/octojam/.)
 function staleRoms(html, data, roms) {
-  const packed = readPacked(html), missing = [], wrong = [];
+  const packed = readPacked(html), missing = [], wrong = [], wrongItch = [];
   for (const p of data.programs) {
     if (!Object.hasOwn(packed, p.sha1)) { missing.push(p.id); continue; }
     let ok = false;
     try { ok = unpackRom(packed[p.sha1]).equals(Buffer.from(roms[p.sha1])); } catch { ok = false; }
-    if (!ok) wrong.push(p.id);
+    if (!ok) (p.collection === 'itch' ? wrongItch : wrong).push(p.id);
   }
-  return { missing, wrong };
+  return { missing, wrong, wrongItch };
 }
 
 // ------------------------------------------------------------------ red
@@ -378,6 +415,71 @@ function buildReadme(data) {
   ].join('\n');
 }
 
+// El índice de roms/octojam/: de dónde salen, cuántas hay por jam, la tabla de juegos y los que no se sumaron.
+function buildItchReadme(data) {
+  const byTitle = (a, b) => a.title.localeCompare(b.title, 'es', { sensitivity: 'base' }) || a.page.localeCompare(b.page);
+  const who = (list) => mdCell((list || []).join(', ') || '—');
+  const counts = Object.keys(PLATFORM_LABEL)
+    .map((k) => `${data.programs.filter((p) => p.platform === k).length} de ${PLATFORM_LABEL[k]}`)
+    .join(', ');
+  const ofJam = (list, ev) => list.filter((x) => x.event === ev).length;
+  const jamRows = data.jams.map((j) => `| [${j.event}](${j.page}) | ${j.year} | ${j.entries}${j.announced !== null && j.announced !== j.entries ? ` (la página dice ${j.announced})` : ''} | ${ofJam(data.inArchive, j.event)} | ${ofJam(data.programs, j.event)} | ${ofJam(data.skipped, j.event)} |`);
+  const rows = data.programs.slice().sort(byTitle).map((p) => {
+    const e = toEntry(p);
+    return `| [${mdCell(e.title)}](${p.page}) | [\`${p.id}.ch8\`](${encodeURIComponent(p.id)}.ch8) | ${PLATFORM_LABEL[e.platform]} | ${e.ipf} | ${who(p.authors)} | ${e.event} |`;
+  });
+  const hidden = data.jams.filter((j) => j.announced !== null && j.announced > j.entries);
+  const first = data.jams[0], last = data.jams[data.jams.length - 1];
+  return [
+    '# ROMs de las Octojam en itch.io',
+    '',
+    `Son los ${data.programs.length} juegos de las Octojam ${first.event.replace(/\D/g, '')} a ${last.event.replace(/\D/g, '')} (de ${first.year} a ${last.year}) publicados en itch.io`,
+    `que no están en el [archivo de John Earnest](../archivo/${README_NAME}) (${counts}),`,
+    `bajados el ${data.fetched}. Cada ROM sale de la versión jugable de la página del juego, que es una`,
+    'exportación de Octo: trae los bytes ya armados y las opciones con que se juega (velocidad, quirks,',
+    'colores y giro).',
+    '',
+    'Cada juego es de sus autores: itch.io no les pone una licencia común (a diferencia del archivo, que es',
+    'de dominio público), así que antes de repartir uno mirá lo que dice su página.',
+    '',
+    'Cargalas en la consola con «Cargar ROM» o arrastrándolas. La consola las reconoce por su huella SHA-1 y',
+    'se configura sola con la plataforma, la velocidad (IPF), los quirks y los colores de su exportación. La',
+    'exportación no dice la plataforma (Octo acepta todas las instrucciones): sale del tamaño de la ROM, del',
+    'perfil de Octo (maxSize 3583 es SUPER-CHIP) y de las instrucciones que ejecuta en un minuto de juego.',
+    '',
+    'Esta carpeta la arma `node tools/archive.js itch`: no la edites a mano.',
+    '',
+    '| Jam | Año | Entradas | Ya en el archivo | Nuevas | Salteadas |',
+    '|---|---:|---:|---:|---:|---:|',
+    ...jamRows,
+    '',
+    ...(hidden.length ? [
+      hidden.map((j) => `La página de la ${j.event} dice ${j.announced} entradas, pero su lista pública tiene ${j.entries}`).join('; ') +
+        ': las demás no son públicas (las borraron o las ocultaron sus autores).',
+      '',
+    ] : []),
+    '| Juego | Archivo | Plataforma | IPF | Autores | Evento |',
+    '|---|---|---|---:|---|---|',
+    ...rows,
+    '',
+    '## Los que ya estaban en el archivo',
+    '',
+    'La consola ya los traía: tienen la misma ROM que uno del archivo o son el mismo juego (de la misma jam y con el',
+    'mismo título) en otra versión. Estos no se suman, para no tener dos veces el mismo juego.',
+    '',
+    '| Juego | Evento | En el archivo | Por qué |',
+    '|---|---|---|---|',
+    ...data.inArchive.slice().sort(byTitle).map((x) => `| [${mdCell(x.title)}](${x.page}) | ${x.event} | [\`${x.archiveId}.ch8\`](../archivo/${encodeURIComponent(x.archiveId)}.ch8) | ${mdCell(x.note)} |`),
+    '',
+    '## Los que no se sumaron',
+    '',
+    '| Juego | Autores | Evento | Motivo |',
+    '|---|---|---|---|',
+    ...data.skipped.slice().sort(byTitle).map((x) => `| [${mdCell(x.title)}](${x.page}) | ${who(x.authors)} | ${x.event} | ${mdCell(x.reason)} |`),
+    '',
+  ].join('\n');
+}
+
 async function cmdDownload() {
   const data = readData();
   fs.mkdirSync(ROMS_DIR, { recursive: true });
@@ -403,6 +505,387 @@ async function cmdDownload() {
   console.log(`roms/archivo: ${fresh} bajadas, ${kept} ya estaban (${data.programs.length} ROMs, ${(bytes / 1024).toFixed(0)} KB) y ${README_NAME} al día.`);
   if (fresh) console.log('Ahora corré: node tools/archive.js embed (las ROMs van también embebidas en chip8.html).');
   if (extra.length) console.warn(`  Atención: hay archivos que no son del archivo: ${extra.join(', ')}`);
+}
+
+// ------------------------------------------------------------------ plataforma de una ROM de Octo
+// Octo no dice la plataforma de un programa: acepta todas las instrucciones y solo limita el tamaño de la ROM
+// (maxSize). La plataforma de una ROM de Octo sale de la más grande de estas tres:
+//   1. el tamaño: una ROM de más de 3584 bytes solo entra en XO-CHIP;
+//   2. maxSize 3583, el perfil SUPER-CHIP de Octo. El de XO-CHIP (65024) no alcanza: en el archivo lo tienen
+//      también 5 juegos de CHIP-8 y de SUPER-CHIP. Los de VIP y de Octo (3216 y 3584) no dicen nada;
+//   3. la instrucción de más nivel (según Chip8Core.extendedInfo) que ejecuta en 3600 frames (un minuto) con
+//      teclas al azar, corriendo como XO-CHIP, que las tiene todas, con sus quirks (executedOpcodes).
+// Con los 104 juegos del archivo, esta regla da en todos la plataforma que les puso John Earnest (lo controla
+// tests/octojam.test.js). Las instrucciones que se alcanzan siguiendo el flujo desde 0x200 (reachableOpcodes)
+// son una segunda opinión: si piden más, el comando itch lo avisa para revisarlo a mano. No deciden porque
+// confunden datos con código (en el archivo, un D010 entre los datos de octojam1title).
+const MAX_SIZE_LEVEL = { 3583: 1 };
+const PLATFORM_FRAMES = 3600;
+const SKIP_RE = [/^3/, /^4/, /^5...0$/, /^9...0$/, /^e.9e$/, /^e.a1$/];
+
+// ¿Es una instrucción de alguna plataforma? (Para dejar de seguir el flujo cuando se mete en los datos.)
+function isInstruction(op) {
+  const h = op.toString(16).padStart(4, '0');
+  switch (op >> 12) {
+    case 0x0: return op === 0x00E0 || op === 0x00EE || /^00[cd].$/.test(h) || (op >= 0x00FB && op <= 0x00FF);
+    case 0x5: return /[023]$/.test(h);
+    case 0x8: return /[0-7e]$/.test(h);
+    case 0x9: return (op & 0xF) === 0;
+    case 0xE: return /9e$|a1$/.test(h);
+    case 0xF: return op === 0xF000 || op === 0xF002 || (op <= 0xF301 && (op & 0xFF) === 0x01) ||
+      ['07', '0a', '15', '18', '1e', '29', '30', '33', '3a', '55', '65', '75', '85'].includes(h.slice(2));
+    default: return true;
+  }
+}
+
+// Las instrucciones que se alcanzan desde 0x200 siguiendo el flujo del programa: saltos, llamadas, los dos
+// caminos de cada salteo (en XO-CHIP un salteo pasa por encima de F000 NNNN entero) y las tablas de jump0 (las
+// instrucciones jump seguidas que hay desde su base). Se detiene en return, exit, en lo que no es una
+// instrucción y al salir de la ROM. Devuelve los opcodes, sin repetir direcciones.
+function reachableOpcodes(rom) {
+  const word = (a) => (a >= 0x200 && a - 0x200 + 1 < rom.length ? (rom[a - 0x200] << 8) | rom[a - 0x200 + 1] : -1);
+  const seen = new Set(), todo = [0x200], ops = [];
+  while (todo.length) {
+    let pc = todo.pop();
+    for (;;) {
+      const op = word(pc);
+      if (seen.has(pc) || op < 0 || !isInstruction(op)) break;
+      seen.add(pc);
+      ops.push(op);
+      const h = op.toString(16).padStart(4, '0');
+      if (op === 0x00EE || op === 0x00FD) break;
+      if (op >> 12 === 0x1) { todo.push(op & 0xFFF); break; }
+      if (op >> 12 === 0xB) {
+        for (let t = op & 0xFFF; word(t) >> 12 === 0x1; t += 2) todo.push(t);
+        break;
+      }
+      if (op >> 12 === 0x2) todo.push(op & 0xFFF);
+      if (op === 0xF000) { pc += 4; continue; }
+      if (SKIP_RE.some((re) => re.test(h))) todo.push(pc + (word(pc + 2) === 0xF000 ? 6 : 4));
+      pc += 2;
+    }
+  }
+  return ops;
+}
+
+// Las instrucciones que ejecuta la ROM en `frames` frames, como XO-CHIP (que tiene todas) con los ajustes de
+// sus opciones de Octo, apretando teclas al azar de forma reproducible (como el comando test).
+function executedOpcodes(Core, rom, settings, seedText, frames = PLATFORM_FRAMES) {
+  const cpu = new Core.Chip8({ platform: 'xochip', quirks: settings.quirks, random: () => 0 });
+  const rand = makeRandom(seedText);
+  cpu.random = () => rand() & 0xff;
+  cpu.loadRom(rom);
+  let held = -1, holdLeft = 0;
+  for (let f = 0; f < frames && !cpu.halted; f++) {
+    if (held >= 0 && --holdLeft <= 0) { cpu.setKey(held, false); held = -1; }
+    if (held < 0 && f % 15 === 7) { held = rand() & 0xf; holdLeft = 4; cpu.setKey(held, true); }
+    cpu.runFrame(settings.ipf);
+  }
+  const ops = [];
+  for (let a = 0; a < cpu.access.length; a++) {
+    if (cpu.access[a] & Core.ACCESS.EXEC) ops.push((cpu.memory[a] << 8) | cpu.memory[(a + 1) & 0xFFFF]);
+  }
+  return { ops, error: cpu.error };
+}
+
+// La instrucción de más nivel de una lista de opcodes: { level, op, name } (level 0 si son todas de CHIP-8).
+function topInstruction(Core, ops) {
+  return ops.reduce((best, op) => {
+    const info = Core.extendedInfo(op);
+    const level = info ? PLATFORMS.indexOf(info.needs) : 0;
+    return level > best.level ? { level, op, name: info.name } : best;
+  }, { level: 0, op: null, name: '' });
+}
+const opText = (op) => op.toString(16).toUpperCase().padStart(4, '0');
+
+// { platform, why, check }: la plataforma de una ROM de Octo según la regla de arriba, de dónde salió y, si las
+// instrucciones alcanzables piden más, qué hay que revisar a mano (si no, '').
+function detectPlatform(Core, rom, options, seedText = '') {
+  const size = rom.length > 3584 ? 2 : 0;
+  const max = MAX_SIZE_LEVEL[Number(options && options.maxSize)] || 0;
+  const run = topInstruction(Core, executedOpcodes(Core, rom, fromOctoOptions(options), seedText).ops);
+  const level = Math.max(size, max, run.level);
+  const why = [];
+  if (size === level && level) why.push(`${rom.length} bytes`);
+  if (max === level && level) why.push(`maxSize ${options.maxSize}`);
+  if (run.level === level && level) why.push(`ejecuta ${opText(run.op)} (${run.name})`);
+  const reach = topInstruction(Core, reachableOpcodes(rom));
+  const check = reach.level > level ? `se alcanza ${opText(reach.op)} (${reach.name}), de ${PLATFORM_LABEL[PLATFORMS[reach.level]]}, sin ejecutarlo` : '';
+  return { platform: PLATFORMS[level], why: why.join(', ') || 'solo ejecuta instrucciones de CHIP-8', check };
+}
+
+// ------------------------------------------------------------------ Octojam en itch.io
+// Desde la Octojam 6 (2019) las entradas se publican en itch.io. La página de cada juego trae, casi siempre, la
+// versión jugable: una exportación de Octo, un HTML con data={"program":…,"rom":[…],"options":{…}}. De ahí salen
+// la ROM ya armada y las opciones, leídas como JSON: nada de lo que se baja se ejecuta.
+const ITCH_PATH = path.join(ROOT, 'data', 'octojam-itch.json');
+const ITCH_ROMS_DIR = path.join(ROOT, 'roms', 'octojam');
+const ITCH_JAMS = Object.freeze([6, 7, 8, 9, 10]);
+const ITCH_UA = 'Mozilla/5.0 (chip8-emulator)';
+const ITCH_LICENSE = 'de cada autor';
+// Juegos que no se pueden comparar por huella (su exportación no trae la ROM) pero que ya están en el archivo.
+const ITCH_SAME_AS = Object.freeze({ 'internet-janitor.itch.io/octojam-6-greeting': 'octojam6title' });
+
+const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
+// La fecha de hoy en la hora de esta computadora (toISOString da la de Greenwich, que a la noche ya es mañana).
+const localDate = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const noScheme = (url) => String(url).replace(/^https?:\/\//, '');
+
+// Una página de itch.io como texto. Si itch.io pide esperar (429) o falla del lado de ellos (5xx), espera y
+// vuelve a probar; un 404 o un 410 devuelve null (la página ya no está).
+async function fetchItch(url, tries = 7) {
+  for (let attempt = 1; ; attempt++) {
+    let res = null, why = '';
+    try {
+      res = await fetch(url, { headers: { 'User-Agent': ITCH_UA } });
+    } catch (err) {
+      why = err.message;
+    }
+    if (res && res.ok) return res.text();
+    if (res && (res.status === 404 || res.status === 410)) return null;
+    if (res) why = `HTTP ${res.status}`;
+    if (attempt >= tries || (res && res.status < 500 && res.status !== 429)) throw new Error(`No pude bajar ${url}: ${why}`);
+    const after = res ? Number(res.headers.get('retry-after')) : NaN;
+    await sleepMs(Number.isFinite(after) && after > 0 ? Math.min(after, 60) * 1000 : 1500 * 2 ** (attempt - 1));
+  }
+}
+
+function htmlDecode(s) {
+  return String(s).replace(/&(#x[0-9a-f]+|#\d+|quot|amp|lt|gt|apos);/gi, (m, e) => {
+    const k = e.toLowerCase();
+    if (k[0] === '#') return String.fromCodePoint(k[1] === 'x' ? parseInt(k.slice(2), 16) : Number(k.slice(1)));
+    return { quot: '"', amp: '&', lt: '<', gt: '>', apos: "'" }[k];
+  });
+}
+// Un título o un nombre de itch.io, sin entidades, sin guiones blandos ni caracteres invisibles y con los espacios de a uno.
+const cleanName = (s) => htmlDecode(s).replace(/[­​-‏⁠﻿]/g, '').replace(/\s+/g, ' ').trim();
+
+// El objeto JSON que empieza en text[start] (una llave): su texto, recorriendo las cadenas sin evaluar nada.
+function jsonObjectAt(text, start) {
+  let depth = 0, inString = false;
+  for (let i = start; i < text.length; i++) {
+    const c = text[i];
+    if (inString) {
+      if (c === '\\') i++;
+      else if (c === '"') inString = false;
+    } else if (c === '"') inString = true;
+    else if (c === '{' || c === '[') depth++;
+    else if ((c === '}' || c === ']') && --depth === 0) return text.slice(start, i + 1);
+  }
+  return null;
+}
+
+// La exportación de Octo de una página: el objeto { program, rom, options } de su data={…}, o null si no tiene.
+function parseOctoExport(html) {
+  const re = /\bdata\s*=\s*\{/g;
+  for (let m; (m = re.exec(html));) {
+    const text = jsonObjectAt(html, m.index + m[0].length - 1);
+    if (!text) continue;
+    let obj;
+    try { obj = JSON.parse(text); } catch { continue; }
+    if (obj && typeof obj === 'object' && obj.options && typeof obj.options === 'object' && ('rom' in obj || 'program' in obj)) return obj;
+  }
+  return null;
+}
+
+// Los bytes de la ROM de una exportación (un arreglo de bytes, o el objeto en que JSON convierte un
+// Uint8Array), o null si no trae una ROM válida.
+function exportRom(obj) {
+  let r = obj && obj.rom;
+  if (r && typeof r === 'object' && !Array.isArray(r)) {
+    const keys = Object.keys(r);
+    if (!keys.every((k, i) => k === String(i))) return null;
+    r = keys.map((k) => r[k]);
+  }
+  if (!Array.isArray(r) || !r.length || r.length > 65024) return null;
+  if (!r.every((b) => Number.isInteger(b) && b >= 0 && b <= 255)) return null;
+  return Buffer.from(r);
+}
+
+// La dirección de la versión jugable que trae la página de un juego (el iframe de html-classic.itch.zone), o null.
+function playableUrl(page) {
+  const attr = /\bdata-iframe="([^"]*)"/.exec(page);
+  const inner = attr ? /\bsrc="([^"]+)"/.exec(htmlDecode(attr[1])) : null;
+  const direct = /<iframe\b[^>]*\bsrc="(https:\/\/[^"]*itch\.zone\/[^"]*)"/.exec(page);
+  const url = inner ? inner[1] : (direct ? htmlDecode(direct[1]) : null);
+  return url && /^https:\/\/[a-z0-9.-]*itch\.zone\//.test(url) ? url.replace(/\?.*$/, '') : null;
+}
+
+// Los autores de la tabla «More information» de la página (fila Author o Authors), o [] si no está.
+function pageAuthors(page) {
+  const row = /<td>Authors?<\/td><td>([\s\S]*?)<\/td>/.exec(page);
+  return row ? [...row[1].matchAll(/<a\b[^>]*>([^<]*)<\/a>/g)].map((m) => cleanName(m[1])).filter(Boolean) : [];
+}
+// Las descargas que ofrece la página (los nombres), para explicar por qué se salteó un juego.
+const pageUploads = (page) => [...page.matchAll(/class="upload_name"><strong title="([^"]*)"/g)].map((m) => cleanName(m[1]));
+
+// El id de un juego: el final de su dirección en itch.io («chicken-scratch»).
+const itchSlug = (url) => noScheme(url).split('/').filter(Boolean).pop().toLowerCase().replace(/[^a-z0-9-]+/g, '-');
+const itchUser = (url) => noScheme(url).split('.')[0].toLowerCase().replace(/[^a-z0-9-]+/g, '-');
+
+// Las entradas de una Octojam: { event, year, page, announced, entries: [{ title, url, user, submitted }] }.
+async function fetchJam(n) {
+  const page = `https://itch.io/jam/octojam-${n}`;
+  const html = await fetchItch(page + '/entries');
+  if (html === null) throw new Error(`No está la página de la Octojam ${n} (${page}/entries)`);
+  const m = /"entries_url":"([^"]+)"/.exec(html);
+  if (!m) throw new Error(`La página de la Octojam ${n} no dice dónde está su lista de entradas (entries_url)`);
+  const list = JSON.parse(await fetchItch(new URL(m[1].replace(/\\\//g, '/'), 'https://itch.io').href));
+  const stat = /stat_value">(\d+)<\/div><div class="stat_label">Entries</.exec(html);
+  return {
+    event: `Octojam ${n}`,
+    year: 2013 + n,
+    page,
+    announced: stat ? Number(stat[1]) : null,
+    entries: (list.jam_games || []).map((e) => ({
+      title: cleanName(e.game.title),
+      url: e.game.url,
+      user: e.game.user ? cleanName(e.game.user.name) : '',
+      submitted: String(e.created_at || '').slice(0, 10),
+    })),
+  };
+}
+
+// Un juego de itch.io: { program } si su versión jugable es una exportación de Octo con la ROM, o { reason } si no.
+async function fetchItchGame(entry) {
+  const page = await fetchItch(entry.url);
+  if (page === null) return { reason: 'la página ya no está en itch.io' };
+  const authors = pageAuthors(page);
+  const uploads = pageUploads(page);
+  const play = playableUrl(page);
+  const downloads = uploads.length ? ` (solo descargas: ${uploads.join(', ')})` : '';
+  if (!play) return { authors, reason: `no tiene versión jugable en la página${downloads}` };
+  const html = await fetchItch(play);
+  if (html === null) return { authors, reason: 'su versión jugable ya no está' };
+  const exp = parseOctoExport(html);
+  if (!exp) {
+    const engine = cleanName((/<title>([^<]*)<\/title>/i.exec(html) || [])[1] || '');
+    return { authors, reason: `su versión jugable no es una exportación de Octo${engine ? ` (es ${engine})` : ''}` };
+  }
+  const rom = exportRom(exp);
+  if (!rom) return { authors, reason: 'su exportación de Octo trae solo el fuente, sin la ROM armada' };
+  return { authors, play, rom, options: exp.options };
+}
+
+// Un título para comparar: minúsculas, sin tildes y solo letras y números («Bulb.» y «Bulb» son iguales).
+const foldTitle = (s) => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '');
+// Cuánto cambia una ROM de la del archivo («2 bytes distintos», o los dos tamaños).
+function romDifference(rom, program) {
+  const file = path.join(ROMS_DIR, program.id + '.ch8');
+  if (rom.length !== program.size) return `${rom.length} bytes en vez de ${program.size}`;
+  if (!fs.existsSync(file)) return 'del mismo tamaño';
+  const other = fs.readFileSync(file);
+  let n = 0;
+  for (let i = 0; i < rom.length; i++) if (rom[i] !== other[i]) n++;
+  return `${n} byte${n === 1 ? '' : 's'} distinto${n === 1 ? '' : 's'}`;
+}
+
+async function cmdItch() {
+  const { loadCore } = require(path.join(ROOT, 'tests', 'harness.js'));
+  const Core = loadCore();
+  const archive = readData();
+  const archiveBySha = new Map(archive.programs.map((p) => [p.sha1, p]));
+  const archiveIds = new Set(archive.programs.map((p) => p.id.toLowerCase()));
+  const jams = [];
+  for (const n of ITCH_JAMS) {
+    const jam = await fetchJam(n);
+    jams.push(jam);
+    console.log(`${jam.event}: ${jam.entries.length} entradas${jam.announced !== null && jam.announced !== jam.entries.length ? ` (la página dice ${jam.announced}; las demás no son públicas)` : ''}.`);
+  }
+  // Una página que se presentó a dos jams cuenta para la primera.
+  const firstJam = new Map();
+  const queue = [];
+  const skipped = [];
+  for (const jam of jams) {
+    for (const e of jam.entries) {
+      const key = noScheme(e.url).replace(/\/+$/, '').toLowerCase();
+      const base = { title: e.title, authors: e.user ? [e.user] : [], event: jam.event, year: Number(e.submitted.slice(0, 4)) || jam.year, page: e.url };
+      if (firstJam.has(key)) {
+        skipped.push({ ...base, reason: `es la misma página que su entrada de la ${firstJam.get(key)}` });
+        continue;
+      }
+      firstJam.set(key, jam.event);
+      queue.push({ e, base, key });
+    }
+  }
+  console.log(`Bajando las páginas de ${queue.length} juegos…`);
+  const got = await mapLimit(queue, 2, async (q) => ({ ...q, r: await fetchItchGame(q.e) }));
+  const programs = [];
+  const inArchive = [];
+  const bySha = new Map();
+  for (const { base, key, r } of got) {
+    const authors = r.authors && r.authors.length ? r.authors : base.authors;
+    const who = { ...base, authors };
+    if (r.reason) {
+      const same = ITCH_SAME_AS[key];
+      if (same && archive.programs.some((p) => p.id === same)) inArchive.push({ ...who, archiveId: same, note: `${r.reason}, pero es la misma pantalla` });
+      else skipped.push({ ...who, reason: r.reason });
+      continue;
+    }
+    const sha = sha1(r.rom);
+    if (archiveBySha.has(sha)) {
+      inArchive.push({ ...who, archiveId: archiveBySha.get(sha).id, note: 'la misma ROM (la misma huella SHA-1)' });
+      continue;
+    }
+    // El mismo juego (la misma jam y el mismo título) con otra versión de la ROM: no se suma, para no tenerlo dos veces.
+    const twin = archive.programs.find((p) => formatEvent(p.event) === base.event && foldTitle(p.title) === foldTitle(base.title));
+    if (twin) {
+      inArchive.push({ ...who, archiveId: twin.id, note: `otra versión de la ROM (${romDifference(r.rom, twin)})` });
+      continue;
+    }
+    if (bySha.has(sha)) {
+      skipped.push({ ...who, reason: `es la misma ROM que «${bySha.get(sha).title}»` });
+      continue;
+    }
+    const plat = detectPlatform(Core, r.rom, r.options, key);
+    const program = {
+      id: itchSlug(base.page),
+      title: base.title,
+      authors,
+      event: base.event,
+      year: base.year,
+      platform: plat.platform,
+      size: r.rom.length,
+      sha1: sha,
+      options: r.options,
+      page: base.page,
+      play: r.play,
+    };
+    bySha.set(sha, program);
+    programs.push({ program, rom: r.rom, user: itchUser(base.page), why: plat.why, check: plat.check });
+  }
+  // Ids únicos: el final de la dirección; si se repite (entre estos o con el archivo), con el usuario de itch.io al final.
+  const count = new Map();
+  for (const { program } of programs) count.set(program.id, (count.get(program.id) || 0) + 1);
+  for (const x of programs) {
+    if (count.get(x.program.id) > 1 || archiveIds.has(x.program.id)) x.program.id = `${x.program.id}-${x.user}`;
+  }
+  const byTitle = (a, b) => a.title.localeCompare(b.title, 'es', { sensitivity: 'base' }) || a.page.localeCompare(b.page);
+  const data = {
+    source: 'https://itch.io',   // cada jam, con su página, en jams
+    license: ITCH_LICENSE,
+    fetched: localDate(),
+    jams: jams.map((j) => ({ event: j.event, year: j.year, page: j.page, entries: j.entries.length, announced: j.announced })),
+    programs: programs.map((x) => x.program).sort((a, b) => a.id.localeCompare(b.id)),
+    inArchive: inArchive.sort(byTitle),
+    skipped: skipped.sort(byTitle),
+  };
+  fs.mkdirSync(ITCH_ROMS_DIR, { recursive: true });
+  for (const { program, rom } of programs) fs.writeFileSync(path.join(ITCH_ROMS_DIR, program.id + '.ch8'), rom);
+  fs.writeFileSync(ITCH_PATH, JSON.stringify(data, null, 2) + '\n');
+  fs.writeFileSync(path.join(ITCH_ROMS_DIR, README_NAME), buildItchReadme(data));
+  const known = new Set(data.programs.map((p) => p.id + '.ch8').concat(README_NAME));
+  const extra = fs.readdirSync(ITCH_ROMS_DIR).filter((f) => !known.has(f));
+  const plat = Object.keys(PLATFORM_LABEL).map((k) => `${data.programs.filter((p) => p.platform === k).length} de ${PLATFORM_LABEL[k]}`).join(', ');
+  console.log(`Listo: ${data.programs.length} juegos nuevos (${plat}) en ${path.relative(ROOT, ITCH_PATH)} y roms/octojam/; ${inArchive.length} ya estaban en el archivo y ${skipped.length} se saltearon.`);
+  for (const { program, why, check } of programs) {
+    console.log(`  ${program.id.padEnd(30)} ${program.platform.padEnd(6)} ${String(program.size).padStart(5)} bytes  ${program.event}  (${why})`);
+    if (check) console.warn(`    Revisar la plataforma: ${check}.`);
+  }
+  for (const x of inArchive) console.log(`  ya en el archivo: ${x.title} (${x.event}) = ${x.archiveId}${x.note ? ` (${x.note})` : ''}`);
+  for (const x of skipped) console.log(`  salteado: ${x.title} (${x.event}): ${x.reason}`);
+  if (extra.length) console.warn(`  Atención: hay archivos que no son de esta colección en roms/octojam/: ${extra.join(', ')}`);
+  console.log('Ahora corré: node tools/archive.js embed');
 }
 
 // ------------------------------------------------------------------ comandos
@@ -462,25 +945,34 @@ function readData() {
   return JSON.parse(fs.readFileSync(DATA_PATH, 'utf8'));
 }
 
+// data/octojam-itch.json, o null si todavía no se corrió "node tools/archive.js itch".
+function readItch() {
+  return fs.existsSync(ITCH_PATH) ? JSON.parse(fs.readFileSync(ITCH_PATH, 'utf8')) : null;
+}
+
 function cmdEmbed(args) {
   const htmlPath = path.resolve(args.html || HTML_PATH);
   const html = fs.readFileSync(htmlPath, 'utf8');
   const data = readData();
-  const roms = readRoms(data);
-  const next = embedInto(html, data, roms);
+  const itch = readItch();
+  const roms = { ...readRoms(data), ...(itch ? readItchRoms(itch) : {}) };
+  const next = embedInto(html, data, roms, itch);
   const kb = (s) => (s.length / 1024).toFixed(0) + ' KB';
   const dataKb = () => kb(Object.values(readPacked(next)).join(''));
+  const what = `${data.programs.length} programas del archivo${itch ? ` y ${itch.programs.length} juegos de las Octojam en itch.io` : ''}`;
+  const list = (a) => a.slice(0, 5).join(', ') + (a.length > 5 ? '…' : '');
   if (args.check) {
     if (next !== html) {
-      const { missing, wrong } = staleRoms(html, data, roms);
+      const { missing, wrong, wrongItch } = staleRoms(html, withCollections(data, itch), roms);
       const why = [];
-      if (missing.length) why.push(`faltan los bytes de ${missing.length} ROM${missing.length === 1 ? '' : 's'} (${missing.slice(0, 5).join(', ')}${missing.length > 5 ? '…' : ''})`);
-      if (wrong.length) why.push(`los bytes de ${wrong.slice(0, 5).join(', ')}${wrong.length > 5 ? '…' : ''} no son los de roms/archivo/`);
+      if (missing.length) why.push(`faltan los bytes de ${missing.length} ROM${missing.length === 1 ? '' : 's'} (${list(missing)})`);
+      if (wrong.length) why.push(`los bytes de ${list(wrong)} no son los de roms/archivo/`);
+      if (wrongItch.length) why.push(`los bytes de ${list(wrongItch)} no son los de roms/octojam/`);
       if (!why.length) why.push('la tabla cambió');
       console.error(`El bloque <script id="${BLOCK_ID}"> de ${path.relative(ROOT, htmlPath)} no está al día: ${why.join('; ')}. Corré "node tools/archive.js embed".`);
       process.exitCode = 1;
     } else {
-      console.log(`Todo al día: ${data.programs.length} programas del archivo embebidos, con sus ROMs (${dataKb()} comprimidas).`);
+      console.log(`Todo al día: ${what} embebidos, con sus ROMs (${dataKb()} comprimidas).`);
     }
     return;
   }
@@ -489,7 +981,7 @@ function cmdEmbed(args) {
     return;
   }
   fs.writeFileSync(htmlPath, next);
-  console.log(`Embebidos ${data.programs.length} programas del archivo, con sus ROMs (${dataKb()} comprimidas), en ${path.relative(ROOT, htmlPath)}.`);
+  console.log(`Embebidos ${what}, con sus ROMs (${dataKb()} comprimidas), en ${path.relative(ROOT, htmlPath)}.`);
 }
 
 // ------------------------------------------------------------------ prueba de los juegos
@@ -619,12 +1111,20 @@ async function cmdTest(args) {
   const { loadCore } = require(path.join(ROOT, 'tests', 'harness.js'));
   const Core = loadCore();
   if (!Core.PLATFORMS) throw new Error('El núcleo de chip8.html todavía no tiene plataformas (SUPER-CHIP / XO-CHIP).');
-  const data = readData();
+  const data = args.itch ? readItch() : readData();
+  if (!data) throw new Error(`Falta ${path.relative(ROOT, ITCH_PATH)}: corré primero "node tools/archive.js itch".`);
   const only = args.only ? new Set(String(args.only).split(',')) : null;
   const programs = data.programs.filter((p) => !only || only.has(p.id));
   const frames = Number(args.frames) || 900;
-  console.log(`Probando ${programs.length} programas, ${frames} frames cada uno…`);
-  const roms = await mapLimit(programs, 8, (p) => localOrFetch(p));
+  console.log(`Probando ${programs.length} ${args.itch ? 'juegos de las Octojam en itch.io' : 'programas'}, ${frames} frames cada uno…`);
+  // Las de itch.io salen solo de roms/octojam/ (readItchRoms verifica cada una); las del archivo, de roms/archivo/ o de la red.
+  let roms;
+  if (args.itch) {
+    const byHash = readItchRoms({ programs });
+    roms = programs.map((p) => byHash[p.sha1]);
+  } else {
+    roms = await mapLimit(programs, 8, (p) => localOrFetch(p));
+  }
   const entries = programs.map(toEntry);
   const results = [];
   programs.forEach((p, i) => {
@@ -662,6 +1162,7 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--check') args.check = true;
+    else if (a === '--itch') args.itch = true;
     else if (a === '--html' || a === '--frames' || a === '--sheet' || a === '--only' || a === '--json') {
       if (i + 1 >= argv.length) throw new Error(`Falta el valor de ${a}`);
       args[a.slice(2)] = argv[++i];
@@ -671,7 +1172,7 @@ function parseArgs(argv) {
   return args;
 }
 
-const USAGE = 'Uso: node tools/archive.js update | embed [--html <ruta>] [--check] | download | test [--frames N] [--sheet hoja.png] [--only id1,id2] [--json reporte.json]';
+const USAGE = 'Uso: node tools/archive.js update | embed [--html <ruta>] [--check] | download | itch | test [--itch] [--frames N] [--sheet hoja.png] [--only id1,id2] [--json reporte.json]';
 
 async function main(argv) {
   let args;
@@ -687,6 +1188,7 @@ async function main(argv) {
     if (cmd === 'update') await cmdUpdate();
     else if (cmd === 'embed') cmdEmbed(args);
     else if (cmd === 'download') await cmdDownload();
+    else if (cmd === 'itch') await cmdItch();
     else if (cmd === 'test') await cmdTest(args);
     else if (cmd === '--help' || cmd === undefined) console.log(USAGE);
     else throw new Error(`Comando desconocido: ${cmd}`);
@@ -701,6 +1203,9 @@ if (require.main === module) main(process.argv.slice(2));
 
 module.exports = {
   fromOctoOptions, normalizeColor, formatEvent, toEntry, buildBlock, embedInto, findBlock, encodePng, buildReadme,
-  packRom, unpackRom, readRoms, packRoms, readPacked, staleRoms,
+  packRom, unpackRom, readRoms, packRoms, readPacked, staleRoms, withCollections, readItch, readItchRoms, buildItchReadme,
+  isInstruction, reachableOpcodes, executedOpcodes, detectPlatform, foldTitle,
+  jsonObjectAt, parseOctoExport, exportRom, playableUrl, pageAuthors, cleanName, itchSlug,
   OCTO_DEFAULTS, BLOCK_ID, HEADER, DATA_HEADER, DATA_OPEN, DATA_PATH, ROMS_DIR, README_NAME,
+  ITCH_PATH, ITCH_ROMS_DIR, ITCH_JAMS, ITCH_SAME_AS, ITCH_LICENSE,
 };

@@ -537,6 +537,23 @@ describe('docs/MANUAL.md', () => {
     assert.deepEqual(table, histogram, 'la tabla de IPF del archivo (12.2) no es la de data/archive.json');
   });
 
+  it('los números de los juegos de las Octojam en itch.io, y el total, son los de data/octojam-itch.json y data/archive.json', () => {
+    const itch = JSON.parse(read(path.join(ROOT, 'data', 'octojam-itch.json'))).programs;
+    const archived = JSON.parse(read(ARCHIVE_DATA_PATH)).programs;
+    const count = (p) => itch.filter((g) => g.platform === p).length;
+    const claims = [
+      [/\b(\d+) juegos de las Octojam 6 a 10\b/g, [itch.length]],
+      [/\b(\d+) juegos de la comunidad\b/g, [archived.length + itch.length]],   // todos juntos, en la ventana
+      [/\bCHIP-8: (\d+), SUPER-CHIP: (\d+) y XO-CHIP: (\d+)\b/g, [count('chip8'), count('schip'), count('xochip')]],
+    ];
+    const prose = md.replace(/\s+/g, ' ');
+    for (const [re, want] of claims) {
+      const found = [...prose.matchAll(re)];
+      assert.ok(found.length > 0, 'el manual no tiene ninguna frase como ' + re);
+      for (const m of found) assert.deepEqual(m.slice(1).map(Number), want, '«' + m[0] + '»: según data/octojam-itch.json son ' + want.join(', '));
+    }
+  });
+
   it('los mensajes y textos de la consola que cita (secciones 11 y 13) son los de chip8.html y del núcleo', () => {
     const html = read(path.join(ROOT, 'chip8.html'));
     // Textos de la interfaz que el manual nombra, tal como aparecen en el código.
