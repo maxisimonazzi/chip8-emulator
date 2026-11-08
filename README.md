@@ -27,14 +27,15 @@ plataforma, la velocidad y los colores de cada uno, también si cargás la ROM d
 [`roms/archivo/`](roms/archivo/LEEME.md). Una ROM que no está en esa lista arranca con tus
 ajustes; si los cambiás mientras la jugás, los recuerda para la próxima vez.
 
-Para entender un programa está el monitor, con cuatro pestañas: el código (registros, pila
-y el desensamblado de toda la memoria), la traza de las últimas 1024 instrucciones, un mapa
-de la memoria que muestra qué se ejecutó, qué se leyó y qué se escribió, y un visor de
-sprites. Se pueden poner puntos de corte, avanzar de a una instrucción y pasar por encima de
-una subrutina o salir de ella. Cada cartucho tiene cinco ranuras para guardar el estado de
-la máquina; «Ver todos» muestra juntos los estados de todos los cartuchos, y se pueden
-exportar a un archivo e importar en otro navegador. Y hay rebobinado: mientras mantenés
-apretada la B, la máquina vuelve hacia atrás hasta medio minuto.
+Para entender un programa está el monitor, con cuatro pestañas: el código (registros, pila y
+el desensamblado de toda la memoria), la traza de las últimas 1024 instrucciones, un mapa de
+la memoria que muestra qué se ejecutó, qué se leyó y qué se escribió, y un visor de sprites.
+Se pueden poner puntos de corte, avanzar de a una instrucción y pasar por encima de una
+subrutina o salir de ella. Si no lo usás, su botón de arriba lo oculta y la consola queda
+sola en el medio. Cada cartucho tiene cinco ranuras para guardar el estado de la máquina;
+«Ver todos» muestra juntos los estados de todos los cartuchos, y se pueden exportar a un
+archivo e importar en otro navegador. Y hay rebobinado: mientras mantenés apretada la B, la
+máquina vuelve hacia atrás hasta medio minuto.
 
 Para escribir programas está el Taller (la Y): un editor con el ensamblador del proyecto
 adentro. Trae los once ejemplos del tutorial y los fuentes de los seis cartuchos, marca los
@@ -42,10 +43,22 @@ errores en su renglón y con Ctrl+Enter el programa corre en la consola.
 
 ## Cómo se usa
 
-Abrí `chip8.html` en Chrome o Edge. Arranca con el primer demo; los otros están debajo de la
-ranura, y cualquier `.ch8` se carga con «Cargar ROM» o arrastrándolo a la página. El sonido
-se habilita con el primer clic o la primera tecla, porque el navegador no deja reproducir
-nada antes.
+Abrí `chip8.html` en Chrome o Edge. Arranca con el primer demo; los otros, y las ROMs que
+vayas cargando, están en la pestaña «Cartuchos» del cajón de opciones, cada uno con una
+miniatura de su pantalla. Cualquier `.ch8` se carga con «Cargar ROM», en esa misma pestaña, o
+arrastrándolo a la página. El sonido se habilita con el primer clic o la primera tecla, porque
+el navegador no deja reproducir nada antes. Si la ventana es baja, la consola se achica entera
+hasta entrar sin scrollear.
+
+Las opciones van en un cajón que se abre con el botón de los tres deslizadores, arriba, o con
+la M, en tres pestañas: los cartuchos; los ajustes (velocidad, pantalla y sonido,
+compatibilidad y controles, uno debajo del otro), y los estados guardados. En una pantalla
+ancha sale del costado de la consola y tapa el monitor o el Taller, así la pantalla queda a
+la vista mientras cambiás algo; en una angosta, como la de un teléfono, sube desde abajo y
+tapa el keypad. Con el cajón abierto la consola sigue andando, y se guarda con la misma M,
+con Esc o con su botón de cerrar. Al final de los ajustes, «Cuidado» borra lo que la consola
+guardó en el navegador: los ajustes y los estados de un juego, toda la configuración, tus
+cartuchos o tus programas del Taller, y cada botón pregunta antes.
 
 El keypad del COSMAC VIP está en el bloque izquierdo del teclado. Se toma la posición de cada
 tecla y no la letra, así que da igual la distribución:
@@ -73,11 +86,12 @@ Z X C V        A 0 B F
 | P | Pantalla completa |
 | G | Guarda una captura en PNG |
 | Y | Abre o cierra el Taller |
+| M | Abre o cierra el cajón de opciones: cartuchos, ajustes y estados |
 | I | Guarda el estado en la ranura rápida |
 | U | Carga la ranura rápida |
 | B (mantenida) | Rebobina |
 | ↑ ↓ ← → | Las teclas del keypad que elijas en «Controles» (de fábrica, 5, 8, 7 y 9) |
-| Esc | Cierra los diálogos |
+| Esc | Cierra los diálogos y guarda el cajón de opciones |
 
 Si un juego bajado de internet anda lento o hace cosas raras, casi siempre es el perfil y no
 el emulador. Los juegos hechos con Octo quieren el perfil XO-CHIP aunque sean de CHIP-8
@@ -101,10 +115,10 @@ herramientas.
 npm test
 ```
 
-Son **1602 pruebas** en 22 archivos y tardan unos segundos. Además de cada instrucción y cada
+Son **1639 pruebas** en 23 archivos y tardan unos segundos. Además de cada instrucción y cada
 quirk, revisan el ensamblador, el depurador, los demos, los estados guardados y sus archivos,
 la tabla del archivo y sus ROMs, y que la documentación no mienta: los ejemplos del manual y
-del tutorial se ensamblan y se ejecutan. `npm run e2e` corre 77 escenarios en Chrome o Edge
+del tutorial se ensamblan y se ejecutan. `npm run e2e` corre 89 escenarios en Chrome o Edge
 sin ventana, con teclado, mouse y toques de verdad.
 
 Las otras herramientas:

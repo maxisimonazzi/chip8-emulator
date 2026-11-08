@@ -30,11 +30,12 @@ depurás uno ajeno.
   XO-CHIP. Este emulador ejecuta las instrucciones de las dos extensiones como Octo; donde
   eso se aparta de SUPER-CHIP 1.1, o donde este emulador se aparta de Octo, aparece un
   párrafo marcado **Diferencia con SUPER-CHIP 1.1** o **Diferencia con Octo**.
-- **"El monitor"** es el panel de depuración de la consola, el que se titula MONITOR,
-  con cuatro pestañas: **Código** (registros, pila, el desensamblado, que sigue al PC, y
-  los puntos de corte), **Traza** (las últimas instrucciones ejecutadas), **Memoria** (un
-  mapa de la memoria y su contenido) y **Sprites**. Cuando se habla del sistema operativo
-  en ROM del VIP, que también se llamaba así, se dice **"el programa monitor del VIP"**.
+- **"El monitor"** es el panel de depuración de la consola, el que se titula MONITOR (su
+  botón, arriba, en la consola, lo muestra y lo oculta), con cuatro pestañas: **Código**
+  (registros, pila, el desensamblado, que sigue al PC, y los puntos de corte), **Traza**
+  (las últimas instrucciones ejecutadas), **Memoria** (un mapa de la memoria y su
+  contenido) y **Sprites**. Cuando se habla del sistema operativo en ROM del VIP, que
+  también se llamaba así, se dice **"el programa monitor del VIP"**.
 - Los mnemónicos son los de la referencia de Cowgod (`LD`, `DRW`, `SKP`, ...). Son los
   mismos que acepta el ensamblador del proyecto (el que usa el **Taller** de la consola y,
   desde la terminal, `tools/chip8asm.js`, con la sintaxis que explica la
@@ -472,14 +473,16 @@ ocupar hasta 65.024 bytes. El mapa completo está en
   bytes (o está vacío), la consola rechaza la carga con un aviso, arriba de la página,
   y deja en la ranura el cartucho que había.
 - La ROM llega con el botón **Cargar ROM**, arrastrando el archivo sobre la página o
-  eligiendo un cartucho incluido: con los botones de la fila **Incluidos:**, debajo de
-  la ranura, o desde el estante **Cartuchos incluidos**, debajo de la consola, que
-  además los describe. Con un cartucho incluido en la ranura, debajo aparecen sus
-  controles. Las ROMs que cargás desde un archivo quedan además en el estante **Tus
-  cartuchos** (las cinco más recientes, también en la fila **Tuyos:**), listas para
-  volver a jugarlas ([11.11](#1111-ajustes-por-cartucho)). Los juegos del archivo de la
-  comunidad se cargan desde su ventana (la tecla L o el botón **Archivo** del estante), y
-  un programa escrito en el **Taller** (la tecla Y) entra en la ranura al ensamblarlo.
+  eligiendo un cartucho: todo eso está en la pestaña **Cartuchos** del cajón de opciones
+  (la tecla M), con los **Incluidos** y, en **Tus cartuchos**, las ROMs que cargaste
+  desde un archivo, listas para volver a jugarlas ([11.11](#1111-ajustes-por-cartucho)).
+  Cada cartucho es una tarjeta con una miniatura de su pantalla y su nombre; al pasar el
+  mouse (o al llegar con Tab) aparece un cartel con su descripción, sus controles, su
+  plataforma y su tamaño. La ranura, arriba de la pestaña, muestra el cartucho puesto
+  (con un incluido, también sus controles), y su nombre va impreso debajo de la
+  pantalla. Los juegos del archivo de la comunidad se cargan desde su ventana (la tecla
+  L o el botón **Archivo**, en la misma pestaña), y un programa escrito en el **Taller**
+  (la tecla Y) entra en la ranura al ensamblarlo.
 - La zona `0x000`–`0x1FF` no está protegida: un programa puede escribirla (por
   ejemplo, pisar la fuente).
 - En el monitor, la pestaña **Memoria** dibuja este mapa con lo que el programa hizo con
@@ -764,12 +767,13 @@ decide quien escribe el intérprete.
 > (1/60 s).
 
 En este emulador el beep es una **onda cuadrada de 440 Hz generada con Web Audio**,
-salvo que un programa de XO-CHIP haya cargado un patrón de audio: desde ese momento suena
-el patrón ([13.10](#1310-el-audio-de-xo-chip-patrón-y-tono)). Mientras suena se prende la
-luz SONIDO de la consola. En el grupo «Pantalla y sonido»
-hay un interruptor **Silencio** y un control de **Volumen**. Los navegadores no permiten
-reproducir sonido hasta que el usuario interactúa con la página, así que el beep se
-habilita con el primer clic o la primera tecla.
+salvo que un programa de XO-CHIP haya cargado un patrón de audio: desde ese momento
+suena el patrón ([13.10](#1310-el-audio-de-xo-chip-patrón-y-tono)). Mientras suena se
+prende la luz SONIDO de la consola. En **Pantalla y sonido**, en la pestaña **Ajustes**
+del cajón de opciones (la tecla M), hay un interruptor **Silencio** y un control de
+**Volumen**. Los navegadores no permiten reproducir sonido hasta que el usuario
+interactúa con la página, así que el beep se habilita con el primer clic o la primera
+tecla.
 
 ```asm
 ; Un "bip" de 10/60 s (≈ 0,17 s)
@@ -816,15 +820,15 @@ Esa es la pantalla de CHIP-8. SUPER-CHIP y XO-CHIP agregan un modo de alta resol
 **128 × 64**, y XO-CHIP, un segundo plano de dibujo que da cuatro colores: secciones
 [13.5](#135-alta-y-baja-resolución) y [13.6](#136-planos-y-colores).
 
-Los colores son una decisión de presentación: el VIP mostraba puntos blancos sobre
-fondo negro. Este emulador escala la imagen por un número entero, así que cada píxel
-CHIP-8 es un cuadrado nítido del mismo tamaño que los demás. En el grupo «Pantalla y
-sonido» ofrece cuatro paletas (verde fósforo, ámbar, blanco y LCD), una
-**Personalizada**, en la que elegís los colores vos, y la **Del cartucho**, que aparece
-cuando un juego trae sus propios colores ([11.11](#1111-ajustes-por-cartucho)). Cada
-paleta tiene cuatro colores: el fondo, el de los píxeles encendidos (el plano 1) y dos
-que solo usa XO-CHIP, el del plano 2 y el de los píxeles encendidos en los dos planos.
-También ofrece dos **modos de pantalla**:
+Los colores son una decisión de presentación: el VIP mostraba puntos blancos sobre fondo
+negro. Este emulador escala la imagen por un número entero, así que cada píxel CHIP-8 es
+un cuadrado nítido del mismo tamaño que los demás. En **Pantalla y sonido**, en la
+pestaña **Ajustes** del cajón de opciones, ofrece cuatro paletas (verde fósforo, ámbar,
+blanco y LCD), una **Personalizada**, en la que elegís los colores vos, y la **Del
+cartucho**, que aparece cuando un juego trae sus propios colores
+([11.11](#1111-ajustes-por-cartucho)). Cada paleta tiene cuatro colores: el fondo, el de
+los píxeles encendidos (el plano 1) y dos que solo usa XO-CHIP, el del plano 2 y el de
+los píxeles encendidos en los dos planos. También ofrece dos **modos de pantalla**:
 
 | Modo | Cómo se ve |
 |---|---|
@@ -1025,16 +1029,17 @@ Los atajos de la consola no chocan con ninguna tecla del mapeo:
 | K | Salir de la subrutina: seguir hasta que la subrutina en la que está el PC vuelve con `RET` |
 | Retroceso (Backspace) | Reiniciar la ROM |
 | H (o el botón **?**) | Abrir o cerrar la ayuda |
-| L (o el botón **Archivo**, en el estante) | Abrir o cerrar la ventana del archivo de la comunidad |
+| L (o el botón **Archivo**, en la pestaña «Cartuchos» del cajón) | Abrir o cerrar la ventana del archivo de la comunidad |
 | T, mantenida | Avance rápido |
 | P | Pantalla completa |
 | G | Guardar una captura de la pantalla (PNG) |
 | Y (o el botón del lápiz) | Abrir o cerrar el Taller |
+| M (o el botón de los deslizadores, arriba) | Abrir o cerrar el cajón de opciones: cartuchos, ajustes y estados |
 | I | Guardar el estado en la ranura rápida |
 | U | Cargar el estado de la ranura rápida |
 | B, mantenida | Rebobinar |
-| Flechas | Las teclas del keypad que elegiste en «Controles» |
-| Esc | Cerrar diálogos |
+| Flechas | Las teclas del keypad que elegiste en «Controles» (en «Ajustes») |
+| Esc | Cerrar diálogos y el cajón de opciones |
 
 Los botones, interruptores y enlaces que tocás con el mouse o con el dedo no se quedan
 con el foco, así que **Espacio** siempre pausa. Si llegás a un control con **Tab**, en
@@ -1304,7 +1309,7 @@ que dice qué plataforma hace falta ([11.10](#1110-diagnósticos-de-plataforma))
 En **este emulador**, un opcode inválido detiene la máquina: `halted` pasa a `true`, el
 PC queda apuntando **a la instrucción culpable** y `error` guarda un mensaje en
 castellano con el opcode y su dirección en hexadecimal. La consola muestra ese mensaje
-sobre la pantalla y en el monitor, y lo anuncia una sola vez en la línea de estado
+sobre la pantalla y en el monitor, y lo anuncia una sola vez a los lectores de pantalla
 («Error: ...»). Lo mismo pasa con un `CALL` con la pila llena o un `RET` con la pila
 vacía. Debajo del error, el monitor ofrece **Ver las últimas instrucciones**: la pestaña
 **Traza**, con las instrucciones que llevaron hasta ahí y la culpable al final, en rojo.
@@ -2538,9 +2543,10 @@ plataforma, que es la que trae las instrucciones nuevas (sección
 
 ### 11.9 Cómo elegir la configuración en este emulador
 
-En el grupo **Compatibilidad** del panel de control hay dos selectores, **Perfil** y
-**Plataforma**, seis interruptores DIP (uno por quirk: al pasar el mouse por uno, o al
-llegar a él con Tab, aparece qué hace) y el interruptor **Ajustes por cartucho**
+En **Compatibilidad**, en la pestaña **Ajustes** del cajón de opciones (el botón de los
+deslizadores, arriba, o la tecla M), hay dos selectores, **Perfil** y **Plataforma**,
+seis interruptores DIP (uno por quirk: al pasar el mouse por uno, o al llegar a él con
+Tab, aparece qué hace) y el interruptor **Ajustes por cartucho**
 ([11.11](#1111-ajustes-por-cartucho)). Perfil y plataforma son dos cosas distintas:
 
 | | Qué decide | Opciones | Al cambiarlo |
@@ -2654,15 +2660,16 @@ viene, la consola usa esa huella para dos cosas:
   `tools/archive.js` genera a partir de `data/archive.json`. Tiene 104 programas: 50 de
   CHIP-8, 26 de SUPER-CHIP y 28 de XO-CHIP, la mayoría de las Octojam, cada uno con la
   plataforma, los quirks, la velocidad, los colores y la orientación de la pantalla con
-  que se juega en Octo. Si cargás uno, se configura antes de arrancar y en la ranura dice
-  «ajustes del archivo». Sus colores quedan en la paleta **Del cartucho**, y si el juego
-  se pensó para una pantalla girada, la imagen se gira.
+  que se juega en Octo. Si cargás uno, se configura antes de arrancar y en la ranura (en
+  la pestaña **Cartuchos** del cajón) dice «ajustes del archivo». Sus colores quedan en
+  la paleta **Del cartucho**, y si el juego se pensó para una pantalla girada, la imagen
+  se gira.
 - **Lo que vos cambiás se recuerda.** Si mientras corre una ROM cambiás la plataforma,
-  el perfil, un interruptor, las IPF, la paleta o los controles (en el grupo
-  **Controles**, qué teclas del keypad aprietan las flechas y el joystick), la consola lo
-  recuerda para esa ROM: la próxima vez arranca así, y en la ranura dice «ajustes
-  recordados». **Olvidar ajustes** borra lo recordado; si es un juego del archivo,
-  vuelven los del archivo.
+  el perfil, un interruptor, las IPF, la paleta o los controles (en **Controles**, en la
+  pestaña **Ajustes** del cajón de opciones, qué teclas del keypad aprietan las flechas
+  y el joystick), la consola lo recuerda para esa ROM: la próxima vez arranca así, y en
+  la ranura dice «ajustes recordados». **Olvidar ajustes** borra lo recordado; si es un
+  juego del archivo, vuelven los del archivo.
 
 Cuando cargás una ROM, cada fuente de ajustes pisa a la de abajo, campo por campo:
 
@@ -2686,36 +2693,36 @@ Con el interruptor apagado, la consola funciona como siempre: todas las ROMs usa
 ajustes que estén puestos y no se aplica ni se recuerda nada por cartucho (las banderas
 duran lo que dura la página).
 
-Las ROMs que cargás desde un archivo quedan además en el estante **Tus cartuchos**,
-debajo de los incluidos, con la que jugaste por última vez primero; las cinco más
-recientes aparecen también en la fila **Tuyos:**, debajo de la ranura. Entran hasta 60
-ROMs y unos 2,5 MB entre todas, y quedan guardadas en este navegador.
+Las ROMs que cargás desde un archivo quedan además en **Tus cartuchos**, en la pestaña
+**Cartuchos** del cajón, debajo de los incluidos, con la que jugaste por última vez
+primero, cada una con una miniatura de su pantalla. Entran hasta 60 ROMs y unos 2,5 MB
+entre todas, y quedan guardadas en este navegador.
 
-**Los juegos del archivo vienen adentro de la consola.** Además de la tabla, `chip8.html`
-trae las ROMs de los 104 programas, comprimidas. El botón **Archivo**, en el título del
-estante de cartuchos, o la tecla **L** abren la ventana *Archivo de la comunidad*: cada
-juego con su título, sus autores, el evento, el año, la plataforma, el tamaño y una
-miniatura de su pantalla de título. Se busca por título o por autor (sin importar
-mayúsculas ni tildes), se filtra por plataforma y por evento o año, y se ordena por
-título, por fecha o por evento. Un clic, o **Enter**, carga el juego con los ajustes de
-la tabla (o con los que le recordaste; con el interruptor apagado, con los tuyos) y
+**Los juegos del archivo vienen adentro de la consola.** Además de la tabla,
+`chip8.html` trae las ROMs de los 104 programas, comprimidas. El botón **Archivo**, en
+la pestaña **Cartuchos** del cajón, o la tecla **L** abren la ventana *Archivo de la
+comunidad*: cada juego con su título, sus autores, el evento, el año, la plataforma, el
+tamaño y una miniatura de su pantalla de título. Se busca por título o por autor (sin
+importar mayúsculas ni tildes), se filtra por plataforma y por evento o año, y se ordena
+por título, por fecha o por evento. Un clic, o **Enter**, carga el juego con los ajustes
+de la tabla (o con los que le recordaste; con el interruptor apagado, con los tuyos) y
 cierra la ventana. Los juegos que se cargan así no van a **Tus cartuchos**: siempre
 están en la ventana. Si el navegador no puede descomprimirlos (le falta
 `DecompressionStream`), la ventana lo dice, y el juego se puede cargar igual desde la
 carpeta `roms/archivo/` del repositorio con **Cargar ROM**.
 
-Los **estados guardados** también son de cada ROM: las cinco ranuras del grupo
-**Estados** (la rápida, con **I** y **U**, y cuatro más) se guardan por la huella del
-cartucho, y otra ROM no las ve. Cargar un estado, o rebobinar con **B**, vuelve la máquina
-entera a ese momento, timers (DT y ST) y banderas RPL incluidos: un récord que el juego
-guardó después se pierde. **Ver todos**, al lado del título del grupo, muestra los estados
-de todos los cartuchos, agrupados por cartucho, y carga cualquiera (si el cartucho no está
-en la ranura, la consola lo pone antes, siempre que tenga su ROM). **Exportar** baja los
-estados en un archivo `.json` y **Importar** (o arrastrar ese archivo sobre la página) los
-trae a otro navegador; el archivo lleva también la ROM cuando no es un demo ni un juego
-del archivo, y si una ranura ya tiene otro estado, la consola pregunta antes de
-reemplazarlo. Cómo se usan, en la
-[parte 1.13 del tutorial](TUTORIAL.md#113-estados-guardados-y-rebobinado).
+Los **estados guardados** también son de cada ROM: las cinco ranuras de la pestaña
+**Estados** del cajón de opciones (la rápida, con **I** y **U**, y cuatro más) se
+guardan por la huella del cartucho, y otra ROM no las ve. Cargar un estado, o rebobinar
+con **B**, vuelve la máquina entera a ese momento, timers (DT y ST) y banderas RPL
+incluidos: un récord que el juego guardó después se pierde. **Ver todos**, arriba de las
+ranuras, muestra los estados de todos los cartuchos, agrupados por cartucho, y carga
+cualquiera (si el cartucho no está en la ranura, la consola lo pone antes, siempre que
+tenga su ROM). **Exportar** baja los estados en un archivo `.json` y **Importar** (o
+arrastrar ese archivo sobre la página) los trae a otro navegador; el archivo lleva
+también la ROM cuando no es un demo ni un juego del archivo, y si una ranura ya tiene
+otro estado, la consola pregunta antes de reemplazarlo. Cómo se usan, en la [parte 1.13
+del tutorial](TUTORIAL.md#113-estados-guardados-y-rebobinado).
 
 ### 11.12 Otras diferencias con el VIP que no son configurables
 
@@ -2765,14 +2772,14 @@ equivale a unas **600 a 900 instrucciones por segundo**.
 
 Este emulador ejecuta una cantidad fija de instrucciones en cada frame de 1/60 s:
 **IPF** (*instrucciones por frame*), configurable de **1 a 10.000**, con **15 por
-defecto** (≈900 instrucciones por segundo, cerca del VIP). En el grupo **Velocidad** se
-elige con el deslizador, con el campo numérico o con los botones de valores prefijados
-(7, 15, 30, 100, 500, 1000, 5000 y 10000), y debajo se ve la velocidad aproximada en
-instrucciones por segundo. Si escribís un valor fuera de rango, el campo se marca en rojo
-y el aviso dice qué valor se usa mientras tanto (1 o 10.000, el más cercano). El monitor muestra las
-IPF actuales, y la consola las recuerda para la próxima vez y, con **Ajustes por
-cartucho**, las de cada ROM (ver
-[11.9](#119-cómo-elegir-la-configuración-en-este-emulador)).
+defecto** (≈900 instrucciones por segundo, cerca del VIP). En **Velocidad**, en la
+pestaña **Ajustes** del cajón de opciones, se elige con el deslizador, con el campo
+numérico o con los botones de valores prefijados (7, 15, 30, 100, 500, 1000, 5000 y
+10000), y debajo se ve la velocidad aproximada en instrucciones por segundo. Si escribís
+un valor fuera de rango, el campo se marca en rojo y el aviso dice qué valor se usa
+mientras tanto (1 o 10.000, el más cercano). El monitor muestra las IPF actuales, y la
+consola las recuerda para la próxima vez y, con **Ajustes por cartucho**, las de cada
+ROM (ver [11.9](#119-cómo-elegir-la-configuración-en-este-emulador)).
 
 ¿Por qué exponer IPF en lugar de fijar una velocidad "correcta"? Porque los programas de
 CHIP-8 se escribieron para máquinas muy distintas: el VIP, las calculadoras HP-48 y los
@@ -2900,10 +2907,10 @@ con la máquina detenida, no hace nada.
 
 ## 13. Variantes y extensiones
 
-CHIP-8 tuvo muchos descendientes. Dos de ellos, **SUPER-CHIP** y **XO-CHIP**, forman
-con CHIP-8 las tres plataformas principales de hoy (así las trata, por ejemplo, la suite
-de Timendus), y están implementados en este emulador: son sus otras dos
-**plataformas**, que se eligen en el grupo Compatibilidad de la consola
+CHIP-8 tuvo muchos descendientes. Dos de ellos, **SUPER-CHIP** y **XO-CHIP**, forman con
+CHIP-8 las tres plataformas principales de hoy (así las trata, por ejemplo, la suite de
+Timendus), y están implementados en este emulador: son sus otras dos **plataformas**,
+que se eligen en **Compatibilidad**, en la pestaña Ajustes del cajón de opciones
 ([11.9](#119-cómo-elegir-la-configuración-en-este-emulador)). Las demás variantes
 ([13.12](#1312-otras-variantes)) no lo están.
 

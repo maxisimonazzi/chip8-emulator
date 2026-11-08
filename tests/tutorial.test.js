@@ -1600,22 +1600,22 @@ describe('docs/TUTORIAL.md', () => {
     const quoted = [
       'Cargar ROM', 'Soltá el cartucho acá', 'Sonido: tocá la consola para activarlo',
       'Presioná Reiniciar (Retroceso) para volver a empezar.', 'ESPERANDO TECLA', 'PAUSA',
-      'Personalizado', 'Cartuchos incluidos', 'MEMORIA EN I', 'DESENSAMBLADO', 'INSTRUCCIONES',
+      'Personalizado', '>Incluidos</h3>', 'MEMORIA EN I', 'DESENSAMBLADO', 'INSTRUCCIONES',
       'Verde fósforo', 'Ámbar', 'Blanco', 'LCD', 'Scanlines', 'Persistencia', 'Silencio', 'Volumen',
       "'VF=0'", "'MEM'", "'SHIFT'", "'BXNN'", "'CLIP'", "'VBLANK'",
       'Sin cartucho', 'Ejecutando', 'Esperando tecla', 'Pausado', "'Error'",
       'IPF_PRESETS = [7, 15, 30, 100, 500, 1000, 5000, 10000]', 'IPF_MAX = 10000', 'IPF_DEFAULT = 15', 'BEEP_HZ = 440',
       "osc.type = 'square'", 'MAX_CATCHUP = 4', 'DISASM_BEFORE = 7, DISASM_AFTER = 12',
       'dt > 250', 'Fuera de rango',
-      // Modo de pantalla, selector de cartuchos y línea de estado (partes 1, 6 y 7).
-      'Modo de pantalla', 'Tubo CRT', 'Píxeles puros', 'Incluidos:', 'Detalles ↓', "'Controles: '",
+      // Modo de pantalla, los cartuchos (sus tarjetas, su cartel y la ranura) y la línea de estado (partes 1, 6 y 7).
+      'Modo de pantalla', 'Tubo CRT', 'Píxeles puros', "'Controles: '", 'class="cart-tip" id="cart-tip"', 'id="bezel-cart"',
       "'En pausa.'", "'Reiniciado'", "' (en pausa).'", "'Paso: PC = 0x'",
       '.disasm li.is-pc .d-mark::before { content: "\\25B6"', '@media (max-width: 760px)',
       // Compatibilidad, ajustes por cartucho y tus cartuchos (1.3, 1.6 y 1.7).
       '>Compatibilidad<', '>Plataforma</label>', '>Perfil</label>', '>Ajustes por cartucho<',
       "' · ajustes del archivo'", "' · ajustes recordados'", '>Olvidar ajustes<', "label: 'Olvidar ajustes'",
-      '>Tus cartuchos<', '>Tuyos:<', "label: 'Deshacer'",
-      'LIBRARY_MAX_ITEMS = 60', 'LIBRARY_MAX_CHARS = 2500000', 'LIBRARY_PICKS = 5',
+      '>Tus cartuchos<', "label: 'Deshacer'",
+      'LIBRARY_MAX_ITEMS = 60', 'LIBRARY_MAX_CHARS = 2500000',
       // Pantalla, colores y efectos (1.8).
       "CUSTOM_NAME = 'Personalizada', CARTRIDGE_NAME = 'Del cartucho'",
       '<span>Fondo</span>', '<span>Píxel / plano&nbsp;1</span>', '<span>Plano 2</span>', '<span>Ambos planos</span>',
@@ -1631,8 +1631,11 @@ describe('docs/TUTORIAL.md', () => {
       "badge: 'Terminado'", "'FIN DEL PROGRAMA'", "label: 'Usar ' + needed",
       "'Cambiar a ' + platformLabel(platform) + ' y reiniciar'",
       "'MODELO ' + platformLabel(p)", "' KB RAM'",
+      // El cajón de opciones, sus secciones y el monitor que se oculta (1.1, 1.2, 1.5, 1.6, 1.8, 1.9, 1.10, 1.11 y 1.13).
+      'data-tab="cartuchos">Cartuchos</button>', '>Ajustes</button>', '>Velocidad</h3>', '>Pantalla y sonido</h3>', '>Compatibilidad</h3>',
+      '>Controles</h3>', "case 'KeyM':", 'id="btn-monitor"', '<span>Ocultar</span>',
       // Estados guardados y rebobinado (1.1, 1.10, 1.13 y 7.4).
-      '<h2 class="section-print">Estados</h2>', "'Rápido' : 'Ranura ' + id", "'VACÍA'", "'DAÑADO'",
+      'data-tab="estados" tabindex="-1">Estados</button>', "'Rápido' : 'Ranura ' + id", "'VACÍA'", "'DAÑADO'",
       "slotButton('save', 'Guardar'", "slotButton('load', 'Cargar'", "slotButton('delete', 'Borrar'",
       "flashStateTag('GUARDADO')", "flashStateTag('CARGADO')", "'recién'", "'hace ' + Math.floor(secs / 60) + ' min'",
       "'ayer ' + hm", "'Podés volver hasta ' + s + ' s.'", '>Rebobinado</button>', 'id="btn-rewind"',

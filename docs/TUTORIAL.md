@@ -116,31 +116,41 @@ local, corré `node tools/serve.js` (o `npm run serve`) y entrá a
 Vas a ver una consolita beige con estas partes:
 
 - Arriba, la **pantalla** (un monitor de tubo, de fósforo verde) y dos luces: **RUN** y
-  **SONIDO**. El botón **?** abre la ayuda, y el del lápiz, al lado, el **Taller**, donde
-  se escriben programas ([sección 4.8](#48-el-taller-ensamblar-sin-salir-de-la-consola)).
-  Al pie del tubo hay cuatro botoncitos: el rebobinado (⏪), el avance rápido, la captura
-  y la pantalla completa (sección 1.10).
-- Debajo de la pantalla, el **cartucho**: qué programa está cargado y cuánto ocupa, el
-  botón **Cargar ROM** y, justo abajo, la fila **Incluidos:**, con un botón por cada
-  programa de demostración (sección 1.2). Cuando cargues ROMs tuyas, aparece también la
-  fila **Tuyos:** (sección 1.3).
-- Después, los botones de **ejecución** (Pausa, Paso, Por encima, Salir, Frame y
-  Reiniciar) y, debajo, una **línea de estado** que te va contando lo que pasa: *En
-  pausa.*, *Reiniciado (en pausa).*, *Paso: PC = 0x20C.*
+  **SONIDO**. En la barra hay cuatro botones redondos: el de los tres deslizadores abre
+  el **cajón de opciones** (más abajo); el de la pantallita con una onda muestra u
+  oculta el **monitor** de depuración; el del lápiz abre el **Taller**, donde se
+  escriben programas ([sección 4.8](#48-el-taller-ensamblar-sin-salir-de-la-consola)), y
+  el **?**, la ayuda. Al pie del tubo está impreso el nombre del cartucho que está
+  puesto, al lado del modo de video, y hay cuatro botoncitos: el rebobinado (⏪), el
+  avance rápido, la captura y la pantalla completa (sección 1.10).
+- Debajo de la pantalla, los botones de **ejecución** (Pausa, Paso, Por encima, Salir,
+  Frame y Reiniciar), cada uno con su tecla escrita debajo, y, más abajo, el parlante.
+  Lo que va pasando se ve en las luces, en la pantalla y en el monitor; además, la
+  consola se lo cuenta a los lectores de pantalla con frases como *En pausa.*,
+  *Reiniciado (en pausa).* o *Paso: PC = 0x20C.* Al pie, el nombre del autor y su
+  página, y la placa con el modelo de la máquina.
 - A la derecha, el **keypad** hexadecimal de 16 teclas. En una pantalla angosta (un
   teléfono, o una ventana de menos de unos 760 píxeles de ancho) todo va en una sola
-  columna: el keypad queda pegado debajo de la pantalla, para que los dos entren
-  juntos, y el cartucho y los botones de ejecución bajan después.
-- El **panel de control**, en cinco grupos: **Velocidad**, **Pantalla y sonido**,
-  **Compatibilidad** (la plataforma, el perfil y los interruptores de quirks),
-  **Controles** (las flechas y el joystick) y **Estados** (las partidas guardadas y el
-  rebobinado).
-- Debajo de la consola, dos estantes: **Cartuchos incluidos**, con la descripción y los
-  controles de cada programa de demostración, y **Tus cartuchos**, con las ROMs que
-  vayas cargando. En el título del primero está el botón **Archivo**, que abre los
-  juegos del archivo de la comunidad (sección 1.7).
+  columna: el keypad queda pegado debajo de la pantalla, para que los dos entren juntos,
+  y los botones de ejecución bajan después. En una ventana ancha pero baja, la consola
+  se achica entera, toda junta, hasta entrar sin scrollear: de la marca a la placa del
+  pie.
+- El **cajón de opciones**, que se abre con el botón de los tres deslizadores o con la
+  tecla **M**: tres pestañas, **Cartuchos** (la ranura, **Cargar ROM**, el archivo de la
+  comunidad y todos los cartuchos: sección 1.2), **Ajustes** (la velocidad, la pantalla
+  y el sonido, la compatibilidad y los controles, una sección debajo de la otra, y al
+  final **Cuidado**, que borra lo guardado y pregunta antes) y **Estados** (las partidas
+  guardadas y el rebobinado). En una pantalla ancha sale del costado de la consola,
+  tapando el monitor (o el Taller); en un teléfono sube desde abajo, tapando el keypad.
+  Nunca tapa la pantalla, así ves cómo cambia la emulación mientras tocás algo. No traba
+  nada: con el cajón abierto la consola sigue andando, con el teclado y con el mouse. Se
+  guarda con la misma **M**, con **Esc** o con su **×**, y la próxima vez abre en la
+  última pestaña (la primera vez, en **Cartuchos**). Lo que no entra se recorre adentro
+  del cajón.
 - El **monitor** de depuración: a la derecha si tu pantalla es ancha, o debajo de la
-  consola si es angosta.
+  consola si es angosta. Si no lo usás, ocultalo con su botón de la barra (o con
+  **Ocultar**, en su cabecera): la consola queda sola en el medio, y la elección se
+  recuerda.
 
 Apenas abre, la consola carga el primer cartucho incluido, *Rebote*, y lo pone a
 correr. Mientras tanto, el tubo se enciende con una línea brillante que se abre: es solo
@@ -149,11 +159,15 @@ sección 1.8).
 
 ### 1.2 Los cartuchos incluidos
 
-Para cambiar de programa, tocá su nombre en la fila **Incluidos:**, debajo de la ranura
-del cartucho: se carga y arranca solo, y su botón queda marcado. Debajo aparece la
-línea **Controles:**, con las teclas que usa ese programa. El enlace **Detalles ↓** te
-lleva al estante *Cartuchos incluidos*, debajo de la consola, donde cada uno tiene su
-descripción y sus controles; tocar un cartucho del estante también lo carga.
+Los cartuchos están en la pestaña **Cartuchos** del cajón de opciones (la tecla **M**):
+primero los **Incluidos** y después **Tus cartuchos** (sección 1.3), cada uno en una
+tarjeta chica con una miniatura de su pantalla y su nombre. Para cambiar de programa,
+tocá su tarjeta: se carga y arranca solo, y su tarjeta queda marcada con un anillo
+verde. Al pasar el mouse por una tarjeta (o al llegar con **Tab**) aparece un cartel con
+todo lo demás: de qué se trata, los controles, la plataforma y el tamaño; **Esc** lo
+cierra. Con el teclado, **Tab** entra a cada grupo y las flechas, **Inicio** y **Fin**
+pasan de una tarjeta a otra. Arriba de la pestaña está la ranura, con el cartucho puesto
+y, si es un incluido, la línea **Controles:** con las teclas que usa.
 
 <!-- verificar: tabla-cartuchos -->
 | Cartucho | Qué muestra | Controles (lo que dice la línea *Controles:*) |
@@ -176,7 +190,8 @@ a esa plataforma (sección 1.6) y la pantalla, a 128 × 64 píxeles. En la
 Un programa de CHIP-8 es un archivo binario (por costumbre, con extensión `.ch8`) con
 los bytes tal cual van en la memoria. Hay dos formas de cargarlo:
 
-- Tocá **Cargar ROM** y elegí el archivo.
+- Tocá **Cargar ROM**, en la pestaña **Cartuchos** del cajón de opciones, y elegí el
+  archivo.
 - **Arrastralo** sobre cualquier parte de la página y soltalo cuando aparezca el cartel
   *Soltá el cartucho acá*.
 
@@ -188,14 +203,13 @@ XO-CHIP y te avisa por qué; si es más grande que 65.024 bytes, o si está vac�
 y no la carga. Con una ROM tuya no aparece la línea *Controles:*: esa información
 solo la traen los cartuchos incluidos.
 
-**Tus cartuchos.** Cada ROM que cargás desde un archivo queda guardada en el estante
-**Tus cartuchos**, debajo de los incluidos, con la que jugaste por última vez primero, y
-las cinco más recientes aparecen también en la fila **Tuyos:**, debajo de la ranura. La
-próxima vez la cargás con un clic, sin buscar el archivo, y arranca con sus ajustes
-(sección 1.7). La **×** de cada cartucho lo saca del estante, y el aviso que aparece
-trae **Deshacer** por si te equivocaste. Entran hasta 60 ROMs y unos 2,5 MB entre todas:
-si no hay más lugar, se va la que hace más tiempo que no jugás. Quedan guardadas en tu
-navegador.
+**Tus cartuchos.** Cada ROM que cargás desde un archivo queda guardada en **Tus
+cartuchos**, en la pestaña **Cartuchos**, debajo de los incluidos, con la que jugaste
+por última vez primero y con la miniatura de su pantalla. La próxima vez la cargás con
+un clic, sin buscar el archivo, y arranca con sus ajustes (sección 1.7). La **×** de la
+esquina de cada cartucho lo saca, y el aviso que aparece trae **Deshacer** por si te
+equivocaste. Entran hasta 60 ROMs y unos 2,5 MB entre todas: si no hay más lugar, se va
+la que hace más tiempo que no jugás. Quedan guardadas en tu navegador.
 
 ### 1.4 El teclado
 
@@ -240,11 +254,12 @@ keypad: cuáles, lo elegís vos (sección 1.9).
 
 CHIP-8 no tiene una velocidad fija. El emulador trabaja de a frames: en cada 1/60 de
 segundo ejecuta una cantidad de instrucciones (las **IPF**) y después baja los timers.
-En el panel **Velocidad** la elegís de tres maneras: con la barra (que es logarítmica,
-así los valores chicos son fáciles de elegir), escribiendo el número exacto o con los
-botones rápidos **7, 15, 30, 100, 500, 1000, 5000 y 10000**. Abajo te muestra cuántas
-instrucciones por segundo son. Si escribís un número fuera de 1 a 10.000, te avisa
-(*Fuera de rango*) y usa el más cercano.
+En **Velocidad**, la primera sección de la pestaña **Ajustes** del cajón de opciones, la
+elegís de tres maneras: con la barra (que es logarítmica, así los valores chicos son
+fáciles de elegir), escribiendo el número exacto o con los botones rápidos **7, 15, 30,
+100, 500, 1000, 5000 y 10000**. Abajo te muestra cuántas instrucciones por segundo son.
+Si escribís un número fuera de 1 a 10.000, te avisa (*Fuera de rango*) y usa el más
+cercano.
 
 - **15 IPF** (el valor por defecto, unas 900 instrucciones por segundo) se parece a la
   velocidad del COSMAC VIP.
@@ -261,8 +276,8 @@ instrucciones por segundo son. Si escribís un número fuera de 1 a 10.000, te a
 ### 1.6 Plataformas, perfiles y quirks
 
 Los intérpretes de CHIP-8 que se escribieron a lo largo de los años no se comportan
-igual. Hay dos clases de diferencias, y el grupo **Compatibilidad** del panel tiene un
-control para cada una.
+igual. Hay dos clases de diferencias, y **Compatibilidad**, en la pestaña **Ajustes**
+del cajón de opciones, tiene un control para cada una.
 
 **La plataforma: qué máquina es.** Se elige con el selector **Plataforma**:
 
@@ -322,8 +337,8 @@ cada plataforma, en la [sección 13](MANUAL.md#13-variantes-y-extensiones).
 
 La consola reconoce cada ROM por su **huella**: un número que se calcula con sus bytes
 (el SHA-1) y que cambia si cambia uno solo. Con el interruptor **Ajustes por cartucho**
-prendido, que es como viene (está en el grupo Compatibilidad), la huella le sirve para
-dos cosas:
+prendido, que es como viene (está en **Compatibilidad**, en la pestaña **Ajustes**), la
+huella le sirve para dos cosas:
 
 - **Los juegos conocidos se configuran solos.** La consola trae los datos de los 104
   programas del archivo de la comunidad de John Earnest, casi todos de las Octojam (los
@@ -339,9 +354,9 @@ dos cosas:
   recordado: si es un juego del archivo, vuelven los del archivo; si no, la próxima vez
   arranca con tus ajustes de siempre.
 
-**Los juegos del archivo vienen con la consola.** Tocá **Archivo**, en el título del
-estante *Cartuchos incluidos*, o apretá **L**: se abre una ventana con los juegos, cada
-uno con su título, sus autores, el evento, la plataforma y una miniatura de su pantalla.
+**Los juegos del archivo vienen con la consola.** Tocá **Archivo**, en la pestaña
+**Cartuchos** del cajón, o apretá **L**: se abre una ventana con los juegos, cada uno
+con su título, sus autores, el evento, la plataforma y una miniatura de su pantalla.
 Buscá por título o por autor, filtrá por plataforma o por evento, y con un clic (o con
 Enter) el juego arranca ya configurado y la ventana se cierra. Los que cargás así no
 ocupan lugar en **Tus cartuchos**: siempre están en la ventana.
@@ -366,6 +381,10 @@ ajustes de siempre. Si en algún experimento cambiás el perfil mientras corre u
 programa se lo acuerda, y la ranura te lo dice.
 
 ### 1.8 Pantalla, colores y sonido
+
+Todo esto está en **Pantalla y sonido**, en la pestaña **Ajustes** del cajón de
+opciones. Como el cajón no tapa la pantalla, cada cambio se ve en el momento, con el
+programa corriendo:
 
 - **Modo de pantalla**, con dos opciones:
   - **Tubo CRT** (el que viene): imita un monitor de tubo. Los píxeles tienen un
@@ -419,8 +438,9 @@ tutorial.
 ### 1.9 Controles: flechas y joystick
 
 Además del bloque de 16 teclas, las **flechas** del teclado y un **joystick** (gamepad)
-manejan los juegos: cada dirección aprieta una tecla del keypad. Cuál, lo elegís en el
-grupo **Controles**, con el selector **Flechas y joystick**:
+manejan los juegos: cada dirección aprieta una tecla del keypad. Cuál, lo elegís en
+**Controles**, la última sección de la pestaña **Ajustes** del cajón de opciones, con el
+selector **Flechas y joystick**:
 
 | Opción | ↑ | ↓ | ← | → | Botón A | Botón B |
 |---|---|---|---|---|---|---|
@@ -434,11 +454,11 @@ aparecen seis selectores, uno por dirección y botón, para elegir cada tecla. D
 línea te recuerda qué aprieta cada flecha. La elección queda guardada y, con Ajustes por
 cartucho, también la de cada ROM.
 
-Del joystick se usan la cruz y la palanca izquierda (las direcciones), los botones A y B,
-y Start, que pausa y continúa. Conectalo y tocá un botón para que el navegador lo
-reconozca: aparece un aviso con su nombre, y la última línea del grupo Controles dice
-cuál está conectado. Si se desconecta, o si cambiás de ventana o de pestaña, se sueltan
-todas sus teclas.
+Del joystick se usan la cruz y la palanca izquierda (las direcciones), los botones A y
+B, y Start, que pausa y continúa. Conectalo y tocá un botón para que el navegador lo
+reconozca: aparece un aviso con su nombre, y la última línea de **Controles** dice cuál
+está conectado. Si se desconecta, o si cambiás de ventana o de pestaña, se sueltan todas
+sus teclas.
 
 Las flechas no van al keypad cuando el foco está en un control que las usa para elegir:
 un selector, un deslizador o el modo de pantalla.
@@ -458,12 +478,14 @@ un selector, un deslizador o el modo de pantalla.
 | Pantalla completa (al pie del tubo) | P | La pantalla ocupa todo el monitor, siempre con píxeles enteros; en un teléfono, el keypad va al lado. Para volver, P o Esc. Si el navegador no tiene pantalla completa, como el del iPhone, el botón no aparece. |
 | Captura (al pie del tubo) | G | Baja una imagen PNG de la pantalla, con los colores exactos de la paleta y sin los efectos del tubo, de 640 × 320 (cada píxel, un cuadrado de 10 × 10, o de 5 × 5 en alta resolución). El archivo se llama `chip8-`, el nombre del cartucho y la fecha y la hora. |
 | Taller (el lápiz, al lado del **?**) | Y | Abre o cierra el Taller: escribís un programa, lo ensamblás y corre en la consola (sección 4.8). |
-| **Guardar** de la ranura **Rápido** (en Estados) | I | Guarda el estado de la máquina en la ranura rápida (sección 1.13). |
-| **Cargar** de la ranura **Rápido** (en Estados) | U | Vuelve al estado de la ranura rápida. |
+| Opciones (los tres deslizadores, arriba) | M | Abre o guarda el cajón de opciones: cartuchos, ajustes y estados (sección 1.1). |
+| Monitor (la pantallita con una onda, al lado de las opciones) | | Muestra u oculta el monitor de depuración (sección 1.11). |
+| **Guardar** de la ranura **Rápido** (en la pestaña Estados) | I | Guarda el estado de la máquina en la ranura rápida (sección 1.13). |
+| **Cargar** de la ranura **Rápido** (en la pestaña Estados) | U | Vuelve al estado de la ranura rápida. |
 | **?** | H | Abre o cierra la ayuda. |
-| **Archivo** (en el título del estante de cartuchos) | L | Abre o cierra el archivo de la comunidad: los juegos de la Octojam, para cargarlos con un clic (sección 1.7). |
-| | Flechas | Aprietan las teclas del keypad que elegiste en Controles (sección 1.9). |
-| | Esc | Cierra la ayuda y las otras ventanas, o sale de la pantalla completa. |
+| **Archivo** (en la pestaña Cartuchos del cajón) | L | Abre o cierra el archivo de la comunidad: los juegos de la Octojam, para cargarlos con un clic (sección 1.7). |
+| | Flechas | Aprietan las teclas del keypad que elegiste en Controles, en la pestaña Ajustes (sección 1.9). |
+| | Esc | Cierra la ayuda y las otras ventanas, guarda el cajón de opciones o sale de la pantalla completa. |
 
 Un detalle importante para depurar: **Paso no hace correr el tiempo**. Los timers
 bajan una vez por frame, así que con Paso quedan congelados; con Frame, o
@@ -474,13 +496,15 @@ de a frames enteros, con los timers como estaban en cada uno (sección 1.13).
 Y uno sobre el foco: los botones que tocás con el mouse no se quedan con el foco, así
 que Espacio siempre pausa. Si en cambio llegás a un botón o a un interruptor con Tab,
 Espacio y Enter lo activan (no pausan); las teclas del keypad, N, O, K, H, L, T, P, G,
-Y, I, U, B y Retroceso siguen yendo a la consola.
+Y, M, I, U, B y Retroceso siguen yendo a la consola.
 
 ### 1.11 El monitor
 
-El monitor muestra el estado completo de la máquina y se actualiza mientras corre. Con
-el botón **Ocultar** lo plegás. Tiene cuatro pestañas, y la que elegiste queda para la
-próxima vez. La primera, **Código**, tiene:
+El monitor muestra el estado completo de la máquina y se actualiza mientras corre. Su
+botón de la barra de arriba (la pantallita con una onda) lo muestra y lo oculta, y
+**Ocultar**, en su cabecera, también lo oculta: la consola queda sola en el medio, el
+cajón de opciones sale a su costado y la elección se recuerda. Tiene cuatro pestañas, y
+la que elegiste queda para la próxima vez. La primera, **Código**, tiene:
 
 - **ESTADO**: `PC` (la dirección de la próxima instrucción), `I`, `SP` (cuántas
   direcciones hay en la pila), `DT` y `ST` (los timers), las `IPF` elegidas y cuántas
@@ -548,13 +572,15 @@ estado deja la máquina exactamente como estaba, y desde ahí sigue igual que la
 vez. (No tiene nada que ver con los estados de la sección anterior, que dicen qué está
 haciendo la máquina: estos son partidas guardadas.)
 
-**Las ranuras.** El grupo **Estados**, el último del panel, tiene cinco ranuras: **Rápido**
-y de la **Ranura 1** a la **Ranura 4**. Cada una muestra en chiquito la pantalla del
-momento que guardaste, con los colores y el giro con que se ve la pantalla, y cuándo la
-guardaste (*recién*, *hace 5 min*, *ayer 18:20*); una vacía dice *VACÍA*. Las manejás con
-sus botones **Guardar**, **Cargar** y **Borrar**, y el aviso de Borrar trae **Deshacer**. La ranura
-rápida se maneja además con el teclado, sin sacar las manos del juego: **I** guarda y
-**U** carga. Al guardar, la pantalla muestra un momento *GUARDADO*; al cargar, *CARGADO*.
+**Las ranuras.** La pestaña **Estados** del cajón de opciones tiene cinco ranuras:
+**Rápido** y de la **Ranura 1** a la **Ranura 4**. La rápida va arriba, sola, y una
+ranura hundida la separa de las otras cuatro. Cada una muestra en chiquito la pantalla
+del momento que guardaste, con los colores y el giro con que se ve la pantalla, y cuándo
+la guardaste (*recién*, *hace 5 min*, *ayer 18:20*); una vacía dice *VACÍA*. Las manejás
+con sus botones **Guardar**, **Cargar** y **Borrar**, y el aviso de Borrar trae
+**Deshacer**. La ranura rápida se maneja además con el teclado, sin sacar las manos del
+juego: **I** guarda y **U** carga. Al guardar, la pantalla muestra un momento
+*GUARDADO*; al cargar, *CARGADO*.
 
 **Son de cada cartucho.** Las ranuras son del cartucho que tenés puesto: cada ROM,
 reconocida por su huella (sección 1.7), tiene las suyas, y otra ROM no las ve. Quedan
@@ -562,8 +588,8 @@ guardadas en tu navegador aunque cierres la página. Si el navegador no deja gua
 o se quedó sin lugar, duran hasta que la cierres, y la consola te avisa. Si un estado
 guardado se dañó, su ranura dice *DAÑADO* y no se puede cargar.
 
-**Todos los estados, y en otro navegador.** **Ver todos**, al lado del título del grupo,
-abre una ventana con los estados de todos los cartuchos: desde ahí cargás cualquiera (si
+**Todos los estados, y en otro navegador.** **Ver todos**, arriba de las ranuras, abre
+una ventana con los estados de todos los cartuchos: desde ahí cargás cualquiera (si
 el cartucho no está en la ranura, la consola lo pone antes), lo borrás o lo exportás.
 **Exportar** baja un archivo `.json` con los estados del cartucho de la ranura, e
 **Importar**, o arrastrar ese archivo sobre la página, los trae en otro navegador; si una
@@ -1300,7 +1326,7 @@ DESENSAMBLADO muestra además sus etiquetas: `fin: JP 0x20C`.
 Todo lo de esta parte se puede hacer también adentro de la consola. Tocá el botón del
 lápiz, al lado del **?**, o apretá **Y**, y se abre el **Taller**: un editor con el mismo
 ensamblador. En una computadora va a la derecha, con la pantalla a la vista; en una
-pantalla angosta, debajo de los estantes.
+pantalla angosta, debajo de la consola.
 
 - En **Programa** están los once ejemplos de este tutorial, con su nombre de archivo
   (*01-a-mano.asm*, *02-hola.asm*...), los fuentes de los seis cartuchos incluidos y los
@@ -2322,10 +2348,11 @@ Vamos a recorrer `rebote.asm` entero y los mejores momentos de `atrapa.asm`.
 
 `roms/rebote.asm` tiene la misma forma que nuestro Cazamonedas: un encabezado con
 comentarios, las constantes, la preparación, el bucle principal, las subrutinas y, al
-final, los dibujos. Las primeras líneas (`; @name Rebote`, `; @description ...`,
-`; @controls ...` y `; @order 1`) son etiquetas que lee `tools/embed-roms.js`: el
-nombre, la descripción y los controles que muestra la consola en la fila *Incluidos:*,
-en la línea *Controles:* y en el estante, y el lugar que ocupa en la lista.
+final, los dibujos. Las primeras líneas (`; @name Rebote`, `; @description ...`, `;
+@controls ...` y `; @order 1`) son etiquetas que lee `tools/embed-roms.js`: el nombre,
+la descripción y los controles que muestra la consola en la tarjeta del cartucho y en su
+cartel (en la pestaña *Cartuchos*) y en la línea *Controles:* de la ranura, y el lugar
+que ocupa en la lista.
 
 Las constantes:
 
@@ -2768,13 +2795,14 @@ uno, y V0 lo sigue.
 **Con un punto de corte llegás más rápido**, sin reiniciar. Con el programa corriendo,
 escribí `20E` en **Ir a**, debajo del DESENSAMBLADO, apretá Enter y tocá **Punto de
 corte**. En menos de medio segundo el programa vuelve a llegar al `CALL` y la máquina se
-detiene antes de ejecutarlo; la línea de estado dice *Punto de corte en 0x20E («CALL
-0x21C»): en pausa, antes de ejecutarla.* El contador vale lo que se ve en pantalla:
-V0 = `01`. Ahora apretá **O**: la subrutina corre entera, medio segundo, y la máquina se
-detiene en `0x210`, la instrucción que sigue al `CALL`, con **V0 = `00`**. La subrutina
-se llevó el contador. Para ver dónde, sacá ese punto de corte (con la × de la lista PUNTOS
-DE CORTE), poné otro en `0x21E`, el `LD V0, DT`, y seguí con Espacio: cuando se detiene
-ahí, un Paso, y V0 pasa de `01` a `1E`.
+detiene antes de ejecutarlo: la insignia del monitor dice PUNTO DE CORTE (y un lector de
+pantalla anuncia *Punto de corte en 0x20E («CALL 0x21C»): en pausa, antes de
+ejecutarla.*). El contador vale lo que se ve en pantalla: V0 = `01`. Ahora apretá **O**:
+la subrutina corre entera, medio segundo, y la máquina se detiene en `0x210`, la
+instrucción que sigue al `CALL`, con **V0 = `00`**. La subrutina se llevó el contador.
+Para ver dónde, sacá ese punto de corte (con la × de la lista PUNTOS DE CORTE), poné
+otro en `0x21E`, el `LD V0, DT`, y seguí con Espacio: cuando se detiene ahí, un Paso, y
+V0 pasa de `01` a `1E`.
 
 **El arreglo** es usar en la subrutina un registro que no le importe a nadie. El
 parámetro V3 sirve: `esperar` lo recibe y ya no lo necesita. Solo cambian dos
@@ -2896,8 +2924,9 @@ estaba corriendo cuando se detuvo, Reiniciar la pone a correr otra vez (sección
 1. **Retroceso**: reinicia y arranca.
 2. **Espacio**, enseguida: la pausa. Tenés un segundo y medio antes de que vuelva a
    detenerse; si no llegaste, empezá de nuevo desde el paso 1.
-3. **Retroceso** otra vez: como ahora estaba en pausa, queda en pausa en `0x200`. La
-   línea de estado dice *Reiniciado (en pausa).*
+3. **Retroceso** otra vez: como ahora estaba en pausa, queda en pausa en `0x200`: la
+   pantalla dice PAUSA y el monitor, PC = `0x200` (un lector de pantalla anuncia
+   *Reiniciado (en pausa).*).
 
 (Con el rebobinado hay un camino más corto, y sin apuro: lo vas a ver en la sección 7.4.)
 
@@ -2952,16 +2981,18 @@ Probalo con `11-sin-fin.ch8`, con el perfil COSMAC VIP y 15 IPF: cargalo y esper
 detenga con el error de la fuente. Entonces:
 
 1. **Tocá B una vez** (apretala y soltala enseguida). La máquina vuelve **un frame**, al
-   momento en que empezó el frame del error, y queda en pausa: el cartel de error se va y
-   la línea de estado dice *Rebobinado: volviste 1 frame atrás (en pausa, PC = 0x038).*
+   momento en que empezó el frame del error, y queda en pausa: el cartel de error se va
+   y el monitor muestra el PC en `0x038` (un lector de pantalla anuncia *Rebobinado:
+   volviste 1 frame atrás (en pausa, PC = 0x038).*).
 2. **Avanzá con Paso (N).** El PC sube de a 2 por los ceros (`SYS 0x000`): `0x03A`,
    `0x03C`... A los 12 Pasos llega a `0x050`, y el DESENSAMBLADO marca ahí la instrucción
    que no existe, `DW 0xF090`. Un Paso más y la máquina se detiene con el mismo error de
    antes.
 3. **Mantené B.** La máquina vuelve dos frames por cada frame real, y en poco más de un
    segundo llega al momento más viejo que guardó la consola, que en este programa es el
-   principio: *Rebobinado: volviste 1,6 s atrás (en pausa, PC = 0x200).* Desde ahí, con
-   Paso, podés hacer el recorrido de la sección 7.3 sin las tres teclas del principio.
+   principio, con el PC en `0x200` (el anuncio dice *Rebobinado: volviste 1,6 s atrás
+   (en pausa, PC = 0x200).*). Desde ahí, con Paso, podés hacer el recorrido de la
+   sección 7.3 sin las tres teclas del principio.
 
 Fijate en el paso 1: la máquina no volvió una instrucción sino un frame entero, las 12
 instrucciones que había ejecutado en ese frame antes de chocar. El rebobinado guarda una
@@ -3321,7 +3352,7 @@ directamente desde el disco. Adentro tiene siete partes:
 | Bloque | Qué tiene |
 |---|---|
 | `<style id="chip8-style">` | Todo el aspecto de la consola. |
-| El HTML del `<body>` | La consola, el panel, los estantes de cartuchos, el Taller, el monitor, la ayuda y las ventanas del archivo y de los estados. |
+| El HTML del `<body>` | La consola, el cajón de opciones (con los cartuchos), el Taller, el monitor, la ayuda y las ventanas del archivo y de los estados. |
 | `<script id="chip8-core">` | El núcleo del emulador: la clase `Chip8` con sus tres plataformas, los quirks, las dos fuentes, el desensamblador, la huella SHA-1 de las ROMs, los estados guardados (como objeto y como texto), el buffer del rebobinado y lo que usa el depurador (la traza, el mapa de la memoria y los puntos de corte). No toca la página, así que también corre en Node. |
 | `<script id="chip8-asm">` | El ensamblador, el mismo que usa `tools/chip8asm.js`. También es código puro. |
 | `<script id="chip8-roms">` | Los cartuchos incluidos y los fuentes que trae el Taller (los de los cartuchos y los ejemplos de este tutorial). Lo genera `tools/embed-roms.js` a partir de `roms/*.asm` y `docs/ejemplos/*.asm`: no se edita a mano. |
@@ -3380,10 +3411,11 @@ Las fichas completas, con cada caso borde y las diferencias con los intérpretes
 originales, están en el
 [manual, sección 13.11](MANUAL.md#1311-referencia-de-las-instrucciones-de-super-chip-y-xo-chip).
 
-Para ver *Planos*, elegilo en la fila **Incluidos:**. La consola pasa sola a la plataforma
-XO-CHIP: la placa de abajo de la consola dice *MODELO XO-CHIP · 64 KB RAM · 128×64*, y el
-monitor, en MÁQUINA, *XO-CHIP · 128×64 · plano 1* (el plano donde está dibujando). Los
-quirks no cambian: *Planos* anda igual con cualquier perfil.
+Para ver *Planos*, tocá su tarjeta en la pestaña **Cartuchos** del cajón de opciones. La
+consola pasa sola a la plataforma XO-CHIP: la placa de abajo de la consola dice *MODELO
+XO-CHIP · 64 KB RAM · 128×64*, y el monitor, en MÁQUINA, *XO-CHIP · 128×64 · plano 1*
+(el plano donde está dibujando). Los quirks no cambian: *Planos* anda igual con
+cualquier perfil.
 
 ### 9.2 El plan de Planos
 

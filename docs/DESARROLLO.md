@@ -35,7 +35,7 @@ escenarios E2E) los controla `tests/manual.test.js`
 ### 1.1 Qué es y qué hay en el repositorio
 
 Un emulador de CHIP-8, SUPER-CHIP y XO-CHIP que corre en el navegador desde **un solo
-archivo HTML**, `chip8.html` (unos 1,5 MB y 13.400 líneas; casi la mitad del peso son las
+archivo HTML**, `chip8.html` (unos 1,5 MB y 13.900 líneas; casi la mitad del peso son las
 ROMs de los 104 juegos del archivo de la comunidad, comprimidas), **sin dependencias**: no
 pide nada a la red, no usa bibliotecas, fuentes ni imágenes externas, y ni siquiera
 contiene una dirección `http(s)`. Se abre con doble clic (`file://`) o por HTTP. Todo lo
@@ -53,7 +53,7 @@ tools/archive.js        baja el archivo de la comunidad y sus ROMs, los incrusta
 tools/serve.js          servidor estático mínimo (http://localhost:8008/)
 tools/e2e.js            pruebas de punta a punta en Chrome o Edge, por DevTools Protocol
 tests/harness.js        saca los bloques <script> de chip8.html y los evalúa en Node
-tests/*.test.js         pruebas con node:test (22 archivos)
+tests/*.test.js         pruebas con node:test (23 archivos)
 docs/MANUAL.md          manual de referencia de CHIP-8, SUPER-CHIP y XO-CHIP
 docs/TUTORIAL.md        tutorial, con sus ejemplos en docs/ejemplos/
 docs/DESARROLLO.md      este documento
@@ -91,9 +91,9 @@ está implementado cada uno y qué lo verifica. Los números de "E2E" son escena
 | Pantalla retro, nítida y escalada | `resizeScreen` (escala entera con `devicePixelRatio`), `render`, efectos de tubo y los modos Tubo CRT / Píxeles puros ([4.3](#43-la-pantalla-de-cpudisplay-al-lienzo)) | E2E 15 (nitidez con escala 1,25 y 2), 18 y 24 |
 | Pitido con Web Audio | `ensureAudio`, `setBeep`, `updateIndicators` ([4.7](#47-sonido)) | E2E 12 (el grafo de audio y sus ganancias; el sonido audible no, ver [6.8](#68-lo-que-no-se-verifica-automáticamente)) |
 | Monitor de depuración con pausa, paso y reinicio | `updateMonitor`, `togglePause`, `stepOnce`, `frameOnce`, `doReset` y el desensamblado del monitor ([4.16](#416-el-monitor)); desde la cuarta ronda, el depurador completo ([1.5](#15-la-cuarta-ronda-features-6-y-7-el-archivo-y-los-estados-en-archivos)) | `tests/disasm.test.js`; E2E 5, 13, 14 y 22 |
-| Demos originales | `roms/*.asm` → `tools/embed-roms.js` → `<script id="chip8-roms">`; estante y selector rápido ([5.4](#54-los-seis-cartuchos)) | `tests/roms.test.js`; E2E 7, 8, 9 y 19 |
+| Demos originales | `roms/*.asm` → `tools/embed-roms.js` → `<script id="chip8-roms">`; sus tarjetas en la pestaña «Cartuchos» del cajón ([5.4](#54-los-seis-cartuchos)) | `tests/roms.test.js`; E2E 7, 8, 9, 19 y 86 |
 | Pruebas de cada instrucción | `tests/*.test.js` con `node:test` ([6](#6-pruebas)) | `node --test` |
-| Verificación en un navegador de verdad | `tools/e2e.js` ([5.7](#57-toolse2ejs)) | 77 escenarios con entrada real ([6.7](#67-los-escenarios-e2e)) |
+| Verificación en un navegador de verdad | `tools/e2e.js` ([5.7](#57-toolse2ejs)) | 86 escenarios con entrada real ([6.7](#67-los-escenarios-e2e)) |
 | Manual, tutorial y documentación de desarrollo | `docs/MANUAL.md`, `docs/TUTORIAL.md` y este documento | `tests/manual.test.js` y `tests/tutorial.test.js` (ejemplos, fragmentos, textos citados y enlaces) |
 
 ### 1.3 La segunda ronda: features 1 a 5 y 9
@@ -108,7 +108,7 @@ cada una y qué la verifica:
 | **2. Diagnóstico de plataforma**: una instrucción de otra plataforma se ignora con un aviso o detiene la máquina con un error que dice qué hace falta | `extendedInfo`, `_ignore` (`cpu.hint`), `_unsupported` (`errorInfo.kind === 'platform'`) en el núcleo ([3.7](#37-errores-avisos-y-fin-del-programa)); `checkHint`, `handleHalt` y el botón «Cambiar a … y reiniciar» en la interfaz ([4.14](#414-diagnósticos)); la carga que pasa sola a XO-CHIP ([4.8](#48-carga-de-roms)) | `tests/platform.test.js` (avisos, errores, `errorInfo`, los 65.536 opcodes de `extendedInfo`); `tests/core-api.test.js` (el mensaje de `loadRom`); `tests/manual.test.js` (el aviso y el error citados tal cual); `tests/roms.test.js` (Planos se detiene pidiendo XO-CHIP en las otras plataformas); E2E 26 (una ROM de 4000 bytes pasa sola a XO-CHIP) y 27 (aviso con «Usar SUPER-CHIP», error de plataforma con su botón en el tubo y en el monitor, FIN DEL PROGRAMA) |
 | **3. SUPER-CHIP y XO-CHIP** | Las plataformas del núcleo ([3.9](#39-las-plataformas)): `PLATFORMS`, `setPlatform`, `_op00`, `_op5`, `_opF`, `_drawExt`, `_skipXO`, la fuente grande, las banderas, los planos y el audio; el ensamblador ([5.1](#51-el-ensamblador-chip8-asm-y-toolschip8asmjs)); en la interfaz, el selector Plataforma, la pantalla de 128×64 con dos planos ([4.3](#43-la-pantalla-de-cpudisplay-al-lienzo)), el audio por patrón ([4.7](#47-sonido)) y el monitor; el cartucho *Planos* | `tests/platform.test.js`, `tests/superchip.test.js` y `tests/xochip.test.js` (421 pruebas, contra referencias propias); `tests/asm-extendido.test.js` (95); `tests/roms.test.js` (Planos y `@platform`); `tests/manual.test.js` (una ficha por instrucción, ejemplos que corren en su plataforma); 65 errores sembrados en el código nuevo del núcleo, todos detectados ([6.5](#65-mutation-testing)); E2E 25 (cada perfil trae su plataforma; XO-CHIP en 128×64 con los cuatro colores, píxel por píxel) y 33 (Planos a 60 fps, con su patrón de sonido) |
 | **4. Colores personalizados** | Paletas de cuatro colores, «Personalizada» con cuatro `input type="color"`, «Del cartucho», la mezcla de dos planos y el giro de la imagen ([4.5](#45-paletas-y-colores)) | E2E 28 («Personalizada» en vivo y guardada; «Del cartucho» aparece con el cartucho y se va con él), 25 (los cuatro colores exactos en Píxeles puros) y 29 (los colores y el giro de un juego del archivo) |
-| **5. Biblioteca de cartuchos** | El estante «Tus cartuchos» y la fila «Tuyos:»: `libraryAdd`, `libraryLoad`, `libraryRemove`, `enforceLibraryLimits`, `evictLibraryItem` ([4.10](#410-tus-cartuchos-la-biblioteca)) | E2E 32 (los dos estantes, cargar, recargar, quitar, «Deshacer» y el almacenamiento roto) y 40 (el diseño con la biblioteca llena) |
+| **5. Biblioteca de cartuchos** | «Tus cartuchos» (en la segunda ronda, un estante debajo de la consola y la fila «Tuyos:»; desde la quinta, tarjetas en la pestaña «Cartuchos» del cajón): `libraryAdd`, `libraryLoad`, `libraryRemove`, `enforceLibraryLimits`, `evictLibraryItem` ([4.10](#410-tus-cartuchos-la-biblioteca)) | E2E 32 (cargar, recargar, quitar, «Deshacer» y el almacenamiento roto) y 40 (el diseño con la biblioteca llena) |
 | **9. Comodidades**: avance rápido, pantalla completa, captura PNG, joystick, controles reasignables, curvatura y encendido animado | Avance rápido (`TURBO_FACTOR`), `toggleFullscreen`, `screenshotCanvas`, `pollGamepads`, `KEYMAP_PRESETS` y `liveKeymap`, `buildWarpMap` (curvatura) y `playPowerOn` ([4.17](#417-comodidades)) | E2E 34 (avance rápido), 35 (captura), 36 (pantalla completa), 37 (joystick simulado), 38 (flechas y «Controles»), 39 (curvatura y encendido animado) y 40 (el diseño con «Controles» a la vista) |
 
 Las features 6 (un taller con editor), 7 (un depurador completo) y 8 (estados guardados y
@@ -151,18 +151,49 @@ archivo con sus ROMs embebidas. Los prueba el escenario E2E 77. `step` cambió: 
 instrucción va a la traza y marca el mapa de accesos, del orden de 1 ns más por
 instrucción ([3.10](#310-rendimiento)).
 
-### 1.6 Requisitos no funcionales
+### 1.6 La quinta ronda: el cajón de opciones, la consola entera y el monitor que se oculta
+
+La quinta ronda no le sumó nada a la máquina: reacomodó la consola para que se pueda usar
+sin scrollear ([7.19](#719-quinta-ronda-el-pedido)). Tuvo dos vueltas. En la primera, el
+panel de control, que iba debajo de la pantalla y del keypad, pasó a un cajón que sale del
+costado, y el keypad se podía plegar. El usuario lo probó y pidió una segunda
+([7.22](#722-quinta-ronda-la-segunda-vuelta)): la consola seguía siendo larga, así que su
+frente quedó con lo justo (la pantalla, la ejecución, el keypad y el parlante), los
+cartuchos se mudaron al cajón, el keypad dejó de plegarse y el monitor se puede ocultar.
+Al final de esa vuelta, también a su pedido, la línea de estado dejó de verse (sigue para
+los lectores de pantalla), los botones de «Ejecución» se agrandaron en su lugar, el pie de
+la consola pasó a llevar el nombre del autor y su página, ningún cartel es el del
+navegador ([4.29](#429-los-carteles)), la curvatura quedó pareja con la consola achicada
+y, al final de «Ajustes», «Cuidado» borra lo guardado ([4.30](#430-cuidado)). Quedó así:
+
+| Pieza | Dónde está | Cómo se verifica |
+|---|---|---|
+| **El cajón de opciones**: tres pestañas, «Cartuchos», «Ajustes» (velocidad, pantalla y sonido, compatibilidad y controles, una sección debajo de la otra) y «Estados», al costado de la consola, a lo largo de su parte recta (tapando el monitor o el Taller, o en el lugar libre) o, en una pantalla angosta, desde abajo; no es modal y nunca tapa la pantalla | El marcado `section#drawer` (con los controles de siempre y sus ids), el CSS «Cajón de opciones» y la sección «cajón de opciones» de `chip8-ui`: `openDrawer`, `closeDrawer`, `showDrawerTab`, `placeDrawer`, `drawerSide` y `drawerBox`; el botón `#btn-drawer` y la tecla M ([4.27](#427-el-cajón-de-opciones)) | `tests/cajon.test.js` (36 pruebas: los ajustes y su validación, la caja del cajón y de qué lado sale en cada caso, la escala de la consola, las flechas en las pestañas, la clave de las miniaturas y el marcado); E2E 78 a 83 |
+| **Los cartuchos en el cajón**: los incluidos y tus cartuchos, en tarjetas chicas con la miniatura de su pantalla y su nombre, un cartel propio al pasar el mouse o al llegar con el teclado, y la ranura con «Cargar ROM», «Olvidar ajustes» y el archivo de la comunidad | Las secciones «cartuchos: las tarjetas», «cartuchos: el cartel», «miniaturas de cartuchos» (compartida con la ventana del archivo) y «Tus cartuchos» ([4.11](#411-los-cartuchos-tarjetas-miniaturas-y-cartel)) | E2E 7, 19, 32, 40 y 86 (las miniaturas, iguales a correr cada ROM aparte; el cartel con el mouse y el teclado; las flechas) |
+| **La consola entera en la ventana**: con la cubierta en dos columnas, la consola se achica toda junta (zoom) hasta entrar sin scrollear, con el lienzo de la pantalla todavía 1:1 con los píxeles físicos; el nombre del cartucho va impreso en el bisel | `fitConsole` y `--con-z` en la sección «la consola en la ventana», y `resizeScreen` ([4.28](#428-la-consola-entera-en-la-ventana)) | `tests/cajon.test.js` (`consoleFitZoom`); E2E 15 y 84 |
+| **El monitor que se oculta**: un botón en la barra de arriba (y «Ocultar» en su cabecera) lo muestra y lo oculta entero; oculto, la consola queda sola en el medio | `setMonitorOpen` y el botón `#btn-monitor` ([4.16](#416-el-monitor)) | `tests/cajon.test.js`; E2E 13 y 85 |
+
+Los escenarios E2E que tocaban el panel, la ranura, los estantes o los chips aprendieron a
+abrir el cajón como lo haría una persona ([5.7](#57-toolse2ejs)), y los de diseño que lo
+medían (el 40 y el 49) miden ahora adentro del cajón. La API suma `openDrawer`,
+`closeDrawer`, `drawerInfo`, `setMonitorOpen`, `getMonitorOpen` y `consoleZoom`
+([4.21](#421-la-api-de-depuración-windowchip8)), y los ajustes, `drawerTab`
+([4.19](#419-ajustes-guardados)). Lo que la primera vuelta había agregado y la segunda
+sacó (el keypad plegable, el ajuste `keypadFolded`, `setKeypadFolded` y `keypadInfo`) ya
+no está.
+
+### 1.7 Requisitos no funcionales
 
 | Requisito | Cómo se cumple | Cómo se verifica |
 |---|---|---|
 | Un solo archivo, sin dependencias ni red | Todo va en línea, también el ensamblador y las ROMs del archivo; el ícono de la pestaña es un SVG en una URL `data:`; la tabla del archivo guarda su fuente sin `https://` ([8.23](#823-ninguna-dirección-de-red-en-chip8html)) | `tests/single-file.test.js` (sin `http(s)`, `@import` ni `src`/`href`/`url()` externos; los seis bloques bien formados); E2E 1 (sin errores ni 404) y 23 (el servidor solo recibe `/chip8.html`) |
 | Funciona abierto desde el disco | Sin `fetch`, sin módulos ES, sin workers, y la huella SHA-1 en JavaScript puro ([2.6](#26-compatibilidad-con-file)); las ROMs del archivo van adentro del HTML, porque desde `file://` la página no puede leer `roms/archivo/` | E2E 1 carga la página por `file://` y por HTTP; E2E 67 carga un juego del archivo por `file://` |
 | Un programa roto no rompe el emulador | La máquina se detiene con un mensaje ([3.7](#37-errores-avisos-y-fin-del-programa)) | `tests/core-api.test.js` (unos 50 opcodes inválidos, pila); `tests/platform.test.js` (errores de plataforma); E2E 14 y 22 |
-| Se puede manejar solo con el teclado y con lector de pantalla | ARIA, modelo de foco, activación sin puntero ([4.20](#420-accesibilidad)); las listas del monitor y la ventana del archivo se recorren con las flechas, y las ventanas modales se quedan con el teclado ([8.45](#845-las-ventanas-modales-se-quedan-con-el-teclado)) | E2E 5, 20 y 21; desde la cuarta ronda, 57 (el Taller), 58 (puntos de corte con el teclado), 66 y 67 (la ventana del archivo) y 73 y 74 (las de los estados) |
-| Pantallas chicas y táctiles | Diseño adaptable (760 y 480 px), keypad con punteros y varios dedos, el keypad al lado en pantalla completa; el Taller va debajo de los estantes por debajo de 1200 px | E2E 4, 15 y 24; 56, 63, 70 y 76 (el Taller, el monitor, la ventana del archivo y la lista de estados a 360 px) |
+| Se puede manejar solo con el teclado y con lector de pantalla | ARIA, modelo de foco, activación sin puntero ([4.20](#420-accesibilidad)); las listas del monitor y la ventana del archivo se recorren con las flechas, y las ventanas modales se quedan con el teclado ([8.45](#845-las-ventanas-modales-se-quedan-con-el-teclado)) | E2E 5, 20 y 21; desde la cuarta ronda, 57 (el Taller), 58 (puntos de corte con el teclado), 66 y 67 (la ventana del archivo) y 73 y 74 (las de los estados); desde la quinta, 78 y 79 (el cajón de opciones), 85 (el botón del monitor y «Ocultar») y 86 (las tarjetas de «Cartuchos» y su cartel) |
+| Pantallas chicas y táctiles | Diseño adaptable (760 y 480 px), keypad con punteros y varios dedos, el keypad al lado en pantalla completa; el Taller va debajo de la consola por debajo de 1200 px; el cajón de opciones sube desde abajo y tapa el keypad, no la pantalla; en el teléfono la consola no se achica | E2E 4, 15 y 24; 56, 63, 70 y 76 (el Taller, el monitor, la ventana del archivo y la lista de estados a 360 px); 82 y 84 (el cajón y la consola a 360 px) |
 | Los ajustes se recuerdan | `localStorage` con validación campo por campo, en cinco claves: también los estados guardados y los programas del Taller ([4.19](#419-ajustes-guardados)) | E2E 10 (también con un `localStorage` que tira excepciones), 18, 43, 48 y 55 (sin almacenamiento, sin lugar y con datos dañados) |
 | Respeta "reducir movimiento" | `@media (prefers-reduced-motion: reduce)`; sin encendido animado | E2E 16 |
-| 60 frames por segundo estables | Acumulador de 60 Hz. Lo único que se reserva en cada frame es la foto del rebobinado: la pantalla, 80 bytes de registros y las páginas de memoria que cambiaron ([3.11](#311-estados-guardados-y-rebobinado)). Las miniaturas del archivo se calculan en tramos de 4 ms en el tiempo libre entre cuadros ([4.25](#425-la-ventana-del-archivo-de-la-comunidad)) | E2E 2 (entre 59,7 y 60,3 frames por segundo en las corridas registradas) y 50 (con XO-CHIP a 1000 IPF, tomando una foto por frame y rebobinando, exige entre 55 y 66 cuadros por segundo); a 10.000 IPF, 57 (escribiendo en el Taller), 65 (con un punto de corte puesto), 69 (mientras se hacen las miniaturas) y 76 (con la lista de estados abierta) |
+| 60 frames por segundo estables | Acumulador de 60 Hz. Lo único que se reserva en cada frame es la foto del rebobinado: la pantalla, 80 bytes de registros y las páginas de memoria que cambiaron ([3.11](#311-estados-guardados-y-rebobinado)). Las miniaturas de los cartuchos (las de la ventana del archivo y las de la pestaña «Cartuchos») se calculan en tramos de 4 ms en el tiempo libre entre cuadros ([4.25](#425-la-ventana-del-archivo-de-la-comunidad)) | E2E 2 (entre 59,7 y 60,3 frames por segundo en las corridas registradas) y 50 (con XO-CHIP a 1000 IPF, tomando una foto por frame y rebobinando, exige entre 55 y 66 cuadros por segundo); a 10.000 IPF, 57 (escribiendo en el Taller), 65 (con un punto de corte puesto), 69 (mientras se hacen las miniaturas), 76 (con la lista de estados abierta) y 83 (con el cajón de opciones abierto, también en «Cartuchos» mientras se hacen sus miniaturas) |
 | La plataforma CHIP-8 no se vuelve más lenta ni cambia | El camino de CHIP-8 de `step` quedó igual de corto: lo nuevo vive en funciones aparte ([3.3](#33-buscar-decodificar-ejecutar)); el depurador le suma tres escrituras en arreglos tipados y un `\|=` por instrucción, y los puntos de corte se miran solo si hay alguno ([3.12](#312-el-depurador)); la pantalla de un solo plano usa la tabla de colores de siempre | Las pruebas de CHIP-8 de la primera ronda siguen pasando (solo cambió el mensaje de `loadRom`, que ahora sugiere XO-CHIP); `tests/platform.test.js` (CHIP-8 por defecto, exactamente como antes, y el desensamblador de siempre en las 65.536 palabras); `tests/depurador.test.js` (sin puntos de corte, `runFrame` da exactamente lo mismo que con uno que nunca se alcanza); la medición de [3.10](#310-rendimiento) |
 
 ---
@@ -179,7 +210,7 @@ chip8.html
 │   ├── <link rel="icon" href="data:image/svg+xml,...">    ícono embebido: ningún pedido de red
 │   └── <style id="chip8-style">     ~1440 líneas   carcasa, CRT, keypad, panel, estados, monitor, Taller, ventanas
 └── <body>
-    ├── <main class="desk" id="app">   ~620 líneas   consola, panel, estantes, Taller, monitor, avisos, ayuda, ventanas
+    ├── <main class="desk" id="app">   ~640 líneas   consola, cajón de opciones, Taller, monitor, avisos, ayuda, ventanas
     ├── <script id="chip8-core">      ~2140 líneas   núcleo puro        → globalThis.Chip8Core
     ├── <script id="chip8-asm">        ~770 líneas   ensamblador puro   → globalThis.Chip8Asm
     ├── <script id="chip8-roms">       ~115 líneas   GENERADO           → globalThis.CHIP8_DEMOS y CHIP8_SOURCES
@@ -264,12 +295,13 @@ sincrónica:
 4. `chip8-archive` define `globalThis.CHIP8_ARCHIVE`, con sus ROMs en `.data`.
 5. `chip8-ui` ya encuentra el DOM armado y los cinco globales. Lee los ajustes guardados,
    la biblioteca, los ajustes recordados por cartucho, los estados guardados y los
-   programas del Taller; arma el keypad, el Taller, el monitor y el depurador, los
-   estantes, la ventana del archivo, los controles y las ranuras de «Estados»; aplica la
-   paleta, el modo de pantalla, la plataforma y el interruptor «Rebobinado»;
-   carga el primer cartucho (Rebote, con sus ajustes); anuncia "Cartucho «Rebote» en
-   marcha. Tocá H para ver la ayuda."; muestra el encendido animado encima de la imagen
-   y arranca el bucle con `requestAnimationFrame`.
+   programas del Taller; arma el keypad, el cajón de opciones, el Taller, el monitor y el
+   depurador, las tarjetas de los cartuchos, la ventana del archivo, los controles y las
+   ranuras de «Estados»; aplica la paleta, el modo de pantalla, la plataforma, el monitor
+   (a la vista u oculto) y el interruptor «Rebobinado»; achica la consola si no entra en
+   la ventana (`fitConsole`); carga el primer cartucho (Rebote, con sus ajustes); anuncia
+   "Cartucho «Rebote» en marcha. Tocá H para ver la ayuda."; muestra el encendido animado
+   encima de la imagen y arranca el bucle con `requestAnimationFrame`.
 
 La interfaz se defiende de un orden roto: si no hay `Chip8Core` o no hay `document` (por
 ejemplo, si alguien evalúa el bloque en Node), termina sin hacer nada; si `CHIP8_DEMOS`
@@ -360,11 +392,11 @@ la página no puede leer `roms/archivo/`. Se descomprimen con `DecompressionStre
 anda sin pedir nada a la red ([4.25](#425-la-ventana-del-archivo-de-la-comunidad)).
 
 Los ajustes, los ajustes por cartucho, la biblioteca, los estados guardados y los
-programas del Taller se guardan en `localStorage`, que también funciona en `file://`; y
-si el navegador no lo deja usar, cada acceso está envuelto en `try/catch` y la consola
-sigue andando con lo que tiene en memoria (el estante «Tus cartuchos», el grupo «Estados»
-y el Taller lo avisan). El escenario E2E 1 abre la página por HTTP y por `file://` y
-exige cero excepciones y cero errores de consola en los dos casos.
+programas del Taller se guardan en `localStorage`, que también funciona en `file://`; y si
+el navegador no lo deja usar, cada acceso está envuelto en `try/catch` y la consola sigue
+andando con lo que tiene en memoria («Tus cartuchos», la pestaña «Estados» y el Taller lo
+avisan). El escenario E2E 1 abre la página por HTTP y por `file://` y exige cero
+excepciones y cero errores de consola en los dos casos.
 
 ---
 
@@ -1034,27 +1066,29 @@ mismo texto con y sin puntos de corte.
 
 ### 4.1 Organización del bloque
 
-`chip8-ui` es una IIFE de unas 8050 líneas, dividida en secciones con un comentario
-`// ---- nombre`. En orden: constantes, utilidades, ajustes guardados, demos incluidos,
+`chip8-ui` es una IIFE de unas 8680 líneas, dividida en secciones con un comentario `//
+---- nombre`. En orden: constantes, utilidades, ajustes guardados, demos incluidos,
 almacenamiento, validación de lo guardado, archivo de Octo, ajustes recordados por
-cartucho, biblioteca, estados guardados (el almacenamiento), referencias al DOM,
-pantalla, curvatura del tubo, encendido animado, estado y mensajes, plataforma y
-perfiles, carga de ROMs, control de ejecución, velocidad, quirks, teclado y keypad,
-avance rápido, rebobinado, controles (flechas y joystick), joystick (Gamepad API),
-pantalla completa, captura, sonido, indicadores, monitor, monitor: listas con scroll
-propio, depurador (cuatro secciones: el desensamblado y los puntos de corte, la traza,
-el mapa y la memoria, los sprites), estante de cartuchos, archivo de la comunidad (tres:
-las ROMs, la ventana, las miniaturas), estante «Tus cartuchos», estados guardados (las
-ranuras, los archivos y la lista), ayuda y arrastre, bucle principal, armado de la
-interfaz, taller (siete: los programas, el texto del programa, el editor, la interfaz,
-ensamblar y correr, guardar, abrir y bajar, abrir y cerrar), API de depuración y
-arranque. El comentario del principio del bloque lista los puntos de extensión
-(`applyProfile`, `applyPlatform`, `loadRomBytes`, `loadCartridge`, `setCartridgeColors`,
-`setRotation`) y resume los estados guardados, el rebobinado y sus archivos. Los que
-sumó la cuarta ronda están en los comentarios de sus secciones: `workshopSymbols` y
-`disasmLabel` (las etiquetas del Taller en el desensamblado), `archiveRomBytes` (los
-bytes de un juego del archivo) y `findCartridge` (los de cualquier cartucho que la
-consola conozca, para la lista de estados).
+cartucho, biblioteca, estados guardados (el almacenamiento), referencias al DOM, pantalla,
+curvatura del tubo, encendido animado, estado y mensajes, plataforma y perfiles, carga de
+ROMs, control de ejecución, velocidad, quirks, teclado y keypad, avance rápido,
+rebobinado, controles (flechas y joystick), joystick (Gamepad API), pantalla completa,
+captura, sonido, indicadores, monitor, monitor: listas con scroll propio, depurador
+(cuatro secciones: el desensamblado y los puntos de corte, la traza, el mapa y la memoria,
+los sprites), cartuchos (dos: las tarjetas y el cartel), archivo de la comunidad (dos: las
+ROMs y la ventana), miniaturas de cartuchos, «Tus cartuchos», estados guardados (las
+ranuras, los archivos y la lista), ayuda y arrastre, cajón de opciones, la consola en la
+ventana, bucle principal, armado de la interfaz, taller (siete: los programas, el texto
+del programa, el editor, la interfaz, ensamblar y correr, guardar, abrir y bajar, abrir y
+cerrar), API de depuración y arranque. El comentario del principio del bloque lista los
+puntos de extensión (`applyProfile`, `applyPlatform`, `loadRomBytes`, `loadCartridge`,
+`setCartridgeColors`, `setRotation`) y resume los estados guardados, el rebobinado y sus
+archivos. Los que sumó la cuarta ronda están en los comentarios de sus secciones:
+`workshopSymbols` y `disasmLabel` (las etiquetas del Taller en el desensamblado),
+`archiveRomBytes` (los bytes de un juego del archivo) y `findCartridge` (los de cualquier
+cartucho que la consola conozca, para la lista de estados). Los de la quinta, el cajón de
+opciones, la escala de la consola y el monitor que se oculta, también están en el
+comentario del principio.
 
 Las constantes que conviene conocer:
 
@@ -1066,13 +1100,18 @@ Las constantes que conviene conocer:
 | `IPF_MIN`, `IPF_MAX`, `IPF_DEFAULT`, `IPF_PRESETS` | 1, 10000, 15 y `[7, 15, 30, 100, 500, 1000, 5000, 10000]` | Velocidad. |
 | `DISASM_BEFORE`, `DISASM_AFTER` | 7 y 12 | Cuando el desensamblado vuelve a acomodar el PC, lo deja con 7 filas antes; la lista arranca con 20 (`DISASM_ROWS`) y después toma las que entran en la ventana. |
 | `MONITOR_TABS`, `MON_ROW` | `['codigo', 'traza', 'memoria', 'sprites']` y 18 | Las pestañas del monitor (la primera, de fábrica) y el alto en px de una fila de sus listas. |
+| `DRAWER_TABS`, `DRAWER_MS` | `['cartuchos', 'ajustes', 'estados']` y 240 ms | Las pestañas del cajón de opciones (la primera, de fábrica) y lo que tarda en salir o en guardarse (la transición del CSS). |
+| `DRAWER_SECTIONS` | `['velocidad', 'pantalla', 'compatibilidad', 'controles']` | Las secciones de la pestaña «Ajustes», en orden. |
+| `DRAWER_TUCK`, `DRAWER_MIN_H` | 2 y 320 | Al costado, cuántos px empieza el cajón debajo del borde de la consola, y su alto mínimo ([4.27](#427-el-cajón-de-opciones)). |
+| `DRAWER_SIDE_MIN`, `DRAWER_SIDE_MAX` | 340 y 450 | Sin una columna al lado de la consola (el monitor oculto), el ancho libre que hace falta para que el cajón salga al costado, y el más ancho que se pone ahí. |
+| `CONSOLE_FIT_MEDIA`, `CONSOLE_Z_MIN` | `'(min-width: 761px)'` y 0,72 | Desde dónde la consola se achica para entrar en la ventana (la cubierta en dos columnas) y cuánto como mucho: las teclas del keypad quedan de 44 px ([4.28](#428-la-consola-entera-en-la-ventana)). |
 | `TRACE_LOOP_MAX` | 32 | El bucle más largo, en instrucciones, que la traza muestra agrupado. |
 | `MAP_REDRAW_MS`, `STRIP_REDRAW_MS`, `SPR_REDRAW_MS` | 100, 500 y 250 ms | Mientras la máquina corre, cada cuánto se repintan, como mucho, el mapa de la memoria, la tira de páginas de XO-CHIP y el visor de sprites. |
 | `BEEP_HZ`, `BEEP_LEVEL` | 440 y 0,22 | Frecuencia del pitido y ganancia máxima. |
 | `TAP_MS` | 120 | Duración mínima de un toque del keypad sin puntero. |
 | `STORAGE_KEY`, `ROMS_KEY`, `LIBRARY_KEY`, `STATES_KEY`, `WORKSHOP_KEY` | `'chip8-consola.ajustes'`, `'chip8-consola.cartuchos'`, `'chip8-consola.biblioteca'`, `'chip8-consola.estados'` y `'chip8-consola.taller'` | Las cinco claves de `localStorage` ([4.19](#419-ajustes-guardados)). |
 | `ROMS_MAX`, `ROM_SAVE_MS`, `FLAGS_CHECK_MS` | 500, 400 ms y 1000 ms | ROMs con ajustes recordados como mucho; pausa antes de guardarlos; cada cuánto se miran las banderas RPL. |
-| `LIBRARY_MAX_ITEMS`, `LIBRARY_MAX_CHARS`, `LIBRARY_PICKS` | 60, 2 500 000 y 5 | Límites de la biblioteca y cuántos van en «Tuyos:». |
+| `LIBRARY_MAX_ITEMS`, `LIBRARY_MAX_CHARS` | 60 y 2 500 000 | Límites de la biblioteca. |
 | `TURBO_FACTOR` | 4 | Ticks emulados por tick real con el avance rápido. |
 | `SHOT_WIDTH` | 640 | Ancho de la captura: 10× con 64×32, 5× con 128×64. |
 | `PAD_DEADZONE` | 0,5 | Desde dónde la palanca del joystick cuenta como una dirección. |
@@ -1083,7 +1122,8 @@ Las constantes que conviene conocer:
 | `REWIND_STEP`, `REWIND_HOLD_MS` | 2 y 350 ms | Frames que vuelve cada tic real (por `TURBO_FACTOR` con T); en pausa, cuánto esperar después del primer frame antes de seguir rebobinando. |
 | `STATES_FILE_FORMAT`, `STATES_FILE_VERSION`, `STATES_FILE_MAX` | `'chip8-consola-estados'`, 1 y 16 MB | El formato de los archivos de estados ([4.26](#426-estados-en-archivos-y-la-lista-de-todos)) y lo más grande que se importa. |
 | `THUMB_FILE_WIDTH` | 128 | El ancho, antes de girarla, de la pantallita que va en los archivos de estados. |
-| `EXPLORER_THUMB_FRAMES`, `EXPLORER_SLICE_MS` | 240 y 4 ms | Los frames que corre cada miniatura de la ventana del archivo (4 s) y lo más que trabaja por vez, entre cuadro y cuadro. |
+| `THUMB_FRAMES`, `THUMB_SLICE_MS` | 240 y 4 ms | Los frames que corre cada miniatura de un cartucho, de la ventana del archivo o de la pestaña «Cartuchos» (4 s), y lo más que trabaja por vez, entre cuadro y cuadro. |
+| `TIP_DELAY_MS`, `TIP_HIDE_MS` | 350 y 150 ms | El cartel de una tarjeta de «Cartuchos»: cuánto tiene que estar el mouse encima para que aparezca, y cuánto espera para irse (así se puede pasar el mouse al cartel). |
 | `WS_SOURCE_MAX`, `WS_PROGRAMS_MAX`, `WS_NAME_MAX` | 400.000, 100 y 60 | Los límites del Taller: caracteres de un programa, programas tuyos y largo de un nombre. |
 | `WS_DRAFT_MS`, `WS_CHECK_MS` | 700 ms y 400 ms | Cuánto espera el Taller, después de la última tecla, para anotar lo que cambió y para volver a revisar los errores. |
 | `WS_TAB`, `WS_LINE_PX`, `WS_PAD_PX` | 8, 20 y 8 | La columna a la que lleva Tab (múltiplo de 8), y el alto de renglón y el margen de arriba del editor, en px, que tienen que coincidir con el CSS. |
@@ -1103,7 +1143,11 @@ Los estados guardados viven en `stateStore` y el rebobinado en `rewindBuf` (el
 [4.22](#422-estados-guardados-y-rebobinado). Las piezas de la cuarta ronda tienen su
 propio estado: `ws` y `wsStore`, el Taller ([4.23](#423-el-taller)); `mon`, `dis`, `dbg`,
 `map`, `memv` y `spr`, el monitor y el depurador ([4.24](#424-el-depurador)); `explorer`,
-la ventana del archivo ([4.25](#425-la-ventana-del-archivo-de-la-comunidad)).
+la ventana del archivo ([4.25](#425-la-ventana-del-archivo-de-la-comunidad)). Y las de la
+quinta: `drawer`, el cajón de opciones ([4.27](#427-el-cajón-de-opciones)); `demoCards`,
+`libCards`, `tip` y `thumbSnaps`, las tarjetas de los cartuchos, su cartel y sus
+miniaturas ([4.11](#411-los-cartuchos-tarjetas-miniaturas-y-cartel)), y `consoleZoom`, la
+escala de la consola ([4.28](#428-la-consola-entera-en-la-ventana)).
 
 ### 4.2 El bucle principal
 
@@ -1313,10 +1357,11 @@ que el bloque 1-4 / Q-R / A-F / Z-V es el mismo en QWERTY, AZERTY o Dvorak:
 encima de un `CALL`), K (salir de la subrutina), Retroceso (reiniciar), H (abrir o cerrar
 la ayuda), L (abrir o cerrar la ventana del archivo de la comunidad), T (avance rápido,
 mientras se mantiene), P (pantalla completa, si el navegador la tiene), G (captura), Y
-(abrir o cerrar el Taller), I (guardar el estado en la ranura rápida), U (cargar la
-ranura rápida), B (rebobinar, mientras se mantiene) y Esc (cerrar diálogos y la capa de
-arrastre). Las **flechas** aprietan las teclas del keypad del mapa de «Controles»
-(`liveKeymap`). Ninguno choca con las 16 teclas.
+(abrir o cerrar el Taller), M (abrir o cerrar el cajón de opciones), I (guardar el estado
+en la ranura rápida), U (cargar la ranura rápida), B (rebobinar, mientras se mantiene) y
+Esc (cerrar diálogos, guardar el cajón de opciones y cerrar la capa de arrastre). Las
+**flechas** aprietan las teclas del keypad del mapa de «Controles» (`liveKeymap`). Ninguno
+choca con las 16 teclas.
 
 **Todas las fuentes de teclas se suman.** El keypad se puede tocar con el teclado físico,
 con las flechas, con el mouse o los dedos, con Enter o Espacio sobre una tecla enfocada,
@@ -1364,17 +1409,28 @@ window.chip8.pressKey / releaseKey ──────────┘
    opción del selector. La repetición automática se filtra con `heldCodes`.
 7. Las flechas van al keypad, salvo que el foco esté en un control que las usa
    (`usesArrows`: un `<select>`, un deslizador o un `role` como `radio`, `slider`,
-   `listbox` o `tab`: las listas y las pestañas del monitor).
+   `listbox` o `tab`: las listas y las pestañas del monitor). Las tarjetas de «Cartuchos»
+   usan las suyas para pasar de una a otra (`bindCardGrid`) y cortan el evento antes de
+   que llegue a `window`.
 8. Espacio: si el foco está en un control (`isControl`: botón, `select`, `summary`,
    enlace, checkbox, radio, `input type="color"` o un `role` de control), se deja la
    activación nativa; si no, pausa o continúa.
-9. N, O, K, Retroceso, H, L, T, P, G, Y, I, U, B y Esc hacen su atajo desde cualquier
-   control que no sea de texto. Los que actúan una vez (Espacio, O, K, Retroceso, H, L,
-   P, G, Y, I y U) no se repiten si la tecla queda apretada; N sí, un paso por
+9. N, O, K, Retroceso, H, L, T, P, G, Y, M, I, U, B y Esc hacen su atajo desde cualquier
+   control que no sea de texto (con un `<select>` enfocado, el `preventDefault` evita que
+   la letra elija una opción). Los que actúan una vez (Espacio, O, K, Retroceso, H, L, P,
+   G, Y, M, I y U) no se repiten si la tecla queda apretada; N sí, un paso por
    repetición; T y B duran mientras se mantienen y se sueltan en `onKeyUp`.
+10. Esc, además de esconder la capa de arrastre, guarda el cajón de opciones si está
+    afuera y nadie usó antes la tecla (`defaultPrevented`): con el foco adentro del
+    cajón, también en el campo de las IPF, lo guarda su propio `keydown`, y con el foco en
+    el Taller, Esc es del Taller ([4.27](#427-el-cajón-de-opciones)). Con el cartel de una
+    tarjeta a la vista, Esc cierra primero el cartel y el cajón sigue afuera.
 
 El Taller maneja además sus propias teclas, adentro de su sección: Tab y Mayús+Tab en el
-editor, Ctrl+Enter en todo el Taller y Esc ([4.23](#423-el-taller)).
+editor, Ctrl+Enter en todo el Taller y Esc ([4.23](#423-el-taller)). Las pestañas del
+monitor y las del cajón de opciones comparten `tabStep`, que traduce las flechas, Inicio y
+Fin en la pestaña a la que se pasa; las tarjetas de «Cartuchos» tienen su propia fila
+([4.11](#411-los-cartuchos-tarjetas-miniaturas-y-cartel)).
 
 **El modelo de foco.** Un clic con el mouse o el dedo en un botón, un chip, un interruptor,
 un radio o un enlace le saca el foco (`onPointerClick`, en `document`, cuando
@@ -1473,8 +1529,8 @@ cartucho valen igual. Antes de cambiar de ROM se guardan las banderas de la que 
   en XO-CHIP (64 KB), así que pasé al perfil XO-CHIP.". Después llama a `cpu.loadRom`,
   informa las teclas que siguen apretadas, limpia el error y el aviso de la ROM anterior,
   llama a `prepare()` (donde `loadCartridge` aplica los ajustes, **antes del primer
-  frame**), deja la máquina corriendo y actualiza la ranura, los estantes, el transporte,
-  la plataforma y el monitor. Si la ROM se rechaza, la anterior sigue corriendo.
+  frame**), deja la máquina corriendo y actualiza la ranura, las tarjetas de «Cartuchos»,
+  el transporte, la plataforma y el monitor. Si la ROM se rechaza, la anterior sigue corriendo.
 - Los avisos (`toast`) aparecen arriba al centro (en pantalla completa, adentro del
   bisel), como mucho tres a la vez, y se van solos a los 4,5 s (8 s si son de error, 15 s
   si traen un botón). El contenedor `#toasts` es una región `aria-live`.
@@ -1493,11 +1549,11 @@ pisando cada fuente a la anterior:
 | 1 (gana) | Lo recordado (`romStore.roms[sha]`) | Plataforma, quirks, IPF, paleta, giro y controles |
 
 `state.romSource` queda en `'recordado'`, `'archivo'`, `'demo'` o `'ninguno'`, y la
-segunda línea de la ranura lo dice ("531 bytes · demo incluido", "… · ajustes del
-archivo", "… · ajustes recordados"); con un juego del archivo, el `title` dice quién lo
-hizo y para qué evento. Al cargar con ajustes del archivo o recordados aparece un aviso que
-resume lo aplicado (`configSummary`: "XO-CHIP, 1.000 IPF y sus colores"); el de los
-recordados trae el botón «Olvidar ajustes».
+segunda línea de la ranura, en la pestaña «Cartuchos» del cajón, lo dice ("531 bytes ·
+demo incluido", "… · ajustes del archivo", "… · ajustes recordados"); con un juego del
+archivo, el `title` dice quién lo hizo y para qué evento. Al cargar con ajustes del
+archivo o recordados aparece un aviso que resume lo aplicado (`configSummary`: "XO-CHIP,
+1.000 IPF y sus colores"); el de los recordados trae el botón «Olvidar ajustes».
 
 **Lo automático no cuenta como tuyo.** Las funciones que cambian ajustes
 (`applyProfile`, `applyPlatform`, `applyQuirks`, `setIpf`) reciben `auto`: la
@@ -1545,16 +1601,19 @@ adelante). El formato (`localStorage['chip8-consola.biblioteca']`):
 { version: 1, items: [{ sha1, name, size, added, played, data }] }     data: los bytes en base64
 ```
 
-Los cartuchos van ordenados por `played`, el jugado más recientemente primero. El estante
-**Tus cartuchos** los muestra a todos, con su nombre (el título del archivo si es un juego
-conocido; si no, el nombre del archivo sin la extensión), su plataforma, una etiqueta
-«recordado» o «del archivo», el tamaño y cuándo se jugó ("jugado hoy", "jugado ayer",
-"jugado hace 3 días", "jugado el 28 de octubre"). Los cinco primeros (`LIBRARY_PICKS`) van
-también como chips en la fila **Tuyos:**, debajo de la ranura y de los controles del
-demo. Un clic carga el cartucho con sus ajustes (`libraryLoad`; si sus datos están dañados,
-lo saca del estante y avisa). La × lo quita (`libraryRemove`), con un aviso que trae
-**Deshacer** (`libraryRestore`). Con el teclado, el foco vuelve al mismo botón del mismo
-cartucho después de redibujar, o a la × del cartucho que quedó en su lugar.
+Los cartuchos van ordenados por `played`, el jugado más recientemente primero. El grupo
+**Tus cartuchos** de la pestaña «Cartuchos» los muestra a todos, cada uno en una tarjeta
+(`renderLibrary` y `buildLibraryItem`, con las de
+[4.11](#411-los-cartuchos-tarjetas-miniaturas-y-cartel)): la miniatura de su pantalla y su
+nombre (el título del archivo si es un juego conocido; si no, el nombre del archivo sin la
+extensión). Lo demás va en su cartel y en su descripción: quién lo hizo y para qué evento
+(si es un juego del archivo), si arranca con los ajustes que le cambiaste o con los del
+archivo, su plataforma, el tamaño y cuándo se jugó ("jugado hoy", "jugado ayer", "jugado
+hace 3 días", "jugado el 28 de octubre"). Un clic carga el cartucho con sus ajustes
+(`libraryLoad`; si sus datos están dañados, lo saca de la biblioteca y avisa). La × de la
+esquina lo quita (`libraryRemove`), con un aviso que trae **Deshacer** (`libraryRestore`).
+Con el teclado, el foco vuelve al mismo botón del mismo cartucho después de redibujar, o a
+la × del cartucho que quedó en su lugar (o al título del grupo, si no queda ninguno).
 
 **Los límites** ([8.21](#821-los-límites-de-la-biblioteca)): como mucho `LIBRARY_MAX_ITEMS`
 (60) cartuchos y `LIBRARY_MAX_CHARS` (2 500 000) caracteres de base64 entre todos, unos
@@ -1564,32 +1623,75 @@ que choca con el límite del navegador (`QuotaExceededError`) le hace lugar saca
 biblioteca el cartucho jugado hace más tiempo y probando otra vez (`storageWrite` +
 `evictLibraryItem`): los ajustes valen más que una ROM que se puede volver a cargar. Si
 algo se va por falta de lugar, un aviso lo dice. Si el navegador no deja guardar nada
-(`storageOk` falso), el estante lo avisa y la biblioteca dura lo que dura la página.
+(`storageOk` falso), el grupo lo avisa y la biblioteca dura lo que dura la página.
 
-### 4.11 Cartuchos incluidos y selector rápido
+### 4.11 Los cartuchos: tarjetas, miniaturas y cartel
 
 `CHIP8_DEMOS` se normaliza al arrancar en `demos`, una lista de
 `{ id, name, description, controls, platform, hex, bytes, sha1 }` (`platform` es
-`'chip8'` si el demo no la declara). `buildShelf()` crea, por cada cartucho, dos botones
-que llaman a `loadDemo(id)`:
+`'chip8'` si el demo no la declara). Desde la quinta ronda, todos los cartuchos están en la
+pestaña «Cartuchos» del cajón de opciones ([4.27](#427-el-cajón-de-opciones)), de arriba
+abajo:
 
-- una tarjeta `.cart` en el estante "Cartuchos incluidos", debajo de la consola, con el
-  nombre, la descripción, los controles y la marca "En la ranura";
-- un chip `.chip` en la fila "Incluidos:" (`#cart-chips`), justo debajo de la ranura, para
-  cambiar de cartucho sin scrollear. Al lado hay un enlace "Detalles ↓" a `#shelf-title`.
+- **La ranura** (`#slot`): el cartucho puesto, con su nombre (`#cart-name`), un color por
+  cartucho, la segunda línea ([4.9](#49-ajustes-por-cartucho)) con «Olvidar ajustes» y, si
+  es un demo, "Controles: ..." (`#cart-controls`; para una ROM externa se oculta). La
+  arma `updateSlot()`, que además imprime el nombre en el bisel (`#bezel-cart`, al lado de
+  «Video 64 × 32»), así se ve qué está puesto con el cajón guardado.
+- **«Cargar ROM»** (`#btn-load`, con el `input type="file"` escondido) y **«Archivo»**
+  (`#btn-explorer`, con la cantidad de juegos), que abre la ventana del archivo de la
+  comunidad ([4.25](#425-la-ventana-del-archivo-de-la-comunidad)).
+- **Incluidos** (`#shelf-list`) y **Tus cartuchos** (`#lib-list`,
+  [4.10](#410-tus-cartuchos-la-biblioteca)), cada uno un grupo (`role="group"`, nombrado
+  por su título) de tarjetas chicas.
 
-`updateShelfSelection()` pone `aria-pressed="true"` en la tarjeta y el chip del cartucho
-cargado. `updateSlot()` muestra en la ranura el nombre, la segunda línea
-([4.9](#49-ajustes-por-cartucho)), un color por cartucho y, en `#cart-controls`,
-"Controles: ..." con los controles del demo; para una ROM externa esa línea se oculta. Al
-arrancar se carga el primer cartucho según `@order` (Rebote). Si no hay cartuchos, el
-estante muestra un mensaje, el selector queda oculto y la pantalla muestra "INSERTÁ UN
-CARTUCHO".
+**Las tarjetas** (`buildCard`, con `buildShelf` para los demos): un cartucho de plástico
+oscuro (`.ccard`) con una ventanita para la miniatura de su pantalla y una etiqueta con el
+nombre, del color del cartucho. El nombre accesible es el nombre (`aria-labelledby`); la
+descripción (`aria-describedby`, un texto escondido adentro de la tarjeta) dice lo mismo
+que el cartel. El cartucho de la ranura lleva `aria-current="true"`, un anillo verde y una
+luz (`updateShelfSelection` y `updateLibrarySelection`, con `markCard`). La grilla
+(`.ccards`) pone tantas columnas de al menos 80 px como entren en la bandeja: cuatro en el
+cajón al costado, dos o tres en el teléfono.
+
+**La miniatura** es la de la sección «miniaturas de cartuchos», la misma de la ventana del
+archivo ([4.25](#425-la-ventana-del-archivo-de-la-comunidad)): la ROM corre `THUMB_FRAMES`
+frames en una máquina aparte, con la configuración con que arrancaría (`cardLook`, con
+`resolveConfig`: lo recordado, el archivo, la plataforma del demo o tus ajustes; una ROM
+de más de 3584 bytes, en XO-CHIP), y queda la pantalla con más píxeles encendidos, pintada
+con la paleta con que se vería (la tuya, la recordada o la del cartucho) y con su giro. Se
+hace solo con el cajón abierto en «Cartuchos» y para las tarjetas a la vista (un
+`IntersectionObserver` con la bandeja de raíz), en tramos de 4 ms; cada pantalla queda en
+`thumbSnaps`, por cartucho y configuración (`thumbKey`), y no se vuelve a correr. Si
+cambia la paleta, `refreshCardLooks` vuelve a pintar las que cambian de colores. La escala
+es entera, en píxeles físicos, y llena la ventanita (`fill: 1`): un 64×32 entra sin
+achicarse aun en la tarjeta más angosta; uno de 128×64 se achica a la mitad.
+
+**El cartel** (`#cart-tip`, de la sección «cartuchos: el cartel»): el plástico oscuro de
+los avisos, con el color del cartucho arriba, el nombre y todo lo demás (de qué se trata,
+los controles, la plataforma, el tamaño, de dónde salen sus ajustes, «En la ranura»).
+Aparece al pasar el mouse por una tarjeta (después de `TIP_DELAY_MS`; de una tarjeta a
+otra, enseguida) o al llegar con el teclado (`:focus-visible`), y se va al sacar el mouse
+(salvo que vaya al cartel: se puede pasar por encima sin que se vaya), al perder el foco,
+con Esc (el cajón sigue afuera), al scrollear la bandeja, al tocar la tarjeta, al cambiar
+de pestaña y al guardar el cajón. Va debajo de la tarjeta, o arriba si abajo no entra, y
+siempre adentro de la ventana. Es `aria-hidden`: lo que dice ya está en la descripción de
+la tarjeta. Con un dedo no aparece. Por qué un cartel propio:
+[8.54](#854-un-cartel-propio-en-vez-de-title). Desde el final de la ronda, el mismo cartel
+sale para todo lo que tenía `title` ([4.29](#429-los-carteles)).
+
+**Con el teclado** (`bindCardGrid`), cada grupo es una sola parada del Tab: la tarjeta de
+la ranura o la última que tuvo el foco (con ella, la × de tus cartuchos). Las flechas,
+Inicio y Fin pasan de una tarjeta a otra (↓ desde la anteúltima fila va a la última
+tarjeta) y no le llegan al keypad; Enter o Espacio la cargan.
+
+Al arrancar se carga el primer cartucho según `@order` (Rebote). Si no hay cartuchos, el
+grupo «Incluidos» muestra un mensaje y la pantalla muestra "INSERTÁ UN CARTUCHO".
 
 ### 4.12 Compatibilidad: plataforma, perfil y quirks
 
-El grupo **Compatibilidad** tiene dos selectores, seis interruptores DIP y el interruptor
-«Ajustes por cartucho»:
+La pestaña **Compatibilidad** del cajón de opciones tiene dos selectores, seis
+interruptores DIP y el interruptor «Ajustes por cartucho»:
 
 - **Perfil** (`#preset`): COSMAC VIP, SUPER-CHIP, XO-CHIP y Personalizado.
   `applyProfile(id, { auto, quiet, restart })` pone la plataforma del perfil
@@ -1600,7 +1702,7 @@ El grupo **Compatibilidad** tiene dos selectores, seis interruptores DIP y el in
 - **Plataforma** (`#platform`): `applyPlatform(p, { auto, quiet })` cambia solo la
   plataforma, con `cpu.setPlatform` (la ROM vuelve a empezar; los quirks no se tocan).
   Cada opción y el selector llevan en el `title` la descripción de la plataforma
-  (`PLATFORM_DESC`), que también aparece en la línea de ayuda del grupo.
+  (`PLATFORM_DESC`), que también aparece en la línea de ayuda de la pestaña.
 - **Los interruptores** (`role="switch"`, armados desde `QUIRK_INFO`: etiqueta corta,
   nombre, opcodes y descripción, con `aria-describedby`): `applyQuirks` cambia solo los
   quirks, en vivo, y **nunca la plataforma**.
@@ -1692,9 +1794,10 @@ filas de tres) llaman a `togglePause`, `stepOnce`, `stepOver`, `stepOut`, `frame
 2. muestra el mensaje en el tubo ("ERROR", el texto del núcleo y "Presioná Reiniciar
    (Retroceso) para volver a empezar.", más el botón de plataforma si corresponde) y en la
    línea de error del monitor; o el fin del programa;
-3. lo anuncia **una sola vez** en la línea de estado (`#status`, `role="status"`):
-   "Error: ...". No hay aviso flotante ni `role="alert"`: el mismo texto se leía tres
-   veces con un lector de pantalla y el aviso tapaba el monitor.
+3. lo anuncia **una sola vez** en la línea de estado (`#status`, `role="status"`, que no
+   se ve: es para los lectores de pantalla, [4.20](#420-accesibilidad)): "Error: ...". No
+   hay aviso flotante ni `role="alert"`: el mismo texto se leía tres veces con un lector
+   de pantalla y el aviso tapaba el monitor.
 
 Paso o Frame no pisan ese mensaje en `#status`. **Reiniciar** después de un error vuelve
 al estado de pausa que había justo antes: si ibas de a un paso, queda en pausa en `0x200`
@@ -1705,6 +1808,18 @@ rebobinar desde un error también limpia el mensaje, pero con su propia regla pa
 pausa ([4.22](#422-estados-guardados-y-rebobinado)).
 
 ### 4.16 El monitor
+
+**Se muestra y se oculta entero.** Desde la quinta ronda, un botón de la barra de arriba
+de la consola (`#btn-monitor`, el de la pantallita con una onda, al lado del de las
+opciones, con `aria-expanded` y `aria-controls="monitor"`) y «Ocultar», en la cabecera del
+monitor (`#mon-toggle`), llaman a `setMonitorOpen(sí o no, cómo)`: oculto, el
+`aside#monitor` lleva `hidden`, `<html>` lleva `no-monitor` (el CSS deja a la consola sola
+en el medio, en una columna) y su lugar queda libre para el Taller o el cajón de opciones
+([4.27](#427-el-cajón-de-opciones)). La elección se guarda en `settings.monitorOpen`. Si
+el foco estaba adentro del monitor (en «Ocultar»), con el teclado pasa al botón de la
+barra; con el mouse, a la página. Al volver a mostrarlo se pone al día enseguida. Antes,
+«Ocultar» plegaba solo el cuerpo y dejaba la cabecera: así el monitor seguía ocupando su
+columna.
 
 El panel MONITOR tiene arriba la insignia de estado y, debajo, cuatro pestañas
 (`MONITOR_TABS`, un `role="tablist"`: las flechas, Inicio y Fin cambian de pestaña, y la
@@ -1735,14 +1850,19 @@ las últimas instrucciones**, que lleva a la traza.
   botón, o una ventana muy baja), pone `--mon-top` = mín(20, alto de la ventana − alto del
   monitor − 20), y el CSS usa `top: var(--mon-top, 20px)`: el monitor se pega más arriba,
   con su final a la vista después de scrollear un poco
-  ([7.11](#711-integración-y-hallazgos-notables)). Con el Taller abierto al costado, el
-  monitor va debajo de los estantes y deja de estar pegado, salvo desde 1900 px de ancho,
-  donde entran los tres ([4.23](#423-el-taller)).
+  ([7.11](#711-integración-y-hallazgos-notables)). Le deja 48 px a la página (los 28 de
+  arriba y los 20 de abajo), así con la consola entera a la vista la página no se mueve
+  ([4.28](#428-la-consola-entera-en-la-ventana)). Con el Taller abierto al costado, el
+  monitor va debajo de la consola y deja de estar pegado, salvo desde 1900 px de ancho,
+  donde entran los tres ([4.23](#423-el-taller)). El cajón de opciones, abierto al costado,
+  lo tapa y el monitor se esfuma mientras tanto (`is-under-drawer`: `visibility: hidden`,
+  así sus controles salen del orden del Tab); escondido, se sigue poniendo al día como
+  siempre, y al guardarse el cajón vuelve ([4.27](#427-el-cajón-de-opciones)).
 
 Está pensado para no costar nada cuando no se mira:
 
-- `updateMonitor(forzar)` no hace nada si el panel está oculto (botón Ocultar/Mostrar,
-  que se guarda) o si la pestaña del navegador está oculta. Tampoco si el panel quedó fuera
+- `updateMonitor(forzar)` no hace nada si el monitor está oculto (`setMonitorOpen`) o si
+  la pestaña del navegador está oculta. Tampoco si el panel quedó fuera
   de la vista (lo sigue un `IntersectionObserver`), salvo que se lo fuerce: al cargar una
   ROM, reiniciar, detenerse, volver a mostrar el panel o cuando el panel vuelve a entrar en
   la vista. En el resto de los casos se actualiza una vez por cuadro de animación, desde
@@ -1796,17 +1916,17 @@ Está pensado para no costar nada cuando no se mira:
 
 ### 4.18 La ayuda
 
-Un `<dialog>` modal ("Manual rápido") con el mapa del teclado, los atajos, el avance
-rápido, la pantalla completa y las capturas, los estados guardados y el rebobinado (con
-«Ver todos», Exportar e Importar), el joystick y los controles, los cartuchos, el archivo
-de la comunidad, tus cartuchos, el Taller, la velocidad, la lista de quirks (armada desde
-`QUIRK_INFO` por `buildHelpQuirks`, con una línea fija que resume los perfiles), las
-plataformas, los colores, la curvatura y el encendido, los ajustes por cartucho (con el
-crédito del archivo de la comunidad), el diagnóstico, el monitor y el depurador, y
-consejos. Se abre con H o con "?" y se cierra con H, Esc, la ×, o un clic en el fondo. Al
-abrirla se sueltan todas las teclas. La tabla de atajos de la ayuda es la referencia que
-usan las pruebas de la documentación: el README, la parte 1.10 del tutorial y
-[4.6](#46-teclado-keypad-y-foco) tienen que nombrar cada uno de sus atajos.
+Un `<dialog>` modal ("Manual rápido") con el mapa del teclado, los atajos, el cajón de
+opciones, el avance rápido, la pantalla completa y las capturas, los estados guardados y
+el rebobinado (con «Ver todos», Exportar e Importar), el joystick y los controles, los
+cartuchos, el archivo de la comunidad, tus cartuchos, el Taller, la velocidad, la lista de
+quirks (armada desde `QUIRK_INFO` por `buildHelpQuirks`, con una línea fija que resume los
+perfiles), las plataformas, los colores, la curvatura y el encendido, los ajustes por
+cartucho (con el crédito del archivo de la comunidad), el diagnóstico, el monitor y el
+depurador, y consejos. Se abre con H o con "?" y se cierra con H, Esc, la ×, o un clic en
+el fondo. Al abrirla se sueltan todas las teclas. La tabla de atajos de la ayuda es la
+referencia que usan las pruebas de la documentación: el README, la parte 1.10 del tutorial
+y [4.6](#46-teclado-keypad-y-foco) tienen que nombrar cada uno de sus atajos.
 
 ### 4.19 Ajustes guardados
 
@@ -1837,12 +1957,13 @@ cada campo por separado y descarta lo que no tenga el tipo esperado:
 | `powerOn` | `true` | booleano |
 | `muted` | `false` | booleano |
 | `volume` | 0,6 | número finito, limitado a 0–1 |
-| `monitorOpen` | `true` | booleano |
+| `monitorOpen` | `true` | booleano: el monitor a la vista (su botón de la barra y «Ocultar», [4.16](#416-el-monitor)) |
 | `monitorTab` | `'codigo'` | una de `MONITOR_TABS`: la pestaña del monitor a la vista |
 | `perRom` | `true` | booleano |
 | `keymap` | WASD de Octo | `'octo'`, `'vip'` o `{ preset: 'custom', keys }` con seis teclas de 0 a 15 |
 | `customKeys` | `null` | seis teclas de 0 a 15 |
 | `rewind` | `true` | booleano: el interruptor «Rebobinado» |
+| `drawerTab` | `'cartuchos'` | una de `DRAWER_TABS`: la pestaña del cajón de opciones a la vista (las de la primera vuelta de la quinta ronda, como `'velocidad'`, ya no valen: la próxima vez abre en «Cartuchos») |
 
 Con el almacenamiento bloqueado o roto, la consola arranca con los valores de fábrica y
 funciona igual (lo prueba el E2E 10 inyectando un `localStorage` que tira excepciones). Un
@@ -1862,14 +1983,21 @@ VIP" vale solo para un navegador que nunca abrió la consola.
   completa y «Ajustes por cartucho» usan `aria-pressed`. El modo de pantalla es un
   `radiogroup`. Las muestras de color tienen su etiqueta. Cada ranura de «Estados» es un
   `role="group"` con el nombre de la ranura, su pantallita es `aria-hidden` y sus botones
-  dicen qué hacen ("Guardar el estado de la máquina en la ranura rápida (I)"). El monitor
-  usa `aria-expanded` en su botón y `aria-current` en la fila del PC.
-- La línea de estado (`role="status"`, `aria-live="polite"`) anuncia lo importante: el
-  cartucho cargado (y con qué ajustes), pausa, paso, reinicio, la velocidad elegida con
-  los botones, el perfil y la plataforma, el modo de pantalla, el silencio, la curvatura,
-  los controles, la pantalla completa, la captura, los estados guardados y cargados,
-  cuánto se rebobinó (al soltar) y los errores, una sola vez. El monitor no se anuncia:
-  cambia en cada frame, también mientras se rebobina.
+  dicen qué hacen ("Guardar el estado de la máquina en la ranura rápida (I)"); la ranura
+  hundida que separa la rápida de las otras cuatro es `aria-hidden`. El botón del monitor,
+  en la barra de arriba, usa `aria-expanded` y `aria-controls`; «Ocultar», en su cabecera,
+  tiene un nombre que dice qué oculta, y el monitor usa `aria-current` en la fila del PC.
+- La línea de estado (`#status`, `role="status"`, `aria-live="polite"`) va al lado de la
+  rejilla del parlante, oculta a la vista con la clase `visually-hidden`, y anuncia lo
+  importante: el cartucho cargado (y con qué ajustes), pausa, paso, reinicio, la velocidad
+  elegida con los botones, el perfil y la plataforma, el modo de pantalla, el silencio, la
+  curvatura, los controles, la pantalla completa, la captura, los estados guardados y
+  cargados, cuánto se rebobinó (al soltar) y los errores, una sola vez. El monitor no se
+  anuncia: cambia en cada frame, también mientras se rebobina. Hasta la segunda vuelta de
+  la quinta ronda la línea de estado también se veía; lo que solo decía ella sobre algo
+  que no se pudo hacer sale además en un aviso flotante que no se vuelve a leer
+  ([8.56](#856-la-línea-de-estado-oculta-a-la-vista)).
+- Ningún elemento tiene `title`: el texto de cada cartel ([4.29](#429-los-carteles)) llega como descripción (`aria-description`) o, si el elemento no tenía otro nombre, como su nombre (`aria-label`); el cartel mismo es `aria-hidden`. El diálogo de «Cuidado» ([4.30](#430-cuidado)) se nombra con su título, se describe con su texto y empieza con el foco en «Cancelar».
 - El keypad acepta Enter, Espacio y la activación sin puntero de los lectores de
   pantalla ([4.6](#46-teclado-keypad-y-foco)).
 - Lo de la cuarta ronda sigue las mismas reglas. Las pestañas del monitor son un
@@ -1886,8 +2014,25 @@ VIP" vale solo para un navegador que nunca abrió la consola.
 - Contraste: las letras de ayuda del keypad y las filas vacías de la pila se oscurecieron o
   aclararon en la revisión de la primera ronda (alrededor de 4,9:1 o más); los cuatro
   colores de cada paleta tienen al menos 1,8:1 entre vecinos.
-- `prefers-reduced-motion: reduce` apaga las animaciones y transiciones, y el encendido
-  animado.
+- El cajón de opciones es una región con nombre (su título, «Opciones», por
+  `aria-labelledby`); su botón, en la barra de arriba, tiene `aria-expanded`,
+  `aria-controls` y `aria-keyshortcuts="M"`; las pestañas son un `tablist` con un `tab` y
+  un `tabpanel` por grupo (las flechas, Inicio y Fin; solo la elegida en el orden del Tab).
+  Al abrirlo, el foco entra al título, que no es un control; al guardarlo con el teclado
+  vuelve al botón, y con el mouse, a la página. Guardado está `hidden`, y mientras se
+  guarda, `inert`. Las secciones de «Ajustes» son regiones nombradas por su título. La
+  columna que tapa (el monitor o el Taller) queda `visibility: hidden`: sus controles no
+  quedan en el orden del Tab detrás del cajón.
+- Los cartuchos de la pestaña «Cartuchos» son dos grupos con nombre («Incluidos» y «Tus
+  cartuchos»), cada uno con una sola tarjeta en el orden del Tab (las flechas, Inicio y Fin
+  recorren el resto). Cada tarjeta es un botón con el nombre del cartucho como nombre
+  (`aria-labelledby`) y todo lo demás como descripción (`aria-describedby`); el cartucho de
+  la ranura lleva `aria-current`. El cartel que aparece al pasar el mouse o al llegar con
+  el teclado es `aria-hidden` (dice lo mismo que la descripción), se puede pasar el mouse
+  por encima sin que se vaya y Esc lo cierra. La × de tus cartuchos dice qué cartucho
+  quita.
+- `prefers-reduced-motion: reduce` apaga las animaciones y transiciones (el cajón de
+  opciones aparece y se guarda sin deslizarse), y el encendido animado.
 - En pantallas de 760 px o menos el keypad queda justo debajo del tubo; en 480 px o menos
   se oculta la bajada del logo y se achican los márgenes. A 360×640, el tubo y el keypad
   entero entran en la primera vista (E2E 24).
@@ -1945,6 +2090,10 @@ La interfaz expone `window.chip8` para depurar desde la consola del navegador y 
 | `setRewind(on)`, `getRewind()` | El interruptor «Rebobinado». |
 | `setRewinding(on)`, `isRewinding()` | Rebobinar como si se mantuviera B. |
 | `rewindInfo()` | `{ seconds, entries, bytes }` del buffer de rebobinado. |
+| `openDrawer(pestaña)`, `closeDrawer()` | Abren y guardan el cajón de opciones como el botón, sin mover el foco. `openDrawer` elige antes la pestaña, si se la pasa (una de `DRAWER_TABS`, o una sección de «Ajustes», `DRAWER_SECTIONS`: abre «Ajustes» corrida hasta esa sección; con otra cosa devuelve `null`), y devuelve `drawerInfo()`; `closeDrawer`, si quedó abierto. |
+| `drawerInfo()` | `{ open, tab, side, covers, box }`: si está afuera, la pestaña, de qué lado sale (`'costado'` o `'abajo'`), qué tapa (`'monitor'`, `'taller'` o `null`) y su caja en la ventana ([4.27](#427-el-cajón-de-opciones)). |
+| `setMonitorOpen(on)`, `getMonitorOpen()` | El monitor entero, a la vista u oculto, como su botón de la barra; se guarda ([4.16](#416-el-monitor)). |
+| `consoleZoom()` | La escala de la consola: 1, o menos si se achicó para entrar en la ventana ([4.28](#428-la-consola-entera-en-la-ventana)). |
 
 Las funciones que cambian ajustes cuentan como un cambio de la persona: quedan en
 `settings` y, con «Ajustes por cartucho», en los de la ROM de la ranura. Un truco: en la
@@ -1956,14 +2105,14 @@ cargar un estado o rebobinar nunca cuenta como una elección de la persona
 
 ### 4.22 Estados guardados y rebobinado
 
-El grupo **Estados**, el último del panel, tiene las cinco ranuras del cartucho de la
+La pestaña **Estados** del cajón de opciones tiene las cinco ranuras del cartucho de la
 ranura (`STATE_SLOTS`: la rápida y de la 1 a la 4), el interruptor «Rebobinado» con la
-línea "Podés volver hasta N s." y una línea de ayuda (`#states-hint`); al lado del título,
-desde la cuarta ronda, los botones **Ver todos**, **Exportar** e **Importar**
-([4.26](#426-estados-en-archivos-y-la-lista-de-todos)). El rebobinado se
-maneja con B, con el botón ⏪ del bisel y con `window.chip8.setRewinding`. Nada de esto
-cuenta como un cambio de ajustes de la persona: cargar un estado o rebobinar no pasa por
-`userChanged` ni toca `settings`; solo el interruptor se guarda, en `settings.rewind`.
+línea "Podés volver hasta N s." y una línea de ayuda (`#states-hint`); arriba de las
+ranuras, desde la cuarta ronda, los botones **Ver todos**, **Exportar** e **Importar**
+([4.26](#426-estados-en-archivos-y-la-lista-de-todos)). El rebobinado se maneja con B, con
+el botón ⏪ del bisel y con `window.chip8.setRewinding`. Nada de esto cuenta como un cambio
+de ajustes de la persona: cargar un estado o rebobinar no pasa por `userChanged` ni toca
+`settings`; solo el interruptor se guarda, en `settings.rewind`.
 
 **El almacenamiento.** `localStorage['chip8-consola.estados']`:
 
@@ -2000,7 +2149,7 @@ CSS agranda sin suavizar, con escala entera en píxeles físicos, como la pantal
 cambian la paleta o el giro ([4.26](#426-estados-en-archivos-y-la-lista-de-todos)).
 Cuándo se guardó lo dice `savedWhen` ("recién", "hace 5 min", "hoy 09:40", "ayer 18:20",
 "28 de octubre", con el año si no es este), que se pone al día cada `STATE_TIMES_MS`. `renderStates()` muestra
-las ranuras del cartucho que se carga; sin cartucho, el grupo muestra solo la explicación.
+las ranuras del cartucho que se carga; sin cartucho, la pestaña muestra solo la explicación.
 
 - **Guardar** (`saveToSlot`, también con I): `Core.encodeState(cpu.saveState())` con la
   máquina como esté (no hace falta pausar: es una copia), la fecha y el nombre de la ROM.
@@ -2088,13 +2237,17 @@ Se abre y se cierra con el botón del lápiz (`#btn-workshop`, al lado del «?»
 **Dónde va.** Desde 1200 px de ancho, fijo a la derecha, de arriba abajo, y la consola se
 corre a la izquierda: la clase `has-workshop` del `<html>` le da al `.desk` un
 `padding-right` del ancho del Taller, así la pantalla nunca queda tapada. Ese ancho es
-`clamp(380px, 100vw − 840px, 640px)`: a 1440 px mide 600 y a 1280, 440; entre 1200 y
-1439 px el editor usa letra de 12 px. Mientras está abierto, el monitor baja debajo de los
-estantes, salvo desde 1900 px, donde entran los tres. Por debajo de 1200 px va al final de
-la columna, debajo de «Tus cartuchos», y la página se corre hasta él al abrirlo. Con el
+`clamp(380px, 100vw − 800px × --con-z − 40px, 640px)`: toma lo que deja la consola,
+achicada o no ([4.28](#428-la-consola-entera-en-la-ventana)), entre 380 y 640 px; entre
+1200 y 1439 px el editor usa letra de 12 px. Mientras está abierto, el monitor baja debajo
+de la consola, salvo desde 1900 px, donde entran los tres. Por debajo de 1200 px va al
+final de la columna, debajo de la consola, y la página se corre hasta él al abrirlo. Con el
 mouse o con Y, el foco va al editor; con un toque, al título, así no salta el teclado del
 teléfono. En pantalla completa, Y primero sale de ella
-([8.36](#836-el-taller-va-al-costado-de-la-consola-no-encima)).
+([8.36](#836-el-taller-va-al-costado-de-la-consola-no-encima)). Si el cajón de opciones
+está afuera y el Taller quedaría debajo (al costado, entre 1200 y 1899 px, o desde abajo),
+al abrir el Taller el cajón se guarda; abierto después, tapa el Taller
+([4.27](#427-el-cajón-de-opciones)).
 
 **Los programas.** `wsBuiltins` arma los incluidos a partir de `CHIP8_SOURCES`
 ([5.2](#52-el-incrustador-toolsembed-romsjs)): los once ejemplos del tutorial
@@ -2201,7 +2354,7 @@ cargar un estado, rebobinar y cambiar de plataforma no los tocan.
 **Detenerse y seguir.** Cuando `runFrame` vuelve con `cpu.debugStop`, `tick` llama a
 `handleDebugStop()` en lugar de tomar la foto del rebobinado (el frame quedó abierto: su
 foto llega cuando se complete): la máquina queda en pausa, el desensamblado vuelve al PC
-y la línea de estado lo dice, sin aviso flotante, como los errores: «Punto de corte en
+y la línea de estado lo anuncia, sin aviso flotante, como los errores: «Punto de corte en
 0x204 («LD V1, V0»): en pausa, antes de ejecutarla.». La insignia pasa al modo `break`
 ([4.15](#415-transporte-estados-y-errores)). Al seguir, `setPaused(false)` llama a
 `debugResume()`, que pide `cpu.skipBreakpointOnce()`: seguir siempre ejecuta la
@@ -2215,7 +2368,7 @@ avisa. `runToAddress` (el botón **Hasta acá**): `runTo(dirección)`, a cualqui
 Los tres empiezan pausando, como N, y O y K no se repiten si la tecla queda apretada. Si
 la subrutina no vuelve nunca, la máquina sigue corriendo: Espacio la pausa y cancela el
 objetivo (`debugCancelRun`), igual que N y que un error. Al llegar, la línea de estado
-dice «Paso por encima: la subrutina volvió. PC = …».
+anuncia «Paso por encima: la subrutina volvió. PC = …».
 
 **La traza.** Con la máquina en pausa o detenida, `cpu.trace()` en una lista: dirección,
 palabra y texto, de la más vieja a la más nueva, con el scroll al final. Los bucles se
@@ -2251,8 +2404,8 @@ nueve miembros de `window.chip8` ([4.21](#421-la-api-de-depuración-windowchip8)
 
 ### 4.25 La ventana del archivo de la comunidad
 
-Son las tres secciones «archivo de la comunidad: …» de `chip8-ui`, antes del estante «Tus
-cartuchos».
+Son las dos secciones «archivo de la comunidad: …» de `chip8-ui` y la de las miniaturas,
+«miniaturas de cartuchos», que comparte con la pestaña «Cartuchos» del cajón.
 
 **Las ROMs.** `ARCHIVE_DATA` es `CHIP8_ARCHIVE.data` ([5.5](#55-toolsarchivejs)): la ROM
 de cada juego, por su huella, comprimida con deflate en formato zlib y escrita en
@@ -2265,17 +2418,16 @@ y Safari 16.4) o si la ROM está dañada, y en ese caso la próxima vez se vuelv
 ([8.40](#840-las-roms-del-archivo-adentro-de-chip8html-comprimidas-de-a-una)).
 
 **La ventana.** Un `<dialog>` modal como la ayuda (`#explorer`), que se abre con el botón
-**Archivo** del título del estante de cartuchos (`#btn-explorer`, con la cantidad de
+**Archivo** de la pestaña «Cartuchos» del cajón (`#btn-explorer`, con la cantidad de
 juegos), con L o con `openExplorer`. Muestra los juegos que tienen su ROM embebida
-(`explorerItems`), cada uno como un cartucho del estante (un `button` con las clases
-`.cart`): una ventanita con su pantalla de título, el título, los autores (o «Autor
-desconocido»), la plataforma, el evento y el año, el tamaño, y las marcas «en tus
-cartuchos», «ajustes recordados» y «En la ranura». Arriba, **Buscar** (por título o por
-autor, sin importar mayúsculas ni tildes; con varias palabras tienen que estar todas:
-`explorerFold`), **Plataforma**, **Evento o año** (los eventos y los años, cada uno con
-cuántos juegos tiene) y **Orden** (`EXPLORER_SORTS`). La búsqueda, los filtros y el orden
-duran lo que la página. El título del estante quedó en un `span` (`#shelf-title-text`),
-que es el que nombra la sección: si no, su nombre incluiría el botón.
+(`explorerItems`), cada uno como un cartucho (un `button` con las clases `.cart`): una
+ventanita con su pantalla de título, el título, los autores (o «Autor desconocido»), la
+plataforma, el evento y el año, el tamaño, y las marcas «en tus cartuchos», «ajustes
+recordados» y «En la ranura». Arriba, **Buscar** (por título o por autor, sin importar
+mayúsculas ni tildes; con varias palabras tienen que estar todas: `explorerFold`),
+**Plataforma**, **Evento o año** (los eventos y los años, cada uno con cuántos juegos
+tiene) y **Orden** (`EXPLORER_SORTS`). La búsqueda, los filtros y el orden duran lo que la
+página.
 
 **Cargar.** Un clic, Enter o Espacio en una tarjeta llaman a `explorerLoad(sha)`: pide
 los bytes y los carga con `loadCartridge(bytes, título, { origin: 'explorador' })`, así la
@@ -2292,25 +2444,28 @@ Mientras está abierta, `onKeyDown` no hace nada salvo L, y el joystick no se le
 para que el teclado en pantalla no tape la lista.
 
 **Las miniaturas.** Cada una corre el juego aparte, en otra `Core.Chip8` con su
-plataforma, sus quirks y sus IPF, `EXPLORER_THUMB_FRAMES` frames sin teclas y con un azar
-sembrado con la huella (salen siempre iguales), y se queda con la pantalla que tuvo más
-píxeles prendidos: casi siempre, la de título. Se hacen solo las de las tarjetas a la
-vista (un `IntersectionObserver` con 200 px de margen), de a una, en tramos de hasta
-`EXPLORER_SLICE_MS` en el tiempo libre entre cuadros (`requestIdleCallback`; sin él, un
-tramo cada 50 ms), y ninguna con la ventana cerrada. Las 104 cuestan unos 300 ms de CPU en
-total, y la consola sigue a 60 frames por segundo mientras se hacen (E2E 69). Se pintan
-con los cuatro colores del juego y su giro, con escala entera en píxeles físicos; si ni a
-1:1 entran en su ventanita (una pantalla de 128×64 girada queda de 64×128), se achican a
-la mitad tomando el valor más alto de cada cuadrado de 2×2, así las líneas de un píxel no
-desaparecen. Algunos juegos casi no dibujan nada sin una tecla, y su miniatura queda casi
-negra.
+plataforma, sus quirks y sus IPF, `THUMB_FRAMES` frames sin teclas y con un azar sembrado
+con la huella (salen siempre iguales), y se queda con la pantalla que tuvo más píxeles
+prendidos: casi siempre, la de título. Se hacen solo las de las tarjetas a la vista (un
+`IntersectionObserver` con 200 px de margen), de a una, en tramos de hasta
+`THUMB_SLICE_MS` en el tiempo libre entre cuadros (`requestIdleCallback`; sin él, un tramo
+cada 50 ms), y ninguna con la ventana cerrada (ni con el cajón cerrado o en otra pestaña:
+la cola, `thumbQueue`, junta las tarjetas a la vista de la ventana y las de «Cartuchos»).
+Cada pantalla queda guardada en `thumbSnaps` por cartucho y configuración (`thumbKey`): la
+de un juego del archivo que también está en tus cartuchos, con la misma configuración, se
+hace una sola vez. Las 104 cuestan unos 300 ms de CPU en total, y la consola sigue a 60
+frames por segundo mientras se hacen (E2E 69). Se pintan con los cuatro colores del juego
+y su giro, con escala entera en píxeles físicos; si ni a 1:1 entran en su ventanita (una
+pantalla de 128×64 girada queda de 64×128), se achican a la mitad tomando el valor más
+alto de cada cuadrado de 2×2, así las líneas de un píxel no desaparecen. Algunos juegos
+casi no dibujan nada sin una tecla, y su miniatura queda casi negra.
 
 **Los mensajes** van adentro de la ventana, en una región `aria-live="assertive"` debajo
 de los filtros: un aviso flotante quedaría detrás del diálogo modal, y el escenario 14 no
 deja que haya ningún `role="alert"` en la página. Dicen si al navegador le falta
 `DecompressionStream`, si una ROM está dañada o si una carga falló. Un `chip8.html` sin
-las ROMs no muestra el botón, y L lo dice en la línea de estado; la autoconfiguración
-sigue andando con la tabla.
+las ROMs no muestra el botón, y L lo anuncia en la línea de estado, que no se ve; la
+autoconfiguración sigue andando con la tabla.
 
 ### 4.26 Estados en archivos y la lista de todos
 
@@ -2378,7 +2533,7 @@ su nombre, de dónde es y una tarjeta por estado, igual a una ranura de «Estado
 **Cargar**, **Exportar** y **Borrar**. Cargar pone el cartucho en la ranura si hace falta
 y después el estado: `findCartridge(sha1)` busca los bytes en los demos, en «Tus
 cartuchos» (comprobando la huella) y en las ROMs del archivo (`archiveRomBytes`), y
-`cartridgeLoadOptions` lo carga como desde su estante (un juego del archivo, con
+`cartridgeLoadOptions` lo carga como desde su tarjeta (un juego del archivo, con
 `origin: 'explorador'`, como desde su ventana). Si esta consola no tiene la ROM, el grupo
 lo explica, y Cargar queda bloqueado (`aria-disabled`) pero enfocable: al tocarlo, repite
 por qué. Borrar trae «Deshacer» en la línea de mensajes de la ventana. Mientras está
@@ -2396,6 +2551,245 @@ lugar de perder filas ([8.44](#844-las-pantallitas-con-el-giro-y-los-colores-del
 
 `localStorage['chip8-consola.estados']` no cambió, y `window.chip8` suma `allStates`,
 `statesFile` e `importStates` ([4.21](#421-la-api-de-depuración-windowchip8)).
+
+### 4.27 El cajón de opciones
+
+Lo que hasta la cuarta ronda era el panel de control, debajo del keypad, es desde la
+quinta un cajón de la carcasa: `section#drawer`, después de la consola en el marcado, con
+los mismos controles y los mismos ids (el código y las pruebas los siguen encontrando
+igual). Desde la segunda vuelta de la quinta ronda tiene tres pestañas (`DRAWER_TABS`):
+**Cartuchos** (la ranura, «Cargar ROM», «Archivo» y las tarjetas de los cartuchos,
+[4.11](#411-los-cartuchos-tarjetas-miniaturas-y-cartel)), **Ajustes** (la velocidad, la
+pantalla y el sonido, la compatibilidad y los controles) y **Estados**. Lo abren y lo
+guardan el botón de los tres deslizadores (`#btn-drawer`, el primero de los redondos de la
+barra de arriba, antes del monitor, del lápiz del Taller y del «?»), la tecla M y la API;
+lo guardan también su × y Esc ([4.6](#46-teclado-keypad-y-foco)). Por qué un cajón y no un
+menú ni un diálogo: [8.46](#846-las-opciones-en-un-cajón-que-no-es-modal).
+
+**No es modal.** No hay fondo, ni trampa de foco, ni `inert` en el resto de la página: con
+el cajón afuera, las teclas, el keypad y el transporte andan como siempre, se puede jugar
+mientras se ajusta y un clic en una tarjeta de «Cartuchos» carga el cartucho sin guardar
+el cajón. Las ventanas modales (la ayuda, el archivo, la lista de estados) van encima del
+cajón y se quedan con el teclado
+([8.45](#845-las-ventanas-modales-se-quedan-con-el-teclado)): con la ayuda abierta, Esc
+cierra la ayuda y el cajón sigue afuera.
+
+**Dónde va.** `placeDrawer()` busca una columna a la derecha de la consola
+(`drawerColumn`): el monitor, si está a la vista al lado (desde 1200 px sin el Taller, o
+desde 1900 px con el Taller), o el Taller fijo a la derecha (entre 1200 y 1899 px).
+`drawerSide` elige el lado: **al costado** (`'costado'`) si hay columna o si, sin ella,
+entre la consola y el borde de la ventana quedan `DRAWER_SIDE_MIN` px (340: con el monitor
+oculto la consola queda sola en el medio, y en una ventana de 1440 × 900 ya sobran); si
+no, **desde abajo** (`'abajo'`, con la clase `drawer--abajo`).
+
+Al costado, el cajón empieza `DRAWER_TUCK` px debajo del borde derecho de la consola y
+termina en el borde derecho de la columna (sin columna, a lo sumo `DRAWER_SIDE_MAX` px,
+450, y 16 px antes del borde de la ventana). De alto ocupa la parte recta del borde de la
+consola, entre sus esquinas redondeadas (el radio, con la escala de la consola:
+`consoleRadius`), adentro de la ventana con 16 px de margen: así las esquinas del cajón,
+que son rectas del lado de la consola, quedan escondidas detrás de ella. Si la consola se
+fue de la ventana, el cajón conserva `DRAWER_MIN_H` (320 px) de alto. La columna que tapa
+(el monitor o el Taller) se esfuma mientras el cajón está afuera (la clase
+`is-under-drawer`: `opacity: 0` y, terminada la transición, `visibility: hidden`): así no
+asoma por arriba ni por abajo del cajón, que es más corto, y sus controles salen del orden
+del Tab. Al guardarse el cajón, vuelve. En una ventana de 1920 × 945, con la consola
+entera y el monitor al lado, el cajón va de x = 1112 a 1562 y de y = 54 a 891; en una de
+1440 × 900, de 853 a 1303 y de 53 a 848.
+
+Desde abajo (por debajo de 1200 px, como en una tableta o en un teléfono, o con el monitor
+oculto si al costado no quedan 340 px: a 1280 × 800, por ejemplo), sube del ancho de la
+consola, desde 10 px debajo del bisel hasta el borde de la ventana, tapando el keypad y no
+la pantalla. Si abajo no queda lugar (280 px, o media ventana si es más baja), al abrirlo
+la página se corre lo justo para que la pantalla quede arriba, entera
+(`makeRoomBelowScreen`).
+
+La caja la calcula `drawerBox(lado, consola, columna, bisel, ancho, alto, radio)`, una
+función sin DOM que prueba `tests/cajon.test.js`, y `placeDrawer` la pone en `--dw-x`,
+`--dw-y`, `--dw-w` y `--dw-h` (el cajón es `position: fixed`). Se vuelve a acomodar con la
+ventana (`resize`), con la consola (un `ResizeObserver`; cambia, por ejemplo, con su
+escala, [4.28](#428-la-consola-entera-en-la-ventana)), al mostrar u ocultar el monitor, al
+abrir y cerrar el Taller y, al costado, al scrollear (con un `requestAnimationFrame` por
+vez), así sigue a la consola y a la columna. `drawer.covers` dice qué tapa, y
+`drawerInfo()` lo devuelve. Por qué la columna y no un ancho fijo:
+[8.47](#847-el-cajón-tapa-la-columna-de-la-derecha-y-nunca-la-pantalla).
+
+**Cómo sale.** Al costado, el cajón empieza escondido debajo de la consola (`transform:
+translateX(-100%)`) y se desliza a su lugar en `DRAWER_MS` (240 ms); mientras está afuera,
+la clase `has-drawer-side` del `<html>` sube la consola (`z-index: 42`) por encima del
+cajón (41), que queda a su vez por encima del Taller (40): así sale de abajo del borde de
+la consola. Desde abajo, sube desde el borde de la ventana (z 45, encima de la consola).
+Al guardarlo, la transición vuelve, el cajón queda `inert` y, terminada (o enseguida, con
+`prefers-reduced-motion`, que apaga la transición), `hidden`. Es una pieza más de la
+carcasa: el plástico beige y las sombras de la consola, una manija con ranuras en el borde
+de afuera (arriba al medio, cuando sube desde abajo), el título impreso «OPCIONES» con la
+tecla M y las pestañas con la forma del selector «Tubo CRT / Píxeles puros».
+
+**Las pestañas.** Un `tablist` con un `tab` y un `tabpanel` por pestaña.
+`showDrawerTab(id)` elige una, deja a la vista solo su panel (`hidden` en los otros), la
+pone en el orden del Tab, lleva la bandeja arriba y la recuerda en `settings.drawerTab`;
+la primera vez, el cajón abre en «Cartuchos»
+([8.48](#848-tres-pestañas-y-la-última-se-recuerda)). Con el foco en una pestaña, las
+flechas, Inicio y Fin cambian de pestaña (`tabStep`); con el teclado se llega a la pestaña
+con Tab desde el título y se entra a su panel con otro Tab.
+
+- **Cartuchos**: la ranura, los botones y los dos grupos de tarjetas, «Incluidos» y «Tus
+  cartuchos» ([4.11](#411-los-cartuchos-tarjetas-miniaturas-y-cartel)).
+- **Ajustes**: las cuatro secciones que en la primera vuelta eran pestañas
+  (`DRAWER_SECTIONS`), una debajo de la otra: **Velocidad**, **Pantalla y sonido**,
+  **Compatibilidad** y **Controles**. Cada una es una `section` con su título impreso
+  (`h3.drawer-group-title`, que la nombra) y una raya que la separa de la anterior.
+  `openDrawer('pantalla')`, o cualquier otra sección, abre «Ajustes» con esa sección lo
+  más arriba que se pueda (`revealDrawerSection`).
+- **Estados**: la ranura rápida va sola arriba, acostada (la pantallita a la izquierda, lo
+  demás a la derecha), y una ranura hundida (`.save-sep`, `aria-hidden`) la separa de las
+  ranuras 1 a 4.
+
+Lo que no entra en el alto del cajón se scrollea adentro de la bandeja (`#drawer-body`,
+con `overscroll-behavior: contain`), nunca la página. El contenido mira el ancho de la
+bandeja y no el de la ventana (`container: cajon`,
+[8.51](#851-adentro-del-cajón-manda-el-ancho-del-cajón)): las tarjetas van en tantas
+columnas de al menos 80 px como entren (cuatro en el cajón al costado); las ranuras 1 a 4
+de «Estados», en dos columnas, o en una fila desde 560 px; las teclas de «Controles», en
+dos filas de tres por debajo de 690; Perfil y Plataforma, uno debajo del otro por debajo
+de 440. En un teléfono (480 px o menos), el cajón que sube desde abajo esconde el renglón
+del título (sigue ahí para los lectores de pantalla) y pone la × al lado de las pestañas.
+
+**El foco.** Al abrirlo con el botón, con M o con un toque, el foco entra al título
+(`#drawer-title`, con `tabindex="-1"`), que no es un control: Espacio sigue pausando, las
+flechas siguen siendo del keypad y M lo vuelve a guardar
+([8.49](#849-el-foco-entra-al-título-del-cajón)). Al guardarlo con el teclado (M, Esc o
+Enter en la ×) con el foco adentro, el foco vuelve al botón de la barra; con el mouse o un
+dedo, a la página, como al cerrar la ayuda, así Espacio no termina activando el botón. Si
+está a la vista el cartel de una tarjeta, Esc primero lo cierra. En pantalla completa, M y
+el botón primero salen de ella, como Y con el Taller. Abrir el Taller guarda el cajón si
+el Taller quedaría debajo ([4.23](#423-el-taller)).
+
+### 4.28 La consola entera en la ventana
+
+**El frente.** Desde la segunda vuelta de la quinta ronda, el frente de la consola lleva
+solo lo que se usa jugando: la pantalla con su bisel, la cubierta y el pie. La cubierta
+(`.deck`) va en dos columnas: a la izquierda, «Ejecución» (el transporte: seis botones de
+58 px de alto en dos filas de tres, con su nombre en letra de 14 px y su tecla en 12,5) y,
+debajo, la rejilla del parlante, a lo ancho (`.grille-row`); a la derecha, el keypad
+(`.keypad-well`), que es lo que manda en el alto de la cubierta. Al lado de la rejilla
+sigue la línea de estado, oculta a la vista: es la región que les anuncia todo a los
+lectores de pantalla ([4.20](#420-accesibilidad) y
+[8.56](#856-la-línea-de-estado-oculta-a-la-vista)). El pie lleva a la izquierda el nombre
+del autor y su página, «Maximiliano Simonazzi - www.maxisimonazzi.com.ar», como texto y no
+como enlace (un enlace necesitaría un `href` a otro sitio, y `tests/single-file.test.js`
+no deja ninguno: [8.23](#823-ninguna-dirección-de-red-en-chip8html)), y a la derecha la
+placa con el modelo, la memoria y el modo de video. La ranura, «Cargar ROM» y los
+cartuchos pasaron a la pestaña «Cartuchos» del cajón ([4.27](#427-el-cajón-de-opciones)),
+y los dos estantes que iban debajo de la consola ya no están
+([8.53](#853-los-cartuchos-van-en-el-cajón)). Para que se sepa qué está puesto con el
+cajón guardado, el bisel lleva impreso el nombre del cartucho (`#bezel-cart`, al lado de
+«Video 64 × 32»; lo escribe `updateSlot`); en un teléfono va en un renglón propio, debajo.
+Con 760 px o menos la cubierta es una sola columna: el keypad pegado debajo de la pantalla
+y después el transporte (en una fila de seis entre 600 y 760 px, con la letra un poco más
+chica) y la rejilla.
+
+**La escala.** Así y todo, la consola mide unos 947 px de alto, y una ventana de 1920 ×
+945 le deja 897. Con la cubierta en dos columnas (`CONSOLE_FIT_MEDIA`: más de 760 px de
+ancho), `fitConsole()` la achica entera, toda junta, hasta que entra en la ventana de la
+marca a la placa sin scrollear
+([8.50](#850-la-consola-se-achica-entera-para-entrar-en-la-ventana)). La escala es
+`consoleFitZoom(alto natural, alto disponible)`: el cociente con tres decimales,
+redondeado para abajo, entre `CONSOLE_Z_MIN` (0,72, donde las teclas del keypad todavía
+miden 44 px) y 1. El alto natural es `offsetHeight`, que no cambia con el zoom; el
+disponible, el de la ventana menos lo que hay arriba de la consola en la página (28 px) y
+el margen de abajo del `.desk` (20 px). La escala va en `--con-z`, en el `<html>`: la
+consola la usa como `zoom`, y la columna de la grilla (`calc(800px × --con-z)`) y el ancho
+del Taller ([4.23](#423-el-taller)) la usan para angostarse con ella, así el monitor queda
+pegado al costado. Se vuelve a calcular con la ventana (`resize`) y con la consola (un
+`ResizeObserver`); en pantalla completa, en una ventana de 760 px o menos (un teléfono,
+donde la página se scrollea igual) y en un navegador sin `zoom` (`zoomOk`), la consola va
+a tamaño natural. `consoleZoom()`, de la API, la devuelve.
+
+| Ventana | Escala | Consola (de y a y) | Página |
+|---|---|---|---|
+| 1920 × 945 | 0,946 | 28 a 924 (896 px) | sin scroll; el monitor, de 28 a 923 |
+| 1440 × 900 | 0,898 | 28 a 878 (850 px) | sin scroll |
+| 1280 × 800 | 0,793 | 28 a 779 | sin scroll |
+| 768 × 1024 | 1 | 28 a 943 | el monitor sigue abajo |
+| 360 × 640 | 1 | 968 px de alto | se scrollea; pantalla y keypad entran juntos |
+
+**La pantalla adentro del zoom.** Los lienzos de la pantalla y del resplandor no se
+achican con la consola: llevan el zoom inverso (`zoom: var(--con-iz)`, que `fitConsole`
+pone en 1 / escala), así su zoom efectivo es 1 y su tamaño en px CSS es el que miden en la
+ventana. `resizeScreen` calcula la escala entera con la caja del tubo en la ventana
+(`getBoundingClientRect`, que ya trae el zoom) y, si el navegador no dejara el zoom del
+lienzo en 1, divide su tamaño por el que quede (`screenZoom()`, con `currentCSSZoom` del
+lienzo), así cada píxel CHIP-8 sigue ocupando un número entero de píxeles físicos
+([8.10](#810-escala-entera-con-devicepixelratio)); con `devicePixelRatio` 1,25 la
+diferencia queda por debajo de medio píxel (E2E 84). El filtro de la curvatura trabaja en
+las medidas del lienzo: con el zoom inverso, son las de la ventana, y su definición
+(`svg.svg-defs`) va fuera de la consola, así no depende de cómo cada navegador lleva el
+zoom a las medidas de un filtro ([8.58](#858-la-curvatura-con-el-lienzo-sin-zoom)). Lo
+demás que se mide adentro de la consola usa `getBoundingClientRect` (con el zoom) y, si
+mira un largo del CSS (el radio de las esquinas, para el cajón), lo multiplica por la
+escala.
+
+### 4.29 Los carteles
+
+Desde el final de la quinta ronda ningún elemento tiene `title`: el cartel del navegador,
+con el aspecto del sistema, no aparece nunca. Todos los textos que antes iban en `title`
+salen en el cartel de la consola, el mismo de las tarjetas de los cartuchos (`#cart-tip`,
+[4.11](#411-los-cartuchos-tarjetas-miniaturas-y-cartel)), con una franja naranja arriba y
+solo el texto (`.cart-tip--plain`). Es la sección «carteles» de `chip8-ui`, que va antes
+que todo lo que pone un título:
+
+- **El texto vive en `data-tip`.** La propiedad `title` de los elementos
+  (`HTMLElement.prototype`) se redefine: leer devuelve `data-tip` y escribir llama a
+  `setTip`. Así el código que pone o cambia un título (el de Pausa, los de los
+  interruptores, las filas del monitor, los errores del Taller) sigue igual, y los `title`
+  del marcado se mudan al arrancar (`adoptTitle`). Uno que se cuele igual (armado con
+  `innerHTML`, por ejemplo) se muda al pasar el mouse o llegar con el foco.
+- **Los lectores de pantalla** reciben el texto como descripción (`aria-description`), o
+  como nombre (`aria-label`, marcado con `data-tip-name`) si el elemento no tenía otro: ni
+  `aria-label`, ni `aria-labelledby`, ni texto, ni un `<label>`. Si dice lo mismo que el
+  nombre, no se repite.
+- **Cuándo sale** (`bindTips`, delegado en el documento): con el mouse, a los
+  `TIP_DELAY_MS` (350 ms) de quedarse sobre el elemento, y enseguida al pasar de uno a
+  otro con un cartel a la vista; con el teclado, al llegar con el foco visible. Se va al
+  sacar el mouse, al perder el foco, al tocar cualquier cosa, al scrollear la página o lo
+  que contiene al elemento, y con Esc, que igual sigue haciendo lo suyo (guardar el cajón,
+  cerrar una ventana). A diferencia del de las tarjetas, no se puede tocar
+  (`pointer-events: none`): nunca se queda con un clic dirigido a lo que hay abajo.
+- **Dónde va**: debajo del elemento, o arriba si abajo no entra, siempre adentro de la
+  ventana (`placeTip`). Si el elemento está en una ventana modal (la ayuda, el archivo, la
+  lista de estados, las preguntas), el cartel se muda a ella, que va en la capa de más
+  arriba, para quedar encima.
+
+Las opciones de un `<select>` también tienen su texto, pero la lista desplegable la dibuja
+el navegador: ahí no sale ningún cartel (el del `<select>`, sí). Con un dedo no aparece.
+Por qué un cartel propio para todo: [8.57](#857-ningún-cartel-del-navegador).
+
+### 4.30 Cuidado
+
+Al final de la pestaña «Ajustes» del cajón, después de «Controles», va «Cuidado»
+(`#drawer-sec-cuidado`, la sección «cuidado» de `chip8-ui`): una zona con borde naranja y
+una franja de peligro arriba que borra lo que la consola guardó en este navegador. No es
+una de `DRAWER_SECTIONS` (no se abre con `openDrawer`). Son cinco acciones:
+
+| Acción | Qué borra | Qué deja | Deshacer |
+|---|---|---|---|
+| Los ajustes recordados y los estados de un juego (se elige de una lista: los juegos con algo guardado) | sus ajustes recordados (`chip8-consola.cartuchos`) y sus estados (`chip8-consola.estados`) | sus banderas de FX75 y el cartucho en «Tus cartuchos» | sí: vuelven las dos cosas (un estado guardado después en una ranura vacía se queda) |
+| Toda la configuración | tus ajustes (`chip8-consola.ajustes`, de fábrica: `defaultSettings`), los recordados de todos los juegos y todos los estados | tus cartuchos, el Taller y las banderas de cada juego | no: la consola vuelve a arrancar (`location.reload`) |
+| Un juego de «Tus cartuchos» (de una lista) | su ROM (`libraryRemove`) | sus estados y sus ajustes recordados | sí |
+| Todos tus cartuchos | todas las ROMs (`libraryRemoveAll`) | sus estados y sus ajustes | sí |
+| Limpiar el Taller | tus programas, los ejemplos y fuentes que cambiaste y lo que no guardaste (`chip8-consola.taller`) | los ejemplos y los fuentes como vienen | sí |
+
+Cada botón pregunta antes en un diálogo propio (`#danger-ask`, con el aspecto de la
+pregunta al importar estados): el título dice qué se borra, el texto qué se queda, y la
+lista cuánto (los ajustes que tenía recordados el juego, en palabras; cuántos estados y de
+qué ranuras; cuántos juegos, cartuchos, bytes y programas). El foco empieza en «Cancelar»;
+Esc, la × y un clic en el fondo cancelan; mientras está abierto, el teclado es suyo
+(`statesDialogOpen`). No hay `confirm()` ni ningún diálogo del navegador. Las listas se
+ponen al día al abrir el cajón, al ir a elegir y cada vez que cambian la biblioteca o lo
+recordado (`renderDanger`); un botón sin nada que borrar queda deshabilitado. Todo pasa
+por los ayudantes de siempre (`storageWrite`, `writeRomStore`, `commitStates`,
+`wsCommit`): sin lugar o sin almacenamiento, avisan como siempre. Por qué así:
+[8.59](#859-cuidado-borrar-con-un-diálogo-propio).
 
 ---
 
@@ -2753,7 +3147,7 @@ y para probar por HTTP.
 
 ### 5.7 tools/e2e.js
 
-Pruebas de punta a punta en un navegador de verdad, sin dependencias (unas 7000 líneas).
+Pruebas de punta a punta en un navegador de verdad, sin dependencias (unas 7900 líneas).
 Cómo está armado:
 
 ```
@@ -2810,6 +3204,29 @@ Node con el núcleo del bloque; un `localStorage` que se llena hasta el
 mientras se escribe en el Taller, con un punto de corte puesto, mientras se hacen las
 miniaturas y con la lista de estados abierta.
 
+Desde la quinta ronda, las opciones viven en el cajón ([4.27](#427-el-cajón-de-opciones))
+y el arnés lo maneja como una persona: `Page.rect` (y con ella `click`, `clickHit`,
+`chooseWithMouse` y `chooseSelect`) llama antes a `reach(selector)`, que, si el elemento
+está en el cajón y no se ve, lo abre con un clic en el botón de la barra y toca su
+pestaña, y si el elemento está afuera y el cajón abierto lo tapa, lo guarda con su ×. Si
+un aviso flotante tapa el botón de la barra, primero lo cierra con su ×. Así los
+escenarios de antes no cambiaron sus pasos: solo los que enfocan un control del cajón con
+el teclado (llaman a `reach` antes) y los que pasaban de un grupo al siguiente con Tab
+(ahora entran por la pestaña, con `focusDrawerTab`). `openDrawer(page, pestaña, cómo)` y
+`closeDrawer(page, cómo)` abren y guardan el cajón con el mouse, con M, con la × o con
+Esc, y esperan a que termine la transición (`DRAWER_SETTLED`: sin animaciones en marcha,
+con `getAnimations`). Desde la segunda vuelta, una sección de «Ajustes» se alcanza como lo
+haría una persona: un clic en «Ajustes» y la bandeja corrida hasta su título;
+`focusDrawerTab` con una sección deja el foco en su título, así el próximo Tab entra a su
+primer control. Los cartuchos se ponen con `clickCart` (un demo) y `clickLibCart` (uno de
+tus cartuchos): abren el cajón en «Cartuchos», tocan la tarjeta y, si lo abrieron para
+eso, lo vuelven a guardar, así el frente queda como estaba; `loadWithButton` hace lo mismo
+con «Cargar ROM». Los escenarios 78 a 86 suman sus medidas: `fitView` (la consola, su
+escala y lo que entra en la ventana), `CONSOLE_CORNERS` (las esquinas del cajón, detrás
+del borde recto de la consola), `cardThumb` (la miniatura de una tarjeta, comparada con la
+misma cuenta hecha en Node con el núcleo del bloque) y `tipView` (el cartel de una
+tarjeta).
+
 Cada escenario arranca con los ajustes de fábrica: borra el `localStorage` desde una página
 vacía del mismo origen (`Storage.clearDataForOrigin` devolvía "Internal error" en este
 Chrome). Los escenarios miden con tiempo real (dejan correr `requestAnimationFrame`), no
@@ -2860,6 +3277,7 @@ Antes de dar por terminado un cambio: `node --test` y, si tocaste la interfaz,
 | `tests/estados.test.js` | Los estados guardados y el rebobinado: guardar a mitad de un programa y cargar en otra máquina sigue igual frame a frame (timers, `CALL`/`RET`, `FX0A`, SUPER-CHIP, XO-CHIP con dos planos, audio y memoria de 64 KB, máquinas detenidas y terminadas); `loadState` cambia de plataforma sin recargar la ROM; 54 validaciones que dejan la máquina intacta; el formato de texto (ida y vuelta, también con estados al azar; la compresión en los bordes de la base 128; tamaños; cada error; 400 textos cambiados al azar); y `RewindBuffer` (orden, páginas compartidas y la cuenta exacta de los bytes, límites, `clear`, cambios de plataforma entre fotos, `push` y `pop` intercalados y el rendimiento). |
 | `tests/estados-archivos.test.js` | Los archivos de estados, el giro de las pantallitas y `findCartridge` ([4.26](#426-estados-en-archivos-y-la-lista-de-todos)): evalúa sola la sección «estados guardados: archivos» de `chip8-ui`, con las ayudas que usa sacadas de `chip8.html`; el archivo que se arma (campos y su orden, ida y vuelta, estados reales de las tres plataformas, los nombres de archivo), el mensaje de cada archivo que no sirve (vacío, no JSON, otro programa, otra versión, un estado suelto, todo dañado), cada estado dañado con su motivo, ranuras y fechas, la ROM (buena, ajena, rota, del tamaño máximo), qué pasa con cada ranura al importar y el resumen, el giro contra una referencia escrita aparte, distinguir un archivo de estados de una ROM, y `findCartridge` con demos, «Tus cartuchos» y `archiveRomBytes`. |
 | `tests/depurador.test.js` | El depurador del núcleo: la traza (orden, tope, la instrucción que falla), el mapa de accesos (cada instrucción que lee o escribe, el operando de `F000 NNNN`, la vuelta en `0xFFF`), el registro de dibujos, los puntos de corte (se detiene antes y al seguir ejecuta, el frame abierto, frenar y seguir da lo mismo frame por frame, no son parte del estado), `runTo` (paso por encima con recursión, salir, «hasta acá», una subrutina que no vuelve) y qué borran `reset` y `loadState`. |
+| `tests/cajon.test.js` | El cajón de opciones, la consola entera en la ventana y el botón del monitor, sin navegador ([4.27](#427-el-cajón-de-opciones), [4.28](#428-la-consola-entera-en-la-ventana) y [4.16](#416-el-monitor)): evalúa las secciones «constantes», «utilidades», «validación de lo guardado», «ajustes guardados», «cajón de opciones», «la consola en la ventana» y «miniaturas de cartuchos» de `chip8-ui` con un `localStorage` de mentira; los ajustes `drawerTab` y `monitorOpen` de fábrica, guardados y dañados (las pestañas de la primera vuelta vuelven a «Cartuchos» y un `keypadFolded` guardado se ignora), sin llevarse puestos a los demás; `tabStep`; `drawerBox` y `drawerSide` al costado (con el monitor, con el Taller, sin columna, con la página corrida, con la consola fuera de la ventana, con las esquinas detrás del borde recto de la consola) y desde abajo (en un teléfono, en una tableta, sin lugar); `consoleFitZoom`; `thumbKey`; y el marcado: la región, el botón de la barra, las tres pestañas con sus paneles, las cuatro secciones de «Ajustes», cada control del panel de antes en su lugar con su id, la pestaña «Cartuchos», la ranura rápida sola arriba, la M en la ayuda, el frente de la consola (sin la ranura ni los estantes, sin el keypad plegable, con el cartucho impreso en el bisel, la línea de estado oculta a la vista, los botones de «Ejecución» más grandes y el pie con el nombre del autor y su página, como texto) y la barra de arriba con el botón del monitor; «Cuidado» al final de «Ajustes», con sus cinco botones y su diálogo, y ningún `confirm()` ni `alert()`. |
 | `tests/taller.test.js` | Los fuentes del Taller (`CHIP8_SOURCES`, [5.2](#52-el-incrustador-toolsembed-romsjs)): el de cada cartucho y los once ejemplos del tutorial, iguales a sus archivos y ensamblando a sus `.ch8`, la descripción de cada ejemplo, el bloque sin ningún `<`; y `embed-roms.js` con los ejemplos en una carpeta temporal (`@platform`, `@description`, los errores en castellano, un nombre de archivo que no vale, CRLF, `--check` y sin la carpeta `docs/ejemplos/`). |
 | `tests/tutorial.test.js` | El tutorial y sus ejemplos ([6.6](#66-pruebas-de-la-documentación)). |
 | `tests/manual.test.js` | El manual, el README y este documento ([6.6](#66-pruebas-de-la-documentación)). |
@@ -2867,9 +3285,9 @@ Antes de dar por terminado un cambio: `node --test` y, si tocaste la interfaz,
 
 ### 6.3 Números actuales
 
-Medido el 6 de noviembre de 2026 con Node 24.18 (`node --test` desde la raíz), al
-terminar la cuarta ronda: **1602 pruebas en 229 grupos**, todas pasan y ninguna salteada,
-en unos 6 s.
+Medido el 7 de noviembre de 2026 con Node 24.18 (`node --test` desde la raíz), al
+terminar la segunda vuelta de la quinta ronda: **1639 pruebas en 236 grupos**, todas
+pasan y ninguna salteada, en unos 6 s.
 
 | Archivo | Pruebas |
 |---|---|
@@ -2889,13 +3307,14 @@ en unos 6 s.
 | `tests/depurador.test.js` | 41 |
 | `tests/manual.test.js` | 38 |
 | `tests/estados-archivos.test.js` | 36 |
+| `tests/cajon.test.js` | 37 |
 | `tests/quirks.test.js` | 30 |
 | `tests/archive.test.js` | 29 |
 | `tests/asm-bloque.test.js` | 18 |
 | `tests/mutation-gaps.test.js` | 12 |
 | `tests/taller.test.js` | 9 |
 | `tests/single-file.test.js` | 4 |
-| **Total** | **1602** |
+| **Total** | **1639** |
 
 Todas pasan cuando los cartuchos, los fuentes del Taller, la tabla del archivo y sus ROMs
 incrustados están al día y `roms/archivo/` está completa. Las pruebas del grupo
@@ -2908,21 +3327,23 @@ propósito si alguien cambia un `roms/*.asm`, un `docs/ejemplos/*.asm` o
 Fuera de `node --test`: `node tools/archive.js test` informa que 103 de los 104 juegos del
 archivo corren sin errores ([5.5](#55-toolsarchivejs)).
 
-La E2E: **77 escenarios** ([6.7](#67-los-escenarios-e2e)). En la cuarta ronda, cada agente
-pasó la E2E completa en su copia, con los 50 de antes y los suyos, y con el código ya
-junto pasaron los 76 de entonces en una corrida completa; el 77 se agregó después y pasó
-solo. El detalle, y la corrida de los 77 juntos, están en
+La E2E: **89 escenarios** ([6.7](#67-los-escenarios-e2e)). En la segunda vuelta de la
+quinta ronda, la corrida completa final pasó 86 de 89, y los tres que fallaron pasaron
+solos una vez corregidos ([7.22](#722-quinta-ronda-la-segunda-vuelta)); en la primera
+vuelta, los 85 de entonces ([7.21](#721-quinta-ronda-la-verificación)). En la cuarta
+ronda, cada agente pasó la E2E completa en su copia, con los 50 de antes y los suyos, y
+con el código ya junto pasaron los 76 de entonces en una corrida completa; el 77 se agregó
+después y pasó solo. El detalle, y la corrida de los 77 juntos, están en
 [7.18](#718-cuarta-ronda-la-verificación). Al terminar la tercera ronda, los 50 de
 entonces habían pasado en tres corridas seguidas: los 24 de la primera ronda, los 16 de la
-segunda y 10 nuevos para los estados guardados y el rebobinado. En la segunda ronda,
-los 40 de entonces pasaron en 4 corridas completas seguidas, de unos 188 s cada una;
-algunas medidas de esas corridas: *Planos* a 60 frames por segundo; el avance rápido da
-×4,00 instrucciones y tics de los timers; la captura es un PNG de 640×320; con IPF 10.000,
-unas 601 900 instrucciones por segundo. Y de la primera
-ronda, en Chrome 154: `requestAnimationFrame` a 60,0 por segundo; Rebote a 59,8 frames por
-segundo con IPF 15 y con IPF 1000 (579 instrucciones por segundo, por `displayWait`); un
-bucle sin dibujo a IPF 1000, 60,3 frames y 60 259 instrucciones por segundo; la pelota
-recorre 30 píxeles en 1 s.
+segunda y 10 nuevos para los estados guardados y el rebobinado. En la segunda ronda, los
+40 de entonces pasaron en 4 corridas completas seguidas, de unos 188 s cada una; algunas
+medidas de esas corridas: *Planos* a 60 frames por segundo; el avance rápido da ×4,00
+instrucciones y tics de los timers; la captura es un PNG de 640×320; con IPF 10.000, unas
+601 900 instrucciones por segundo. Y de la primera ronda, en Chrome 154:
+`requestAnimationFrame` a 60,0 por segundo; Rebote a 59,8 frames por segundo con IPF 15 y
+con IPF 1000 (579 instrucciones por segundo, por `displayWait`); un bucle sin dibujo a IPF
+1000, 60,3 frames y 60 259 instrucciones por segundo; la pelota recorre 30 píxeles en 1 s.
 
 ### 6.4 Pruebas de caja negra
 
@@ -3101,7 +3522,13 @@ Todos usan entrada real (teclas, clics, toques, archivos y arrastre) y tiempo re
 primeros son de la primera ronda; del 25 al 40, de la segunda; del 41 al 50, de la
 tercera; del 51 al 77, de la cuarta: del 51 al 57, el Taller; del 58 al 65, el depurador;
 del 66 al 70, la ventana del archivo; del 71 al 76, los estados en archivos, y el 77, los
-dos puntos donde se tocan las piezas ([7.17](#717-cuarta-ronda-la-integración)):
+dos puntos donde se tocan las piezas ([7.17](#717-cuarta-ronda-la-integración)); del 78 al
+89, de la quinta: del 78 al 83, el cajón de opciones; el 84, la consola entera en la
+ventana; el 85, el botón del monitor; el 86, la pestaña «Cartuchos»; el 87, los carteles;
+el 88, la curvatura con la consola achicada, y el 89, «Cuidado». El 84 y el 85 de la
+primera vuelta de la quinta ronda probaban el keypad plegable, que la segunda sacó
+([7.22](#722-quinta-ronda-la-segunda-vuelta)). Desde la quinta, los escenarios que tocan
+las opciones o los cartuchos abren el cajón como una persona ([5.7](#57-toolse2ejs)):
 
 | # | Qué verifica |
 |---|---|
@@ -3111,19 +3538,19 @@ dos puntos donde se tocan las piezas ([7.17](#717-cuarta-ronda-la-integración))
 | 4 | Keypad en pantalla: mouse, arrastrar afuera de la tecla y dos dedos a la vez. |
 | 5 | Atajos (Espacio, N, Retroceso, H, Esc) y el modelo de foco: un clic no deja el foco en el botón; con el foco puesto desde el teclado, Espacio activa el control. |
 | 6 | Carga de ROMs: selector de archivos, ROM vacía o demasiado grande (65.025 bytes; el aviso no tapa nada) y arrastrar y soltar. |
-| 7 | Cada cartucho del estante carga y corre 3 s. |
+| 7 | Cada cartucho incluido carga desde su tarjeta de «Cartuchos» y corre 3 s. |
 | 8 | Atrapa: A y D mueven la paleta. |
 | 9 | Autotest con cada perfil: 19 comprobaciones y 0 fallas. |
 | 10 | Interruptores de quirks, perfiles, ajustes guardados y un `localStorage` roto. |
 | 11 | Controles de velocidad: deslizador, campo numérico y botones. |
 | 12 | Sonido: el gesto que lo habilita, el silencio y la pausa. |
-| 13 | Monitor: Paso, desensamblado, registros, pila, Frame y ocultar. |
+| 13 | Monitor: Paso, desensamblado, registros, pila, Frame, y ocultarlo y mostrarlo (con «Ocultar» y con el botón de la barra). |
 | 14 | Error con la máquina corriendo: tubo, monitor, un solo anuncio y Reiniciar. |
-| 15 | Diseño adaptable de 360 a 1440 px y nitidez con escala 1,25 y 2. |
+| 15 | Diseño adaptable de 360 a 1440 px y nitidez con escala 1,25 y 2; el nombre del cartucho, impreso en el bisel. |
 | 16 | `prefers-reduced-motion` apaga parpadeos y animaciones. |
 | 17 | Pestaña congelada u oculta: al volver no se pone al día de golpe. |
 | 18 | Modo de pantalla: Tubo CRT y Píxeles puros (colores exactos, sin efectos, interruptores deshabilitados), se conserva al recargar y cambia con las flechas. |
-| 19 | Selector rápido de cartuchos bajo la ranura, a 1440×900 y sin scrollear. |
+| 19 | La pestaña «Cartuchos» a 1440×900: los incluidos a la vista sin scrollear la página ni el cajón. |
 | 20 | Selectores de perfil y paleta: después de elegir, las teclas van al CHIP-8; N, H y Retroceso funcionan; con Tab y flechas cambian de forma nativa. |
 | 21 | Keypad con el teclado: Tab hasta una tecla, Enter breve (unos 120 ms) y Espacio sostenido; `FX0A` los recibe. |
 | 22 | Error con la máquina en pausa (Reiniciar deja `0x200` en pausa) o corriendo (vuelve a correr). |
@@ -3136,15 +3563,15 @@ dos puntos donde se tocan las piezas ([7.17](#717-cuarta-ronda-la-integración))
 | 29 | Autoconfiguración, con una entrada del archivo registrada para la prueba: plataforma, quirks, IPF, colores y giro de 270° aplicados antes del primer frame, con su aviso y la línea de la ranura; con el interruptor apagado, nada; un cambio tuyo se recuerda y «Olvidar ajustes» vuelve a los del archivo. |
 | 30 | Ajustes recordados: una ROM cargada con «Cargar ROM», cambios con el mouse, recarga, la misma ROM otra vez (aviso, ranura y valores) y «Olvidar ajustes» de la ranura. |
 | 31 | Banderas RPL: lo que guarda `FX75` sobrevive a una recarga y `FX85` lo lee. |
-| 32 | Biblioteca: «Tus cartuchos» y «Tuyos:», cargar desde los dos, recarga, quitar y «Deshacer»; con el almacenamiento roto, todo anda en memoria. |
-| 33 | Planos desde el estante: 60 frames por segundo sin errores, píxeles con los valores 1 a 3, su patrón de sonido, y W frena el rombo. |
+| 32 | Biblioteca: «Tus cartuchos» en la pestaña «Cartuchos», con sus miniaturas; cargar, recarga, quitar y «Deshacer»; con el almacenamiento roto, todo anda en memoria. |
+| 33 | Planos desde su tarjeta: 60 frames por segundo sin errores, píxeles con los valores 1 a 3, su patrón de sonido, y W frena el rombo. |
 | 34 | Avance rápido: la T sostenida y el botón del bisel dan 4 veces más instrucciones y tics de los timers; al soltar, vuelve a 60 por segundo sin ponerse al día. |
 | 35 | Captura: G y el botón de la cámara bajan el PNG (el nombre con la fecha, los mismos bytes que `screenshot()`, los colores exactos de la paleta); en 128×64, los cuatro colores. |
 | 36 | Pantalla completa: el botón del bisel, P y Esc entran y salen, con escala entera. |
 | 37 | Joystick simulado (Gamepad API): la cruz, la palanca, A y B aprietan las teclas de «Controles», Start pausa y continúa, y desconectarlo suelta todo. |
 | 38 | Flechas y «Controles»: el mapa de Octo, el del VIP y uno personalizado (con el mouse); los controles con foco se quedan con sus flechas; el mapa de cada cartucho se recuerda al recargar. |
 | 39 | Curvatura (apagarla deja el tubo idéntico, píxel por píxel) y encendido animado (al cargar; no con `prefers-reduced-motion` ni con el interruptor apagado). |
-| 40 | Diseño con la biblioteca llena y «Controles» personalizados a la vista, a 1440, 768 y 360 px. |
+| 40 | Diseño con la biblioteca llena (las doce tarjetas de «Cartuchos») y «Controles» personalizados a la vista, en el cajón de opciones, a 1440, 768 y 360 px: las tarjetas no se pisan, los seis selectores entran en el cajón y el cajón en la ventana. |
 | 41 | I guarda y U restaura la máquina exacta (pc, registros, pila, timers, pantalla, memoria, quirks); en pausa queda en pausa con ese frame en el lienzo y en el monitor. |
 | 42 | Ranuras 1 a 3 con el mouse: miniaturas idénticas píxel por píxel, fechas, «Cargar» en pausa, «Borrar» y «Deshacer», y la paleta Ámbar las repinta. |
 | 43 | Los estados sobreviven a una recarga ("hace 5 min", "ayer 18:20"), U anda después de recargar y otra ROM ve sus ranuras vacías. |
@@ -3153,14 +3580,14 @@ dos puntos donde se tocan las piezas ([7.17](#717-cuarta-ronda-la-integración))
 | 46 | En pausa, un toque de B vuelve un frame exacto; mantenerla sigue volviendo; después de un error vuelve un frame y queda en pausa. |
 | 47 | Con «Rebobinado» apagado, B y ⏪ no hacen nada y no se guardan fotos; el ajuste sobrevive a una recarga. |
 | 48 | Almacenamiento roto (todo en memoria), lleno (el aviso correcto y el estado en memoria), un estado dañado y la ranura vacía. |
-| 49 | Diseño con el grupo «Estados» a la vista, a 1440, 768 y 360 px. |
+| 49 | Diseño con la pestaña «Estados» del cajón de opciones a la vista, a 1440, 768 y 360 px: pantallitas con escala entera, botones enteros y el cajón sin tapar la pantalla. |
 | 50 | XO-CHIP a 1000 IPF con Planos y con una ROM que reescribe la memoria en cada frame: 60 fps tomando fotos y al rebobinar. |
 | 51 | Taller a 1440×900: va fijo a la derecha sin tapar la pantalla, trae los 11 ejemplos y los 6 fuentes; Ctrl+Enter ensambla y corre un ejemplo (los mismos bytes que `tools/chip8asm.js`, sin ir a «Tus cartuchos») y `workshopSymbols()` trae sus etiquetas y su listado; Y y Esc. |
 | 52 | Errores: los tres de un programa roto marcados en el margen y listados, el cursor en el primero, un clic en uno lleva a su renglón, la revisión sola al corregir, y el margen alineado con la rueda y con un error en el renglón 600. |
 | 53 | «Sin guardar» que sobrevive a una recarga, Guardar («editado»), «Restaurar el original» y Borrar con «Deshacer», Nuevo, Tab, Mayús+Tab y Ctrl+Z, el nombre (Esc deshace lo escrito) y el formato de `localStorage['chip8-consola.taller']`. |
 | 54 | «Abrir .asm» con `@platform xochip` corre en XO-CHIP; Plataforma escribe la etiqueta (CHIP-8 da el error de memoria en su renglón; una etiqueta que no vale, el suyo); «Descargar .asm» y «Descargar .ch8» exactos; SUPER-CHIP en un programa sin etiqueta. |
 | 55 | Taller sin almacenamiento (en memoria, sin avisos flotantes), sin lugar (el aviso y Guardar para reintentar) y con datos dañados (todo o una parte). |
-| 56 | Diseño con el Taller abierto: a 1440 y 1280 px al costado sin tapar la pantalla; a 768 y 360 px debajo de los estantes (a 360, abierto con un toque y el foco en el título); botones enteros y el margen alineado. |
+| 56 | Diseño con el Taller abierto: a 1440 y 1280 px al costado sin tapar la pantalla; a 768 y 360 px debajo de la consola (a 360, abierto con un toque y el foco en el título); botones enteros y el margen alineado. |
 | 57 | Teclado y lector de pantalla: Tab y Enter abren, las teclas escritas no llegan al keypad, Esc y Tab salen del editor, Plataforma con las flechas (no reescribe la etiqueta a cada paso), Guardar con Enter no pierde el foco, Esc cierra, Y desde la pantalla completa; roles y nombres; 60 fps a 10.000 IPF mientras se escribe. |
 | 58 | Puntos de corte con el mouse y el teclado: se detiene antes de la instrucción, avisa, al seguir la ejecuta; Frame completa el frame abierto; la × y «Sacar todos». |
 | 59 | Paso por encima (O, el botón y un dedo) con recursión, «Hasta acá», salir (K) y una subrutina que no vuelve (Espacio la pausa). |
@@ -3170,7 +3597,7 @@ dos puntos donde se tocan las piezas ([7.17](#717-cuarta-ronda-la-integración))
 | 63 | El desensamblado que se recorre (rueda, «Ir a», Av Pág, datos como DB) y el monitor en 1440, 768 y 360 px con cada pestaña. |
 | 64 | Los puntos de corte por cartucho y fuera del estado; el mapa y la traza al reiniciar, al cargar un estado y al rebobinar; la pestaña se recuerda. |
 | 65 | 60 fps a 10.000 IPF con un punto de corte puesto y con Planos en cada pestaña del monitor. |
-| 66 | Archivo de la comunidad: el botón del estante y L abren la ventana con los 104 juegos y sus datos; buscar, filtrar por plataforma y por evento o año, ordenar y «Mostrar todos»; las teclas no llegan a la consola; Esc, L, × y el fondo la cierran. |
+| 66 | Archivo de la comunidad: el botón de la pestaña «Cartuchos» y L abren la ventana con los 104 juegos y sus datos; buscar, filtrar por plataforma y por evento o año, ordenar y «Mostrar todos»; las teclas no llegan a la consola; Esc, L, × y el fondo la cierran. |
 | 67 | Un clic o Enter cargan el juego con los ajustes del archivo, la ventana se cierra, la pantalla queda a la vista y el juego corre; flechas, Inicio, Fin y AvPág; «En la ranura», «en tus cartuchos» y «ajustes recordados»; también por `file://`. |
 | 68 | Las 104 ROMs embebidas se descomprimen en el navegador a su huella SHA-1; una dañada, un navegador sin `DecompressionStream` o una página sin las ROMs avisan claro y la consola sigue andando. |
 | 69 | Miniaturas solo de las tarjetas a la vista, idénticas a correr la ROM aparte (colores y giro); mientras se hacen, la consola sigue a 60 fps con 10.000 IPF. |
@@ -3182,12 +3609,28 @@ dos puntos donde se tocan las piezas ([7.17](#717-cuarta-ronda-la-integración))
 | 75 | El giro en las pantallitas: 90° (también un estado guardado antes), 180° y 270° en «Estados», en la lista, en la pregunta y en el archivo exportado; Sub-Terr8nia, del archivo, a 270°. |
 | 76 | Diseño de «Estados», de la lista y de la pregunta a 1440, 768 y 360 px, y 60 fps a 10.000 IPF con la lista abierta. |
 | 77 | Integración: el desensamblado muestra las etiquetas del programa del Taller (y no las de otro cartucho), y «Ver todos» carga el estado de un juego del archivo con sus ROMs embebidas aunque haya otro cartucho en la ranura. |
+| 78 | El cajón de opciones: lo abren y lo guardan el botón de la barra, M, Esc y su ×; el foco entra al título al abrirlo y vuelve al botón al guardarlo con el teclado (con el mouse, a la página); región con nombre, `aria-expanded` y `aria-controls`; M con un selector enfocado no elige nada; con la ayuda abierta, Esc cierra solo la ayuda. |
+| 79 | Las tres pestañas: un clic, las flechas, Inicio y Fin (con la vuelta), una sola a la vista y en el orden del Tab, Tab desde la pestaña entra a su panel, las flechas sobre una pestaña no aprietan teclas del CHIP-8, y la pestaña se recuerda al guardar el cajón y al recargar (la primera vez, «Cartuchos»); las cuatro secciones de «Ajustes», con su título, y `openDrawer('controles')` corre la bandeja hasta la suya. |
+| 80 | El cajón no es modal: abierto, las 16 teclas, las flechas, Espacio, N, el keypad con el mouse, el transporte y las tarjetas de «Cartuchos» andan (una tarjeta carga y el cajón sigue afuera, en su pestaña). |
+| 81 | Al costado, el cajón tapa el monitor (que se esfuma mientras tanto y vuelve al guardarlo) y nunca la pantalla, y sus esquinas quedan detrás del borde recto de la consola; con el cajón abierto, Píxeles puros, la paleta Ámbar y Tubo CRT se ven enseguida en una captura de la pantalla de verdad; abrir el Taller guarda el cajón y, abierto otra vez, tapa el Taller; a 1920×945 con el Taller, tapa el monitor y el Taller queda a la vista. |
+| 82 | Diseño del cajón a 1920×945, 1440, 768 y 360 px, en sus tres pestañas: al costado (a lo largo de la parte recta de la consola) o desde abajo (del ancho de la consola, tapando el keypad), adentro de la ventana, sin scroll de costado, con las pestañas enteras, el scroll adentro del cajón y la pantalla a la vista. |
+| 83 | Con el cajón abierto, en «Ajustes», en «Estados» con una pantallita y en «Cartuchos» mientras se hacen las miniaturas, 60 frames por segundo a 10.000 IPF. |
+| 84 | La consola entera en la ventana: a 1920×945, 1440×900 y 1280×800 (esta, con escala 1,25) se achica toda junta hasta entrar sin scroll, de la marca a la placa, con el parlante, el keypad y el monitor al lado; el lienzo sigue 1:1 con los píxeles físicos; se acomoda al cambiar la ventana sin recargar y no baja de su mínimo (teclas de 44 px); el bisel dice qué cartucho está puesto; a 768×1024 va a tamaño natural y en el teléfono no se achica; la línea de estado no se ve (un píxel) pero sigue anunciando, los botones de «Ejecución» son más grandes (58 px, con el nombre en letra de 14 px) sin que la consola crezca, ningún nombre se sale de su botón y el pie dice «Maximiliano Simonazzi - www.maxisimonazzi.com.ar». |
+| 85 | El monitor se oculta y se muestra con su botón de la barra (`aria-expanded`, con el mouse y con el teclado) y con «Ocultar» en su cabecera (el foco pasa al botón de la barra); oculto, la consola queda sola en el medio y el cajón sale a su costado (o desde abajo, si no hay lugar); se recuerda al recargar. |
+| 86 | La pestaña «Cartuchos»: cada tarjeta con la miniatura de su pantalla (igual, píxel por píxel, a correr la ROM aparte) y su nombre; el cartel propio con el mouse y con el teclado (Esc lo cierra y el cajón sigue afuera; ninguna tarjeta tiene `title`); Tab entra por la tarjeta de la ranura, y las flechas, Inicio y Fin recorren el grupo; un clic o Enter cargan y marcan el cartucho; «Cargar ROM» y una ROM arrastrada a la página van a «Tus cartuchos» con su miniatura; L abre el archivo. |
+| 87 | Carteles: ningún atributo `title` en la página (al arrancar, después de pausar, guardar un estado y abrir el cajón, en el Taller y en la ventana del archivo); con el mouse sobre «Paso», el cartel de la consola sale a los 350 ms, debajo del botón, sin quedarse con los clics, y se va al sacar el mouse; el texto queda en `data-tip` y en `aria-description` (el nombre sigue siendo «Paso»); el de Pausa, que el código cambia al pausar, también; con Tab hasta un interruptor de «Compatibilidad» sale su cartel y Esc lo cierra (y guarda el cajón); en la ventana del archivo, el cartel de un juego va encima de la ventana. |
+| 88 | La curvatura con la consola achicada, a 1920×945, 1440×900 y 1024×768: con una ROM que dibuja un marco en el borde de la pantalla, los márgenes de la imagen curvada son iguales a la izquierda y a la derecha, arriba y abajo, también cerca de las esquinas, y el mapa del filtro mide lo mismo que el lienzo en la ventana. |
+| 89 | «Cuidado»: borrar los ajustes y los estados de un juego (el diálogo dice qué ajustes y cuántos estados, con el foco en «Cancelar»; Esc cancela; «Deshacer» devuelve todo), un cartucho tuyo, todos tus cartuchos y limpiar el Taller, cada uno con su «Deshacer»; borrar toda la configuración avisa que se van los estados y vuelve a arrancar la consola de fábrica (15 IPF, sin ajustes recordados ni estados), con tus cartuchos y tu programa del Taller. |
 
 `node tools/e2e.js --help` imprime esta misma lista (sale del comentario del principio del
 archivo).
 
 ### 6.8 Lo que no se verifica automáticamente
 
+- **El cajón de opciones con dedos de verdad.** Se probó en Chrome con toques simulados
+  (`Input.dispatchTouchEvent` y la emulación de pantalla táctil, que cambia `pointer` y
+  `hover`), no en un teléfono ni en una tableta de verdad, ni con el teclado en pantalla
+  del teléfono abierto mientras se escribe el número de IPF.
 - **El sonido audible.** El navegador corre con `--mute-audio`; se verifican el grafo de
   Web Audio, sus ganancias y la fuente (beep o patrón), no que algo suene por los
   parlantes ni que las notas de XO-CHIP sean afinadas.
@@ -3347,10 +3790,11 @@ Los siete refutados, y por qué:
 Después de la revisión, a pedido del usuario, se agregaron dos cosas a la interfaz: **el
 selector de modo de pantalla** (Tubo CRT o Píxeles puros,
 [4.4](#44-modos-de-pantalla-y-efectos-del-tubo); E2E 18) y **el selector rápido de
-cartuchos** debajo de la ranura ([4.11](#411-cartuchos-incluidos-y-selector-rápido);
-E2E 19). La integración final cerró la ronda con 797 pruebas y 24 escenarios, todos en
-verde (commit `19d1dcd`). Más tarde, el mismo día y también a pedido del usuario, el tope
-de la velocidad subió de 1000 a 10.000 IPF, con la guía para las ROMs lentas (`0dcd7ec`).
+cartuchos** debajo de la ranura (E2E 19; desde la segunda vuelta de la quinta ronda, los
+cartuchos van en el cajón: [4.11](#411-los-cartuchos-tarjetas-miniaturas-y-cartel)). La
+integración final cerró la ronda con 797 pruebas y 24 escenarios, todos en verde (commit
+`19d1dcd`). Más tarde, el mismo día y también a pedido del usuario, el tope de la
+velocidad subió de 1000 a 10.000 IPF, con la guía para las ROMs lentas (`0dcd7ec`).
 
 ### 7.8 Segunda ronda: el pedido y el punto de restauración
 
@@ -3459,7 +3903,7 @@ se "emprolijaron". `650db04` (la integración de la primera ronda) pasa 725 de 7
 salteada hasta que existiera este documento; `199b896` deja cuatro en rojo hasta que se
 pongan al día el bloque de cartuchos y el tutorial; `1d966d0` todavía tiene en rojo las dos
 del bloque de cartuchos, que arregla `19d1dcd`. Los de la segunda ronda y los de esta
-pasan todas ([7.19](#719-cómo-creció-la-suite)).
+pasan todas ([7.23](#723-cómo-creció-la-suite)).
 
 Para correr las pruebas de un commit anterior a `63ad959` en Windows, sacalo con fin de
 línea LF: esos commits no tienen `.gitattributes`, y con `core.autocrlf` prendido los
@@ -3649,7 +4093,204 @@ La corrida de los 77 escenarios juntos, sobre el código y la documentación fin
 77, sin errores de consola, con 60 cuadros por segundo a 10.000 IPF (escenarios 2 y 57) y a
 1000 IPF en XO-CHIP mientras se guardan las fotos del rebobinado (escenario 50).
 
-### 7.19 Cómo creció la suite
+### 7.19 Quinta ronda: el pedido
+
+El 7 de noviembre de 2026, con la cuarta ronda publicada, el usuario contó lo que le
+molestaba al usar la consola:
+
+> la consola es muy larga, hay que hacer scroll para bajar hasta el fondo, cambiar algo,
+> elegir ROM, tocar algo y volver a hacer scroll hasta arriba para ver la pantalla. Ni
+> siquiera la parte gráfica y su cambio a monitor CRT, píxeles, LCD, etc. podés verlo
+> mientras lo cambiás, porque tenés que desplazarte.
+
+El monitor y el Taller, fijos a la derecha, sí le entraban en la pantalla; al scrollear se
+movía solo la consola. Las medidas, en una ventana de 1920 × 950 (lo que queda útil en un
+monitor de 1080 con el navegador): la consola medía 2245 px de alto, y de eso 1102 eran el
+panel de control, debajo del keypad. La propuesta que aprobó:
+
+> un cajón que se abra al costado de la consola hacia la derecha y pise la pantalla del
+> depurador y/o del Taller mientras cambiás las opciones; después se guarda el cajón. Es
+> para poder ver cómo cambia la emulación mientras vas tocando las opciones.
+
+Aprobó también plegar el keypad en pantalla, porque "el keypad es si querés usar el
+mouse". Pidió no hacer commits hasta ver cómo quedaba: el punto de restauración es
+`46e656f`, la punta de la cuarta ronda. Lo que pidió después de probar esta primera vuelta
+está en [7.22](#722-quinta-ronda-la-segunda-vuelta).
+
+### 7.20 Quinta ronda: el diseño
+
+La primera vuelta de la ronda la hizo un solo agente, directo en la copia principal y en
+main, sin worktrees: era una sola pieza que tocaba el marcado, el CSS y la interfaz a la
+vez, y las pruebas E2E de casi todas las rondas anteriores. Lo que se decidió, con sus
+porqués en [8.46](#846-las-opciones-en-un-cajón-que-no-es-modal) a
+[8.52](#852-el-arnés-abre-el-cajón-como-una-persona):
+
+- **Los controles se mudaron, no se rehicieron.** Los cinco grupos del panel pasaron al
+  cajón con su marcado y sus ids (el código que los maneja no cambió), cada uno en una
+  pestaña (en la segunda vuelta, cuatro de ellos quedaron como secciones de «Ajustes»). El contenedor del grupo «Estados», `#states-group`, pasó a ser el panel de su
+  pestaña, `#drawer-panel-estados`; ninguno de sus controles cambió de id.
+- **Dónde va el cajón lo decide el lugar, no el ancho de la ventana.** Si hay una columna a
+  la derecha de la consola (el monitor o el Taller), el cajón sale de abajo del borde de la
+  consola y la tapa entera; si no, sube desde abajo, debajo de la pantalla. La pantalla
+  nunca queda tapada ([4.27](#427-el-cajón-de-opciones)).
+- **No es modal y el foco no se lo queda.** Con el cajón afuera la consola sigue andando,
+  con el teclado y con el mouse: se puede jugar y ajustar a la vez, que era el punto del
+  pedido.
+- **El keypad se pliega solo donde sobra**: con mouse y en una pantalla ancha. Plegado, la
+  cubierta pasa a tres columnas y la consola baja de 1121 a 878 px: entra entera en
+  1920 × 950. La segunda vuelta lo sacó: la consola entra achicándose entera
+  ([7.22](#722-quinta-ronda-la-segunda-vuelta)).
+- **Las pruebas aprendieron a usar el cajón** en vez de esquivarlo: el arnés lo abre como
+  una persona antes de tocar una opción ([5.7](#57-toolse2ejs)).
+
+Durante la ronda se corrigieron cosas que aparecieron al mirar las capturas y al correr la
+E2E completa: el cajón empezaba a la altura de la parte recta del borde de la consola y
+dejaba asomar la cabecera y el pie del monitor (ahora tapa la columna entera); en 1200 px
+exactos no hay columna a la derecha (el monitor ya bajó) y el cajón quedaba de 186 px
+(ahora, sin columna, sube desde abajo); a 360 px la barra de arriba, con un botón más, se
+salía 5 px de la consola (la marca se achica y los botones miden 34 px); y en el cajón que
+sube desde abajo, en un teléfono, el título y la × se comían la mitad del alto (ahora la ×
+va al lado de las pestañas). Al principio el monitor tapado no se ponía al día, para no
+gastar: lo que quedaba en el DOM era viejo, y un escenario que leía el monitor con el
+cajón abierto lo encontró; se sacó
+([8.47](#847-el-cajón-tapa-la-columna-de-la-derecha-y-nunca-la-pantalla)).
+
+### 7.21 Quinta ronda: la verificación
+
+Al terminar la primera vuelta, `node --test`: **1624 pruebas en 23 archivos** (234
+grupos), todas pasan. Las 22 nuevas están en `tests/cajon.test.js`; antes de escribir la
+documentación fallaban 8, todas de la documentación (las tablas de 4.19, 4.21, 6.2, 6.3 y
+6.7, los atajos de 4.6 y 9.7, los números del README y los textos que cita el tutorial).
+
+La E2E, en Chrome sin ventana. Con el arnés ya abriendo el cajón para los clics (y el 18 y
+el 20, que pasaban de un grupo al siguiente con Tab, entrando por la pestaña), la primera
+corrida completa pasó 62 de 77. Fallaban el 38, que enfocaba a mano controles del cajón
+guardado; los de diseño que medían el panel (el 40 y el 49 daban 0 px); los que llevaban a
+la vista `#states-group` (el 42, el 43, el 47, el 48, el 72, el 75 y el 76); dos que leían
+o tocaban el monitor con el cajón encima (el 25 y el 27), y tres en los que un aviso
+flotante, arriba al medio, tapaba el botón de la barra y el clic no llegaba (el 61, el 62 y
+el 67). Con el arnés al día y los ocho escenarios nuevos, los 85 pasaron juntos en una
+corrida completa, sin errores de consola, con 60 cuadros por segundo a 10.000 IPF con el
+cajón abierto (escenario 83).
+
+Las medidas de la primera vuelta, a 1920 × 950: la consola mide 1121 px de alto con el
+keypad (era 2245) y 878 plegado, de 28 a 906 px; el cajón, al costado, va de 1134 a 1584
+px de ancho (el monitor, de 1164 a 1584) y de 28 a 923 px de alto con el keypad plegado. A
+1440 × 900 con el Taller, el cajón va de 798 a 1424 px y tapa el Taller; a 768 y a 360 px
+sube desde abajo. Las capturas de los escenarios se revisaron a mano, a 1920, 1440, 768 y
+360 px.
+
+### 7.22 Quinta ronda: la segunda vuelta
+
+El usuario probó la primera vuelta en su ventana (1920 px de ancho y unos 945 de alto
+hasta la barra de tareas) y pidió una segunda, también sin commits:
+
+> la consola sigue siendo muy larga, el parlante queda fuera de pantalla, los cartuchos
+> ocupan mucho y no se entiende dónde están los otros
+
+En una captura marcó las dos esquinas donde el cajón se mete debajo de la consola: abajo
+estaba bien, pero arriba la esquina cuadrada del cajón asomaba por la esquina redondeada
+de la consola. Del keypad plegable dijo que, si todo entraba, "ya no hace falta la opción
+de plegar el teclado", y de la pestaña «Estados», donde la ranura rápida iba entre las
+otras cuatro, "no se entiende la mezcla". A mitad de la vuelta sumó un pedido: que el
+monitor se pudiera ocultar igual que el Taller, con un botón al lado del lápiz y del de
+las opciones.
+
+Lo que cambió, con sus porqués en
+[8.47](#847-el-cajón-tapa-la-columna-de-la-derecha-y-nunca-la-pantalla),
+[8.48](#848-tres-pestañas-y-la-última-se-recuerda) y de
+[8.50](#850-la-consola-se-achica-entera-para-entrar-en-la-ventana) a
+[8.55](#855-el-monitor-se-oculta-entero):
+
+- **El frente, con lo justo.** La consola quedó con la pantalla, «Ejecución», el keypad,
+  la rejilla del parlante y la línea de estado; «Ejecución» subió al lado del keypad,
+  donde iba la ranura. La ranura, «Cargar ROM», las filas «Incluidos:» y «Tuyos:» y los
+  dos estantes de abajo de la consola se mudaron al cajón
+  ([4.28](#428-la-consola-entera-en-la-ventana)).
+- **El cartucho, impreso en el bisel.** Al lado de «Video 64 × 32» va el nombre del
+  cartucho de la ranura, así se sabe qué está puesto con el cajón guardado. Se hizo como
+  una opción para que el usuario decida: se saca con el `span` `#bezel-cart` y las dos
+  líneas que lo escriben en `updateSlot`.
+- **La consola, entera en la ventana.** Aun así medía 947 px, y la ventana del usuario le
+  deja 897: se achica toda junta con `zoom` hasta entrar, con el lienzo de la pantalla
+  todavía 1:1 con los píxeles físicos.
+- **Sin keypad plegable.** Se sacaron el botón, la tira, el ajuste `keypadFolded` (lo que
+  quedó guardado se ignora), `setKeypadFolded`, `keypadInfo`, sus escenarios y su
+  documentación.
+- **La pestaña «Cartuchos».** Los incluidos y tus cartuchos, en tarjetas chicas con la
+  miniatura de su pantalla y su nombre, y un cartel propio con todo lo demás
+  ([4.11](#411-los-cartuchos-tarjetas-miniaturas-y-cartel)).
+- **Tres pestañas.** Velocidad, Pantalla, Compatibilidad y Controles quedaron como
+  secciones de «Ajustes», una debajo de la otra, cada una con su título; la primera vez,
+  el cajón abre en «Cartuchos».
+- **«Estados» sin mezcla.** La ranura rápida va sola arriba, acostada, y una ranura
+  hundida la separa de las otras cuatro.
+- **El borde del cajón.** Al costado, el cajón ocupa solo la parte recta del borde de la
+  consola, así sus esquinas quedan escondidas detrás de ella, arriba y abajo. Como queda
+  más corto que la columna que tapa, la columna se esfuma mientras tanto. Sin columna,
+  sale igual al costado si queda lugar.
+- **El monitor se oculta entero**, con un botón en la barra de arriba, entre el de las
+  opciones y el lápiz, y con «Ocultar»; oculto, la consola queda sola en el medio. No se
+  le dio una tecla: la J está libre, pero el monitor no se usa jugando.
+
+Después de probarla («anda lindo y está hermoso»), el usuario sumó a la misma vuelta, de a
+uno: su nombre y su página en el pie, en lugar de «Intérprete CHIP-8 · J. Weisbecker,
+1977»; sacar el texto de al lado del parlante y agrandar los botones de «Ejecución» con
+ese lugar, y separar su nombre y su tecla
+([8.56](#856-la-línea-de-estado-oculta-a-la-vista)); que ningún cartel fuera el de Windows
+([8.57](#857-ningún-cartel-del-navegador)); arreglar la curvatura, que con la consola
+achicada se comía píxeles de la derecha
+([8.58](#858-la-curvatura-con-el-lienzo-sin-zoom)), y una zona «Cuidado» para borrar lo
+guardado, que se lleva también los estados, con una acción para limpiar el Taller
+([8.59](#859-cuidado-borrar-con-un-diálogo-propio)).
+
+Lo hizo el mismo agente, en la misma copia y sin commits, sobre lo que había dejado la primera vuelta; se cortó una vez por el límite de uso de la sesión y siguió desde lo que
+había quedado sin commitear. Las pruebas que usaban los estantes, los chips de la ranura o
+el keypad plegable se reescribieron: los escenarios 7, 13, 19, 32, 33, 40, 56 y 66 pasaron
+a la pestaña «Cartuchos» (o al botón del monitor), los de la primera vuelta del 78 al 83
+se pusieron al día, el 84 y el 85 se reemplazaron y se sumó el 86; `tests/cajon.test.js`
+se reescribió entero, con 37 pruebas.
+
+Lo que apareció en el camino:
+
+- Las miniaturas de «Tus cartuchos» quedaban en blanco después de volver a armar la lista:
+  se pintaban con la tarjeta todavía fuera del documento, y con cuatro columnas a 0,92 de
+  relleno se achicaban a la mitad. Ahora se pintan recién cuando la tarjeta está a la
+  vista y llenan la ventanita.
+- Las pantallitas de «Estados» quedaban sin tamaño si se llegaba a la pestaña antes de que
+  el `ResizeObserver` las midiera (E2E 49): ahora se miden al mostrar la pestaña
+  (`sizeDrawerThumbs`).
+- El monitor esfumado (`visibility: hidden`) ya no recibe clics ni foco, y el escenario
+  62, que enfocaba su lista de dibujos con el cajón afuera, primero lo guarda, como lo
+  haría una persona.
+
+La verificación. `node --test`: **1639 pruebas en 23 archivos** (236 grupos), todas pasan;
+mientras se escribía la documentación fallaban solo las que la comparan con el código (los
+enlaces, las tablas de 6.2, 6.3 y 6.7, y la frase de las ranuras que cita el tutorial). La
+E2E: la primera corrida completa pasó 83 de 86 (el 18 buscaba una pestaña que ya no
+existe, el 49 encontró lo de las pantallitas y el 62, lo del monitor esfumado); corregido
+eso, pasaron los tres. La corrida completa del final, con todo lo que se sumó después (los
+escenarios 87 a 89), pasó 86 de 89: el 13 (el primer Paso se vio en el monitor más tarde
+que los 80 ms que espera; repetido, pasa), el 48 (los avisos que ahora se ven, como el de
+I sin cartucho, tapaban el botón del cajón: el arnés los cierra antes, como en `reach`) y
+el 70 (el cartel, que flota, contaba como algo que se salía de la ventana del archivo).
+Corregidos, los tres pasaron solos, junto con los otros escenarios del archivo y de los
+carteles (66, 67 y 87), sin errores de consola. Los cuadros por segundo con el cajón
+abierto, también en «Cartuchos» mientras se hacen las miniaturas, siguen en 60 a 10.000
+IPF (escenario 83).
+
+Las medidas, sin recargar nada: a 1920 × 945 la consola va de y = 28 a 924 (896 px, escala
+0,946) y el monitor, de 28 a 923; el cajón, al costado, de x = 1112 a 1562 y de y = 54 a
+891. A 1440 × 900, la consola va de 28 a 878 (850 px, 0,898) y el cajón, de 853 a 1303 y
+de 53 a 848; con el Taller abierto, el cajón lo tapa, de 745 a 1424. Con el monitor
+oculto, el cajón sale al costado de la consola, de 1336 a 1786 a 1920 px y de 1077 a 1424
+a 1440; a 1280 × 800 no queda lugar y sube desde abajo. A 768 × 1024 la consola entra a
+tamaño natural (de 28 a 943) y el cajón sube desde abajo, de 552 a 1024; a 360 × 640 la
+consola mide 968 px, la pantalla y el keypad entran juntos (el keypad, de 329 a 630) y el
+cajón sube desde 325. Las capturas de los escenarios se revisaron a mano, a 1920, 1440,
+1280, 768 y 360 px.
+
+### 7.23 Cómo creció la suite
 
 | Momento | Commit | Pruebas | Resultado |
 |---|---|---|---|
@@ -3674,7 +4315,9 @@ La corrida de los 77 escenarios juntos, sobre el código y la documentación fin
 | El archivo de la comunidad | `b384c3e` | 1566 | todas pasan |
 | Los estados: archivos, la lista y el giro | `fcbc67e` | 1602 | todas pasan |
 | La integración | `cb34a86` | 1602 | todas pasan |
-| Documentación de la cuarta ronda | — | 1602 | todas pasan |
+| Documentación de la cuarta ronda | `46e656f` | 1602 | todas pasan |
+| Quinta ronda, primera vuelta: el cajón de opciones y el keypad plegable, con su documentación | — | 1624 | todas pasan |
+| Quinta ronda, segunda vuelta: los cartuchos en el cajón, la consola entera en la ventana, el monitor que se oculta, el frente sin la línea de estado, los carteles y «Cuidado», con su documentación | — | 1639 | todas pasan |
 
 ---
 
@@ -4177,7 +4820,7 @@ Cada decisión, en formato corto: el contexto, qué se decidió y qué implica.
   1440 px tenía que verse entero sin tapar la pantalla de la consola, y en un teléfono no
   entran las dos cosas con un ancho útil.
 - **Decisión:** desde 1200 px, un panel fijo a la derecha, de arriba abajo, con la consola
-  corrida a la izquierda y el monitor debajo de los estantes (desde 1900 px entran los
+  corrida a la izquierda y el monitor debajo de la consola (desde 1900 px entran los
   tres); por debajo, al final de la columna. Su aspecto es el de un periférico más: el
   plástico oscuro del monitor y un editor como una pantalla de terminal.
 - **Consecuencias:** a 1440 y a 1280 px se ven a la vez la pantalla, el keypad y el
@@ -4191,7 +4834,7 @@ Cada decisión, en formato corto: el contexto, qué se decidió y qué implica.
   leyó, cuáles fueron las últimas instrucciones) y detenerse antes de una dirección. Lo
   primero se anota en cada instrucción; lo segundo, mirado en cada instrucción, frenaría a
   la consola a 10.000 IPF, y la plataforma CHIP-8 no podía volverse más lenta
-  ([1.6](#16-requisitos-no-funcionales)).
+  ([1.7](#17-requisitos-no-funcionales)).
 - **Decisión:** todo en el núcleo, con arreglos tipados reservados una sola vez: en
   `step`, la traza y la marca de código son tres escrituras y un `|=`, sin objetos ni
   llamadas, y las marcas de los datos van dentro de las instrucciones que ya recorren esos
@@ -4333,6 +4976,289 @@ Cada decisión, en formato corto: el contexto, qué se decidió y qué implica.
   para estas ventanas, con su línea propia; una solución general sería ponerlos en la capa
   superior ([9.11](#911-limitaciones-conocidas-y-trabajo-futuro)).
 
+### 8.46 Las opciones en un cajón que no es modal
+
+- **Contexto:** el panel de control iba debajo de la pantalla y del keypad. Para cambiar
+  una opción había que scrollear hasta él, y la pantalla quedaba afuera de la ventana:
+  justo lo que uno quiere ver al cambiar el modo de pantalla o la paleta
+  ([7.19](#719-quinta-ronda-el-pedido)).
+- **Decisión:** las opciones van en un cajón de la carcasa que sale del costado de la
+  consola, propuesto y aprobado por el usuario. No es un menú desplegable (no cabían los
+  grupos de opciones, con interruptores DIP y ranuras de estados) ni un diálogo: no tiene
+  fondo, no traba el foco y la consola sigue andando debajo. En la segunda vuelta se
+  sumaron los cartuchos ([8.53](#853-los-cartuchos-van-en-el-cajón)).
+- **Consecuencias:** se puede jugar y ajustar a la vez, que era el punto, y probar un
+  cartucho tras otro sin guardar el cajón. A cambio, el cajón no puede quedarse con el
+  teclado: las teclas siguen siendo de la consola y el cajón se maneja con el mouse, con
+  Tab y con sus pestañas ([8.49](#849-el-foco-entra-al-título-del-cajón)). Las ventanas
+  modales siguen encima de todo, también del cajón.
+
+### 8.47 El cajón tapa la columna de la derecha y nunca la pantalla
+
+- **Contexto:** a la derecha de la consola, desde 1200 px, hay una columna: el monitor o,
+  con el Taller abierto, el Taller. Por debajo de 1200 px no hay lugar al costado. En la
+  primera vuelta el cajón tapaba la columna entera, de arriba abajo, y su esquina de
+  arriba, cuadrada, asomaba por la esquina redondeada de la consola: lo marcó el usuario
+  en una captura ([7.22](#722-quinta-ronda-la-segunda-vuelta)).
+- **Decisión:** si hay una columna a la derecha de la consola, el cajón sale de abajo del
+  borde de la consola, llega hasta el borde de afuera de la columna y, de alto, ocupa solo
+  la parte recta del borde de la consola, sin sus esquinas redondeadas: así las dos
+  esquinas del cajón quedan escondidas detrás de ella. Como así queda más corto que la
+  columna, la columna se esfuma mientras el cajón está afuera (`opacity` y `visibility`),
+  en vez de asomar por arriba y por abajo. Sin columna (con el monitor oculto), sale igual
+  al costado si quedan 340 px libres; si no, sube desde abajo, del ancho de la consola,
+  debajo de la pantalla, tapando el keypad. Lo decide el lugar (`drawerColumn` y
+  `drawerSide`), no un ancho fijo: en 1200 px justos el monitor ya bajó y no hay columna.
+  La caja la calcula una función sin DOM, `drawerBox`, y la ubica `position: fixed`. El
+  monitor tapado se sigue poniendo al día.
+- **Consecuencias:** mientras está abierto no se ven el monitor ni el Taller (se guarda el
+  cajón y vuelven), y abrir el Taller guarda el cajón si lo taparía. Esfumada, la columna
+  sale del orden del Tab y no recibe clics: el escenario 62, que tocaba el monitor con el
+  cajón afuera, lo guarda antes. Que el monitor tapado siga al día cuesta lo mismo que
+  antes del cajón: una primera versión dejaba de ponerlo al día, y lo que quedaba en el
+  DOM era viejo. En un teléfono el cajón tapa el keypad, que ahí es el único teclado: se
+  guarda con la × para jugar.
+
+### 8.48 Tres pestañas, y la última se recuerda
+
+- **Contexto:** en la primera vuelta cada grupo de opciones era una pestaña: cinco, porque
+  los grupos juntos medían más de 1100 px de alto y en el cajón tenían que entrar en el
+  alto de la ventana. Con los cartuchos serían seis, y en un cajón de menos de unos 450 px
+  las cinco ya pasaban a dos filas. El usuario pidió juntar Velocidad, Pantalla,
+  Compatibilidad y Controles.
+- **Decisión:** tres pestañas, «Cartuchos», «Ajustes» y «Estados», una a la vista por vez
+  (`role="tablist"`, como las del monitor). «Ajustes» lleva las cuatro secciones de antes
+  una debajo de la otra, cada una con su título (`DRAWER_SECTIONS`); `openDrawer` acepta
+  también el nombre de una sección. Lo que no entra en el alto del cajón se scrollea
+  adentro de la bandeja, nunca la página. La última pestaña se guarda en
+  `settings.drawerTab`; la primera vez (y si lo guardado es una pestaña de la primera
+  vuelta), el cajón abre en «Cartuchos», lo primero que se busca al llegar.
+- **Consecuencias:** quien vuelve a abrir el cajón lo encuentra donde lo dejó, y ninguna
+  pestaña se corta en ningún ancho del cajón (E2E 82). «Ajustes» es más alta que el cajón
+  en casi todas las ventanas: se recorre con la rueda o con Tab, y cada sección es una
+  región con nombre, así un lector de pantalla puede saltar de una a otra.
+
+### 8.49 El foco entra al título del cajón
+
+- **Contexto:** al abrir algo, el foco tiene que entrar ahí (lo pide la accesibilidad),
+  pero si entrara a la primera pestaña, Espacio la activaría en vez de pausar y las
+  flechas cambiarían de pestaña en vez de mover el juego.
+- **Decisión:** el foco entra al título del cajón (`tabindex="-1"`), que no es un control.
+  Un lector de pantalla anuncia la región; con Tab se llega a la ×, a la pestaña elegida y
+  a su panel. Al guardarlo con el teclado, el foco vuelve al botón de la barra; con el
+  mouse, a la página, como al cerrar la ayuda.
+- **Consecuencias:** con el cajón recién abierto las teclas siguen siendo de la consola,
+  también Espacio y las flechas. Quien lo abrió con el mouse y lo guarda con Esc queda con
+  el foco en el botón de la barra (Espacio lo volvería a abrir) hasta que toca la página:
+  es lo que hacen el Taller y cualquier botón que abre y cierra algo.
+
+### 8.50 La consola se achica entera para entrar en la ventana
+
+- **Contexto:** en la primera vuelta, la consola entraba en una ventana de 1920 × 950 solo
+  con el keypad plegado, y plegarlo se ofrecía solo con mouse. El usuario la probó en su
+  ventana, de unos 945 px de alto, y el parlante seguía afuera; pidió un frente con lo
+  justo que entrara entero sin scroll, también en 1440 × 900, achicando la consola si
+  hacía falta, y sacar el keypad plegable ([7.22](#722-quinta-ronda-la-segunda-vuelta)).
+  Con el frente nuevo la consola mide 947 px; a 1920 × 945 le quedan 897 y a 1440 × 900,
+  852.
+- **Decisión:** la consola entera se achica con la propiedad `zoom`, con una sola escala
+  para todo (`--con-z`), calculada con su alto sin achicar y el que le deja la ventana, en
+  milésimas, entre 0,72 y 1. Solo con la cubierta en dos columnas (más de 760 px de ancho)
+  y fuera de la pantalla completa ([4.28](#428-la-consola-entera-en-la-ventana)). No con
+  `transform: scale`, que no cambia la caja que ocupa en la página: la página seguiría
+  scrolleando y el monitor quedaría lejos. Tampoco achicando piezas sueltas (la pantalla,
+  el keypad), que cambiaría las proporciones de la carcasa. El lienzo de la pantalla
+  compensa el zoom, así sigue 1:1 con los píxeles físicos.
+- **Consecuencias:** a 1920 × 945 la consola se ve al 94,6 % y a 1440 × 900, al 89,8 %:
+  entera, con el monitor al lado, sin scroll (E2E 84). Todo se achica parejo, también la
+  letra: a 0,9, la de 12 px mide 10,8. Con la escala mínima las teclas del keypad miden 44
+  px; en una ventana más baja que eso la página se scrollea, como antes. `zoom` está en
+  Chrome y en Safari desde hace años y en Firefox desde la 126 (2024); un navegador sin él
+  ve la consola a tamaño natural (`zoomOk`). Se verificó solo en Chrome, que es el que usa
+  la E2E. El keypad plegable se sacó entero: el ajuste `keypadFolded` guardado se ignora.
+
+### 8.51 Adentro del cajón manda el ancho del cajón
+
+- **Contexto:** las ranuras de «Estados», las teclas de «Controles» y los selectores de
+  «Compatibilidad» se reacomodaban con `@media`, mirando el ancho de la ventana. En el
+  cajón, el ancho que importa es el del cajón: a 1920 px de ventana mide unos 450.
+- **Decisión:** la bandeja del cajón es un *container* (`container: cajon`) y esas reglas
+  pasaron a `@container`: las ranuras 1 a 4 de «Estados» en dos columnas, o en una fila
+  desde 560 px de bandeja (cada pantallita, de al menos 129 px, muestra un 64×32 al
+  doble); las teclas de «Controles», en dos filas de tres por debajo de 690; Perfil y
+  Plataforma, uno debajo del otro por debajo de 440. Las tarjetas de «Cartuchos» no
+  necesitan reglas: la grilla pone tantas columnas de al menos 80 px como entren.
+- **Consecuencias:** las pantallitas siguen con escala entera de al menos 2 en todos los
+  anchos (E2E 49). Un navegador sin *container queries* (anterior a 2023) mostraría las
+  teclas de «Controles» en seis columnas, apretadas: se aceptó, como el resto de lo que
+  pide un navegador moderno.
+
+### 8.52 El arnés abre el cajón como una persona
+
+- **Contexto:** unos cuarenta escenarios E2E tocan controles que pasaron al cajón, la
+  mayoría con `page.click`, `clickHit` o `chooseWithMouse`. Con el cajón guardado esos
+  controles no se ven y el clic no llega.
+- **Decisión:** `Page.rect`, que usan todos esos pasos, llama antes a `reach`: si el
+  elemento está en el cajón y no se ve, abre el cajón con un clic en el botón de la barra
+  y toca su pestaña (para una sección de «Ajustes», toca «Ajustes» y corre la bandeja
+  hasta ella); si está afuera y el cajón lo tapa, lo guarda con su ×. Si un aviso flotante
+  tapa el botón, primero lo cierra. No es un atajo: son los clics que haría una persona,
+  con eventos de entrada de verdad. Los cartuchos se ponen con `clickCart` y
+  `clickLibCart`, que abren el cajón en «Cartuchos», tocan la tarjeta y, si lo abrieron,
+  lo vuelven a guardar.
+- **Consecuencias:** los escenarios de antes conservan sus pasos y siguen probando lo que
+  probaban, ahora con el cajón en el medio. Los que enfocan un control con el teclado
+  llaman a `reach` antes, y los que pasaban de un grupo a otro con Tab entran por la
+  pestaña o por el título de la sección (`focusDrawerTab`). Lo propio del cajón lo prueban
+  los escenarios 78 a 83, que lo abren y lo guardan a mano, con cada una de sus formas; lo
+  de la segunda vuelta, del 84 al 86.
+
+### 8.53 Los cartuchos van en el cajón
+
+- **Contexto:** en la primera vuelta, el frente de la consola tenía la ranura con su
+  tarjeta, «Cargar ROM» y dos filas de botones con los cartuchos («Incluidos:» con los
+  demos y «Tuyos:» con los primeros de tu biblioteca), y debajo de la consola iban dos
+  estantes con los cartuchos grandes. Según el usuario, los cartuchos ocupaban mucho y no
+  se entendía dónde estaban los otros.
+- **Decisión:** todos los cartuchos van en una pestaña del cajón, «Cartuchos»: arriba la
+  ranura, con «Cargar ROM», «Olvidar ajustes» y «Archivo»; debajo, «Incluidos» y «Tus
+  cartuchos», en tarjetas chicas (cuatro por fila en el cajón al costado) con solo la
+  miniatura de su pantalla y el nombre
+  ([4.11](#411-los-cartuchos-tarjetas-miniaturas-y-cartel)). La miniatura sale de correr
+  la ROM en una máquina aparte, con la misma sección que hace las de la ventana del
+  archivo: una sola cola, una sola caché por cartucho y configuración, y el mismo
+  resultado. Lo demás va en un cartel ([8.54](#854-un-cartel-propio-en-vez-de-title)). En
+  el frente queda el nombre del cartucho, impreso en el bisel.
+- **Consecuencias:** el frente se achicó (la consola mide 947 px; con la ranura y el
+  keypad, en la primera vuelta, 1121), y todos los cartuchos se ven juntos: a 1440 × 900,
+  los seis incluidos y seis tuyos, sin scrollear (E2E 40). Para cambiar de cartucho hay
+  que abrir el cajón (M o el botón), y un clic en una tarjeta carga sin guardarlo. Las
+  miniaturas se hacen solo con el cajón abierto en «Cartuchos», en tramos de 4 ms (60
+  cuadros por segundo mientras tanto, E2E 83). La de un cartucho que no dibuja nada sin
+  una tecla queda casi negra, como en la ventana del archivo, y las de tus cartuchos se
+  hacen con la configuración con que arrancarían: cambian si cambia tu paleta.
+
+### 8.54 Un cartel propio en vez de title
+
+- **Contexto:** con solo la miniatura y el nombre en la tarjeta, lo demás (de qué se
+  trata, los controles, la plataforma, el tamaño, de dónde salen sus ajustes) tenía que
+  aparecer al pasar el mouse. El `title` del navegador no sirve: tarda, tiene el estilo
+  del sistema, no aparece con el teclado y se va solo. El usuario pidió uno con el estilo
+  de la consola.
+- **Decisión:** un cartel propio (`#cart-tip`), uno solo para todas las tarjetas, con el
+  plástico oscuro de los avisos y el color del cartucho. Aparece al pasar el mouse
+  (después de 350 ms, `TIP_DELAY_MS`; de una tarjeta a otra, enseguida) y al llegar a una
+  tarjeta con el teclado; se puede pasar el mouse por encima sin que se vaya, y Esc lo
+  cierra sin guardar el cajón, como pide WCAG 1.4.13 para lo que aparece al pasar el mouse
+  o con el foco. Es `aria-hidden`: lo mismo está en la descripción de la tarjeta
+  (`aria-describedby`), que es lo que lee un lector de pantalla. Ninguna tarjeta tiene
+  `title`.
+- **Consecuencias:** se ve igual en cualquier navegador y sistema, y también con el
+  teclado (E2E 86). Con un dedo no aparece, porque no hay "pasar por encima": un toque
+  carga el cartucho, y la ranura muestra después su tamaño y, si es un demo, sus
+  controles.
+
+### 8.55 El monitor se oculta entero
+
+- **Contexto:** «Ocultar», en la cabecera del monitor, plegaba solo su cuerpo: la cabecera
+  quedaba y la columna seguía ocupada. El usuario pidió poder ocultarlo como el Taller,
+  con un botón al lado del lápiz y del de las opciones.
+- **Decisión:** un botón redondo en la barra de arriba (`#btn-monitor`, con una pantallita
+  con una onda, entre el de las opciones y el lápiz), con `aria-expanded` y
+  `aria-controls`, que muestra y oculta el `aside#monitor` entero; «Ocultar» hace lo
+  mismo, y los dos llaman a `setMonitorOpen`, así siempre están de acuerdo. La elección se
+  guarda en el ajuste de antes, `monitorOpen`. Oculto, la consola queda sola en el medio y
+  su columna, libre para el Taller o el cajón. Sin tecla propia: la J está libre, pero el
+  monitor no se usa jugando y el pedido no la pedía.
+- **Consecuencias:** quien no depura tiene la consola sola, centrada; el cajón sale al
+  costado si quedan 340 px (a 1440 × 900 sí, a 1280 × 800 no: sube desde abajo). Oculto,
+  el monitor no se pone al día, como antes con el cuerpo plegado, y al volver se pone al
+  día enseguida (E2E 85). La barra de arriba tiene cuatro botones redondos: en un teléfono
+  miden 32 px y las dos luces van una arriba de la otra, para que entren en 360 px.
+
+### 8.56 La línea de estado, oculta a la vista
+
+- **Contexto:** al lado del parlante, la línea de estado escribía lo que iba pasando
+  («Cartucho «Atrapa» cargado (374 bytes) en la plataforma CHIP-8, que pide este cartucho.
+  Ejecutando.»). El usuario pidió sacarla y usar su lugar para agrandar los botones de
+  «Ejecución», que apenas se leían, y separar un poco su nombre y su tecla. Pero es
+  también la región `role="status"` por la que la consola les cuenta todo a los lectores
+  de pantalla, y muchas pruebas leen su texto.
+- **Decisión:** no se borró: lleva la clase `visually-hidden` (un píxel, recortado, fuera
+  del flujo), como los textos de ayuda de las listas del monitor, y sigue anunciando lo
+  mismo. Su lugar lo tomaron los botones (de 46 a 58 px de alto, el nombre de 11 a 14 px y
+  12 px más abajo, la tecla de 10 a 12,5 px) y la rejilla del parlante, a lo ancho. El
+  alto de la cubierta lo sigue mandando el keypad (321 px): la consola no creció. Los
+  avisos que solo estaban ahí y dicen por qué algo no pasó (`notice`) salen además en un
+  aviso flotante que los lectores de pantalla no vuelven a leer (`aria-hidden`, con la ×
+  fuera del orden del Tab): K con la pila vacía, B con el rebobinado apagado, «No hay más
+  para rebobinar», I o U sin cartucho, U o «Cargar» con la ranura vacía, la pantalla
+  completa que el navegador no dejó y L en una página sin el archivo.
+- **Consecuencias:** lo demás se ve en otro lado: los errores y el fin del programa en la
+  pantalla y en el monitor, la pausa en la pantalla y en la luz RUN, el cartucho en el
+  bisel y en la placa, los estados con «GUARDADO» y «CARGADO», los puntos de corte y los
+  pasos en el monitor. Quedan sin verse dos anuncios menores: el nombre de la captura
+  guardada (el navegador muestra la descarga) y el «Tocá H para ver la ayuda» del arranque
+  (el «?» está a la vista).
+
+### 8.57 Ningún cartel del navegador
+
+- **Contexto:** los interruptores de «Compatibilidad» dicen «Pasá el mouse o el foco por
+  un interruptor para ver qué hace», y al pasar el mouse salía el cartel de Windows (el de
+  `title`), con otro aspecto, que con el teclado no sale. El usuario pidió el cartel de
+  las tarjetas en todos lados.
+- **Decisión:** ningún `title` en la página. En vez de buscar y cambiar cada uno (hay más
+  de 50 en el marcado y unos 30 que el código pone después, también en el monitor, el
+  Taller y las ventanas), la propiedad `title` lee y escribe `data-tip`, y un solo
+  manejador en el documento muestra el cartel con el mouse y con el foco
+  ([4.29](#429-los-carteles)). El texto sigue llegando a los lectores de pantalla como
+  `aria-description` (o `aria-label`, si era el nombre).
+- **Consecuencias:** el código no cambió: sigue poniendo `title`. Redefinir una propiedad
+  de `HTMLElement.prototype` alcanza a toda la página, que es nuestra. `aria-description`
+  es de ARIA 1.3: Chrome, Edge y Firefox lo exponen; un lector de pantalla viejo no lo lee
+  (con `title` sí lo hacía). El cartel no se puede tocar, a diferencia del de las
+  tarjetas: así nunca se queda con un clic (las pruebas E2E, que pasan el mouse por todos
+  lados, lo habrían sufrido). Las opciones de un `<select>` y un dedo se quedan sin
+  cartel.
+
+### 8.58 La curvatura, con el lienzo sin zoom
+
+- **Contexto:** con la consola achicada, el usuario vio que con «Curvatura» se perdían
+  píxeles a la derecha. El filtro (`feDisplacementMap` con un mapa en `feImage`) mide en
+  el espacio del elemento filtrado, y el mapa y el desplazamiento se calculaban con el
+  tamaño del lienzo sin zoom: si un navegador lleva el zoom al filtro de otra manera (su
+  motor de composición, otro navegador), el mapa queda más grande que el lienzo y la curva
+  se corre a un costado. En Chrome sin ventana la curva salía pareja, así que no se pudo
+  reproducir aquí.
+- **Decisión:** que el filtro no vea ningún zoom: los dos lienzos llevan el zoom inverso
+  de la consola (`--con-iz`), así su zoom efectivo es 1 y miden en px CSS lo mismo que en
+  la ventana, como antes de achicar la consola, y la definición del filtro va fuera de la
+  consola.
+- **Consecuencias:** el mapa y el `scale` del filtro son, con cualquier escala, los mismos
+  que sin zoom (a 1024 × 768, 448 × 224 y 31,36 en vez de 590 × 295 y 41,32). El escenario
+  E2E 88 compara los márgenes de un marco dibujado en el borde de la pantalla curvada, a
+  la izquierda y a la derecha, arriba y abajo, a tres escalas.
+
+### 8.59 Cuidado: borrar con un diálogo propio
+
+- **Contexto:** el usuario pidió, al final de las opciones, una zona para borrar lo
+  guardado: la configuración de un juego, la configuración completa, un juego subido o
+  todos; después, que los estados se vayan con la configuración (la de un juego o la de
+  todos) y una acción más para limpiar el Taller.
+- **Decisión:** una sección «Cuidado» al final de «Ajustes», con la franja y el naranja de
+  la consola, y cinco acciones ([4.30](#430-cuidado)). Cada una pregunta en un diálogo de
+  la consola (no `confirm()`), que dice qué se borra y cuánto, con el foco en «Cancelar».
+  Lo de un juego, lo de «Tus cartuchos» y el Taller se deshacen desde el aviso, como los
+  estados. La configuración completa escribe los ajustes de fábrica, se lleva lo recordado
+  de cada juego y todos los estados, y vuelve a arrancar la consola: así todo queda como
+  la primera vez sin tener que repasar cada ajuste a mano. No se deshace (lo dice el
+  diálogo).
+- **Consecuencias:** las banderas de FX75 se quedan siempre (son la partida guardada de un
+  juego, no un ajuste), y la configuración completa no toca tus cartuchos ni el Taller
+  (para eso están sus botones). El escenario E2E 89 prueba las cinco acciones, sus
+  diálogos y sus «Deshacer».
+
+
 ---
 
 ## 9. Cómo extender
@@ -4448,8 +5374,8 @@ Cada decisión, en formato corto: el contexto, qué se decidió y qué implica.
 
 1. Escribí `roms/<id>.asm` con las cuatro etiquetas (`@name`, `@description`, `@controls`,
    `@order`), `@platform` si no es de CHIP-8, y las reglas de
-   [5.3](#53-reglas-para-escribir-un-demo). El `@order` define la posición en el estante;
-   el 1 es el que arranca con la consola.
+   [5.3](#53-reglas-para-escribir-un-demo). El `@order` define la posición en la pestaña
+   «Cartuchos»; el 1 es el que arranca con la consola.
 2. `node tools/embed-roms.js`: escribe `roms/<id>.ch8` y actualiza `chip8.html`, también
    `CHIP8_SOURCES`: el Taller trae solo el fuente nuevo, y `tests/taller.test.js` lo
    compara con el archivo.
@@ -4458,9 +5384,9 @@ Cada decisión, en formato corto: el contexto, qué se decidió y qué implica.
    generales (600 frames por perfil sin ejecutar datos) lo toman solas.
 4. Actualizá el README (que dice "seis cartuchos" y los presenta), la parte 1.2 del
    tutorial (`tests/tutorial.test.js` la compara con las etiquetas `@`) y
-   [5.4](#54-los-seis-cartuchos). Los escenarios E2E que recorren el estante y los chips
-   lo toman solos; el de los chips exige además que todos entren en la vista a 1440×900
-   sin scrollear.
+   [5.4](#54-los-seis-cartuchos). Los escenarios E2E que recorren los cartuchos (el 7 y el
+   86) lo toman solos; el 19 exige además que los incluidos entren a la vista en el cajón
+   a 1440×900 sin scrollear, y el 40, que entren junto con seis de tus cartuchos.
 
 ### 9.6 Agregar una paleta
 
@@ -4488,14 +5414,14 @@ El mapa está repetido en varios lugares a propósito (cada uno lo muestra o lo 
   `KEY_BY_CODE`) y la §7.2 del manual.
 
 Que ninguna tecla del mapa choque con los atajos (Espacio, N, O, K, Retroceso, H, L, T, P,
-G, Y, I, U y B). Los mapas de las flechas y el joystick están en `KEYMAP_PRESETS` y en las
-opciones del selector `#keymap` (el texto de cada opción repite las teclas; el tutorial
-los cita). Un atajo nuevo va en `onKeyDown` (y en `onKeyUp` si se mantiene), en la tabla
-de atajos de la ayuda, en la del README, en la de la parte 1.10 del tutorial, en
+G, Y, M, I, U y B). Los mapas de las flechas y el joystick están en `KEYMAP_PRESETS` y en
+las opciones del selector `#keymap` (el texto de cada opción repite las teclas; el
+tutorial los cita). Un atajo nuevo va en `onKeyDown` (y en `onKeyUp` si se mantiene), en
+la tabla de atajos de la ayuda, en la del README, en la de la parte 1.10 del tutorial, en
 [4.6](#46-teclado-keypad-y-foco) y en esta lista: las pruebas de la documentación comparan
-las cuatro últimas con la de la ayuda. No las comparan, pero también lo nombran el
-párrafo de la ayuda que dice qué teclas siguen yendo a la consola con un control
-enfocado, el mismo párrafo de la parte 1.10 del tutorial y la tabla de la §7.2 del manual.
+las cuatro últimas con la de la ayuda. No las comparan, pero también lo nombran el párrafo
+de la ayuda que dice qué teclas siguen yendo a la consola con un control enfocado, el
+mismo párrafo de la parte 1.10 del tutorial y la tabla de la §7.2 del manual.
 
 ### 9.8 Agregar una prueba
 
@@ -4592,11 +5518,63 @@ pantallitas y explorar el archivo desde la consola.
 **Pendiente, a pedido del usuario.** Quedaron para más adelante, cuando se pidió la cuarta
 ronda:
 
+- **Un grupo de cartuchos «Incorporados»**: ROMs sueltas (un `.ch8` sin fuente) que
+  consiga el usuario, metidas en `chip8.html` para todos, como los juegos del archivo: el
+  `.ch8` y un archivito con sus datos en una carpeta del repositorio, y un comando que los
+  embebe. El usuario va a avisar cuando quiera meter alguna.
+- **Ver si conviene integrar Octo** (el lenguaje `.8o` y su compilador) al Taller o hacer
+  una aplicación aparte. Todavía no se investigó.
 - **Probar con dispositivos y navegadores de verdad**: un teléfono, un joystick físico,
   Firefox y Safari. Todo se probó en Chrome, con entrada simulada
   ([6.8](#68-lo-que-no-se-verifica-automáticamente)).
 - **Las rarezas de SUPER-CHIP en la HP-48**, como el scroll de medio píxel y las
   colisiones que cuentan filas (abajo, en las limitaciones).
+
+**Lo que dejó afuera la quinta ronda.**
+
+- **El cajón de opciones:**
+  - En pantalla completa no se abre: M y el botón primero salen de ella. Se podría mudar
+    al bisel, como el keypad táctil y los avisos.
+  - La manija es un adorno: el cajón no se arrastra para abrirlo o cerrarlo, ni en un
+    teléfono se baja con el dedo.
+  - En un teléfono, el cajón que sube desde abajo deja poco más de 200 px para el
+    contenido: «Ajustes» y «Estados» se recorren con su scroll.
+  - Con el cajón abierto no se ven el monitor ni el Taller (de eso se trata). A 1920 px,
+    con el Taller abierto, tapa el monitor y el Taller sigue a la vista.
+  - Con el monitor oculto, en una ventana de menos de unos 1300 a 1500 px de ancho (según
+    la escala de la consola: a 1440 × 900 ya sale al costado, a 1280 × 800 todavía no), al
+    costado no quedan 340 px y el cajón sube desde abajo, aunque la consola esté en el
+    medio con lugar a los dos lados. Se podría correr la consola a la izquierda mientras
+    el cajón está afuera.
+- **Los cartuchos:**
+  - Con un dedo el cartel de una tarjeta no aparece: lo que dice se ve en la ranura recién
+    al cargar el cartucho. Se podría mostrar con un toque largo.
+  - «Tus cartuchos» no se ordena a mano ni se busca: van del jugado más recientemente al
+    más viejo.
+  - El nombre del cartucho impreso en el bisel quedó como una opción para que el usuario
+    decida si se queda.
+- **Los carteles y los avisos:**
+  - Con un dedo no sale ningún cartel (en las tarjetas tampoco): lo que dicen solo llega a
+    quien usa un lector de pantalla. Se podría mostrar con un toque largo.
+  - Las opciones de un `<select>` (las plataformas, por ejemplo) tienen su texto, pero la
+    lista desplegable la dibuja el navegador: ahí no sale.
+  - El texto de los carteles llega como `aria-description` (ARIA 1.3), que un lector de
+    pantalla viejo no lee; con `title` sí lo leía.
+  - Dos anuncios de la línea de estado ya no se ven: el nombre de la captura guardada y el
+    «Tocá H para ver la ayuda» del arranque.
+- **«Cuidado»:** borrar toda la configuración no se puede deshacer, porque la consola
+  vuelve a arrancar; se podría guardar lo de antes en la sesión para ofrecer «Deshacer» al
+  volver.
+- **La consola achicada:**
+  - Se probó solo en Chrome: en Safari y en Firefox, `zoom` y `currentCSSZoom` deberían
+    andar igual, pero no se verificó.
+  - No se achica a menos de 0,72: en una ventana de menos de unos 730 px de alto la página
+    se scrollea, como antes.
+  - Todo se achica parejo, también la letra: a 1280 × 800 (escala 0,793) la de 12 px mide
+    9,5.
+  - En una ventana de menos de unos 765 px de alto, el monitor, que no baja de unos 715
+    px, hace que la página se scrollee unos píxeles aunque la consola entre (a 1280 × 760,
+    3 px); con el monitor oculto, no.
 
 **Lo que dejó afuera cada pieza de la cuarta ronda.**
 
@@ -4688,7 +5666,8 @@ ronda:
   ([8.40](#840-las-roms-del-archivo-adentro-de-chip8html-comprimidas-de-a-una)).
 - **El desensamblador** no refleja el quirk `shifting` (sigue mostrando VY en `SHR`/`SHL`).
 - **Los avisos** aparecen arriba al centro y en pantallas anchas pueden tapar unos segundos
-  el botón "?" y el título del monitor.
+  los botones de la barra (el del cajón de opciones, el del monitor, el lápiz y el «?») y
+  el título del monitor.
 - **A 360 px con escala 1**, la escala entera deja la imagen más chica que el tubo.
 - **No hay archivo `LICENSE`**; el README dice MIT (y que los datos del archivo son CC0).
 

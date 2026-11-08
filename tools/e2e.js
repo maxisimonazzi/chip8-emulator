@@ -44,20 +44,20 @@
  *    5 atajos (Espacio, N, Retroceso, H, Esc) y el modelo de foco: un clic no deja el foco en
  *      el botón; con el foco puesto desde el teclado, Espacio activa el control
  *    6 carga de ROMs: selector de archivos, ROM vacía o grande (el aviso no tapa nada) y arrastre
- *    7 cada cartucho del estante carga y corre 3 s
+ *    7 cada cartucho incluido carga desde su tarjeta de «Cartuchos» y corre 3 s
  *    8 Atrapa: A y D mueven la paleta
  *    9 Autotest con cada perfil: 19 comprobaciones y 0 fallas
  *   10 interruptores de quirks, perfiles, ajustes guardados y localStorage roto
  *   11 controles de velocidad: deslizador, campo numérico y botones
  *   12 sonido: gesto para habilitarlo, silencio y pausa
- *   13 monitor: Paso, desensamblado, registros, pila, Frame y ocultar
+ *   13 monitor: Paso, desensamblado, registros, pila, Frame, y ocultarlo y mostrarlo
  *   14 error de ejecución con la máquina corriendo: CRT, monitor, un solo anuncio y Reiniciar
  *   15 diseño adaptable de 360 a 1440 px y nitidez con escala 1,25 y 2
  *   16 prefers-reduced-motion apaga parpadeos y animaciones
  *   17 pestaña congelada u oculta: al volver no se pone al día de golpe
  *   18 modo de pantalla: Tubo CRT y Píxeles puros (dos colores exactos, sin efectos, interruptores
  *      deshabilitados), se conserva al recargar y se cambia con las flechas
- *   19 selector rápido de cartuchos bajo la ranura, a 1440×900 y sin scrollear
+ *   19 la pestaña «Cartuchos» a 1440×900: los incluidos a la vista sin scrollear la página ni el cajón
  *   20 selectores de perfil y paleta: después de elegir, las teclas van al CHIP-8; N, H y
  *      Retroceso funcionan; con Tab y flechas cambian de forma nativa
  *   21 keypad con el teclado: Tab hasta una tecla, Enter breve (~120 ms) y Espacio sostenido; FX0A
@@ -81,9 +81,9 @@
  *   30 ajustes recordados: ROM con «Cargar ROM», cambios con el mouse, recarga, la misma ROM otra vez
  *      (aviso, ranura y valores) y «Olvidar ajustes» de la ranura
  *   31 banderas RPL: lo que guarda FX75 sobrevive a una recarga y FX85 lo lee
- *   32 biblioteca: «Tus cartuchos» y «Tuyos:», cargar desde los dos, recarga, quitar y «Deshacer»; con
- *      el almacenamiento roto, todo anda en memoria
- *   33 Planos (XO-CHIP) desde el estante: 60 fps, valores de píxel 1 a 3, patrón de sonido y W frena el rombo
+ *   32 biblioteca: «Tus cartuchos» en la pestaña «Cartuchos» (con sus miniaturas), cargar, recarga, quitar y
+ *      «Deshacer»; con el almacenamiento roto, todo anda en memoria
+ *   33 Planos (XO-CHIP) desde su tarjeta: 60 fps, valores de píxel 1 a 3, patrón de sonido y W frena el rombo
  *   34 avance rápido: T sostenida y el botón del bisel dan ×4 instrucciones y ticks de los timers; al
  *      soltar, vuelve a 60 por segundo sin ponerse al día
  *   35 captura: G y el botón de la cámara bajan el PNG (nombre con la fecha, mismos bytes que
@@ -94,7 +94,8 @@
  *      quedan con sus flechas; el mapa de cada cartucho se recuerda al recargar
  *   39 curvatura (apagarla deja el tubo idéntico, píxel por píxel) y encendido animado (al cargar; no
  *      con prefers-reduced-motion ni con el interruptor apagado)
- *   40 diseño con la biblioteca llena y «Controles» personalizados a la vista: 1440, 768 y 360 px
+ *   40 diseño con la biblioteca llena (las doce tarjetas de «Cartuchos») y «Controles» personalizados a la
+ *      vista, en el cajón de opciones: 1440, 768 y 360 px
  *   41 estados: I guarda en la ranura rápida y U vuelve exactamente a ese momento (pc, registros, pantalla,
  *      memoria); en pausa sigue en pausa con ese frame en la pantalla y el monitor, corriendo sigue corriendo
  *   42 ranuras 1 a 4 con el mouse: Guardar, la pantallita (el display del estado con la paleta, escala entera,
@@ -112,7 +113,8 @@
  *   47 el interruptor «Rebobinado» apagado: B y ⏪ no hacen nada, sin fotos; se recuerda al recargar
  *   48 estados sin almacenamiento (en memoria, un aviso), sin lugar (QuotaExceededError real: el aviso de qué
  *      borrar y sigue andando), dañados («DAÑADO» y el error al cargar) y sin cartucho (la explicación)
- *   49 diseño con «Estados» a la vista: 1440, 768 y 360 px (pantallitas con escala entera, botones enteros)
+ *   49 diseño con «Estados» a la vista, en el cajón de opciones: 1440, 768 y 360 px (pantallitas con escala
+ *      entera, botones enteros, y el cajón no tapa la pantalla)
  *   50 rebobinado a 60 fps con XO-CHIP a 1000 IPF: Planos y una ROM que reescribe la memoria de 64 KB
  *   51 Taller: se abre al costado sin tapar la pantalla (1440×900), trae los ejemplos y los fuentes de los
  *      cartuchos; Ctrl+Enter ensambla y corre (no va a «Tus cartuchos»; workshopSymbols()); Y y Esc
@@ -143,7 +145,7 @@
  *   64 puntos de corte por cartucho y fuera del estado; el mapa y la traza al reiniciar, al cargar un estado y al
  *      rebobinar; la pestaña se recuerda
  *   65 velocidad con el depurador: 10.000 IPF con un punto de corte y Planos con cada pestaña a 60 fps
- *   66 archivo de la comunidad: el botón del estante y L abren la ventana con los 104 juegos y sus datos;
+ *   66 archivo de la comunidad: el botón de la pestaña «Cartuchos» y L abren la ventana con los 104 juegos y sus datos;
  *      buscar, filtrar por plataforma y por evento o año, ordenar y «Mostrar todos»; las teclas no llegan a la
  *      consola; Esc, L, × y el fondo la cierran
  *   67 un clic o Enter cargan el juego con los ajustes del archivo, la ventana se cierra, la pantalla queda a la
@@ -171,6 +173,38 @@
  *   77 integración: el desensamblado muestra las etiquetas del programa del Taller (y no las de otro
  *      cartucho), y «Ver todos» carga el estado de un juego del archivo con sus ROMs embebidas aunque haya
  *      otro cartucho en la ranura
+ *   78 cajón de opciones: lo abren y lo guardan el botón de la barra, M, Esc y su ×; el foco entra al abrir y
+ *      vuelve al botón al cerrarlo con el teclado (con el mouse, a la página); región con nombre, aria-expanded
+ *      y aria-controls; con la ayuda abierta, Esc cierra solo la ayuda
+ *   79 las tres pestañas del cajón (clic, flechas, Inicio y Fin) y las cuatro secciones de «Ajustes», Tab
+ *      entra a la pestaña, las flechas sobre una pestaña no llegan al keypad y la pestaña se recuerda al
+ *      guardarlo y al recargar (la primera vez, «Cartuchos»)
+ *   80 el cajón no es modal: abierto, las 16 teclas, las flechas, Espacio, N, el keypad con el mouse, el
+ *      transporte y las tarjetas de «Cartuchos» siguen andando
+ *   81 al costado, el cajón tapa el monitor (o el Taller), que se esfuma mientras tanto, y nunca la pantalla, y
+ *      sus esquinas quedan detrás del borde recto de la consola; con el cajón abierto, Tubo CRT, Píxeles puros
+ *      y la paleta cambian la pantalla a la vista (en una captura de verdad); 1920×945 con el Taller: tapa el
+ *      monitor y el Taller queda a la vista
+ *   82 diseño del cajón a 1920×945, 1440, 768 y 360 px en sus tres pestañas: al costado o desde abajo,
+ *      adentro de la ventana, sin scroll de costado, pestañas enteras, scroll solo adentro del cajón y la
+ *      pantalla a la vista
+ *   83 con el cajón abierto («Ajustes», «Estados» y «Cartuchos» mientras se hacen las miniaturas), 60 fps a
+ *      10.000 IPF
+ *   84 la consola entera en la ventana: a 1920×945, 1440×900 y 1280×800 se achica toda junta hasta entrar sin
+ *      scroll (con el monitor al lado), el lienzo sigue 1:1 con los píxeles físicos y el bisel dice qué
+ *      cartucho está puesto; a 768×1024 va a tamaño natural y en el teléfono no se achica; la línea de
+ *      estado no se ve pero sigue anunciando, los botones de «Ejecución» son más grandes y el pie lleva el autor
+ *   85 el monitor se oculta y se muestra con su botón de la barra (aria-expanded, mouse y teclado) y con
+ *      «Ocultar» en su cabecera; oculto, la consola queda en el medio y el cajón sale a su costado; se recuerda
+ *   86 la pestaña «Cartuchos»: miniaturas idénticas a correr cada ROM aparte, el cartel propio con el mouse y
+ *      con el teclado (Esc lo cierra), Tab y flechas, un clic carga y marca, tus cartuchos con su miniatura,
+ *      arrastrar una ROM y L
+ *   87 carteles: ningún title del navegador en toda la consola; el cartel propio con el mouse y con el
+ *      teclado, encima de las ventanas modales, sin quedarse con los clics; el texto sigue para los lectores
+ *   88 la curvatura con la consola achicada (1920×945, 1440×900 y 1024×768): la curva, pareja en los cuatro
+ *      bordes, y el mapa del filtro del tamaño del lienzo en la ventana
+ *   89 «Cuidado»: los ajustes y los estados de un juego, un cartucho tuyo, todos y el Taller, cada uno con su
+ *      diálogo y su «Deshacer»; toda la configuración vuelve a arrancar de fábrica, sin estados
  */
 
 const { spawn, spawnSync } = require('node:child_process');
@@ -592,7 +626,66 @@ class Page {
     return last;
   }
 
+  // Las opciones viven en el cajón de opciones: antes de medir (o tocar) un elemento, el arnés hace lo que haría
+  // una persona. Si el elemento está en el cajón y no se ve (guardado o en otra pestaña), lo abre con el mouse
+  // (el botón de la barra de arriba) y toca la pestaña del elemento; si el elemento está afuera y el cajón
+  // abierto lo tapa, guarda el cajón con su ×. Devuelve lo que hizo ('abrió', 'pestaña', 'guardó' o '').
+  async reach(selector) {
+    const at = await this.ev(`(() => {
+      const el = document.querySelector(${JSON.stringify(selector)}), d = document.getElementById('drawer');
+      if (!el || !d || !window.chip8 || !window.chip8.drawerInfo || el.closest('.drawer-head') || el.id === 'btn-drawer') return null;
+      const info = window.chip8.drawerInfo();
+      if (d.contains(el)) {
+        const panel = el.closest('[role="tabpanel"]'), tab = panel && document.querySelector('[aria-controls="' + panel.id + '"]');
+        return { inside: true, open: info.open, tab: tab ? '#' + tab.id : null, selected: !tab || tab.getAttribute('aria-selected') === 'true' };
+      }
+      if (!info.open) return null;
+      el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
+      const b = el.getBoundingClientRect(), hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+      return { inside: false, covered: !!hit && d.contains(hit) };
+    })()`);
+    if (!at) return '';
+    // Un clic en el centro del botón; si un aviso de arriba lo tapa, primero se cierra el aviso con su ×.
+    const press = async (sel) => {
+      for (let i = 0; i < 4; i++) {
+        const b = await this.ev(`(() => {
+          const e = document.querySelector(${JSON.stringify(sel)});
+          e.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+          const q = e.getBoundingClientRect(), x = q.left + q.width / 2, y = q.top + q.height / 2, hit = document.elementFromPoint(x, y);
+          const t = hit && hit.closest('#toasts .toast'), c = t && t.querySelector('button[aria-label="Cerrar aviso"]');
+          const z = c && c.getBoundingClientRect();
+          return { x, y, close: z ? { x: z.left + z.width / 2, y: z.top + z.height / 2 } : null };
+        })()`);
+        if (!b.close) { await this.clickAt(b.x, b.y); return; }
+        await this.clickAt(b.close.x, b.close.y);
+        await sleep(50);
+      }
+      throw new Error('Los avisos no dejan tocar ' + sel);
+    };
+    if (at.inside) {
+      let did = '';
+      if (!at.open) {
+        await press('#btn-drawer');
+        await this.waitFor(DRAWER_SETTLED, { timeout: 3000, desc: 'el cajón de opciones abierto y quieto' });
+        did = 'abrió';
+      }
+      if (!at.selected) {
+        await press(at.tab);
+        await this.waitFor(`document.querySelector(${JSON.stringify(at.tab)}).getAttribute('aria-selected') === 'true'`, { timeout: 2000, desc: 'la pestaña ' + at.tab });
+        did = did || 'pestaña';
+      }
+      return did;
+    }
+    if (at.covered) {
+      await press('#drawer-close');
+      await this.waitFor("document.getElementById('drawer').hidden", { timeout: 3000, desc: 'el cajón de opciones guardado' });
+      return 'guardó';
+    }
+    return '';
+  }
+
   async rect(selector, scroll = true) {
+    await this.reach(selector);
     const r = await this.ev(`(() => {
       const el = document.querySelector(${JSON.stringify(selector)});
       if (!el) return null;
@@ -721,6 +814,10 @@ const hx = (v, d = 3) => '0x' + (v >>> 0).toString(16).toUpperCase().padStart(d,
 
 const KEYS_EXPR = 'Array.from(window.chip8.cpu.keys)';
 const E2E = 'window.chip8.cpu.__e2e';
+// El cajón de opciones afuera y quieto (sin la transición de salida en marcha).
+const DRAWER_SETTLED = "(() => { const d = document.getElementById('drawer'); return !!d && !d.hidden && d.classList.contains('is-open') && d.getAnimations().every((a) => a.playState !== 'running'); })()";
+// Guardado del todo (después de la transición).
+const DRAWER_STORED = "document.getElementById('drawer').hidden";
 // Cantidad de comprobaciones de roms/autotest.asm (la misma constante que tests/roms.test.js).
 const AUTOTEST_CHECKS = 19;
 const IPF_MAX = 10000;   // tope de instrucciones por frame de la interfaz (IPF_MAX en chip8-ui)
@@ -742,12 +839,29 @@ function regionExpr(x0, y0, w, h) {
   return `(() => { const d = window.chip8.cpu.display; let n = 0; for (let y = ${y0}; y < ${y0 + h}; y++) for (let x = ${x0}; x < ${x0 + w}; x++) n += d[y * 64 + x] ? 1 : 0; return n; })()`;
 }
 
+// Pone un demo como una persona: abre el cajón (si estaba guardado), toca su tarjeta en «Cartuchos» y, si lo
+// abrió para eso, lo vuelve a guardar con su ×, así el frente queda como estaba.
 async function clickCart(page, id) {
   const idx = await page.ev(`window.chip8.demos.findIndex((d) => d.id === ${JSON.stringify(id)})`);
   if (idx < 0) throw new Error('No hay cartucho ' + id);
-  await page.click(`#shelf-list .cart:nth-child(${idx + 1})`);
+  const sel = `#shelf-list .ccard:nth-child(${idx + 1})`;
+  const did = await page.reach(sel);
+  await page.click(sel);
   const name = await page.ev(`window.chip8.demos[${idx}].name`);
   await page.waitFor(`document.getElementById('cart-name').textContent === ${JSON.stringify(name)}`, { timeout: 3000, desc: `cartucho «${name}» en la ranura` });
+  if (did === 'abrió') await closeDrawer(page);
+  return name;
+}
+// Lo mismo con un cartucho de «Tus cartuchos» (n: su lugar, desde 1, con el jugado más recientemente primero).
+async function clickLibCart(page, n) {
+  const sel = `#lib-list .lib-item:nth-child(${n}) .ccard`;
+  const did = await page.reach(sel);
+  const r0 = await page.ev(`window.chip8.cpu.__e2e ? window.chip8.cpu.__e2e.resets : -1`);
+  const name = await page.ev(`document.querySelector(${JSON.stringify(sel)}).querySelector('.ccard-name').textContent`);
+  await page.click(sel);
+  await page.waitFor(`document.getElementById('cart-name').textContent === ${JSON.stringify(name)}` + (r0 >= 0 ? ` && window.chip8.cpu.__e2e.resets > ${r0}` : ''),
+    { timeout: 3000, desc: `«${name}» (de tus cartuchos) en la ranura` });
+  if (did === 'abrió') await closeDrawer(page);
   return name;
 }
 
@@ -787,8 +901,65 @@ function presetQuirks(id) {
 }
 const sameQuirks = (a, b) => Object.keys(b).every((k) => !!a[k] === !!b[k]);
 
+// Las secciones de la pestaña «Ajustes» (DRAWER_SECTIONS en chip8-ui).
+const DRAWER_SECTIONS = ['velocidad', 'pantalla', 'compatibilidad', 'controles'];
+// El cajón de opciones, como una persona. how: 'mouse' (el botón de la barra de arriba; para guardarlo, la ×),
+// 'barra' (para guardarlo, el botón de la barra), 'tecla' (M) o 'esc' (para guardarlo). tab: la pestaña que se
+// toca con el mouse después de abrirlo ('cartuchos', 'ajustes' o 'estados'), o una sección de «Ajustes»: toca
+// «Ajustes» y corre la bandeja hasta el título de la sección, como con la rueda del mouse. Espera a que termine
+// de salir o de guardarse.
+// Toca un botón de la barra de arriba como una persona: si un aviso flotante lo tapa, primero cierra el aviso.
+async function clickPastToasts(page, sel) {
+  for (let i = 0; i < 4; i++) {
+    const b = await page.ev(`(() => { const e = document.querySelector(${JSON.stringify(sel)}), q = e.getBoundingClientRect(), x = q.left + q.width / 2, y = q.top + q.height / 2;
+      const hit = document.elementFromPoint(x, y), t = hit && hit.closest('#toasts .toast'), c = t && t.querySelector('button[aria-label="Cerrar aviso"]'), z = c && c.getBoundingClientRect();
+      return { x, y, close: z ? { x: z.left + z.width / 2, y: z.top + z.height / 2 } : null }; })()`);
+    if (!b.close) { await page.clickAt(b.x, b.y); return; }
+    await page.clickAt(b.close.x, b.close.y);
+    await sleep(50);
+  }
+  throw new Error('Los avisos no dejan tocar ' + sel);
+}
+async function openDrawer(page, tab = null, how = 'mouse') {
+  if (!(await page.ev('window.chip8.drawerInfo().open'))) {
+    if (how === 'tecla') await page.press('KeyM');
+    else await clickPastToasts(page, '#btn-drawer');
+  }
+  await page.waitFor(DRAWER_SETTLED, { timeout: 3000, desc: 'el cajón de opciones abierto y quieto' });
+  const section = DRAWER_SECTIONS.includes(tab) ? tab : null;
+  if (tab) await page.click(`#drawer-tab-${section ? 'ajustes' : tab}`);
+  if (section) {
+    await page.ev(`(() => { const b = document.getElementById('drawer-body'), t = document.getElementById('drawer-sec-${section}');
+      b.scrollTop += t.getBoundingClientRect().top - b.getBoundingClientRect().top - 12; })()`);
+  }
+  return page.ev('window.chip8.drawerInfo()');
+}
+async function closeDrawer(page, how = 'mouse') {
+  if (await page.ev('window.chip8.drawerInfo().open')) {
+    if (how === 'tecla') await page.press('KeyM');
+    else if (how === 'esc') await page.press('Escape');
+    else await page.click(how === 'barra' ? '#btn-drawer' : '#drawer-close');
+  }
+  await page.waitFor(DRAWER_STORED, { timeout: 3000, desc: 'el cajón de opciones guardado' });
+}
+// Elige una pestaña del cajón con el mouse (lo abre si hace falta) y le pone el foco, como si se hubiera
+// llegado con Tab: el próximo Tab entra al primer control de la pestaña. Una sección de «Ajustes» elige «Ajustes»
+// y deja el foco en el título de la sección (como después de recorrerla con Tab): el próximo Tab entra a su primer
+// control.
+async function focusDrawerTab(page, tab) {
+  const section = DRAWER_SECTIONS.includes(tab) ? tab : null;
+  await page.click(`#drawer-tab-${section ? 'ajustes' : tab}`);
+  if (section) {
+    await page.ev(`(() => { const t = document.getElementById('drawer-sec-${section}-t'); t.tabIndex = -1; t.focus();
+      t.addEventListener('blur', () => t.removeAttribute('tabindex'), { once: true }); })()`);
+  } else {
+    await page.ev(`document.getElementById('drawer-tab-${tab}').focus()`);
+  }
+}
+
 // Elige una opción de un <select> con el teclado (foco + flechas), como lo haría una persona.
 async function chooseSelect(page, selector, value) {
+  await page.reach(selector);   // en el cajón de opciones: abierto y en su pestaña
   const info = await page.ev(`(() => { const s = document.querySelector(${JSON.stringify(selector)}); s.focus(); return { idx: Array.from(s.options).findIndex((o) => o.value === ${JSON.stringify(value)}), cur: s.selectedIndex }; })()`);
   if (info.idx < 0) throw new Error(`La opción ${value} no existe en ${selector}`);
   let cur = info.cur;
@@ -822,12 +993,14 @@ async function chooseWithMouse(page, selector, value) {
   return page.ev(`document.querySelector(${JSON.stringify(selector)}).value`);
 }
 
-// Carga un archivo como una persona: clic en «Cargar ROM» y, en el diálogo de archivos (interceptado con
-// Page.setInterceptFileChooserDialog), el archivo. Espera a que la ROM esté en la ranura: expectName es
-// lo que tiene que decir (el nombre del archivo o, si es un juego del archivo de Octo, su título).
+// Carga un archivo como una persona: clic en «Cargar ROM» (en la pestaña «Cartuchos» del cajón) y, en el diálogo
+// de archivos (interceptado con Page.setInterceptFileChooserDialog), el archivo. Espera a que la ROM esté en la
+// ranura: expectName es lo que tiene que decir (el nombre del archivo o, si es un juego del archivo de Octo, su
+// título). Si abrió el cajón para eso, lo vuelve a guardar.
 async function loadWithButton(page, file, expectName) {
   await page.send('Page.setInterceptFileChooserDialog', { enabled: true });
   const r0 = await page.ev(`window.chip8.cpu.__e2e ? window.chip8.cpu.__e2e.resets : -1`);
+  const did = await page.reach('#btn-load');
   const opened = page.cdp.waitEvent('Page.fileChooserOpened', page.sessionId, 5000);
   await page.click('#btn-load');
   const ev = await opened;
@@ -835,6 +1008,7 @@ async function loadWithButton(page, file, expectName) {
   // La misma ROM otra vez deja el mismo nombre: también se espera el reinicio de la carga (instrument()).
   const loaded = `document.getElementById('cart-name').textContent === ${JSON.stringify(expectName)}` + (r0 >= 0 ? ` && window.chip8.cpu.__e2e.resets > ${r0}` : '');
   await page.waitFor(loaded, { timeout: 4000, desc: `«${expectName}» en la ranura (${path.basename(file)} con «Cargar ROM»)` });
+  if (did === 'abrió') await closeDrawer(page);
 }
 
 // Clic con el mouse en el centro de un elemento, después de comprobar que en ese punto no hay otra cosa
@@ -1269,6 +1443,7 @@ scenario(5, 'Atajos: Espacio, N, Retroceso, H, Esc y el campo IPF', async (ctx, 
   const q4 = await paused();
   s.check(scan0 === scan1 && q4 === false, 'después de un clic en Scanlines, Espacio pausa/continúa y no toca el interruptor', `scan ${scan0}->${scan1}, pausa ${q4}`);
   // Scanlines enfocado desde el teclado (como con Tab): Espacio lo activa y no pausa.
+  await page.reach('#tg-scan');
   await page.ev("document.getElementById('tg-scan').focus()");
   await page.press('Space');
   await sleep(120);
@@ -1400,9 +1575,9 @@ scenario(6, 'Carga de ROMs: selector de archivos, errores y arrastrar y soltar',
     const cover = await page.ev(`(() => {
       const t = document.querySelector('#toasts .toast--error'); if (!t) return ['sin aviso'];
       const a = t.getBoundingClientRect();
-      return ['#keypad', '#status', '#screen', '#btn-reset'].filter((sel) => { const b = document.querySelector(sel).getBoundingClientRect(); return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom; });
+      return ['#keypad', '#screen', '#btn-reset'].filter((sel) => { const b = document.querySelector(sel).getBoundingClientRect(); return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom; });
     })()`);
-    s.check(cover.length === 0, `ROM ${label}: el aviso no tapa el keypad, la línea de estado, la pantalla ni el transporte`, 'tapa: ' + cover.join(', '));
+    s.check(cover.length === 0, `ROM ${label}: el aviso no tapa el keypad, la pantalla ni el transporte`, 'tapa: ' + cover.join(', '));
     s.check(name === 'fuente.ch8' && c1.calls > c0.calls + 10 && !(await page.ev('window.chip8.cpu.halted')), `ROM ${label}: la ROM anterior sigue en la ranura y corriendo`, `${name}, frames +${c1.calls - c0.calls}`);
     if (label.startsWith('de')) await page.shot('06-error-rom-grande');
     await page.ev("document.querySelectorAll('#toasts .toast').forEach((t) => t.remove())");
@@ -1426,7 +1601,7 @@ scenario(6, 'Carga de ROMs: selector de archivos, errores y arrastrar y soltar',
 });
 
 // 7 --------------------------------------------------------------------------------
-scenario(7, 'Cada cartucho incluido carga desde el estante y corre 3 s', async (ctx, s) => {
+scenario(7, 'Cada cartucho incluido carga desde la pestaña «Cartuchos» y corre 3 s', async (ctx, s) => {
   const page = await freshApp(ctx, s);
   const demos = await page.ev('window.chip8.demos.map((d) => ({ id: d.id, name: d.name }))');
   s.info('Cartuchos: ' + demos.map((d) => d.id).join(', '));
@@ -1436,9 +1611,9 @@ scenario(7, 'Cada cartucho incluido carga desde el estante y corre 3 s', async (
     const c0 = await counters(page);
     await sleep(3000);
     const c1 = await counters(page);
-    const st = await page.ev(`({ halted: window.chip8.cpu.halted, err: window.chip8.cpu.error, pressed: document.querySelector('#shelf-list .cart[aria-pressed="true"] .cart-name') && document.querySelector('#shelf-list .cart[aria-pressed="true"] .cart-name').textContent, lit: window.chip8.cpu.display.reduce((a, b) => a + b, 0), badge: document.getElementById('mon-badge').textContent })`);
+    const st = await page.ev(`({ halted: window.chip8.cpu.halted, err: window.chip8.cpu.error, pressed: document.querySelector('#shelf-list .ccard[aria-current="true"] .ccard-name') && document.querySelector('#shelf-list .ccard[aria-current="true"] .ccard-name').textContent, lit: window.chip8.cpu.display.reduce((a, b) => a + b, 0), badge: document.getElementById('mon-badge').textContent, bezel: document.getElementById('bezel-cart').textContent })`);
     const fps = (c1.calls - c0.calls) / ((c1.now - c0.now) / 1000);
-    s.check(!st.halted && st.pressed === d.name && fps > 50 && st.lit > 0, `«${d.name}»: carga, queda marcado, corre (${fps.toFixed(0)} fps, ${st.lit} píxeles, monitor: ${st.badge})`, JSON.stringify(st));
+    s.check(!st.halted && st.pressed === d.name && st.bezel === d.name && fps > 50 && st.lit > 0, `«${d.name}»: carga, queda marcado (y su nombre, en el bisel), corre (${fps.toFixed(0)} fps, ${st.lit} píxeles, monitor: ${st.badge})`, JSON.stringify(st));
     await page.shot('07-cartucho-' + d.id);
   }
   s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
@@ -1637,7 +1812,7 @@ scenario(12, 'Sonido: se habilita con un gesto, suena, respeta el silencio y la 
 });
 
 // 13 -------------------------------------------------------------------------------
-scenario(13, 'Monitor: Paso, desensamblado, registros, pila, Frame y ocultar', async (ctx, s) => {
+scenario(13, 'Monitor: Paso, desensamblado, registros, pila, Frame, y ocultarlo y mostrarlo', async (ctx, s) => {
   const page = await freshApp(ctx, s);
   // 200: LD V0,05  202: LD V1,07  204: CALL 20A  206: JP 206  208: --  20A: LD V2,01  20C: JP 20C
   const rom = writeFixture(ctx, 'monitor.ch8', [0x60, 0x05, 0x61, 0x07, 0x22, 0x0A, 0x12, 0x06, 0x00, 0x00, 0x62, 0x01, 0x12, 0x0C]);
@@ -1647,7 +1822,15 @@ scenario(13, 'Monitor: Paso, desensamblado, registros, pila, Frame y ocultar', a
   await page.click('#btn-reset');
   await sleep(80);
   const mon = () => page.ev(`({ pc: document.getElementById('mon-pc').textContent, row: document.querySelector('#disasm li.is-pc .d-addr').textContent, rowText: document.querySelector('#disasm li.is-pc .d-text').textContent, chg: Array.from(document.querySelectorAll('#vgrid .vcell')).map((c, i) => c.classList.contains('is-chg') ? i : -1).filter((i) => i >= 0), v: Array.from(document.querySelectorAll('#vgrid .vcell span')).slice(0, 3).map((e) => e.textContent), sp: document.getElementById('mon-sp').textContent, stack0: document.querySelector('#stack li .s-val').textContent, top: document.querySelector('#stack li.is-top .s-val') && document.querySelector('#stack li.is-top .s-val').textContent, instr: document.getElementById('mon-instr').textContent, badge: document.getElementById('mon-badge').textContent, paused: window.chip8.isPaused() })`);
-  const stepClick = async () => { await page.click('#btn-step'); await sleep(80); };
+  // Paso ejecuta al instante, pero el monitor se dibuja en el cuadro siguiente: se espera a que muestre el PC
+  // nuevo (con la máquina cargada, 80 ms fijos a veces no alcanzaban). Si el clic no llegara, el PC no cambia y
+  // la comprobación de abajo falla igual.
+  const stepClick = async () => {
+    await page.click('#btn-step');
+    await page.waitFor(`document.getElementById('mon-pc').textContent.toLowerCase() === '0x' + window.chip8.cpu.pc.toString(16).padStart(3, '0')`,
+      { timeout: 2000, desc: 'el monitor al día después de Paso' });
+    await sleep(30);
+  };
   const m0 = await mon();
   s.check(m0.paused && m0.pc === '0x200' && m0.row === '0x200', `pausado y reiniciado: PC ${m0.pc}, fila resaltada ${m0.row} (${m0.rowText}), monitor «${m0.badge}»`, JSON.stringify(m0));
   await stepClick();
@@ -1672,15 +1855,19 @@ scenario(13, 'Monitor: Paso, desensamblado, registros, pila, Frame y ocultar', a
   const i1 = await page.ev(`${E2E}.instr`);
   const m5 = await mon();
   s.check(i1 - i0 === 15 && m5.paused && m5.instr === String(4 + 15), `Frame ejecuta un frame (15 instrucciones con IPF 15) y sigue en pausa (contador ${m5.instr})`, JSON.stringify({ d: i1 - i0, m5 }));
+  // «Ocultar» (en la cabecera del monitor) lo oculta entero; el botón del monitor de la barra de arriba lo trae.
+  const monState = "({ hidden: document.getElementById('monitor').hidden, visible: document.getElementById('monitor').getBoundingClientRect().height > 0, exp: document.getElementById('btn-monitor').getAttribute('aria-expanded'), saved: JSON.parse(localStorage.getItem('chip8-consola.ajustes')).monitorOpen })";
   await page.click('#mon-toggle');
   await sleep(60);
-  const h1 = await page.ev("({ hidden: document.getElementById('mon-body').hidden, visible: document.getElementById('mon-body').getBoundingClientRect().height > 0, label: document.getElementById('mon-toggle-label').textContent, exp: document.getElementById('mon-toggle').getAttribute('aria-expanded') })");
+  const h1 = await page.ev(monState);
   await page.shot('13-monitor-oculto');
-  await page.click('#mon-toggle');
+  await page.click('#btn-monitor');
   await sleep(60);
-  const h2 = await page.ev("({ hidden: document.getElementById('mon-body').hidden, visible: document.getElementById('mon-body').getBoundingClientRect().height > 0, label: document.getElementById('mon-toggle-label').textContent })");
-  s.check(h1.hidden && !h1.visible && h1.label === 'Mostrar' && h1.exp === 'false', 'Ocultar esconde el cuerpo del monitor', JSON.stringify(h1));
-  s.check(!h2.hidden && h2.visible && h2.label === 'Ocultar', 'Mostrar lo vuelve a mostrar', JSON.stringify(h2));
+  const h2 = await page.ev(monState);
+  s.check(h1.hidden && !h1.visible && h1.exp === 'false' && h1.saved === false, 'Ocultar esconde el monitor entero (el botón de la barra queda sin hundir)', JSON.stringify(h1));
+  s.check(!h2.hidden && h2.visible && h2.exp === 'true' && h2.saved === true, 'el botón del monitor de la barra lo vuelve a mostrar', JSON.stringify(h2));
+  const m6 = await mon();
+  s.check(m6.pc === m5.pc && m6.instr === m5.instr, `al volver, muestra la máquina como está (PC ${m6.pc})`, JSON.stringify(m6));
   s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
 });
 
@@ -1729,7 +1916,7 @@ scenario(15, 'Diseño adaptable (360 a 1440 px) y nitidez con escala 1,25 y 2', 
     const cv = document.getElementById('screen');
     const over = [];
     document.querySelectorAll('body *').forEach((el) => { const b = el.getBoundingClientRect(); if (b.width && b.right > innerWidth + 0.5 && getComputedStyle(el).position !== 'fixed') over.push((el.id ? '#' + el.id : el.tagName.toLowerCase() + '.' + el.className).slice(0, 40)); });
-    const cs = document.getElementById('cart-size');
+    const cs = document.getElementById('bezel-cart');
     return { sw: document.documentElement.scrollWidth, iw: innerWidth, cartSize: { text: cs.textContent, sw: cs.scrollWidth, cw: cs.clientWidth }, minKey: Math.min(...keys.map((k) => Math.min(k.width, k.height))), canvas: { l: c.left, r: c.right, w: c.width, h: c.height, t: c.top }, back: [cv.width, cv.height], dpr: devicePixelRatio, over: over.slice(0, 6) };
   })()`);
   for (const w of [360, 414, 768, 1024, 1440]) {
@@ -1740,7 +1927,7 @@ scenario(15, 'Diseño adaptable (360 a 1440 px) y nitidez con escala 1,25 y 2', 
     const m = await measure();
     s.check(m.sw <= m.iw, `${w}px: sin scroll horizontal (scrollWidth ${m.sw} ≤ ${m.iw})`, 'se salen: ' + m.over.join(', '));
     s.check(m.minKey >= 44, `${w}px: teclas del keypad de al menos 44 px (mínimo ${m.minKey.toFixed(1)})`);
-    s.check(m.cartSize.sw <= m.cartSize.cw + 1, `${w}px: la etiqueta del cartucho se lee entera («${m.cartSize.text}»)`, JSON.stringify(m.cartSize));
+    s.check(m.cartSize.sw <= m.cartSize.cw + 1 && m.cartSize.cw > 0, `${w}px: el nombre del cartucho, en el bisel, se lee entero («${m.cartSize.text}»)`, JSON.stringify(m.cartSize));
     s.check(m.canvas.w > 0 && m.canvas.h > 0 && m.canvas.l >= 0 && m.canvas.r <= m.iw + 0.5, `${w}px: la pantalla se ve entera (${m.canvas.w.toFixed(0)}×${m.canvas.h.toFixed(0)} CSS px)`, JSON.stringify(m.canvas));
     await page.ev('window.scrollTo(0, 0)');
     await page.shot(`15-ancho-${w}`);
@@ -1990,12 +2177,17 @@ scenario(18, 'Modo de pantalla: Tubo CRT y Píxeles puros (mouse, recarga y flec
   s.check(isPuro(l2) && l2.tabs.join() === '-1,0', 'después de recargar sigue en Píxeles puros (y el grupo tiene el foco de Tab en esa opción)', JSON.stringify(l2));
   s.check(p2.distinct <= 2 && p2.wrong === 0 && p2.mid === 0, `después de recargar el lienzo sigue con dos colores exactos (${p2.distinct}, ${p2.wrong} fuera de lugar)`, JSON.stringify(p2));
 
-  // Con el teclado: Tab entra al grupo por la opción elegida y las flechas cambian el modo.
-  await page.ev("document.querySelector('#ipf-chips .chip:last-child').focus()");
+  // Con el teclado: M abre el cajón en la pestaña de la última vez («Ajustes», guardada en los ajustes), Tab
+  // desde el título de «Pantalla y sonido» entra al grupo por la opción elegida y las flechas cambian el modo.
+  await page.click('.tagline');
+  await page.press('KeyM');
+  await page.waitFor(DRAWER_SETTLED, { timeout: 3000, desc: 'el cajón abierto con M' });
+  const tabNow = await page.ev('window.chip8.drawerInfo().tab');
+  await focusDrawerTab(page, 'pantalla');
   await page.press('Tab');
   await sleep(50);
   const f0 = await look();
-  s.check(f0.focus === 'puro', `Tab desde el último botón de velocidad entra al grupo por «Píxeles puros» (foco: ${f0.focus})`);
+  s.check(tabNow === 'ajustes' && f0.focus === 'puro', `M abre el cajón en la pestaña de la última vez (${tabNow}) y Tab desde el título de «Pantalla y sonido» entra al grupo por «Píxeles puros» (foco: ${f0.focus})`);
   await page.press('ArrowRight');
   await sleep(150);
   const l3 = await look();
@@ -2020,42 +2212,35 @@ scenario(18, 'Modo de pantalla: Tubo CRT y Píxeles puros (mouse, recarga y flec
 });
 
 // 19 -------------------------------------------------------------------------------
-scenario(19, 'Selector rápido de cartuchos bajo la ranura (1440×900, sin scrollear)', async (ctx, s) => {
+scenario(19, 'La pestaña «Cartuchos» a 1440×900: los incluidos a la vista, sin scrollear la página ni el cajón', async (ctx, s) => {
   const page = await freshApp(ctx, s, { width: 1440, height: 900 });
   await sleep(300);
   const demos = await page.ev('window.chip8.demos.map((d) => ({ id: d.id, name: d.name, controls: d.controls, bytes: Array.from(d.bytes) }))');
-  const chips = await page.ev("Array.from(document.querySelectorAll('#cart-chips .chip')).map((c) => c.textContent)");
-  const picker = await page.ev("({ hidden: document.getElementById('cart-picker').hidden, label: document.getElementById('cart-chips-label').textContent, more: document.querySelector('#cart-picker .cart-more') && document.querySelector('#cart-picker .cart-more').textContent })");
-  s.check(!picker.hidden && chips.length === demos.length && chips.every((t, i) => t === demos[i].name), `«${picker.label}» muestra un chip por demo (${chips.join(', ')}) y el enlace «${picker.more}»`, JSON.stringify({ picker, chips }));
+  const info = await openDrawer(page);
+  const cards = await page.ev("Array.from(document.querySelectorAll('#shelf-list .ccard')).map((c) => c.querySelector('.ccard-name').textContent)");
+  s.check(info.tab === 'cartuchos' && cards.length === demos.length && cards.every((t, i) => t === demos[i].name),
+    `la primera vez, el cajón abre en «Cartuchos», con una tarjeta por demo (${cards.join(', ')})`, JSON.stringify({ info, cards }));
   for (let i = 0; i < demos.length; i++) {
     const d = demos[i];
-    const r = await page.rect(`#cart-chips .chip:nth-child(${i + 1})`, false);
-    const vp = await page.ev('({ sy: scrollY, ih: innerHeight, iw: innerWidth })');
-    const inView = vp.sy === 0 && r.y >= 0 && r.y + r.h <= vp.ih && r.x >= 0 && r.x + r.w <= vp.iw;
+    const r = await page.rect(`#shelf-list .ccard:nth-child(${i + 1})`, false);
+    const vp = await page.ev(`(() => { const b = document.getElementById('drawer-body').getBoundingClientRect(); return { sy: scrollY, ih: innerHeight, iw: innerWidth, bodyTop: b.top, bodyBottom: b.bottom, scroll: document.getElementById('drawer-body').scrollTop }; })()`);
+    const inView = vp.sy === 0 && vp.scroll === 0 && r.y >= vp.bodyTop && r.y + r.h <= vp.bodyBottom && r.x >= 0 && r.x + r.w <= vp.iw;
     await page.clickAt(r.cx, r.cy);
     const loaded = await page.poll(`document.getElementById('cart-name').textContent === ${JSON.stringify(d.name)}`, 3000);
     await sleep(80);
     const st = await page.ev(`(() => {
-      const cc = document.getElementById('cart-controls'), b = cc.getBoundingClientRect(), m = window.chip8.cpu.memory;
-      const chipEls = document.querySelectorAll('#cart-chips .chip');
-      return { pressed: Array.from(chipEls).map((c) => c.getAttribute('aria-pressed')).join(''), shelf: Array.from(document.querySelectorAll('#shelf-list .cart')).map((c) => c.getAttribute('aria-pressed')).join(''),
-        ctrl: cc.hidden ? null : cc.textContent, ctrlTop: b.top, ctrlBottom: b.bottom, rom: Array.from(m.slice(0x200, 0x200 + ${d.bytes.length})).join(','),
-        sy: scrollY, focused: document.activeElement === chipEls[${i}], halted: window.chip8.cpu.halted, size: document.getElementById('cart-size').textContent };
+      const cc = document.getElementById('cart-controls'), m = window.chip8.cpu.memory, cardEls = document.querySelectorAll('#shelf-list .ccard');
+      return { marked: Array.from(cardEls).map((c) => c.getAttribute('aria-current') === 'true' ? 'true' : 'false').join(''),
+        ctrl: cc.hidden ? null : cc.textContent, rom: Array.from(m.slice(0x200, 0x200 + ${d.bytes.length})).join(','), bezel: document.getElementById('bezel-cart').textContent,
+        sy: scrollY, focused: document.activeElement === cardEls[${i}], halted: window.chip8.cpu.halted, size: document.getElementById('cart-size').textContent, open: window.chip8.drawerInfo().open };
     })()`);
     const want = demos.map((_, j) => (j === i ? 'true' : 'false')).join('');
     const wantCtrl = d.controls ? 'Controles: ' + d.controls : null;
-    const ctrlInView = st.ctrl === null || (st.ctrlTop >= 0 && st.ctrlBottom <= vp.ih);
-    s.check(inView && loaded && st.pressed === want && st.shelf === want && st.ctrl === wantCtrl && ctrlInView && st.rom === d.bytes.join(',') && st.sy === 0 && !st.focused && !st.halted,
-      `chip «${d.name}»: visible sin scrollear, carga el demo («${st.size}»), queda marcado (también en el estante) y muestra «${(st.ctrl || '(sin controles)').slice(0, 48)}…»`,
-      JSON.stringify({ inView, r, loaded, ...st, rom: st.rom === d.bytes.join(',') ? 'igual' : 'DISTINTA', wantCtrl }));
-    if (i === 2) await page.shot('19-selector-cartuchos');
+    s.check(inView && loaded && st.marked === want && st.ctrl === wantCtrl && st.rom === d.bytes.join(',') && st.bezel === d.name && st.sy === 0 && !st.focused && !st.halted && st.open,
+      `«${d.name}»: a la vista sin scrollear, carga el demo («${st.size}»), queda marcado, su nombre va al bisel, la ranura muestra «${(st.ctrl || '(sin controles)').slice(0, 40)}…» y el cajón sigue abierto`,
+      JSON.stringify({ inView, r, vp, loaded, ...st, rom: st.rom === d.bytes.join(',') ? 'igual' : 'DISTINTA', wantCtrl }));
+    if (i === 2) await page.shot('19-cartuchos');
   }
-  // «Detalles ↓» lleva al estante de abajo.
-  const more = await page.rect('#cart-picker .cart-more', false);
-  await page.clickAt(more.cx, more.cy);
-  const reached = await page.poll("(() => { const b = document.getElementById('shelf-title').getBoundingClientRect(); return b.top >= -1 && b.bottom <= innerHeight && scrollY > 0; })()", 2000);
-  const sy = await page.ev('scrollY');
-  s.check(reached, `«Detalles ↓» baja hasta el estante «Cartuchos incluidos» (scroll ${Math.round(sy)} px)`);
   s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
 });
 
@@ -2105,18 +2290,20 @@ scenario(20, 'Selectores de perfil y paleta: el foco no se queda con las teclas 
 
   // Con el selector enfocado desde el teclado: las teclas mapeadas igual van al CHIP-8 y la
   // búsqueda por letra del <select> no cambia la opción.
-  await page.ev("document.getElementById('volume').focus()");
+  await focusDrawerTab(page, 'compatibilidad');
   await page.press('Tab');
   const t1 = await st();
   const bad2 = await keysReach();
   const t2 = await st();
-  s.check(t1.ae === 'preset' && bad2.length === 0 && t2.preset === 'schip' && t2.ae === 'preset' && sameQuirks(t2.quirks, presetQuirks('schip')), `con Perfil enfocado (Tab desde Volumen), X S C V A 1 van al CHIP-8 y el perfil sigue en ${t2.preset}`, bad2.join('; ') + ' ' + JSON.stringify(t2));
+  s.check(t1.ae === 'preset' && bad2.length === 0 && t2.preset === 'schip' && t2.ae === 'preset' && sameQuirks(t2.quirks, presetQuirks('schip')), `con Perfil enfocado (Tab desde el título de «Compatibilidad», en la pestaña Ajustes del cajón), X S C V A 1 van al CHIP-8 y el perfil sigue en ${t2.preset}`, bad2.join('; ') + ' ' + JSON.stringify(t2));
+  await page.reach('#palette');
   await page.ev("document.getElementById('palette').focus()");
   const bad3 = await keysReach();
   const t3 = await st();
   s.check(bad3.length === 0 && t3.palette === 'ambar' && t3.ae === 'palette', `con Paleta enfocada, las mismas teclas van al CHIP-8 y la paleta sigue en ${t3.palette}`, bad3.join('; ') + ' ' + JSON.stringify(t3));
 
   // N, H y Retroceso con un selector enfocado.
+  await page.reach('#preset');
   await page.ev("document.getElementById('preset').focus()");
   await page.press('KeyN'); // con la máquina corriendo, N la pausa (y ejecuta una)
   await sleep(60);
@@ -2141,7 +2328,7 @@ scenario(20, 'Selectores de perfil y paleta: el foco no se queda con las teclas 
   s.check(h1.help && !h2.help && h2.preset === 'schip', 'con Perfil enfocado, H abre la ayuda (y Esc la cierra)', JSON.stringify({ h1, h2 }));
 
   // Tab hasta Perfil y flechas: cambian la opción de forma nativa y el foco se queda.
-  await page.ev("document.getElementById('volume').focus()");
+  await focusDrawerTab(page, 'compatibilidad');
   await page.press('Tab');
   await page.press('ArrowDown');
   await sleep(100);
@@ -2348,14 +2535,14 @@ scenario(24, 'Pantalla angosta: a 360×640 la pantalla y el keypad entero entran
       const keys = Array.from(document.querySelectorAll('#keypad .key')).map((k) => k.getBoundingClientRect());
       return { ih: innerHeight, iw: innerWidth, sy: scrollY, sw: document.documentElement.scrollWidth, crt: r(document.getElementById('crt')), screen: r(document.getElementById('screen')),
         keys: { t: Math.round(Math.min(...keys.map((k) => k.top))), b: Math.round(Math.max(...keys.map((k) => k.bottom))), l: Math.round(Math.min(...keys.map((k) => k.left))), r: Math.round(Math.max(...keys.map((k) => k.right))), min: Math.min(...keys.map((k) => Math.min(k.width, k.height))) },
-        slot: r(document.getElementById('slot')).t, transport: r(document.getElementById('btn-pause')).t };
+        grille: r(document.querySelector('.grille-row')).t, transport: r(document.getElementById('btn-pause')).t };
     })()`);
-    s.info(`${w}×${h}: pantalla ${m.crt.t}–${m.crt.b} px, keypad ${m.keys.t}–${m.keys.b} px (teclas de ${m.keys.min.toFixed(0)} px), ranura en ${m.slot} px, transporte en ${m.transport} px`);
+    s.info(`${w}×${h}: pantalla ${m.crt.t}–${m.crt.b} px, keypad ${m.keys.t}–${m.keys.b} px (teclas de ${m.keys.min.toFixed(0)} px), transporte en ${m.transport} px, parlante en ${m.grille} px`);
     s.check(m.sy === 0 && m.sw <= m.iw, `${w}×${h}: arranca arriba y sin scroll horizontal (${m.sw} ≤ ${m.iw})`, JSON.stringify(m));
     s.check(m.crt.t >= 0 && m.crt.b <= m.ih && m.screen.l >= 0 && m.screen.r <= m.iw, `${w}×${h}: la pantalla entra entera en la primera vista (${m.crt.t}–${m.crt.b} de ${m.ih})`, JSON.stringify(m.crt));
     s.check(m.keys.t >= m.crt.b && m.keys.b <= m.ih && m.keys.l >= 0 && m.keys.r <= m.iw, `${w}×${h}: las 16 teclas del keypad entran enteras debajo de la pantalla (${m.keys.t}–${m.keys.b} de ${m.ih})`, JSON.stringify(m.keys));
     s.check(m.keys.min >= 44, `${w}×${h}: teclas de al menos 44 px (${m.keys.min.toFixed(1)})`);
-    s.check(m.slot >= m.keys.b && m.transport >= m.keys.b, `${w}×${h}: la ranura y el transporte quedan después del keypad`, JSON.stringify(m));
+    s.check(m.transport >= m.keys.b && m.grille >= m.transport, `${w}×${h}: el transporte y el parlante quedan después del keypad`, JSON.stringify(m));
     await page.shot(`24-angosta-${w}x${h}`);
     s.check(page.errors.length === 0, `${w}×${h}: sin errores de consola`, page.errors.join(' | '));
     await page.close();
@@ -2522,8 +2709,10 @@ cuadro: ${db(CUADRO)}`, true);
   const ok1 = await page.poll('!window.chip8.cpu.halted && window.chip8.cpu.platform === "xochip" && window.chip8.cpu.display.some((v) => v)', 2000);
   const e2 = await errView();
   s.check(ok1 && !e2.crt && e2.mon === null && e2.monFix === null && e2.lit === CUADRO_PIXELS, `clic en el botón del CRT: pasa a XO-CHIP, reinicia y la ROM corre sin error (dibuja su cuadro de ${e2.lit} píxeles)`, JSON.stringify(e2));
-  // Otra vez el error (perfil SUPER-CHIP elegido con el mouse) y ahora el botón del monitor.
+  // Otra vez el error (perfil SUPER-CHIP elegido con el mouse) y ahora el botón del monitor: con el perfil
+  // elegido, se guarda el cajón de opciones, que tapaba el monitor.
   await chooseWithMouse(page, '#preset', 'schip');
+  await closeDrawer(page);
   const again = await page.poll('window.chip8.cpu.halted', 2000);
   await sleep(100);
   const e3 = await errView();
@@ -2608,7 +2797,7 @@ scenario(28, 'Colores: «Personalizada» cambia en vivo y se conserva al recarga
   s.check(sameList(c1, sortedColors(NEW)) && m1.wrong === 0, `la pantalla tiene exactamente los cuatro colores elegidos (${c1.join(' ')}), cada píxel en su lugar`, JSON.stringify({ c1, m1 }));
   await page.ev("document.getElementById('custom-colors').scrollIntoView({ block: 'center' })");
   await page.shot('28-personalizada');
-  // Se conservan al recargar (Rebote arranca solo: fondo y plano 1) y con la ROM de cuatro colores (desde «Tuyos:»).
+  // Se conservan al recargar (Rebote arranca solo: fondo y plano 1) y con la ROM de cuatro colores (desde «Tus cartuchos»).
   await page.reload();
   await page.instrument();
   await sleep(300);
@@ -2616,11 +2805,10 @@ scenario(28, 'Colores: «Personalizada» cambia en vivo y se conserva al recarga
   const r2 = await page.ev(`({ palette: window.chip8.getPalette(), sel: document.getElementById('palette').value, colors: window.chip8.screenColors(), name: document.getElementById('cart-name').textContent })`);
   s.check(r2.palette === 'custom' && r2.sel === 'custom' && !i2.hidden && sameList(i2.values, NEW) && sameList(r2.colors, sortedColors(NEW.slice(0, 2))),
     `después de recargar: «Personalizada» con los cuatro colores en sus selectores; «${r2.name}» usa el fondo y el plano 1 (${r2.colors.join(' ')})`, JSON.stringify({ r2, i2 }));
-  await page.click('#lib-chips .chip:nth-child(1)');
-  await page.waitFor(`document.getElementById('cart-name').textContent === 'cuatro-colores'`, { timeout: 3000, desc: 'cuatro-colores desde «Tuyos:»' });
+  await clickLibCart(page, 1);   // cuatro-colores
   await page.poll(`[1, 2, 3].every((v) => window.chip8.cpu.display.includes(v))`, 3000);
   const c3 = await page.ev('window.chip8.screenColors()');
-  s.check(sameList(c3, sortedColors(NEW)), `«cuatro-colores» (desde «Tuyos:») muestra otra vez los cuatro colores elegidos (${c3.join(' ')})`, JSON.stringify(c3));
+  s.check(sameList(c3, sortedColors(NEW)), `«cuatro-colores» (desde «Tus cartuchos») muestra otra vez los cuatro colores elegidos (${c3.join(' ')})`, JSON.stringify(c3));
   // «Del cartucho»: un juego del archivo de Octo con sus colores (entrada registrada para la prueba).
   const CART = ['#662200', '#996600', '#FF6600', '#FFCC00'];
   const cartRom = romCuatroColores(ROMBO);
@@ -2634,10 +2822,8 @@ scenario(28, 'Colores: «Personalizada» cambia en vivo y se conserva al recarga
     `un juego del archivo con colores: aparece «Del cartucho» en «Paleta», queda elegida y la pantalla usa sus cuatro colores (${p1.colors.join(' ')})`, JSON.stringify({ reg, p1, m2 }));
   await page.ev("document.getElementById('palette').scrollIntoView({ block: 'center' })");
   await page.shot('28-del-cartucho');
-  // Otro cartucho (Fuente, desde «Incluidos:»): la opción se va y vuelve tu paleta, la personalizada.
-  const fuente = await page.ev("window.chip8.demos.findIndex((d) => d.id === 'fuente')");
-  await page.click(`#cart-chips .chip:nth-child(${fuente + 1})`);
-  await page.waitFor(`document.getElementById('cart-name').textContent === 'Fuente'`, { timeout: 3000 });
+  // Otro cartucho (Fuente, desde la pestaña «Cartuchos»): la opción se va y vuelve tu paleta, la personalizada.
+  await clickCart(page, 'fuente');
   await sleep(200);
   const p2 = await pal();
   s.check(!p2.options.includes('Del cartucho') && p2.sel === 'custom' && p2.palette === 'custom' && sameList(p2.colors, sortedColors(NEW.slice(0, 2))),
@@ -2743,8 +2929,7 @@ scenario(30, 'Ajustes recordados por cartucho: cambios con el mouse, recarga, la
   s.check(/ajustes recordados$/.test(v1.slot) && v1.forget && v1.platform === 'schip' && v1.ipf === 30 && v1.palette === 'ambar' && v1.quirks.vfReset === true,
     `perfil SUPER-CHIP, IPF 30, paleta Ámbar y el interruptor VF=0, con el mouse: la ranura dice «${v1.slot}» y aparece «Olvidar ajustes»`, JSON.stringify(v1));
   // Otro cartucho con otros ajustes: los tuyos de siempre pasan a ser IPF 100 y Blanco.
-  await page.click('#cart-chips .chip:nth-child(1)');               // Rebote
-  await page.waitFor(`document.getElementById('cart-name').textContent === 'Rebote'`, { timeout: 3000 });
+  await clickCart(page, 'rebote');
   await page.click('#ipf-chips .chip:nth-child(4)');                // 100
   await chooseWithMouse(page, '#palette', 'blanco');
   await sleep(600);   // los ajustes de una ROM se guardan juntos, 400 ms después del último cambio
@@ -2765,7 +2950,7 @@ scenario(30, 'Ajustes recordados por cartucho: cambios con el mouse, recarga, la
     `aviso «${(t2.find((x) => x.action) || {}).text}» y la ranura «${v2.slot}»`, JSON.stringify({ t2, v2 }));
   await page.ev('window.scrollTo(0, 0)');
   await page.shot('30-ajustes-recordados');
-  // «Olvidar ajustes» de la ranura.
+  // «Olvidar ajustes» de la ranura (en la pestaña «Cartuchos» del cajón).
   await page.click('#cart-forget');
   await sleep(200);
   const v3 = await consoleView(page);
@@ -2813,8 +2998,7 @@ fin:    JP fin`);
   const v = await consoleView(page);
   s.check(saved && saved.flags.length === 16 && saved.flags[1] === 7 && saved.platform === undefined && v.source === 'ninguno' && !v.forget,
     'en menos de 2 s quedan guardadas para esta ROM (solo las banderas: no cuentan como ajustes recordados)', JSON.stringify({ saved, v }));
-  await page.click('#cart-chips .chip:nth-child(2)');   // Teclado: otra ROM arranca con las banderas en cero
-  await page.waitFor(`document.getElementById('cart-name').textContent === 'Teclado'`, { timeout: 3000 });
+  await clickCart(page, 'teclado');   // otra ROM arranca con las banderas en cero
   s.check((await page.ev('window.chip8.getFlags()')).every((x) => x === 0), 'otra ROM (Teclado) arranca con sus banderas, en cero');
   await page.reload();
   await page.instrument();
@@ -2828,36 +3012,43 @@ fin:    JP fin`);
 });
 
 // 32 -------------------------------------------------------------------------------
-scenario(32, 'Biblioteca: «Tus cartuchos» y «Tuyos:», cargar desde ahí, quitar y «Deshacer»; con el almacenamiento roto también anda', async (ctx, s) => {
+scenario(32, 'Biblioteca: «Tus cartuchos» en la pestaña «Cartuchos», cargar desde ahí, quitar y «Deshacer»; con el almacenamiento roto también anda', async (ctx, s) => {
   const page = await freshApp(ctx, s);
-  const lib = () => page.ev(`({ api: window.chip8.libraryList().map((x) => x.name), shelf: Array.from(document.querySelectorAll('#lib-list .lib-item')).map((w) => ({ name: w.querySelector('.cart-name').textContent, x: w.querySelector('.cart-remove').getAttribute('aria-label'), meta: w.querySelector('.cart-ctrl').textContent, pressed: w.querySelector('.lib-cart').getAttribute('aria-pressed') })),
-    chips: Array.from(document.querySelectorAll('#lib-chips .chip')).map((c) => c.textContent + (c.getAttribute('aria-pressed') === 'true' ? ' *' : '')), picker: !document.getElementById('lib-picker').hidden, empty: !document.getElementById('lib-empty').hidden,
+  const lib = () => page.ev(`({ api: window.chip8.libraryList().map((x) => x.name),
+    cards: Array.from(document.querySelectorAll('#lib-list .lib-item')).map((w) => { const c = w.querySelector('.ccard'); return { name: c.querySelector('.ccard-name').textContent,
+      x: w.querySelector('.cart-remove').getAttribute('aria-label'), desc: document.getElementById(c.getAttribute('aria-describedby')).textContent, current: c.getAttribute('aria-current') === 'true',
+      thumb: !c.querySelector('canvas').hidden }; }),
+    empty: !document.getElementById('lib-empty').hidden,
     stored: (() => { try { return JSON.parse(localStorage.getItem('chip8-consola.biblioteca')).items.map((x) => x.name); } catch (e) { return null; } })() })`);
   const l0 = await lib();
-  s.check(l0.api.length === 0 && !l0.picker && l0.empty && l0.shelf.length === 0, 'vacía: sin «Tuyos:» y con la explicación del estante', JSON.stringify(l0));
+  s.check(l0.api.length === 0 && l0.empty && l0.cards.length === 0, 'vacía: sin tarjetas y con la explicación', JSON.stringify(l0));
   const NAMES = ['Pong (1 jugador)', 'tetris', 'Space Invaders [David Winter]'];
   for (let i = 0; i < NAMES.length; i++) await loadWithButton(page, writeFixture(ctx, NAMES[i] + '.ch8', romDigitos(i + 1, i + 4)), NAMES[i] + '.ch8');
   const l1 = await lib();
   const order1 = [NAMES[2], NAMES[1], NAMES[0]];
-  s.check(sameList(l1.api, order1) && sameList(l1.shelf.map((x) => x.name), order1) && sameList(l1.stored, order1) && l1.picker && !l1.empty,
+  s.check(sameList(l1.api, order1) && sameList(l1.cards.map((x) => x.name), order1) && sameList(l1.stored, order1) && !l1.empty,
     `las tres ROMs cargadas con «Cargar ROM» quedan en «Tus cartuchos», la última jugada primero (${l1.api.join(', ')}), y guardadas`, JSON.stringify(l1));
-  s.check(sameList(l1.chips, [order1[0] + ' *', order1[1], order1[2]]) && l1.shelf.every((x) => / bytes · jugado hoy$/.test(x.meta)) && l1.shelf[0].pressed === 'true' && l1.shelf[1].x === `Quitar «${order1[1]}» de tus cartuchos`,
-    `«Tuyos:» muestra ${l1.chips.join(', ')} (la de la ranura marcada); cada cartucho dice «${l1.shelf[0].meta}» y tiene su ×`, JSON.stringify(l1));
-  // Cargar desde «Tuyos:» y desde el estante.
-  await page.click('#lib-chips .chip:nth-child(3)');
-  await page.waitFor(`document.getElementById('cart-name').textContent === ${JSON.stringify(NAMES[0])}`, { timeout: 3000, desc: 'Pong desde «Tuyos:»' });
+  s.check(l1.cards[0].current && !l1.cards[1].current && l1.cards.every((x) => / bytes · jugado hoy\.$/.test(x.desc)) && l1.cards[1].x === `Quitar «${order1[1]}» de tus cartuchos`,
+    `la de la ranura queda marcada; la descripción de cada tarjeta dice «${l1.cards[0].desc}» y cada una tiene su ×`, JSON.stringify(l1));
+  // Con el cajón abierto en «Cartuchos», cada tarjeta muestra su miniatura.
+  await openDrawer(page, 'cartuchos');
+  const thumbs = await page.poll("Array.from(document.querySelectorAll('#lib-list .ccard canvas')).every((c) => !c.hidden)", 4000);
+  s.check(thumbs, 'con el cajón abierto, las tres tarjetas muestran la miniatura de su pantalla');
+  await page.shot('32-biblioteca');
+  await closeDrawer(page);
+  // Cargar desde una tarjeta (la tercera: la jugada hace más tiempo).
+  await clickLibCart(page, 3);
   const l2 = await lib();
-  s.check(l2.api[0] === NAMES[0] && l2.chips[0] === NAMES[0] + ' *', `clic en «${NAMES[0]}» de «Tuyos:»: lo carga y pasa adelante`, JSON.stringify(l2));
-  await page.click('#lib-list .lib-item:nth-child(3) .lib-cart');
-  await page.waitFor(`document.getElementById('cart-name').textContent === ${JSON.stringify(NAMES[1])}`, { timeout: 3000, desc: 'tetris desde el estante' });
+  s.check(l2.api[0] === NAMES[0] && l2.cards[0].name === NAMES[0] && l2.cards[0].current, `clic en «${NAMES[0]}»: lo carga, pasa adelante y queda marcado`, JSON.stringify(l2));
+  await clickLibCart(page, 3);
   const lit = await page.poll('window.chip8.cpu.display.reduce((a, b) => a + b, 0)', 1500);
   const l3 = await lib();
-  s.check(l3.api[0] === NAMES[1] && lit > 0, `clic en «${NAMES[1]}» del estante «Tus cartuchos»: lo carga y corre (${lit} píxeles)`, JSON.stringify(l3));
+  s.check(l3.api[0] === NAMES[1] && lit > 0, `clic en «${NAMES[1]}»: lo carga y corre (${lit} píxeles)`, JSON.stringify(l3));
   // Se conserva al recargar.
   await page.reload();
   await page.instrument();
   const l4 = await lib();
-  s.check(sameList(l4.api, l3.api) && l4.picker && l4.shelf.length === 3, `después de recargar sigue igual (${l4.api.join(', ')})`, JSON.stringify(l4));
+  s.check(sameList(l4.api, l3.api) && l4.cards.length === 3, `después de recargar sigue igual (${l4.api.join(', ')})`, JSON.stringify(l4));
   // Quitar con la × y «Deshacer».
   await page.click('#lib-list .lib-item:nth-child(2) .cart-remove');
   await sleep(150);
@@ -2866,7 +3057,6 @@ scenario(32, 'Biblioteca: «Tus cartuchos» y «Tuyos:», cargar desde ahí, qui
   const removed = l4.api[1];
   s.check(l5.api.length === 2 && !l5.api.includes(removed) && sameList(l5.stored, l5.api) && t5.some((x) => x.text === `Quitaste «${removed}» de tus cartuchos.` && x.action === 'Deshacer'),
     `la × quita «${removed}» (también de lo guardado) y el aviso trae «Deshacer»`, JSON.stringify({ l5, t5 }));
-  await page.ev('window.scrollTo(0, document.documentElement.scrollHeight)');
   await page.shot('32-biblioteca-quitar');
   await clickToastAction(page, 'Deshacer');
   await sleep(150);
@@ -2884,23 +3074,21 @@ scenario(32, 'Biblioteca: «Tus cartuchos» y «Tuyos:», cargar desde ahí, qui
   const note = await p2.ev(`({ note: !document.getElementById('lib-note').hidden, text: document.getElementById('lib-note').textContent })`);
   await loadWithButton(p2, writeFixture(ctx, 'memoria.ch8', romDigitos(7, 7)), 'memoria.ch8');
   await p2.click('#ipf-chips .chip:nth-child(4)');                 // 100: queda recordado (en memoria)
-  await p2.click('#cart-chips .chip:nth-child(2)');                // Teclado
-  await p2.waitFor(`document.getElementById('cart-name').textContent === 'Teclado'`, { timeout: 3000 });
-  await p2.click('#lib-chips .chip:nth-child(1)');                 // memoria, desde «Tuyos:»
-  await p2.waitFor(`document.getElementById('cart-name').textContent === 'memoria'`, { timeout: 3000 });
+  await clickCart(p2, 'teclado');
+  await clickLibCart(p2, 1);                                       // memoria, desde «Tus cartuchos»
   const m = await p2.ev(`({ lib: window.chip8.libraryList().map((x) => x.name), info: window.chip8.romInfo(), ipf: window.chip8.getIpf() })`);
   const r = await measureRate(p2, 600);
   s.check(note.note && m.lib.join() === 'memoria' && m.info.source === 'recordado' && m.ipf === 100 && r.fps > 50,
-    `con el almacenamiento roto: el estante avisa («${note.text.slice(0, 40)}…»), la ROM queda en «Tus cartuchos» y sus ajustes se recuerdan durante la sesión`, JSON.stringify({ note, m, fps: r.fps }));
+    `con el almacenamiento roto: «Tus cartuchos» avisa («${note.text.slice(0, 40)}…»), la ROM queda ahí y sus ajustes se recuerdan durante la sesión`, JSON.stringify({ note, m, fps: r.fps }));
   s.check(p2.errors.length === 0, 'con el almacenamiento roto no hay excepciones ni errores de consola', p2.errors.join(' | '));
-  await p2.ev('document.getElementById("lib-title").scrollIntoView({ block: "start" })');
+  await openDrawer(p2, 'cartuchos');
   await p2.shot('32-biblioteca-sin-almacenamiento');
 });
 
 // 33 -------------------------------------------------------------------------------
-scenario(33, 'Planos, el demo de XO-CHIP: desde el estante corre a 60 fps sin errores, con los valores 1 a 3, su patrón de sonido, y W frena el rombo', async (ctx, s) => {
+scenario(33, 'Planos, el demo de XO-CHIP: desde su tarjeta corre a 60 fps sin errores, con los valores 1 a 3, su patrón de sonido, y W frena el rombo', async (ctx, s) => {
   const page = await freshApp(ctx, s);
-  const name = await clickCart(page, 'planos');   // clic en el estante «Cartuchos incluidos»
+  const name = await clickCart(page, 'planos');   // clic en su tarjeta de «Cartuchos»
   await page.poll('window.chip8.cpu.displayWidth === 128', 3000);   // su primera instrucción es HIGH
   await sleep(500);   // el primer clic también crea el AudioContext: se mide después
   const v = await consoleView(page);
@@ -3186,7 +3374,7 @@ scenario(38, 'Flechas y «Controles»: cada mapa y uno personalizado, los contro
     `«Personalizado»: aparecen seis selectores (${vis.labels.join(', ')}) que arrancan con el mapa de antes (${vis.vals.join(',')})`, JSON.stringify(vis));
   const up = await chooseWithMouse(page, '#keymap-keys select[data-slot="up"]', '10');
   const right = await chooseWithMouse(page, '#keymap-keys select[data-slot="right"]', '15');
-  await page.ev("document.querySelector('.group-controls').scrollIntoView({ block: 'center' })");
+  await openDrawer(page, 'controles');
   await page.shot('38-controles-personalizado');
   await page.click('.tagline');
   const b2 = await arrows([10, 8, 4, 15]);
@@ -3200,6 +3388,7 @@ scenario(38, 'Flechas y «Controles»: cada mapa y uno personalizado, los contro
     ['#ipf-range', 'el deslizador de velocidad', "document.getElementById('ipf-range').value", 'ArrowRight', 'ArrowLeft'],
     ['#screen-mode .seg[aria-checked="true"]', 'el modo de pantalla', 'window.chip8.getScreenMode()', 'ArrowDown', 'ArrowUp'],
   ]) {
+    await page.reach(sel);   // en el cajón de opciones, en su pestaña
     await page.ev(`document.querySelector(${JSON.stringify(sel)}).focus()`);
     const v0 = await page.ev(val);
     await page.keyDown(go);
@@ -3294,7 +3483,7 @@ scenario(39, 'Curvatura y encendido animado: la curvatura apagada deja la imagen
 });
 
 // 40 -------------------------------------------------------------------------------
-scenario(40, 'Diseño con la biblioteca llena y «Controles» a la vista: 1440, 768 y 360 px', async (ctx, s) => {
+scenario(40, 'Diseño con la biblioteca llena y «Controles» a la vista (en el cajón de opciones): 1440, 768 y 360 px', async (ctx, s) => {
   const page = await freshApp(ctx, s, { width: 1440, height: 900 });
   const NAMES = ['Space Invaders [David Winter]', 'Pong (1 jugador)', 'Tetris', 'Blinky', 'Brix', 'UFO'];
   for (let i = 0; i < NAMES.length; i++) await loadWithButton(page, writeFixture(ctx, NAMES[i] + '.ch8', romDigitos(i, 9 - i)), NAMES[i] + '.ch8');
@@ -3310,25 +3499,43 @@ scenario(40, 'Diseño con la biblioteca llena y «Controles» a la vista: 1440, 
       document.querySelectorAll('body *').forEach((el) => { const b = el.getBoundingClientRect(); if (b.width && b.right > innerWidth + 0.5 && getComputedStyle(el).position !== 'fixed') over.push((el.id ? '#' + el.id : el.tagName.toLowerCase() + '.' + el.className).slice(0, 40)); });
       const keys = Array.from(document.querySelectorAll('#keypad .key')).map((k) => k.getBoundingClientRect());
       const box = (list) => ({ t: Math.round(Math.min(...list.map((k) => k.top))), b: Math.round(Math.max(...list.map((k) => k.bottom))), l: Math.round(Math.min(...list.map((k) => k.left))), r: Math.round(Math.max(...list.map((k) => k.right))) });
-      const sels = Array.from(document.querySelectorAll('#keymap-keys select')).map((x) => x.getBoundingClientRect());
       return { iw: innerWidth, ih: innerHeight, sw: document.documentElement.scrollWidth, sy: scrollY, over: over.slice(0, 6),
-        minKey: Math.min(...keys.map((k) => Math.min(k.width, k.height))), keys: box(keys), crt: r(document.getElementById('crt')),
-        chips: document.querySelectorAll('#lib-chips .chip').length, items: document.querySelectorAll('#lib-list .lib-item').length, picker: !document.getElementById('lib-picker').hidden, pickerBox: r(document.getElementById('lib-picker')),
-        controls: r(document.querySelector('.group-controls')), custom: !document.getElementById('keymap-keys').hidden, sels: sels.length ? box(sels) : null, selMin: sels.length ? Math.round(Math.min(...sels.map((x) => x.width))) : 0 };
+        minKey: Math.min(...keys.map((k) => Math.min(k.width, k.height))), keys: box(keys), crt: r(document.getElementById('crt')) };
     })()`);
-    s.info(`${w}×${h}: pantalla ${m.crt.t}–${m.crt.b} px, keypad ${m.keys.t}–${m.keys.b} px (teclas de ${m.minKey.toFixed(0)} px), «Tuyos:» ${m.chips} chips, «Controles» ${m.controls.w}×${m.controls.h} px`);
+    s.info(`${w}×${h}: pantalla ${m.crt.t}–${m.crt.b} px, keypad ${m.keys.t}–${m.keys.b} px (teclas de ${m.minKey.toFixed(0)} px)`);
     s.check(m.sw <= m.iw && m.over.length === 0, `${w}px: sin scroll horizontal (${m.sw} ≤ ${m.iw})`, 'se salen: ' + m.over.join(', '));
     s.check(m.minKey >= 44, `${w}px: teclas del keypad de al menos 44 px (${m.minKey.toFixed(1)})`);
-    s.check(m.picker && m.chips === 5 && m.items === 6 && m.pickerBox.l >= 0 && m.pickerBox.r <= m.iw, `${w}px: «Tuyos:» muestra 5 cartuchos y el estante los 6, dentro del ancho`, JSON.stringify(m));
-    s.check(m.custom && m.controls.w > 0 && m.controls.l >= 0 && m.controls.r <= m.iw && m.sels && m.sels.l >= 0 && m.sels.r <= m.iw && m.selMin >= 40,
-      `${w}px: «Controles» con los seis selectores de «Personalizado» entra en el ancho (${m.controls.l}–${m.controls.r} px)`, JSON.stringify({ controls: m.controls, sels: m.sels, selMin: m.selMin }));
     if (w === 360) {
       s.check(m.sy === 0 && m.crt.t >= 0 && m.crt.b <= m.ih && m.keys.t >= m.crt.b && m.keys.b <= m.ih && m.keys.l >= 0 && m.keys.r <= m.iw,
         `360×640: la pantalla (${m.crt.t}–${m.crt.b}) y el keypad entero (${m.keys.t}–${m.keys.b}) entran en la primera vista, sin scrollear`, JSON.stringify({ crt: m.crt, keys: m.keys }));
     }
     await page.shot(`40-diseno-${w}`);
-    await page.ev("document.querySelector('.group-controls').scrollIntoView({ block: 'center' })");
+    // «Cartuchos»: los seis incluidos y los seis tuyos, en tarjetas que entran en el ancho de la bandeja (a 1440, todas a
+    // la vista sin scrollear; más angosto, la bandeja se scrollea, nunca de costado).
+    await openDrawer(page, 'cartuchos');
+    const k = await page.ev(`(() => {
+      const body = document.getElementById('drawer-body'), b = body.getBoundingClientRect(), cards = Array.from(document.querySelectorAll('#drawer-panel-cartuchos .ccard'));
+      const out = cards.filter((c) => { const q = c.getBoundingClientRect(); return q.left < b.left - 0.5 || q.right > b.right + 0.5; }).length;
+      const hidden = cards.filter((c) => { const q = c.getBoundingClientRect(); return q.top < b.top - 0.5 || q.bottom > b.bottom + 0.5; }).length;
+      return { demos: document.querySelectorAll('#shelf-list .ccard').length, mine: document.querySelectorAll('#lib-list .ccard').length, out, hidden, hscroll: body.scrollWidth > body.clientWidth + 1,
+        scroll: body.scrollHeight > body.clientHeight + 1, minW: Math.round(Math.min(...cards.map((c) => c.getBoundingClientRect().width))) };
+    })()`);
+    s.check(k.demos === 6 && k.mine === 6 && k.out === 0 && !k.hscroll && k.minW >= 76 && (w !== 1440 || (k.hidden === 0 && !k.scroll)),
+      `${w}px: las 12 tarjetas (6 incluidos y 6 tuyos, de ${k.minW} px como mínimo) entran en el ancho del cajón` + (w === 1440 ? ', todas a la vista sin scrollear' : ` (${k.hidden} se ven scrolleando la bandeja)`), JSON.stringify(k));
+    await page.shot(`40-diseno-${w}-cartuchos`);
+    // «Controles», en la pestaña «Ajustes» del cajón de opciones: los seis selectores entran en el cajón, y el cajón en la ventana.
+    await openDrawer(page, 'controles');
+    const c = await page.ev(`(() => {
+      const r = (el) => { const b = el.getBoundingClientRect(); return { t: Math.round(b.top), b: Math.round(b.bottom), l: Math.round(b.left), r: Math.round(b.right), w: Math.round(b.width), h: Math.round(b.height) }; };
+      const box = (list) => ({ t: Math.round(Math.min(...list.map((k) => k.top))), b: Math.round(Math.max(...list.map((k) => k.bottom))), l: Math.round(Math.min(...list.map((k) => k.left))), r: Math.round(Math.max(...list.map((k) => k.right))) });
+      const sels = Array.from(document.querySelectorAll('#keymap-keys select')).map((x) => x.getBoundingClientRect()), body = document.getElementById('drawer-body');
+      return { iw: innerWidth, ih: innerHeight, sw: document.documentElement.scrollWidth, drawer: r(document.getElementById('drawer')), body: r(body), hscroll: body.scrollWidth > body.clientWidth + 1,
+        controls: r(document.querySelector('.group-controls')), custom: !document.getElementById('keymap-keys').hidden, sels: sels.length ? box(sels) : null, selMin: sels.length ? Math.round(Math.min(...sels.map((x) => x.width))) : 0 };
+    })()`);
+    s.check(c.custom && c.controls.w > 0 && c.sels && c.sels.l >= c.body.l && c.sels.r <= c.body.r && c.selMin >= 40 && !c.hscroll && c.drawer.l >= 0 && c.drawer.r <= c.iw && c.drawer.b <= c.ih && c.sw <= c.iw,
+      `${w}px: «Controles» con los seis selectores de «Personalizado» entra en el cajón (${c.sels ? c.sels.l + '–' + c.sels.r : '?'} px, en ${c.body.l}–${c.body.r}), sin scroll de costado`, JSON.stringify(c));
     await page.shot(`40-diseno-${w}-controles`);
+    await closeDrawer(page);
     await page.ev('window.scrollTo(0, 0)');
     await page.shot(`40-diseno-${w}-completa`, { fullPage: true });
   }
@@ -3545,7 +3752,7 @@ scenario(42, 'Estados con el mouse: las ranuras 1 a 4 guardan, muestran su panta
   s.check(v2[1].empty && v2[1].blank === 'VACÍA' && !v2[1].load && !v2[1].del && !('1' in st2.roms[sha].slots) && !v2[2].empty &&
     t2.some((x) => x.text === 'Borraste el estado de la ranura 1 de «contador.ch8».' && x.action === 'Deshacer'),
   'Borrar (clic) vacía la ranura 1 (también en localStorage) y el aviso trae «Deshacer»', JSON.stringify({ v2: v2[1], t2 }));
-  await page.ev("document.getElementById('states-group').scrollIntoView({ block: 'center' })");
+  await openDrawer(page, 'estados');
   await page.shot('42-estados-borrar');
   await clickToastAction(page, 'Deshacer');
   await sleep(150);
@@ -3560,7 +3767,7 @@ scenario(42, 'Estados con el mouse: las ranuras 1 a 4 guardan, muestran su panta
   const th2 = [];
   for (const slot of [1, 2, 3]) th2.push(await page.ev(thumbExpr(slot, AMBAR)));
   s.check(th2.every((t) => t.wrong === 0), 'con la paleta Ámbar, las tres pantallitas usan sus colores (píxel por píxel)', JSON.stringify(th2));
-  await page.ev("document.getElementById('states-group').scrollIntoView({ block: 'center' })");
+  await openDrawer(page, 'estados');
   await page.shot('42-estados-ambar');
   s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
 });
@@ -3590,12 +3797,11 @@ scenario(43, 'Estados por cartucho: sobreviven a una recarga, dicen cuándo se g
   await page.reload();
   await page.instrument();
   const d0 = await slotsView(page);   // arranca el demo incluido: sus ranuras están vacías
-  await page.click('#lib-chips .chip:nth-child(1)');   // alfa, desde «Tuyos:»
-  await page.waitFor(`document.getElementById('cart-name').textContent === 'alfa'`, { timeout: 3000, desc: 'alfa desde «Tuyos:»' });
+  await clickLibCart(page, 1);   // alfa, desde «Tus cartuchos»
   const d1 = await slotsView(page);
   s.check(d0.every((x) => x.empty) && !d1[0].empty && d1[0].when === 'hace 5 min' && !d1[1].empty && d1[1].when === 'ayer 18:20' && /a las 18:20$/.test(d1[1].title) &&
     d1[2].empty && d1[0].canvas && d1[1].canvas,
-  `después de recargar, alfa (desde «Tuyos:») tiene sus dos estados: Rápido «${d1[0].when}» y Ranura 1 «${d1[1].when}»; el demo del arranque, ninguno`, JSON.stringify({ d0, d1 }));
+  `después de recargar, alfa (desde «Tus cartuchos») tiene sus dos estados: Rápido «${d1[0].when}» y Ranura 1 «${d1[1].when}»; el demo del arranque, ninguno`, JSON.stringify({ d0, d1 }));
   await page.click('.tagline');
   await page.press('Space');
   await sleep(80);
@@ -3604,7 +3810,7 @@ scenario(43, 'Estados por cartucho: sobreviven a una recarga, dicen cuándo se g
   const u = await page.ev(sameAsSlotExpr('rapido'));
   const us = await statusText(page);
   s.check(u.diff.length === 0 && us === 'Estado de la ranura rápida cargado (guardado hace 5 min).', `U carga el estado rápido guardado antes de recargar: «${us}»`, JSON.stringify(u));
-  await page.ev("document.getElementById('states-group').scrollIntoView({ block: 'center' })");
+  await openDrawer(page, 'estados');
   await page.shot('43-estados-de-alfa');
   // Otra ROM no los ve.
   await loadWithButton(page, B, 'beta.ch8');
@@ -3628,8 +3834,7 @@ scenario(43, 'Estados por cartucho: sobreviven a una recarga, dicen cuándo se g
   s.check(fmt.version === 1 && fmt.keys === 'roms,version' && fmt.slots === '1,rapido' && fmt.entry === 'date,text' && fmt.platform === 'chip8' && fmt.format === 'chip8-state' && /^alfa/.test(fmt.name),
     `formato: { version: 1, roms: { [sha1]: { name: «${fmt.name}», slots: { ${fmt.slots.split(',').reverse().join(', ')}: { date, text } } } } }, y text es un estado de Chip8Core.encodeState`, JSON.stringify(fmt));
   // De vuelta a alfa: ahí están.
-  await page.click('#lib-chips .chip:nth-child(2)');
-  await page.waitFor(`document.getElementById('cart-name').textContent === 'alfa'`, { timeout: 3000, desc: 'alfa otra vez' });
+  await clickLibCart(page, 2);   // alfa otra vez
   const d3 = await slotsView(page);
   s.check(!d3[0].empty && !d3[1].empty && d3[2].empty, 'al volver a alfa, sus dos estados siguen ahí', JSON.stringify(d3));
   s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
@@ -3911,7 +4116,7 @@ scenario(47, 'Rebobinado apagado con el interruptor de «Estados»: B y el botó
   const d = await page.ev(`({ active: window.chip8.isRewinding(), tag: !document.getElementById('tag-rewind').hidden, status: document.getElementById('status').textContent, entries: window.chip8.rewindInfo().entries })`);
   await page.keyUp('KeyB');
   const c1 = await counters(page);
-  s.check(!d.active && !d.tag && d.entries === 0 && c1.calls - c0.calls > 20 && d.status === 'El rebobinado está apagado: prendelo en «Estados».',
+  s.check(!d.active && !d.tag && d.entries === 0 && c1.calls - c0.calls > 20 && d.status === 'El rebobinado está apagado: prendelo en la pestaña «Estados» del cajón de opciones (M).',
     `apagado, B no rebobina (la máquina sigue: ${c1.calls - c0.calls} frames) y avisa «${d.status}»`, JSON.stringify(d));
   const rb = await page.rect('#btn-rewind');
   await page.mouse('mouseMoved', rb.cx, rb.cy);
@@ -3920,7 +4125,7 @@ scenario(47, 'Rebobinado apagado con el interruptor de «Estados»: B y el botó
   const dm = await page.ev(`({ active: window.chip8.isRewinding(), tag: !document.getElementById('tag-rewind').hidden })`);
   await page.mouse('mouseReleased', rb.cx, rb.cy);
   s.check(!dm.active && !dm.tag, 'el botón ⏪ deshabilitado no hace nada', JSON.stringify(dm));
-  await page.ev("document.getElementById('states-group').scrollIntoView({ block: 'center' })");
+  await openDrawer(page, 'estados');
   await page.shot('47-rebobinado-apagado');
   await page.reload();
   await page.instrument();
@@ -3976,7 +4181,7 @@ scenario(48, 'Estados sin almacenamiento, sin lugar o dañados: el aviso justo y
   const diff1 = Object.keys(ref1).filter((k) => ref1[k] !== now1[k]);
   s.check(diff1.length === 0 && (await statusText(p1)) === 'Estado de la ranura rápida cargado (guardado recién).', 'y U vuelve a ese estado, exacto', JSON.stringify(diff1));
   s.check(p1.errors.length === 0, 'sin almacenamiento no hay excepciones ni errores de consola', p1.errors.join(' | '));
-  await p1.ev("document.getElementById('states-group').scrollIntoView({ block: 'center' })");
+  await openDrawer(p1, 'estados');
   await p1.shot('48-estados-sin-almacenamiento');
   await p1.close();
 
@@ -4017,7 +4222,7 @@ scenario(48, 'Estados sin almacenamiento, sin lugar o dañados: el aviso justo y
   const now2 = await machinePrint(p2);
   const diff2 = Object.keys(ref2).filter((k) => ref2[k] !== now2[k]);
   s.check(diff2.length === 0 && (await statusText(p2)) === 'Estado de la ranura 2 cargado (guardado recién).', 'la consola sigue andando: Cargar vuelve al estado que quedó en memoria', JSON.stringify(diff2));
-  await p2.ev("document.getElementById('states-group').scrollIntoView({ block: 'center' })");
+  await openDrawer(p2, 'estados');
   await p2.shot('48-estados-sin-lugar');
   // Haciendo lugar, el próximo cambio guarda todo (también lo que estaba solo en memoria).
   await p2.ev(`(() => { for (let i = 0; i < ${filled.n || 0}; i++) localStorage.removeItem('relleno-' + i); return true; })()`);
@@ -4051,7 +4256,7 @@ scenario(48, 'Estados sin almacenamiento, sin lugar o dañados: el aviso justo y
   s.check(!v3[1].empty && v3[1].blank === 'DAÑADO' && v3[1].load && /No se puede cargar: Estado inválido: /.test(v3[1].title) &&
     t3.some((x) => x.kind === 'error' && x.text.startsWith('No se pudo cargar el estado de la ranura 1: Estado inválido: ')) && diff3.length === 0 && (await p3.ev('window.chip8.isPaused()')),
   `un estado dañado se ve «DAÑADO» y Cargar avisa «${(t3.find((x) => x.kind === 'error') || { text: '' }).text.slice(0, 70)}…» sin tocar la máquina`, JSON.stringify({ slot: v3[1], t3, diff3 }));
-  await p3.ev("document.getElementById('states-group').scrollIntoView({ block: 'center' })");
+  await openDrawer(p3, 'estados');
   await p3.shot('48-estado-danado');
   s.check(p3.errors.length === 0, 'con un estado dañado no hay excepciones ni errores de consola', p3.errors.join(' | '));
   await p3.close();
@@ -4073,13 +4278,13 @@ scenario(48, 'Estados sin almacenamiento, sin lugar o dañados: el aviso justo y
   s.check(e4.hidden && e4.name === 'Ranura vacía' && e4.list === null && e4.hint.startsWith('Los estados son del cartucho que está en la ranura') &&
     i4 === 'No hay un cartucho en la ranura: los estados son de cada cartucho.' && u4 === i4,
   `sin cartucho no hay ranuras: «${e4.hint}»; I y U lo dicen en la línea de estado`, JSON.stringify({ e4, i4, u4 }));
-  await p4.ev("document.getElementById('states-group').scrollIntoView({ block: 'center' })");
+  await openDrawer(p4, 'estados');
   await p4.shot('48-estados-sin-cartucho');
   s.check(p4.errors.length === 0, 'sin cartucho no hay excepciones ni errores de consola', p4.errors.join(' | '));
 }, 120000);
 
 // 49 -------------------------------------------------------------------------------
-scenario(49, 'Diseño con «Estados» a la vista: 1440, 768 y 360 px (sin scroll horizontal, keypad de 44 px, pantallitas con escala entera y botones enteros)', async (ctx, s) => {
+scenario(49, 'Diseño con «Estados» a la vista (en el cajón de opciones): 1440, 768 y 360 px (sin scroll horizontal, keypad de 44 px, pantallitas con escala entera y botones enteros, y el cajón no tapa la pantalla)', async (ctx, s) => {
   const page = await freshApp(ctx, s, { width: 1440, height: 900 });
   await loadWithButton(page, writeFixture(ctx, 'contador.ch8', romContador()), 'contador.ch8');
   await page.click('.tagline');
@@ -4090,8 +4295,7 @@ scenario(49, 'Diseño con «Estados» a la vista: 1440, 768 y 360 px (sin scroll
   for (const [w, h, mobile] of [[1440, 900, false], [768, 1024, false], [360, 640, true]]) {
     await page.setViewport(w, h, mobile ? 2 : 1, mobile);
     await page.reload();
-    await page.click('#lib-chips .chip:nth-child(1)');   // contador, desde «Tuyos:», con sus estados
-    await page.waitFor(`document.getElementById('cart-name').textContent === 'contador'`, { timeout: 3000, desc: 'contador desde «Tuyos:»' });
+    await clickLibCart(page, 1);   // contador, desde «Tus cartuchos», con sus estados
     await sleep(400);
     await page.ev('window.scrollTo(0, 0)');
     const m = await page.ev(`(() => {
@@ -4100,28 +4304,35 @@ scenario(49, 'Diseño con «Estados» a la vista: 1440, 768 y 360 px (sin scroll
       document.querySelectorAll('body *').forEach((el) => { const b = el.getBoundingClientRect(); if (b.width && b.right > innerWidth + 0.5 && getComputedStyle(el).position !== 'fixed') over.push((el.id ? '#' + el.id : el.tagName.toLowerCase() + '.' + el.className).slice(0, 40)); });
       const keys = Array.from(document.querySelectorAll('#keypad .key')).map((k) => k.getBoundingClientRect());
       const box = (list) => ({ t: Math.round(Math.min(...list.map((k) => k.top))), b: Math.round(Math.max(...list.map((k) => k.bottom))), l: Math.round(Math.min(...list.map((k) => k.left))), r: Math.round(Math.max(...list.map((k) => k.right))) });
-      const group = document.getElementById('states-group'), g = group.getBoundingClientRect();
-      const cards = Array.from(group.querySelectorAll('.save-slot')).map((c) => c.getBoundingClientRect());
-      const btns = Array.from(group.querySelectorAll('.save-btn')).map((b) => ({ text: b.textContent, clipped: b.scrollWidth > b.clientWidth + 1, h: b.getBoundingClientRect().height }));
-      const thumbs = Array.from(group.querySelectorAll('canvas')).filter((c) => !c.hidden).map((c) => Math.round(parseFloat(c.style.width) * devicePixelRatio / c.width * 1000) / 1000);
-      const overlap = cards.some((a, i) => cards.some((b, j) => i < j && a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5));
       return { iw: innerWidth, ih: innerHeight, sw: document.documentElement.scrollWidth, sy: scrollY, over: over.slice(0, 6),
-        minKey: Math.min(...keys.map((k) => Math.min(k.width, k.height))), keys: box(keys), crt: r(document.getElementById('crt')),
-        group: r(group), cardsIn: cards.every((c) => c.left >= g.left && c.right <= g.right), overlap, cols: new Set(cards.map((c) => Math.round(c.top))).size,
-        clipped: btns.filter((b) => b.clipped).map((b) => b.text), minBtn: Math.min(...btns.map((b) => b.h)), thumbs, rewindBtn: r(document.getElementById('btn-rewind')) };
+        minKey: Math.min(...keys.map((k) => Math.min(k.width, k.height))), keys: box(keys), crt: r(document.getElementById('crt')) };
     })()`);
-    s.info(`${w}×${h}: pantalla ${m.crt.t}–${m.crt.b} px, keypad ${m.keys.t}–${m.keys.b} px (teclas de ${m.minKey.toFixed(0)} px), «Estados» ${m.group.w}×${m.group.h} px en ${m.cols} fila(s), pantallitas ×${m.thumbs.join(', ×')}`);
+    s.info(`${w}×${h}: pantalla ${m.crt.t}–${m.crt.b} px, keypad ${m.keys.t}–${m.keys.b} px (teclas de ${m.minKey.toFixed(0)} px)`);
     s.check(m.sw <= m.iw && m.over.length === 0, `${w}px: sin scroll horizontal (${m.sw} ≤ ${m.iw})`, 'se salen: ' + m.over.join(', '));
     s.check(m.minKey >= 44, `${w}px: teclas del keypad de al menos 44 px (${m.minKey.toFixed(1)})`);
-    s.check(m.group.l >= 0 && m.group.r <= m.iw && m.cardsIn && !m.overlap && m.clipped.length === 0 && m.minBtn >= 24,
-      `${w}px: «Estados» entra en el ancho (${m.group.l}–${m.group.r} px), las cinco ranuras no se pisan y los botones (${Math.round(m.minBtn)} px de alto) muestran su texto entero`, JSON.stringify(m));
-    s.check(m.thumbs.length === 2 && m.thumbs.every((x) => Number.isInteger(x) && x >= 2), `${w}px: las dos pantallitas tienen escala entera de al menos 2 píxeles del monitor por píxel CHIP-8 (×${m.thumbs.join(', ×')})`, JSON.stringify(m.thumbs));
     if (w === 360) {
       s.check(m.sy === 0 && m.crt.t >= 0 && m.crt.b <= m.ih && m.keys.t >= m.crt.b && m.keys.b <= m.ih && m.keys.l >= 0 && m.keys.r <= m.iw,
         `360×640: la pantalla (${m.crt.t}–${m.crt.b}) y el keypad entero (${m.keys.t}–${m.keys.b}) siguen entrando en la primera vista`, JSON.stringify({ crt: m.crt, keys: m.keys }));
     }
     await page.shot(`49-diseno-${w}`);
-    await page.ev("document.getElementById('states-group').scrollIntoView({ block: 'center' })");
+    // «Estados», en su pestaña del cajón de opciones: adentro del cajón, sin pisarse y con pantallitas enteras.
+    await openDrawer(page, 'estados');
+    const e = await page.ev(`(() => {
+      const r = (el) => { const b = el.getBoundingClientRect(); return { t: Math.round(b.top), b: Math.round(b.bottom), l: Math.round(b.left), r: Math.round(b.right), w: Math.round(b.width), h: Math.round(b.height) }; };
+      const group = document.getElementById('drawer-panel-estados'), body = document.getElementById('drawer-body'), g = body.getBoundingClientRect();
+      const cards = Array.from(group.querySelectorAll('.save-slot')).map((c) => c.getBoundingClientRect());
+      const btns = Array.from(group.querySelectorAll('.save-btn')).map((b) => ({ text: b.textContent, clipped: b.scrollWidth > b.clientWidth + 1, h: b.getBoundingClientRect().height }));
+      const thumbs = Array.from(group.querySelectorAll('canvas')).filter((c) => !c.hidden).map((c) => Math.round(parseFloat(c.style.width) * devicePixelRatio / c.width * 1000) / 1000);
+      const overlap = cards.some((a, i) => cards.some((b, j) => i < j && a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5));
+      return { iw: innerWidth, ih: innerHeight, sw: document.documentElement.scrollWidth, drawer: r(document.getElementById('drawer')), group: r(group), hscroll: body.scrollWidth > body.clientWidth + 1,
+        cardsIn: cards.every((c) => c.left >= g.left && c.right <= g.right), overlap, rows: new Set(cards.map((c) => Math.round(c.top))).size,
+        clipped: btns.filter((b) => b.clipped).map((b) => b.text), minBtn: Math.min(...btns.map((b) => b.h)), thumbs, crt: r(document.getElementById('crt')) };
+    })()`);
+    s.info(`${w}×${h}: cajón ${e.drawer.l}–${e.drawer.r} × ${e.drawer.t}–${e.drawer.b} px, «Estados» ${e.group.w} px de ancho en ${e.rows} fila(s), pantallitas ×${e.thumbs.join(', ×')}`);
+    s.check(e.sw <= e.iw && !e.hscroll && e.drawer.l >= 0 && e.drawer.r <= e.iw && e.cardsIn && !e.overlap && e.clipped.length === 0 && e.minBtn >= 24,
+      `${w}px: «Estados» entra en el cajón (y el cajón en la ventana), las cinco ranuras no se pisan y los botones (${Math.round(e.minBtn)} px de alto) muestran su texto entero`, JSON.stringify(e));
+    s.check(e.thumbs.length === 2 && e.thumbs.every((x) => Number.isInteger(x) && x >= 2), `${w}px: las dos pantallitas tienen escala entera de al menos 2 píxeles del monitor por píxel CHIP-8 (×${e.thumbs.join(', ×')})`, JSON.stringify(e.thumbs));
+    s.check(e.drawer.t >= e.crt.b || e.drawer.l >= e.crt.r, `${w}px: el cajón abierto no tapa la pantalla (pantalla hasta ${e.crt.r} × ${e.crt.b}, cajón desde ${e.drawer.l} × ${e.drawer.t})`, JSON.stringify({ crt: e.crt, drawer: e.drawer }));
     await page.shot(`49-diseno-${w}-estados`);
   }
   s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
@@ -4294,8 +4505,7 @@ scenario(51, 'Taller: se abre al costado sin tapar la pantalla, trae los ejemplo
   s.check(y1.open && y1.text === src.slice(0, y1.start - 1) + 'y' + src.slice(y1.start - 1) && y2.text === src && resets1 === resets0,
     'en el editor, Y escribe una «y» y Retroceso la borra: no abren ni cierran el Taller ni reinician la máquina', JSON.stringify({ resets0, resets1, open: y1.open }));
   // Otro cartucho en la ranura: las etiquetas ya no son de lo que corre.
-  await page.click('#cart-chips .chip:nth-child(5)');   // Fuente, debajo de la ranura
-  await page.waitFor(`document.getElementById('cart-name').textContent === 'Fuente'`, { timeout: 3000, desc: 'Fuente en la ranura' });
+  await clickCart(page, 'fuente');
   s.check((await page.ev('window.chip8.workshopSymbols()')) === null, 'con otro cartucho en la ranura, workshopSymbols() devuelve null');
   // Fuera del editor, Y cierra el Taller (la consola vuelve a tener el monitor al costado) y lo vuelve a abrir.
   await page.click('.tagline');
@@ -4692,7 +4902,7 @@ scenario(55, 'Taller sin almacenamiento, sin lugar o con datos dañados: lo dice
 });
 
 // 56 -------------------------------------------------------------------------------
-scenario(56, 'Diseño con el Taller abierto: a 1440 y 1280 px va al costado sin tapar la pantalla; a 768 y 360 px va debajo de los estantes (a 360, abierto con un toque); sin scroll horizontal, botones enteros y el margen alineado', async (ctx, s) => {
+scenario(56, 'Diseño con el Taller abierto: a 1440 y 1280 px va al costado sin tapar la pantalla; a 768 y 360 px va debajo de la consola (a 360, abierto con un toque); sin scroll horizontal, botones enteros y el margen alineado', async (ctx, s) => {
   const page = await freshApp(ctx, s, { width: 1440, height: 900 });
   for (const [w, h, mobile] of [[1440, 900, false], [1280, 800, false], [768, 1024, false], [360, 640, true]]) {
     await page.setViewport(w, h, mobile ? 2 : 1, mobile);
@@ -4721,14 +4931,14 @@ scenario(56, 'Diseño con el Taller abierto: a 1440 y 1280 px va al costado sin 
       const r = (el) => { const b = el.getBoundingClientRect(); return { t: Math.round(b.top), b: Math.round(b.bottom), l: Math.round(b.left), r: Math.round(b.right), w: Math.round(b.width), h: Math.round(b.height) }; };
       const over = [];
       document.querySelectorAll('body *').forEach((el) => { const b = el.getBoundingClientRect(); if (b.width && b.right > innerWidth + 0.5 && getComputedStyle(el).position !== 'fixed') over.push((el.id ? '#' + el.id : el.tagName.toLowerCase() + '.' + el.className).slice(0, 40)); });
-      const ws = document.getElementById('workshop'), crt = document.getElementById('crt'), lib = document.getElementById('lib-title').closest('.shelf');
+      const ws = document.getElementById('workshop'), crt = document.getElementById('crt'), con = document.getElementById('console');
       const btns = Array.from(ws.querySelectorAll('.ws-actions button')).filter((b) => !b.hidden).map((b) => ({ text: b.textContent, clipped: b.scrollWidth > b.clientWidth + 1, h: b.getBoundingClientRect().height, r: Math.round(b.getBoundingClientRect().right) }));
       const c = r(crt), at = document.elementFromPoint((c.l + c.r) / 2, (c.t + c.b) / 2);
       return { iw: innerWidth, ih: innerHeight, sw: document.documentElement.scrollWidth, over: over.slice(0, 6), ws: r(ws), fixed: getComputedStyle(ws).position === 'fixed',
-        crt: c, crtHit: !!at && crt.contains(at), lib: r(lib), editor: r(document.getElementById('ws-text')), btns, focus: document.activeElement ? document.activeElement.id : null };
+        crt: c, crtHit: !!at && crt.contains(at), con: r(con), editor: r(document.getElementById('ws-text')), btns, focus: document.activeElement ? document.activeElement.id : null };
     })()`);
     const g = await page.ev(GUTTER_EXPR);
-    s.info(`${w}×${h}: Taller ${m.ws.l}–${m.ws.r} × ${m.ws.t}–${m.ws.b} px (${m.fixed ? 'fijo al costado' : 'debajo de los estantes'}), editor de ${m.editor.w}×${m.editor.h} px`);
+    s.info(`${w}×${h}: Taller ${m.ws.l}–${m.ws.r} × ${m.ws.t}–${m.ws.b} px (${m.fixed ? 'fijo al costado' : 'debajo de la consola'}), editor de ${m.editor.w}×${m.editor.h} px`);
     s.check(m.sw <= m.iw && m.over.length === 0 && m.ws.l >= 0 && m.ws.r <= m.iw, `${w}px: sin scroll horizontal y el Taller entra en el ancho (${m.ws.l}–${m.ws.r} px)`, 'se salen: ' + m.over.join(', '));
     const minH = mobile ? 32 : 24;
     s.check(m.btns.length >= 6 && m.btns.every((b) => !b.clipped && b.h >= minH && b.r <= m.ws.r), `${w}px: los botones del Taller muestran su texto entero y miden al menos ${minH} px de alto`, JSON.stringify(m.btns));
@@ -4736,7 +4946,7 @@ scenario(56, 'Diseño con el Taller abierto: a 1440 y 1280 px va al costado sin 
     if (w >= 1200) {
       s.check(m.fixed && m.crtHit && m.crt.r < m.ws.l && m.ws.t >= 0 && m.ws.b <= m.ih, `${w}px: el Taller va fijo a la derecha y la pantalla (${m.crt.l}–${m.crt.r} px) queda entera a su izquierda, sin nada encima`, JSON.stringify({ crt: m.crt, ws: m.ws }));
     } else {
-      s.check(!m.fixed && m.ws.t >= -1 && m.ws.t < 60 && m.lib.b <= m.ws.t, `${w}px: el Taller va debajo de «Tus cartuchos» y la página se corre hasta él`, JSON.stringify({ ws: m.ws, lib: m.lib }));
+      s.check(!m.fixed && m.ws.t >= -1 && m.ws.t < 60 && m.con.b <= m.ws.t, `${w}px: el Taller va debajo de la consola y la página se corre hasta él`, JSON.stringify({ ws: m.ws, con: m.con }));
     }
     if (mobile) s.check(m.focus === 'ws-title', 'abierto con un toque, el foco va al título del Taller (no al editor: así no aparece el teclado del teléfono)', String(m.focus));
     else s.check(m.focus === 'ws-text', `${w}px: abierto con el mouse, el foco va al editor`, String(m.focus));
@@ -5388,7 +5598,9 @@ spr:    ${db(P1)}
   const pl = await page.ev("({ field: !document.getElementById('spr-planes-field').hidden, rows: document.querySelectorAll('#spr-bytes .sb-plane').length })");
   s.check(v5.w === 8 && v5.h === 4 && v5.px.join() === four.join() && new Set(v5.px).size === 4 && pl.field && pl.rows === 2 && /planos 1\+2/.test(v5.info),
     `XO-CHIP con los dos planos: los cuatro colores de la paleta, como DXYN («${v5.info}»), y las filas de cada plano`, JSON.stringify({ v5, pl }));
-  // Elegir un dibujo de la lista (Enter) lo lleva al visor; «A la I» vuelve.
+  // Elegir un dibujo de la lista (Enter) lo lleva al visor; «A la I» vuelve. (Si el cajón de opciones quedó afuera,
+  // tapa el monitor: primero se guarda, como lo haría una persona.)
+  await page.reach('#draws-view');
   await page.ev("document.getElementById('draws-view').focus()");
   await page.press('ArrowDown');
   await page.press('Enter');
@@ -5477,8 +5689,7 @@ scenario(64, 'Puntos de corte, mapa y traza al reiniciar, al cambiar de cartucho
   await clickCart(page, 'rebote');
   await sleep(200);
   const other = await page.ev('({ bps: window.chip8.getBreakpoints(), list: document.getElementById("bp-list").hidden })');
-  await page.click('#lib-chips .chip:nth-child(1)');
-  await page.waitFor("document.getElementById('cart-name').textContent === 'depura'", { timeout: 3000, desc: 'depura desde «Tuyos:»' });
+  await clickLibCart(page, 1);   // depura, desde «Tus cartuchos»
   await sleep(100);
   const backBps = await page.ev('window.chip8.getBreakpoints()');
   s.check(other.bps.length === 0 && other.list && backBps.join() === [0x204, 0x20C].join(), 'otro cartucho (Rebote) no tiene puntos de corte; al volver a cargar depura, vuelven los suyos', JSON.stringify({ other, backBps }));
@@ -5623,8 +5834,7 @@ async function explorerType(page, text) {
   await sleep(80);
 }
 async function openExplorerWithButton(page) {
-  await page.ev("document.getElementById('shelf-title').scrollIntoView({ block: 'center' })");
-  await clickHit(page, '#btn-explorer');
+  await clickHit(page, '#btn-explorer');   // en la pestaña «Cartuchos» del cajón (el arnés lo abre, como una persona)
   await page.waitFor("document.getElementById('explorer').open", { timeout: 3000, desc: 'la ventana del archivo abierta' });
   await sleep(150);
 }
@@ -5632,16 +5842,17 @@ async function openExplorerWithButton(page) {
 const explorerRafStart = (page) => page.ev('(() => { const R = window.__raf = { n: 0, gaps: [], last: 0, stop: false }; const f = (t) => { if (R.last) R.gaps.push(t - R.last); R.last = t; R.n++; if (!R.stop) requestAnimationFrame(f); }; requestAnimationFrame(f); R.t0 = performance.now(); return true; })()');
 const explorerRafStop = (page) => page.ev('(() => { const R = window.__raf; R.stop = true; const secs = (performance.now() - R.t0) / 1000; const g = R.gaps.slice().sort((a, b) => a - b); return { fps: R.n / secs, max: g[g.length - 1] || 0, p95: g[Math.floor(g.length * 0.95)] || 0 }; })()');
 // La miniatura de un juego como la arma la interfaz, pero en Node con el núcleo del archivo: corre los frames de
-// EXPLORER_THUMB_FRAMES con el mismo azar, se queda con la pantalla con más píxeles encendidos y la gira, la achica
+// THUMB_FRAMES con el mismo azar, se queda con la pantalla con más píxeles encendidos y la gira, la achica
 // (shrink: cada píxel toma el valor más alto de su cuadrado) y la pinta con los colores del juego.
 // { w, h, px: colores 0xRRGGBB, values: los valores de píxel que usa }.
-const ARCH_THUMB_FRAMES = Number(/\bvar EXPLORER_THUMB_FRAMES = (\d+);/.exec(fs.readFileSync(HTML_PATH, 'utf8'))[1]);
+const ARCH_THUMB_FRAMES = Number(/\bvar THUMB_FRAMES = (\d+);/.exec(fs.readFileSync(HTML_PATH, 'utf8'))[1]);
+// (g.bytes: los bytes de la ROM, si no es un juego de roms/archivo; así sirve también para los demos y tus cartuchos.)
 function archThumbInNode(g, shrink = 1) {
   const Core = require(path.join(ROOT, 'tests', 'harness.js')).loadCore();
   let seed = (parseInt(g.sha1.slice(0, 8), 16) >>> 0) || 1;
   const c = new Core.Chip8({ platform: g.platform, quirks: { ...Core.DEFAULT_QUIRKS, ...g.quirks },
     random: () => { seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5; return seed & 0xFF; } });
-  c.loadRom(new Uint8Array(archRom(g)));
+  c.loadRom(new Uint8Array(g.bytes || archRom(g)));
   let best = null, lit = -1;
   for (let f = 0; f < ARCH_THUMB_FRAMES && !c.halted; f++) {
     c.runFrame(g.ipf);
@@ -5677,16 +5888,16 @@ const explorerThumbOfCard = (page, sha) => page.ev(`(() => {
 })()`);
 
 // 66 -------------------------------------------------------------------------------
-scenario(66, 'Archivo de la comunidad: el botón del estante y L lo abren con los 104 juegos y sus datos; buscar, filtrar por plataforma y por evento o año, ordenar y «Mostrar todos»; las teclas no llegan a la consola; Esc, L, × y el fondo lo cierran', async (ctx, s) => {
+scenario(66, 'Archivo de la comunidad: el botón de la pestaña «Cartuchos» y L lo abren con los 104 juegos y sus datos; buscar, filtrar por plataforma y por evento o año, ordenar y «Mostrar todos»; las teclas no llegan a la consola; Esc, L, × y el fondo lo cierran', async (ctx, s) => {
   const page = await freshApp(ctx, s, { width: 1440, height: 900 });
   const total = ARCH_GAMES.length;
   const btn = await page.ev(`(() => {
-    const b = document.getElementById('btn-explorer'), sec = document.getElementById('shelf-title').closest('section');
+    const b = document.getElementById('btn-explorer');
     return { hidden: b.hidden, text: b.textContent, label: b.getAttribute('aria-label'), keys: b.getAttribute('aria-keyshortcuts'), popup: b.getAttribute('aria-haspopup'),
-      inTitle: document.getElementById('shelf-title').contains(b), region: document.getElementById(sec.getAttribute('aria-labelledby')).textContent };
+      inTab: document.getElementById('drawer-panel-cartuchos').contains(b), nextToLoad: b.parentNode === document.getElementById('btn-load').parentNode };
   })()`);
-  s.check(!btn.hidden && btn.inTitle && btn.text === 'Archivo' + total && btn.label === `Archivo de la comunidad: ${total} juegos (L)` && btn.keys === 'L' && btn.popup === 'dialog' && btn.region === 'Cartuchos incluidos',
-    `el título del estante tiene el botón «Archivo ${total}» («${btn.label}»), y el estante se sigue llamando «${btn.region}»`, JSON.stringify(btn));
+  s.check(!btn.hidden && btn.inTab && btn.nextToLoad && btn.text === 'Archivo' + total && btn.label === `Archivo de la comunidad: ${total} juegos (L)` && btn.keys === 'L' && btn.popup === 'dialog',
+    `la pestaña «Cartuchos» del cajón tiene el botón «Archivo ${total}» («${btn.label}»), al lado de «Cargar ROM»`, JSON.stringify(btn));
   await openExplorerWithButton(page);
   let st = await page.ev(EXPLORER_STATE);
   let cards = await page.ev(EXPLORER_CARDS);
@@ -5810,9 +6021,8 @@ scenario(66, 'Archivo de la comunidad: el botón del estante y L lo abren con lo
 scenario(67, 'Archivo: un clic o Enter cargan el juego con los ajustes del archivo (plataforma, IPF, colores y giro), la ventana se cierra, la pantalla queda a la vista y el juego corre; las flechas, Inicio, Fin y AvPág recorren la lista; «En la ranura», «en tus cartuchos» y «ajustes recordados»; también desde file://', async (ctx, s) => {
   const page = await freshApp(ctx, s, { width: 1280, height: 900 });
   const sub8 = archGame('sub8');
-  // Con el mouse, desde el estante (debajo de la consola).
+  // Con el mouse, desde la pestaña «Cartuchos» del cajón.
   await openExplorerWithButton(page);
-  const sy0 = await page.ev('scrollY');
   await clickHit(page, explorerCard(sub8.sha1));
   await page.waitFor(`(window.chip8.romInfo() || {}).sha1 === ${JSON.stringify(sub8.sha1)}`, { timeout: 4000, desc: `«${sub8.title}» en la ranura` });
   await sleep(400);
@@ -5828,7 +6038,7 @@ scenario(67, 'Archivo: un clic o Enter cargan el juego con los ajustes del archi
     `con los ajustes del archivo: ${ARCH_PLATFORM_NAME[v.platform]}, ${v.ipf} IPF, sus quirks, sus colores y la pantalla girada ${v.rotation}°`, JSON.stringify(v));
   s.check(sameList(more.mem, Array.from(archRom(sub8))), `desde 0x200 están los ${sub8.size} bytes de roms/archivo/sub8.ch8`);
   s.check(run.fps >= 50 && !more.paused && !v.halted, `el juego corre (${run.fps.toFixed(1)} frames por segundo)`, JSON.stringify(run));
-  s.check(sy0 > 300 && more.crt.t >= 0 && more.crt.b <= more.crt.ih, `la página sube hasta la consola: la pantalla se ve entera (${more.crt.t}–${more.crt.b} px; estaba scrolleada ${Math.round(sy0)} px)`, JSON.stringify(more.crt));
+  s.check(more.crt.t >= 0 && more.crt.b <= more.crt.ih, `la pantalla queda a la vista, entera (${more.crt.t}–${more.crt.b} px)`, JSON.stringify(more.crt));
   s.check(toasts.some((t) => t.startsWith(`«${sub8.title}», del archivo de Octo (${sub8.event}): SUPER-CHIP, ${sub8.ipf} IPF, sus colores y la pantalla girada 270°`)), 'el aviso dice qué ajustes del archivo aplicó', JSON.stringify(toasts));
   s.check(more.lib === 0, 'los juegos del archivo no se suman a «Tus cartuchos»');
   await page.shot('67-cargado-con-un-clic');
@@ -5896,8 +6106,7 @@ scenario(67, 'Archivo: un clic o Enter cargan el juego con los ajustes del archi
   await page.shot('67-marcas');
   // Desde la ventana, un juego con ajustes recordados arranca con ellos.
   await page.press('Escape');
-  await page.click('#cart-chips .chip:nth-child(1)');
-  await page.waitFor("document.getElementById('cart-name').textContent === 'Rebote'", { timeout: 3000, desc: 'Rebote' });
+  await clickCart(page, 'rebote');
   await page.press('KeyL');
   await sleep(200);
   await clickHit(page, explorerCard(fuse.sha1));
@@ -6085,29 +6294,29 @@ scenario(69, 'Archivo: miniaturas solo de las tarjetas a la vista (y de las que 
 }, 120000);
 
 // 70 -------------------------------------------------------------------------------
-scenario(70, 'Archivo: diseño a 1440, 768 y 360 px: sin scroll horizontal, el botón entero en el título del estante, la ventana dentro de la pantalla con la búsqueda y los filtros enteros, tarjetas que no se pisan, miniaturas de escala entera y foco visible', async (ctx, s) => {
+scenario(70, 'Archivo: diseño a 1440, 768 y 360 px: sin scroll horizontal, el botón entero en la pestaña «Cartuchos», la ventana dentro de la pantalla con la búsqueda y los filtros enteros, tarjetas que no se pisan, miniaturas de escala entera y foco visible', async (ctx, s) => {
   const page = await freshApp(ctx, s, { width: 1440, height: 900 });
   for (const [w, h, mobile, cols] of [[1440, 900, false, 5], [768, 1024, false, 3], [360, 640, true, 2]]) {
     await page.setViewport(w, h, mobile ? 2 : 1, mobile);
     await page.reload();
     await sleep(400);
-    await page.ev("document.getElementById('shelf-title').scrollIntoView({ block: 'center' })");
+    await openDrawer(page, 'cartuchos');
     const t = await page.ev(`(() => {
       const r = (el) => { const b = el.getBoundingClientRect(); return { l: b.left, r: b.right, t: b.top, b: b.bottom, h: b.height }; };
-      const span = document.getElementById('shelf-title-text'), btn = document.getElementById('btn-explorer');
-      return { iw: innerWidth, sw: document.documentElement.scrollWidth, span: r(span), btn: r(btn), clipped: btn.scrollWidth > btn.clientWidth + 1 };
+      const load = document.getElementById('btn-load'), btn = document.getElementById('btn-explorer');
+      return { iw: innerWidth, sw: document.documentElement.scrollWidth, load: r(load), btn: r(btn), body: r(document.getElementById('drawer-body')), clipped: btn.scrollWidth > btn.clientWidth + 1 };
     })()`);
-    const pisa = t.span.l < t.btn.r && t.btn.l < t.span.r && t.span.t < t.btn.b && t.btn.t < t.span.b;
-    s.check(t.sw <= t.iw && t.btn.l >= 0 && t.btn.r <= t.iw && !pisa && !t.clipped && t.span.h < 24,
-      `${w}px: el botón «Archivo» entra entero en el título del estante (${Math.round(t.btn.l)}–${Math.round(t.btn.r)} px) sin pisar «Cartuchos incluidos», que sigue en un renglón`, JSON.stringify(t));
-    await page.shot(`70-estante-${w}`);
+    const pisa = t.load.l < t.btn.r && t.btn.l < t.load.r && t.load.t < t.btn.b && t.btn.t < t.load.b;
+    s.check(t.sw <= t.iw && t.btn.l >= t.body.l && t.btn.r <= t.body.r && !pisa && !t.clipped,
+      `${w}px: el botón «Archivo» entra entero en la pestaña «Cartuchos» (${Math.round(t.btn.l)}–${Math.round(t.btn.r)} px, en ${Math.round(t.body.l)}–${Math.round(t.body.r)}) sin pisar «Cargar ROM»`, JSON.stringify(t));
+    await page.shot(`70-cartuchos-${w}`);
     await clickHit(page, '#btn-explorer');
     await page.waitFor("document.getElementById('explorer').open", { timeout: 3000, desc: 'la ventana' });
     await page.waitFor('(() => { const v = window.chip8.archiveView(); return v.visible > 0 && v.thumbs.done >= v.visible; })()', { timeout: 10000, desc: 'las miniaturas a la vista' });
     await sleep(300);
     const m = await page.ev(`(() => {
       const d = document.getElementById('explorer'), db = d.getBoundingClientRect(), over = [];
-      d.querySelectorAll('*').forEach((el) => { const b = el.getBoundingClientRect(); if (b.width && (b.right > db.right + 0.5 || b.left < db.left - 0.5)) over.push((el.id ? '#' + el.id : el.tagName.toLowerCase() + '.' + el.className).slice(0, 40)); });
+      d.querySelectorAll('*').forEach((el) => { const b = el.getBoundingClientRect(); if (b.width && !el.closest('#cart-tip') && (b.right > db.right + 0.5 || b.left < db.left - 0.5)) over.push((el.id ? '#' + el.id : el.tagName.toLowerCase() + '.' + el.className).slice(0, 40)); });
       const lis = Array.from(document.querySelectorAll('#explorer-list > li')).filter((l) => !l.hidden).slice(0, 15).map((l) => l.getBoundingClientRect());
       const overlap = lis.some((a, i) => lis.some((b, j) => i < j && a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5));
       const ctl = ['explorer-q', 'explorer-platform', 'explorer-group', 'explorer-sort'].map((id) => { const b = document.getElementById(id).getBoundingClientRect(); return { id, l: Math.round(b.left), r: Math.round(b.right), w: Math.round(b.width) }; });
@@ -6404,12 +6613,11 @@ scenario(72, 'Importar en otro navegador: «Importar» y arrastrar el archivo tr
     `en un navegador limpio, «Importar» (clic y el diálogo de archivos) trae todo: «${t1.text}»`, JSON.stringify({ clean, t1 }));
   s.check(!!after && JSON.stringify(after.roms[sha].slots) === JSON.stringify(before.roms[sha].slots) && JSON.stringify(after.roms[shaR].slots) === JSON.stringify(before.roms[shaR].slots),
     'los estados quedan en localStorage exactamente como en el otro navegador: las mismas ranuras, fechas y textos', JSON.stringify(after && Object.keys(after.roms)));
-  const libDom = await page.ev(`({ chips: Array.from(document.querySelectorAll('#lib-chips .chip')).map((c) => c.textContent), shelf: Array.from(document.querySelectorAll('#lib-list .cart-name')).map((c) => c.textContent) })`);
-  s.check(lib.length === 1 && lib[0].sha1 === sha && lib[0].name === 'contador' && lib[0].size === rom.length && libDom.chips.join() === 'contador' && libDom.shelf.join() === 'contador',
-    'la ROM que traía el archivo entró a «Tus cartuchos» (el estante y «Tuyos:»); Rebote, que es un demo, no', JSON.stringify({ lib, libDom }));
-  // contador desde «Tuyos:»: sus ranuras tienen lo importado, y U vuelve exactamente al estado rápido.
-  await page.click('#lib-chips .chip:nth-child(1)');
-  await page.waitFor(`document.getElementById('cart-name').textContent === 'contador'`, { timeout: 3000, desc: 'contador desde «Tuyos:»' });
+  const libDom = await page.ev(`({ cards: Array.from(document.querySelectorAll('#lib-list .ccard-name')).map((c) => c.textContent) })`);
+  s.check(lib.length === 1 && lib[0].sha1 === sha && lib[0].name === 'contador' && lib[0].size === rom.length && libDom.cards.join() === 'contador',
+    'la ROM que traía el archivo entró a «Tus cartuchos» (su tarjeta, en la pestaña «Cartuchos»); Rebote, que es un demo, no', JSON.stringify({ lib, libDom }));
+  // contador desde «Tus cartuchos»: sus ranuras tienen lo importado, y U vuelve exactamente al estado rápido.
+  await clickLibCart(page, 1);
   const v = await slotsView(page);
   const th = await page.ev(thumbExpr('rapido', FOSFORO));
   s.check(!v[0].empty && v[0].canvas && !v[3].empty && v[1].empty && v[2].empty && v[4].empty && th.wrong === 0 && th.lit > 0,
@@ -6421,7 +6629,7 @@ scenario(72, 'Importar en otro navegador: «Importar» y arrastrar el archivo tr
   await sleep(150);
   const u = await page.ev(sameAsSlotExpr('rapido'));
   s.check(u.diff.length === 0 && (await statusText(page)).startsWith('Estado de la ranura rápida cargado'), 'U carga el estado importado: la máquina queda exactamente como en el otro navegador', JSON.stringify(u));
-  await page.ev("document.getElementById('states-group').scrollIntoView({ block: 'center' })");
+  await openDrawer(page, 'estados');
   await page.shot('72-importado');
   // Otro navegador más: el archivo, arrastrado y soltado sobre la página.
   await clearStorage(page, ctx);
@@ -6615,6 +6823,7 @@ scenario(74, 'La lista de todos los estados («Ver todos»): por cartucho y de d
   await clickHit(page, slotSel(1, 'save'));
   const shaR = (await page.ev('window.chip8.romInfo()')).sha1;
   // Se abre con el teclado: el foco en «Ver todos» y Enter.
+  await page.reach('#states-open');
   await page.ev("document.getElementById('states-open').focus()");
   await page.press('Enter');
   await page.waitFor("document.getElementById('states-list').open", { timeout: 2000, desc: 'la lista abierta con Enter' });
@@ -6744,7 +6953,7 @@ scenario(75, 'El giro en las pantallitas: un juego girado 90° (también un esta
   const shot = pngOf(await page.ev('window.chip8.screenshot()'));
   const cmpShot = imageVsDisplay(shot, (await storedState(page, sha, 2)).display, 64, 32, 90, FOSFORO);
   s.check(cmpShot.wrong === 0 && cmpShot.size === '320×640', `la captura de la pantalla (${cmpShot.size}) es la misma imagen girada que la pantallita de la ranura 2`, JSON.stringify(cmpShot));
-  await page.ev("document.getElementById('states-group').scrollIntoView({ block: 'center' })");
+  await openDrawer(page, 'estados');
   await page.shot('75-giro-90');
   await page.ev('window.chip8.setRotation(180)');
   await sleep(100);
@@ -6803,7 +7012,7 @@ scenario(75, 'El giro en las pantallitas: un juego girado 90° (también un esta
     const cmp = imageVsDisplay(img, st.display, st.displayWidth, st.displayHeight, 270, info.colors || FOSFORO);
     s.check(info.rot === 270 && cmp.wrong === 0 && img.inside && (img.scale >= 1 ? img.rendering === 'pixelated' : img.rendering === 'auto'),
       `Sub-Terr8nia (${st.displayWidth}×${st.displayHeight}, paleta «${info.palette}»): la pantallita es su pantalla girada 270°, píxel por píxel, y entra en su caja (escala ×${img.scale}${img.scale < 1 ? ', achicada suavizada' : ''})`, JSON.stringify({ info, cmp, scale: img.scale, rendering: img.rendering, inside: img.inside }));
-    await page.ev("document.getElementById('states-group').scrollIntoView({ block: 'center' })");
+    await openDrawer(page, 'estados');
     await page.shot('75-sub-terr8nia');
   }
   s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
@@ -6831,16 +7040,16 @@ scenario(76, 'Diseño de «Estados», de la lista y de la pregunta a 1440, 768 y
   for (const [w, h, mobile] of [[1440, 900, false], [768, 1024, false], [360, 640, true]]) {
     await page.setViewport(w, h, mobile ? 2 : 1, mobile);
     await page.reload();
-    await page.click('#lib-chips .chip:nth-child(1)');
-    await page.waitFor(`document.getElementById('cart-name').textContent === 'contador'`, { timeout: 3000, desc: 'contador desde «Tuyos:»' });
+    await clickLibCart(page, 1);   // contador, desde «Tus cartuchos»
     await sleep(300);
+    await openDrawer(page, 'estados');
     const head = await page.ev(`(() => {
-      const g = document.getElementById('states-group').getBoundingClientRect();
-      const btns = Array.from(document.querySelectorAll('#states-group .states-tools .save-btn')).map((b) => { const r = b.getBoundingClientRect(); return { text: b.textContent, clipped: b.scrollWidth > b.clientWidth + 1, h: r.height, l: r.left, r: r.right }; });
+      const g = document.getElementById('drawer-panel-estados').getBoundingClientRect();
+      const btns = Array.from(document.querySelectorAll('#drawer-panel-estados .states-tools .save-btn')).map((b) => { const r = b.getBoundingClientRect(); return { text: b.textContent, clipped: b.scrollWidth > b.clientWidth + 1, h: r.height, l: r.left, r: r.right }; });
       return { g: [g.left, g.right], btns, sw: document.documentElement.scrollWidth, iw: innerWidth };
     })()`);
     s.check(head.sw <= head.iw && head.btns.length === 3 && head.btns.every((b) => !b.clipped && b.h >= 24 && b.l >= head.g[0] - 0.5 && b.r <= head.g[1] + 0.5),
-      `${w}px: «Ver todos», «Exportar» e «Importar» entran enteros en «Estados» (botones de ${Math.round(Math.min(...head.btns.map((b) => b.h)))} px de alto) y la página no scrollea de costado`, JSON.stringify(head));
+      `${w}px: «Ver todos», «Exportar» e «Importar» entran enteros en la pestaña «Estados» del cajón (botones de ${Math.round(Math.min(...head.btns.map((b) => b.h)))} px de alto) y la página no scrollea de costado`, JSON.stringify(head));
     await clickHit(page, '#states-open');
     await page.waitFor("document.getElementById('states-list').open", { timeout: 2000, desc: 'la lista abierta' });
     await sleep(200);
@@ -6980,6 +7189,905 @@ scenario(77, 'Integración: el desensamblado muestra las etiquetas del programa 
   s.check(after.lib === 0, 'el juego del archivo no se sumó a «Tus cartuchos»', String(after.lib));
   s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
 }, 120000);
+
+// ---------------------------------------------------------------- ayudas de los escenarios 78 en adelante (el cajón de opciones, la consola en la ventana y el monitor)
+// La caja de un elemento en la ventana, { l, t, r, b, w, h } redondeada, o null si no está o no ocupa lugar.
+const BOX_FN = `(sel) => { const e = document.querySelector(sel); if (!e) return null; const q = e.getBoundingClientRect(); if (!q.width && !q.height) return null;
+  return { l: Math.round(q.left), t: Math.round(q.top), r: Math.round(q.right), b: Math.round(q.bottom), w: Math.round(q.width), h: Math.round(q.height) }; }`;
+const overlaps = (a, b) => !!a && !!b && a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b;
+// El cajón como lo ve la persona: abierto o no, escondido, la pestaña, de qué lado, qué tapa, aria-expanded del
+// botón de la barra y dónde está el foco.
+function drawerView(page) {
+  return page.ev(`(() => { const d = document.getElementById('drawer'), b = document.getElementById('btn-drawer'), ae = document.activeElement, i = window.chip8.drawerInfo();
+    return { open: i.open, hidden: d.hidden, side: i.side, covers: i.covers, tab: i.tab, expanded: b.getAttribute('aria-expanded'), focus: ae ? (ae.id || ae.tagName) : null, inside: d.contains(ae) }; })()`);
+}
+// ¿La pantalla se ve entera? El centro y cerca de las cuatro esquinas del tubo le llegan al tubo (nada encima).
+const SCREEN_IN_VIEW = `(() => { const crt = document.getElementById('crt'), c = crt.getBoundingClientRect();
+  return [[0.5, 0.5], [0.04, 0.08], [0.96, 0.08], [0.04, 0.92], [0.96, 0.92]].every(([fx, fy]) => { const x = c.left + c.width * fx, y = c.top + c.height * fy;
+    if (x < 0 || y < 0 || x >= innerWidth || y >= innerHeight) return false; const at = document.elementFromPoint(x, y); return !!at && crt.contains(at); }); })()`;
+// Las esquinas de la consola (el radio de arriba y el de abajo a la derecha), en píxeles de la ventana (con su zoom).
+const CONSOLE_CORNERS = `(() => { const cs = getComputedStyle(document.getElementById('console')), z = window.chip8.consoleZoom();
+  return { top: parseFloat(cs.borderTopRightRadius) * z, bottom: parseFloat(cs.borderBottomRightRadius) * z }; })()`;
+// Los colores de una captura del tubo, sin el borde (de 6 % a 94 % del ancho y del alto).
+function captureColors(img) {
+  const set = new Set();
+  for (let y = Math.floor(img.height * 0.06); y < img.height * 0.94; y++) {
+    for (let x = Math.floor(img.width * 0.06); x < img.width * 0.94; x++) {
+      const o = (y * img.width + x) * 4;
+      set.add('#' + [img.data[o], img.data[o + 1], img.data[o + 2]].map((v) => v.toString(16).padStart(2, '0')).join('').toUpperCase());
+    }
+  }
+  return [...set].sort();
+}
+// La consola en la ventana: su caja, la del parlante, el keypad, la placa, el monitor, el zoom, el alto de la página
+// y si el lienzo de la pantalla coincide con los píxeles físicos.
+function fitView(page) {
+  return page.ev(`(() => { const box = ${BOX_FN}, cv = document.getElementById('screen'), q = cv.getBoundingClientRect();
+    return { z: window.chip8.consoleZoom(), console: box('#console'), grille: box('.grille'), keypad: box('#keypad-well'), plate: box('.plate'), monitor: box('#monitor'), bezel: box('#bezel'),
+      cart: document.getElementById('bezel-cart').textContent, foot: document.querySelector('.foot-print').textContent, docH: document.documentElement.scrollHeight, ih: innerHeight, iw: innerWidth, sw: document.documentElement.scrollWidth, sy: scrollY,
+      canvas: { css: q.width * devicePixelRatio, back: cv.width, cssH: q.height * devicePixelRatio, backH: cv.height } }; })()`);
+}
+// La cubierta: la línea de estado (oculta a la vista: su caja, su texto y su región) y los botones de «Ejecución»
+// (la letra del nombre y de la tecla, el alto del botón sin el zoom de la consola, y los nombres o teclas que se
+// salen de su botón).
+function deckView(page) {
+  return page.ev(`(() => { const st = document.getElementById('status'), r = st.getBoundingClientRect(), z = window.chip8.consoleZoom();
+    const btns = Array.from(document.querySelectorAll('.transport .tbtn'));
+    const over = btns.filter((b) => { const q = b.getBoundingClientRect(); return Array.from(b.querySelectorAll('.tbtn-label, kbd')).some((x) => { const w = x.getBoundingClientRect(); return w.left < q.left - 0.5 || w.right > q.right + 0.5; }); })
+      .map((b) => b.querySelector('.tbtn-label').textContent);
+    return { status: { w: r.width, h: r.height, text: st.textContent, role: st.getAttribute('role'), live: st.getAttribute('aria-live'), hidden: st.classList.contains('visually-hidden') },
+      labelPx: parseFloat(getComputedStyle(btns[0].querySelector('.tbtn-label')).fontSize), kbdPx: parseFloat(getComputedStyle(btns[0].querySelector('kbd')).fontSize),
+      capH: Math.round(btns[0].querySelector('.tbtn-cap').getBoundingClientRect().height / z), over }; })()`);
+}
+// Las tarjetas de «Cartuchos» como las ve la persona (sel: '#shelf-list' o '#lib-list').
+function cardsView(page, sel) {
+  return page.ev(`Array.from(document.querySelectorAll('${sel} .ccard')).map((c) => ({ name: c.querySelector('.ccard-name').textContent, sha: c.dataset.sha,
+    current: c.getAttribute('aria-current') === 'true', led: getComputedStyle(c.querySelector('.ccard-led')).display !== 'none', tab: c.tabIndex, title: c.getAttribute('title'),
+    label: document.getElementById(c.getAttribute('aria-labelledby')).textContent, desc: document.getElementById(c.getAttribute('aria-describedby')).textContent,
+    thumb: !c.querySelector('canvas').hidden }))`);
+}
+// El cartel de las tarjetas: si se ve, su texto, su caja y si está oculto para los lectores de pantalla.
+function tipView(page) {
+  return page.ev(`(() => { const t = document.getElementById('cart-tip'), q = t.getBoundingClientRect();
+    return { shown: !t.hidden, text: t.hidden ? '' : t.innerText.replace(/\\s*\\n\\s*/g, ' | '), name: t.hidden ? '' : (t.querySelector('.cart-tip-name') || {}).textContent, ariaHidden: t.getAttribute('aria-hidden'),
+      box: t.hidden ? null : { l: Math.round(q.left), t: Math.round(q.top), r: Math.round(q.right), b: Math.round(q.bottom) }, iw: innerWidth, ih: innerHeight }; })()`);
+}
+// La miniatura de una tarjeta de «Cartuchos»: sus píxeles (0xRRGGBB), cuánto se achicó, su escala en píxeles
+// físicos y si entra en su ventanita (null si todavía no está).
+const cardThumb = (page, selector) => page.ev(`(() => {
+  const c = document.querySelector(${JSON.stringify(selector + ' canvas')});
+  if (!c || c.hidden) return null;
+  const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data, px = [];
+  for (let i = 0; i < d.length; i += 4) px.push((d[i] << 16) | (d[i + 1] << 8) | d[i + 2]);
+  const box = c.parentNode.getBoundingClientRect(), b = c.getBoundingClientRect();
+  return { w: c.width, h: c.height, px, scale: parseFloat(c.style.width) * devicePixelRatio / c.width,
+    fits: b.left >= box.left - 0.5 && b.right <= box.right + 0.5 && b.top >= box.top - 0.5 && b.bottom <= box.bottom + 0.5 };
+})()`);
+
+// 78 -------------------------------------------------------------------------------
+scenario(78, 'Cajón de opciones: lo abren y lo guardan el botón de la barra, M, Esc y su ×; el foco entra al abrir y vuelve al botón al cerrar con el teclado (con el mouse, a la página); región con nombre, aria-expanded y aria-controls; con la ayuda abierta, Esc cierra solo la ayuda', async (ctx, s) => {
+  const page = await freshApp(ctx, s, { width: 1440, height: 900 });
+  const v0 = await drawerView(page);
+  const attrs = await page.ev(`(() => { const b = document.getElementById('btn-drawer'), d = document.getElementById('drawer');
+    return { controls: b.getAttribute('aria-controls'), keys: b.getAttribute('aria-keyshortcuts'), label: b.getAttribute('aria-label'), name: document.getElementById(d.getAttribute('aria-labelledby')).textContent,
+      tag: d.tagName, tablist: document.getElementById('drawer-tabs').getAttribute('role'), tabs: Array.from(document.querySelectorAll('#drawer-tabs [role="tab"]')).map((t) => t.textContent),
+      panels: document.querySelectorAll('#drawer [role="tabpanel"]').length, close: document.getElementById('drawer-close').getAttribute('aria-label') }; })()`);
+  s.check(!v0.open && v0.hidden && v0.expanded === 'false', 'de fábrica, el cajón está guardado (escondido, fuera del orden del Tab) y el botón dice aria-expanded="false"', JSON.stringify(v0));
+  s.check(attrs.controls === 'drawer' && attrs.keys === 'M' && attrs.label === 'Opciones (M)' && attrs.name === 'Opciones' && attrs.tag === 'SECTION' && attrs.tablist === 'tablist' &&
+    attrs.tabs.join() === 'Cartuchos,Ajustes,Estados' && attrs.panels === 3 && attrs.close === 'Cerrar el cajón de opciones (M o Esc)',
+  'el botón «Opciones (M)» controla el cajón: una región llamada «Opciones» con tres pestañas (tablist, tab y tabpanel) y su botón de cerrar', JSON.stringify(attrs));
+
+  // 1. El botón con el mouse: el foco entra al título (no es un control: Espacio sigue pausando). La × con el mouse.
+  await page.click('#btn-drawer');
+  await page.waitFor(DRAWER_SETTLED, { timeout: 3000, desc: 'el cajón abierto con el botón' });
+  const v1 = await drawerView(page);
+  s.check(v1.open && !v1.hidden && v1.side === 'costado' && v1.covers === 'monitor' && v1.expanded === 'true' && v1.focus === 'drawer-title' && v1.tab === 'cartuchos',
+    `clic en el botón: el cajón sale al costado (tapa el ${v1.covers}) en la pestaña «Cartuchos», aria-expanded="true" y el foco entra al título`, JSON.stringify(v1));
+  await page.press('Space');
+  await sleep(80);
+  const paused = await page.ev('window.chip8.isPaused()');
+  await page.press('Space');
+  await sleep(80);
+  s.check(paused === true && (await page.ev('window.chip8.isPaused()')) === false, 'con el foco en el título del cajón, Espacio pausa y continúa la consola');
+  await page.click('#drawer-close');
+  await page.waitFor(DRAWER_STORED, { timeout: 3000, desc: 'el cajón guardado con la ×' });
+  const v2 = await drawerView(page);
+  s.check(!v2.open && v2.hidden && v2.expanded === 'false' && v2.focus === 'BODY', `la × con el mouse lo guarda y el foco vuelve a la página, no a un botón (foco: ${v2.focus})`, JSON.stringify(v2));
+
+  // 2. M lo abre y M lo guarda; con el foco adentro, al guardarlo con el teclado el foco vuelve al botón.
+  await page.click('.tagline');
+  await page.press('KeyM');
+  await page.waitFor(DRAWER_SETTLED, { timeout: 3000, desc: 'el cajón abierto con M' });
+  const v3 = await drawerView(page);
+  await page.press('KeyM');
+  await page.waitFor(DRAWER_STORED, { timeout: 3000, desc: 'el cajón guardado con M' });
+  const v4 = await drawerView(page);
+  s.check(v3.open && v3.focus === 'drawer-title' && !v4.open && v4.hidden && v4.focus === 'btn-drawer' && v4.expanded === 'false', 'M lo abre (el foco entra al título) y M lo guarda (el foco vuelve al botón de la barra)', JSON.stringify({ v3, v4 }));
+
+  // 3. Esc lo guarda: con el foco en la página y con el foco en el campo de las IPF (donde M es para escribir).
+  await page.click('.tagline');
+  await page.press('KeyM');
+  await page.waitFor(DRAWER_SETTLED, { timeout: 3000, desc: 'el cajón abierto con M' });
+  await page.click('.tagline');
+  await page.press('Escape');
+  await page.waitFor(DRAWER_STORED, { timeout: 3000, desc: 'el cajón guardado con Esc' });
+  const v5 = await drawerView(page);
+  await page.click('#ipf-input');
+  const v6 = await drawerView(page);
+  await page.press('KeyM');
+  await sleep(150);
+  const v6b = await drawerView(page);
+  await page.press('Escape');
+  await page.waitFor(DRAWER_STORED, { timeout: 3000, desc: 'el cajón guardado con Esc desde el campo de las IPF' });
+  const v7 = await drawerView(page);
+  s.check(!v5.open && v5.focus === 'BODY', 'con el foco en la página, Esc guarda el cajón', JSON.stringify(v5));
+  s.check(v6.open && v6.focus === 'ipf-input' && v6.tab === 'ajustes' && v6b.open && !v7.open && v7.focus === 'btn-drawer', 'escribiendo en el campo de las IPF (en «Ajustes»), M no lo cierra (es para escribir) y Esc sí, con el foco de vuelta en el botón', JSON.stringify({ v6, v6b, v7 }));
+
+  // 4. Con el teclado: Enter en el botón, Tab a la × y a la pestaña, Enter en la × (el foco vuelve al botón).
+  await page.ev("document.getElementById('btn-drawer').focus()");
+  await page.press('Enter');
+  await page.waitFor(DRAWER_SETTLED, { timeout: 3000, desc: 'el cajón abierto con Enter' });
+  const v8 = await drawerView(page);
+  await page.press('Tab');
+  const f1 = await page.ev('document.activeElement.id');
+  await page.press('Tab');
+  const f2 = await page.ev('document.activeElement.id');
+  await page.ev("document.getElementById('drawer-close').focus()");
+  await page.press('Enter');
+  await page.waitFor(DRAWER_STORED, { timeout: 3000, desc: 'el cajón guardado con Enter en la ×' });
+  const v9 = await drawerView(page);
+  s.check(v8.open && v8.focus === 'drawer-title' && f1 === 'drawer-close' && f2 === 'drawer-tab-ajustes' && !v9.open && v9.focus === 'btn-drawer',
+    `con el teclado: Enter en el botón lo abre (foco en el título), Tab va a la × (${f1}) y a la pestaña elegida (${f2}), y Enter en la × lo guarda con el foco de vuelta en el botón`, JSON.stringify({ v8, f1, f2, v9 }));
+
+  // 5. M con un selector del cajón enfocado: no elige nada y guarda el cajón.
+  await page.reach('#palette');
+  await page.ev("document.getElementById('palette').focus()");
+  const pal0 = await page.ev("document.getElementById('palette').value");
+  await page.press('KeyM');
+  await page.waitFor(DRAWER_STORED, { timeout: 3000, desc: 'el cajón guardado con M desde Paleta' });
+  const v10 = await drawerView(page);
+  const pal1 = await page.ev("document.getElementById('palette').value");
+  s.check(!v10.open && pal0 === pal1 && v10.focus === 'btn-drawer', `con «Paleta» enfocada, M guarda el cajón y no cambia la paleta (${pal0})`, JSON.stringify({ v10, pal0, pal1 }));
+
+  // 6. Con la ayuda abierta (modal), M no toca el cajón y Esc cierra solo la ayuda.
+  await openDrawer(page);
+  await page.press('KeyH');
+  await page.waitFor("document.getElementById('help').open", { timeout: 2000, desc: 'la ayuda abierta' });
+  await page.press('KeyM');
+  await sleep(150);
+  const h1 = await page.ev("({ help: document.getElementById('help').open, drawer: window.chip8.drawerInfo().open })");
+  await page.press('Escape');
+  await sleep(300);
+  const h2 = await page.ev("({ help: document.getElementById('help').open, drawer: window.chip8.drawerInfo().open })");
+  s.check(h1.help && h1.drawer && !h2.help && h2.drawer, 'con la ayuda abierta, M no hace nada y Esc cierra solo la ayuda: el cajón sigue afuera', JSON.stringify({ h1, h2 }));
+  await page.shot('78-cajon-abierto');
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 79 -------------------------------------------------------------------------------
+scenario(79, 'Cajón de opciones: las tres pestañas (clic, flechas, Inicio y Fin; una a la vista por vez), «Ajustes» con sus cuatro secciones, Tab entra a la pestaña, las flechas sobre una pestaña no llegan al keypad, y la pestaña se recuerda al guardarlo y al recargar', async (ctx, s) => {
+  const page = await freshApp(ctx, s, { width: 1440, height: 900 });
+  const tabsView = () => page.ev(`(() => { const t = Array.from(document.querySelectorAll('#drawer-tabs [role="tab"]'));
+    return { sel: t.filter((x) => x.getAttribute('aria-selected') === 'true').map((x) => x.dataset.tab), tabbable: t.filter((x) => x.tabIndex === 0).map((x) => x.dataset.tab),
+      shown: Array.from(document.querySelectorAll('#drawer [role="tabpanel"]')).filter((p) => !p.hidden).map((p) => p.id), focus: document.activeElement.id, info: window.chip8.drawerInfo().tab }; })()`);
+  await openDrawer(page);
+  const t0 = await tabsView();
+  s.check(t0.sel.join() === 'cartuchos' && t0.shown.join() === 'drawer-panel-cartuchos' && t0.tabbable.join() === 'cartuchos', 'la primera vez abre en «Cartuchos»: una sola pestaña elegida (la única en el orden del Tab) y un solo panel a la vista', JSON.stringify(t0));
+  const bad = [];
+  for (const id of ['ajustes', 'estados', 'cartuchos']) {
+    await page.click('#drawer-tab-' + id);
+    await sleep(60);
+    const v = await tabsView();
+    if (v.sel.join() !== id || v.shown.join() !== 'drawer-panel-' + id || v.tabbable.join() !== id || v.info !== id) bad.push(id + ': ' + JSON.stringify(v));
+  }
+  s.check(bad.length === 0, 'un clic en cada pestaña la elige y deja a la vista solo su panel', bad.join('; '));
+
+  // «Ajustes»: velocidad, pantalla y sonido, compatibilidad y controles, una debajo de la otra, cada una con su título;
+  // lo que no entra se scrollea adentro del cajón.
+  await page.click('#drawer-tab-ajustes');
+  const secs = await page.ev(`(() => { const body = document.getElementById('drawer-body');
+    const list = Array.from(document.querySelectorAll('#drawer-panel-ajustes > .drawer-sec')).map((sec) => ({ id: sec.id, title: sec.querySelector('h3').textContent, top: Math.round(sec.getBoundingClientRect().top),
+      named: document.getElementById(sec.getAttribute('aria-labelledby')) === sec.querySelector('h3') }));
+    return { list, scrolls: body.scrollHeight > body.clientHeight, sy: scrollY }; })()`);
+  s.check(secs.list.map((x) => x.title).join() === 'Velocidad,Pantalla y sonido,Compatibilidad,Controles,Cuidado' && secs.list.every((x, i) => x.named && (i === 0 || x.top > secs.list[i - 1].top)) && secs.scrolls,
+    `«Ajustes» tiene sus cuatro secciones en orden y «Cuidado» al final, cada una nombrada por su título (${secs.list.map((x) => x.title).join(', ')}), y se recorre adentro del cajón`, JSON.stringify(secs));
+  const viaApi = await page.ev(`(() => { window.chip8.closeDrawer(); window.chip8.openDrawer('controles'); const b = document.getElementById('drawer-body').getBoundingClientRect(), t = document.getElementById('drawer-sec-controles').getBoundingClientRect();
+    return { tab: window.chip8.drawerInfo().tab, offset: Math.round(t.top - b.top), end: Math.round(b.bottom - t.bottom), scroll: document.getElementById('drawer-body').scrollTop }; })()`);
+  s.check(viaApi.tab === 'ajustes' && viaApi.offset >= 0 && viaApi.end >= 0 && viaApi.scroll > 0, `openDrawer('controles') de la API abre «Ajustes» corrida hasta «Controles», entera a la vista (a ${viaApi.offset} px del borde de la bandeja)`, JSON.stringify(viaApi));
+  await page.waitFor(DRAWER_SETTLED, { timeout: 3000, desc: 'el cajón quieto' });
+
+  // Con el foco en una pestaña: las flechas, Inicio y Fin pasan de una a otra, y no aprietan teclas del keypad.
+  await page.ev("document.getElementById('drawer-tab-ajustes').focus()");
+  const steps = [['ArrowRight', 'estados'], ['ArrowRight', 'cartuchos'], ['ArrowLeft', 'estados'], ['Home', 'cartuchos'], ['End', 'estados'], ['ArrowLeft', 'ajustes']];
+  const badKeys = [];
+  for (const [key, want] of steps) {
+    await page.keyDown(key);
+    await sleep(40);
+    const held = await page.ev(KEYS_EXPR);
+    await page.keyUp(key);
+    await sleep(40);
+    const v = await tabsView();
+    if (v.sel.join() !== want || v.focus !== 'drawer-tab-' + want || v.shown.join() !== 'drawer-panel-' + want || !noKeys(held)) badKeys.push(`${key} -> ${JSON.stringify(v)} teclas ${held.join('')}`);
+  }
+  s.check(badKeys.length === 0, 'con el foco en una pestaña, → ← Inicio y Fin cambian de pestaña (con la vuelta), el foco las sigue y no se aprieta ninguna tecla del CHIP-8', badKeys.join('; '));
+  // Tab desde la pestaña entra al primer control de su panel.
+  await page.press('Tab');
+  const intoPanel = await page.ev('document.activeElement.id');
+  s.check(intoPanel === 'ipf-range', `Tab desde la pestaña «Ajustes» entra a su primer control, el de la velocidad (${intoPanel})`);
+
+  // La pestaña se recuerda: al guardarlo y volver a abrirlo, y al recargar la página.
+  await closeDrawer(page, 'esc');
+  await openDrawer(page);
+  const again = await tabsView();
+  const saved = await stored(page, 'chip8-consola.ajustes');
+  await page.reload();
+  await page.click('.tagline');
+  await page.press('KeyM');
+  await page.waitFor(DRAWER_SETTLED, { timeout: 3000, desc: 'el cajón abierto con M después de recargar' });
+  const reloaded = await tabsView();
+  s.check(again.sel.join() === 'ajustes' && saved && saved.drawerTab === 'ajustes' && reloaded.sel.join() === 'ajustes' && reloaded.shown.join() === 'drawer-panel-ajustes',
+    'la última pestaña se recuerda al volver a abrir el cajón y al recargar (settings.drawerTab = «ajustes»)', JSON.stringify({ again, saved: saved && saved.drawerTab, reloaded }));
+  await page.shot('79-pestana-recordada');
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 80 -------------------------------------------------------------------------------
+scenario(80, 'Cajón de opciones no modal: abierto, las 16 teclas, las flechas, Espacio, N, el keypad con el mouse, el transporte y las tarjetas de «Cartuchos» siguen andando, y el cajón sigue afuera', async (ctx, s) => {
+  const page = await freshApp(ctx, s, { width: 1440, height: 900 });
+  await clickCart(page, 'teclado');
+  await openDrawer(page, 'pantalla');
+  const focus0 = await page.ev('document.activeElement.id || document.activeElement.tagName');
+  // Las 16 teclas físicas.
+  const bad = [];
+  for (const [code, k] of PC_KEYS) {
+    await page.keyDown(code);
+    await sleep(25);
+    const d = await page.ev(KEYS_EXPR);
+    await page.keyUp(code);
+    await sleep(25);
+    const u = await page.ev(KEYS_EXPR);
+    if (!onlyKey(d, k) || !noKeys(u)) bad.push(`${code}: ${d.join('')} -> ${u.join('')}`);
+  }
+  s.check(bad.length === 0, `con el cajón abierto (foco: ${focus0}), cada una de las 16 teclas físicas aprieta solo su tecla del CHIP-8 y la suelta`, bad.join('; '));
+  // Las flechas, con el mapa de fábrica («WASD de Octo»: ↑ es la 5).
+  await page.keyDown('ArrowUp');
+  await sleep(30);
+  const up = await page.ev(KEYS_EXPR);
+  await page.keyUp('ArrowUp');
+  s.check(onlyKey(up, 5), 'la flecha ↑ aprieta la tecla 5 (y la página no se mueve)', up.join(''));
+  // Espacio y N.
+  await page.press('Space');
+  await sleep(80);
+  const p1 = await page.ev('window.chip8.isPaused()');
+  const c0 = await counters(page);
+  await page.press('KeyN');
+  await sleep(60);
+  const c1 = await counters(page);
+  await page.press('Space');
+  await sleep(80);
+  const p2 = await page.ev('window.chip8.isPaused()');
+  s.check(p1 === true && c1.steps === c0.steps + 1 && p2 === false, 'Espacio pausa, N da un paso y Espacio sigue, con el cajón abierto', JSON.stringify({ p1, pasos: c1.steps - c0.steps, p2 }));
+  // El keypad con el mouse (a la izquierda del cajón: no está tapado).
+  const r = await page.rect('#keypad .key[data-key="10"]');
+  await page.mouse('mouseMoved', r.cx, r.cy);
+  await page.mouse('mousePressed', r.cx, r.cy);
+  await sleep(80);
+  const kd = await page.ev(KEYS_EXPR);
+  await page.mouse('mouseReleased', r.cx, r.cy);
+  await sleep(40);
+  s.check(onlyKey(kd, 10) && noKeys(await page.ev(KEYS_EXPR)), 'el keypad en pantalla con el mouse: la tecla A se aprieta y se suelta', kd.join(''));
+  // El transporte, con el cajón en «Ajustes».
+  await clickHit(page, '#btn-pause');
+  await sleep(80);
+  const tp = await page.ev('window.chip8.isPaused()');
+  await clickHit(page, '#btn-pause');
+  await sleep(80);
+  const still = await drawerView(page);
+  s.check(tp === true && still.open && still.tab === 'ajustes', 'Pausa del transporte anda con el mouse, y el cajón sigue afuera en su pestaña', JSON.stringify({ tp, still }));
+  // Una tarjeta de «Cartuchos»: carga, y el cajón sigue afuera.
+  await page.click('#drawer-tab-cartuchos');
+  await clickHit(page, '#shelf-list .ccard:nth-child(1)');
+  const loaded = await page.poll("document.getElementById('cart-name').textContent === 'Rebote'", 3000);
+  const after = await drawerView(page);
+  const run = await measureRate(page, 600);
+  s.check(loaded && after.open && after.tab === 'cartuchos' && run.fps > 50, `la tarjeta de Rebote lo carga (corre a ${run.fps.toFixed(0)} frames/s) y el cajón sigue afuera, en «Cartuchos»`, JSON.stringify({ loaded, after }));
+  await page.shot('80-cajon-no-modal');
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 81 -------------------------------------------------------------------------------
+scenario(81, 'Cajón de opciones: al costado tapa el monitor (y, con el Taller abierto, el Taller), que se esfuma mientras tanto, y nunca la pantalla; sus esquinas quedan detrás del borde recto de la consola; con el cajón abierto, Tubo CRT ↔ Píxeles puros y la paleta cambian la pantalla a la vista', async (ctx, s) => {
+  const page = await freshApp(ctx, s, { width: 1440, height: 900 });
+  await clickCart(page, 'fuente');   // una imagen fija: sus colores son exactos
+  await openDrawer(page, 'pantalla');
+  const geo = () => page.ev(`(() => { const box = ${BOX_FN}; const m = document.getElementById('monitor').getBoundingClientRect();
+    const at = document.elementFromPoint(m.left + m.width / 2, Math.min(m.top + m.height / 2, innerHeight - 20)), w = document.getElementById('workshop').getBoundingClientRect();
+    const atW = w.width ? document.elementFromPoint(w.left + w.width / 2, w.top + w.height / 2) : null;
+    const vis = (id) => { const e = document.getElementById(id), cs = getComputedStyle(e); return e.hidden ? 'oculto' : cs.visibility + '/' + cs.opacity; };
+    return { crt: box('#crt'), bezel: box('#bezel'), drawer: box('#drawer'), monitor: box('#monitor'), workshop: box('#workshop'), console: box('#console'), info: window.chip8.drawerInfo(),
+      corners: ${CONSOLE_CORNERS}, monVis: vis('monitor'), wsVis: vis('workshop'),
+      screen: ${SCREEN_IN_VIEW}, monCovered: !!at && document.getElementById('drawer').contains(at), wsCovered: !!atW && document.getElementById('drawer').contains(atW), sw: document.documentElement.scrollWidth, iw: innerWidth }; })()`);
+  // Arriba y abajo, el cajón empieza y termina donde el borde de la consola es recto: sus esquinas quedan detrás.
+  const tucked = (g) => g.drawer.t >= Math.floor(g.console.t + g.corners.top) - 1 && g.drawer.b <= Math.ceil(g.console.b - g.corners.bottom) + 1;
+  await sleep(150);   // el monitor termina de esfumarse junto con la salida del cajón
+  const g1 = await geo();
+  s.check(g1.info.side === 'costado' && g1.info.covers === 'monitor' && g1.monCovered && g1.drawer.l <= g1.monitor.l && g1.drawer.r >= g1.monitor.r && g1.drawer.l >= g1.console.r - 3 && g1.monVis === 'hidden/0',
+    `1440×900: el cajón sale del borde de la consola (${g1.drawer.l} px) y tapa el monitor (${g1.monitor.l}–${g1.monitor.r} px), que se esfuma mientras tanto (${g1.monVis})`, JSON.stringify(g1));
+  s.check(tucked(g1), `1440×900: el cajón va de ${g1.drawer.t} a ${g1.drawer.b} px, a lo largo de la parte recta del borde de la consola (${g1.console.t}–${g1.console.b} px, esquinas de ${g1.corners.top.toFixed(1)} y ${g1.corners.bottom.toFixed(1)} px)`, JSON.stringify(g1));
+  s.check(!overlaps(g1.drawer, g1.bezel) && g1.screen && g1.sw <= g1.iw, '1440×900: la pantalla se ve entera (nada encima) y no hay scroll de costado', JSON.stringify(g1));
+  // Con el cajón abierto: Píxeles puros, la paleta y Tubo CRT, mirados en una captura de la pantalla de verdad.
+  const fos = ['#041009', '#7CFF96'], amb = ['#140A02', '#FFB23E'];
+  await clickHit(page, '#screen-mode .seg[data-mode="puro"]');
+  await sleep(250);
+  const c1 = captureColors(await crtCapture(page));
+  const pal = await chooseWithMouse(page, '#palette', 'ambar');
+  await sleep(250);
+  const c2 = captureColors(await crtCapture(page));
+  await page.shot('81-cajon-puro-ambar');
+  await clickHit(page, '#screen-mode .seg[data-mode="crt"]');
+  await sleep(300);
+  const c3 = captureColors(await crtCapture(page));
+  const still = await drawerView(page);
+  s.check(sameList(c1, fos.slice().sort()), `Píxeles puros con el cajón abierto: la captura de la pantalla tiene justo los dos colores de Verde fósforo (${c1.join(', ')})`, c1.slice(0, 8).join(', '));
+  s.check(pal === 'ambar' && sameList(c2, amb.slice().sort()), `la paleta Ámbar, elegida con el mouse en el cajón, se ve enseguida: dos colores (${c2.join(', ')})`, c2.slice(0, 8).join(', '));
+  s.check(c3.length > 2 && still.open, `Tubo CRT otra vez: vuelven el resplandor y las scanlines (${c3.length} colores en la captura) y el cajón sigue abierto`, String(c3.length));
+  // Al guardarlo, el monitor vuelve.
+  await closeDrawer(page);
+  await sleep(300);
+  const back = await geo();
+  s.check(back.monVis === 'visible/1', `al guardar el cajón, el monitor vuelve (${back.monVis})`, JSON.stringify(back.monVis));
+  // Con el Taller: abrirlo con el cajón afuera lo guarda (lo taparía); abierto otra vez, tapa el Taller y no la pantalla.
+  await openDrawer(page);
+  await clickHit(page, '#btn-workshop');
+  await wsOpen(page);
+  await page.waitFor(DRAWER_STORED, { timeout: 3000, desc: 'el cajón guardado al abrir el Taller' });
+  await openDrawer(page);
+  await sleep(150);
+  const g2 = await geo();
+  s.check(g2.info.covers === 'taller' && g2.wsCovered && g2.drawer.l <= g2.workshop.l && g2.drawer.r >= g2.workshop.r && !overlaps(g2.drawer, g2.bezel) && g2.screen && tucked(g2) && g2.wsVis === 'hidden/0',
+    `con el Taller abierto: el cajón tapa el Taller (${g2.workshop.l}–${g2.workshop.r} px, que se esfuma) y la pantalla sigue entera a la vista`, JSON.stringify(g2));
+  await page.shot('81-cajon-taller-1440');
+  // A 1920×945 entran la consola, el monitor y el Taller: el cajón tapa el monitor (al lado de la consola) y el Taller se sigue viendo.
+  await page.setViewport(1920, 945);
+  await sleep(500);
+  const g3 = await geo();
+  s.check(g3.info.covers === 'monitor' && g3.monCovered && !g3.wsCovered && !overlaps(g3.drawer, g3.workshop) && !overlaps(g3.drawer, g3.bezel) && g3.screen && g3.wsVis === 'visible/1' && tucked(g3),
+    '1920×945 con el Taller: el cajón tapa el monitor, el Taller queda a la vista y la pantalla también', JSON.stringify(g3));
+  await page.shot('81-cajon-taller-1920');
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 82 -------------------------------------------------------------------------------
+scenario(82, 'Cajón de opciones, diseño a 1920×945, 1440, 768 y 360 px: al costado o desde abajo, adentro de la ventana, sin scroll de costado, las pestañas enteras, lo que no entra se scrollea adentro del cajón (nunca la página) y la pantalla siempre a la vista', async (ctx, s) => {
+  for (const [w, h, mobile] of [[1920, 945, false], [1440, 900, false], [768, 1024, false], [360, 640, true]]) {
+    const page = await freshApp(ctx, s, { width: w, height: h, mobile, dpr: mobile ? 2 : 1 });
+    const side = w >= 1200 ? 'costado' : 'abajo';
+    await openDrawer(page);
+    const problems = [];
+    const sizes = [];
+    for (const tab of ['cartuchos', 'ajustes', 'estados']) {
+      await page.click('#drawer-tab-' + tab);
+      await sleep(80);
+      const m = await page.ev(`(() => { const box = ${BOX_FN}, body = document.getElementById('drawer-body'), d = box('#drawer');
+        const tabs = Array.from(document.querySelectorAll('#drawer-tabs [role="tab"]')).filter((t) => t.scrollWidth > t.clientWidth + 1).map((t) => t.textContent);
+        return { info: window.chip8.drawerInfo(), d, crt: box('#crt'), bezel: box('#bezel'), keypad: box('#keypad'), console: box('#console'), iw: innerWidth, ih: innerHeight, corners: ${CONSOLE_CORNERS},
+          sw: document.documentElement.scrollWidth, sy: scrollY, clipped: tabs, bodyH: body.clientHeight, contentH: body.scrollHeight, hscroll: body.scrollWidth > body.clientWidth + 1, screen: ${SCREEN_IN_VIEW} }; })()`);
+      sizes.push(`${tab} ${m.contentH}/${m.bodyH}`);
+      const inside = m.d.l >= 0 && m.d.t >= 0 && m.d.r <= m.iw && m.d.b <= m.ih;
+      const placed = side === 'costado'
+        ? m.d.l >= m.console.r - 3 && m.d.t >= Math.floor(m.console.t + m.corners.top) - 1 && m.d.b <= Math.ceil(m.console.b - m.corners.bottom) + 1
+        : (m.d.t >= m.crt.b && Math.abs(m.d.l - m.console.l) <= 1 && Math.abs(m.d.r - m.console.r) <= 1 && overlaps(m.d, m.keypad));
+      if (m.info.side !== side || !inside || !placed || m.sw > m.iw || m.clipped.length || m.hscroll || !m.screen || overlaps(m.d, m.crt)) problems.push(tab + ': ' + JSON.stringify(m));
+      // Lo que no entra se scrollea adentro del cajón: la página no se mueve.
+      if (m.contentH > m.bodyH + 1) {
+        const sc = await page.ev("(() => { const b = document.getElementById('drawer-body'), y = scrollY; b.scrollTop = 1e6; const r = { top: b.scrollTop, page: scrollY - y }; b.scrollTop = 0; return r; })()");
+        if (!(sc.top > 0 && sc.page === 0)) problems.push(tab + ': el scroll ' + JSON.stringify(sc));
+      }
+      await page.shot(`82-cajon-${w}-${tab}`);
+    }
+    s.info(`${w}×${h}: el cajón ${side === 'costado' ? 'al costado' : 'desde abajo'}; alto del contenido / alto a la vista de cada pestaña: ${sizes.join(', ')}`);
+    s.check(problems.length === 0, `${w}×${h}: el cajón ${side === 'costado' ? 'sale del costado de la consola, a lo largo de su parte recta' : 'sube desde abajo, del ancho de la consola, y tapa el keypad'}; en las tres pestañas queda adentro de la ventana, sin scroll de costado, con las pestañas enteras y la pantalla a la vista`, problems.join(' | '));
+    s.check(page.errors.length === 0, `${w}px: sin errores de consola`, page.errors.join(' | '));
+    await page.close();
+  }
+});
+
+// 83 -------------------------------------------------------------------------------
+scenario(83, 'Cajón de opciones: abierto (en «Ajustes», en «Estados» con una pantallita y en «Cartuchos» mientras se hacen las miniaturas), la consola sigue a 60 fps con 10.000 IPF', async (ctx, s) => {
+  const page = await freshApp(ctx, s, { width: 1440, height: 900 });
+  // Tres ROMs propias (sus miniaturas se hacen recién al abrir «Cartuchos»).
+  for (let i = 0; i < 3; i++) await loadWithButton(page, writeFixture(ctx, `propia-${i}.ch8`, romDigitos(i + 2, 7 - i)), `propia-${i}.ch8`);
+  await page.ev("window.chip8.loadRomBytes([0x70, 0x01, 0x12, 0x00], 'bucle')");
+  await page.click(`#ipf-chips .chip:nth-child(${8})`);   // 10.000, con el mouse, en el cajón
+  await sleep(300);
+  const ipf = await page.ev('window.chip8.getIpf()');
+  const r1 = await measureRate(page, 3000);
+  await page.click('#drawer-tab-estados');
+  await clickHit(page, slotSel('rapido', 'save'));
+  await sleep(300);
+  const r2 = await measureRate(page, 3000);
+  const info = await drawerView(page);
+  await page.click('#drawer-tab-cartuchos');
+  const r3 = await measureRate(page, 3000);
+  const thumbs = await page.poll("Array.from(document.querySelectorAll('#drawer-panel-cartuchos .ccard canvas')).every((c) => !c.hidden)", 4000);
+  s.info(`10.000 IPF con el cajón abierto: ${r1.fps.toFixed(1)} frames/s en «Ajustes», ${r2.fps.toFixed(1)} en «Estados» y ${r3.fps.toFixed(1)} en «Cartuchos» (${Math.round(r3.ips)} instrucciones/s)`);
+  s.check(ipf === IPF_MAX && r1.fps >= 50 && r1.fps <= 70 && r1.ips >= IPF_MAX * r1.fps * 0.99, `en «Ajustes»: ~60 frames/s y 10.000 instrucciones por frame (${r1.fps.toFixed(1)})`, JSON.stringify(r1));
+  s.check(r2.fps >= 50 && r2.fps <= 70 && r2.ips >= IPF_MAX * r2.fps * 0.99 && info.open && info.tab === 'estados', `en «Estados», con una pantallita guardada: ~60 frames/s (${r2.fps.toFixed(1)})`, JSON.stringify(r2));
+  s.check(r3.fps >= 50 && r3.fps <= 70 && r3.ips >= IPF_MAX * r3.fps * 0.99 && thumbs, `en «Cartuchos», con las miniaturas de los nueve cartuchos (las que faltan se hacen mientras tanto): ~60 frames/s (${r3.fps.toFixed(1)}), y quedan todas hechas`, JSON.stringify({ r3, thumbs }));
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 84 -------------------------------------------------------------------------------
+scenario(84, 'La consola entera en la ventana: a 1920×945, 1440×900 y 1280×800 se achica toda junta hasta entrar sin scroll (de la marca a la placa, con el monitor al lado), el lienzo sigue 1:1 con los píxeles físicos y el cartucho va impreso en el bisel; a 768×1024 entra a tamaño natural y en el teléfono no se achica; la línea de estado no se ve pero sigue anunciando, los botones de «Ejecución» son más grandes y el pie lleva el autor y su página', async (ctx, s) => {
+  for (const [w, h, mobile, dpr] of [[1920, 945, false, 1], [1440, 900, false, 1], [1280, 800, false, 1.25], [768, 1024, false, 1], [360, 640, true, 2]]) {
+    const page = await freshApp(ctx, s, { width: w, height: h, mobile, dpr });
+    await sleep(300);
+    const f = await fitView(page);
+    const one = Math.abs(f.canvas.css - f.canvas.back) < 0.5 && Math.abs(f.canvas.cssH - f.canvas.backH) < 0.5;
+    s.info(`${w}×${h}: consola de ${f.console.h} px (de ${f.console.t} a ${f.console.b}) con zoom ${f.z}; página de ${f.docH} px`);
+    if (w >= 1280) {
+      s.check(f.z < 1 && f.z >= 0.72 && f.docH <= f.ih && f.sy === 0 && f.console.t >= 0 && f.console.b <= f.ih && f.grille.b <= f.ih && f.keypad.b <= f.ih && f.plate.b <= f.ih && f.monitor.b <= f.ih,
+        `${w}×${h}: la consola entera (con el parlante, el keypad y la placa) y el monitor entran en la ventana sin scroll (zoom ${f.z}, de ${f.console.t} a ${f.console.b} px)`, JSON.stringify(f));
+      s.check(Math.abs(f.console.w / f.z - 800) <= 2, `${w}×${h}: se achica toda junta: mide ${f.console.w} px de ancho, 800 × ${f.z}`, JSON.stringify(f.console));
+    } else if (w === 768) {
+      s.check(f.z === 1 && f.console.b <= f.ih && f.docH > f.ih, `768×1024: entra a tamaño natural (de ${f.console.t} a ${f.console.b} px) y el monitor sigue abajo`, JSON.stringify(f));
+    } else {
+      s.check(f.z === 1 && f.console.h > f.ih, `360×640: en el teléfono la consola no se achica (mide ${f.console.h} px) y la página se scrollea`, JSON.stringify(f));
+    }
+    s.check(one && f.sw <= f.iw, `${w}×${h}: el lienzo coincide 1:1 con los píxeles físicos (${f.canvas.back} px) y no hay scroll de costado`, JSON.stringify(f.canvas));
+    s.check(f.cart === 'Rebote', `${w}×${h}: el bisel dice qué cartucho está en la ranura («${f.cart}»)`);
+    s.check(f.foot === 'Maximiliano Simonazzi - www.maxisimonazzi.com.ar', `${w}×${h}: el pie dice «${f.foot}»`);
+    // La línea de estado no se ve, pero sigue anunciando; su lugar lo usan los botones de «Ejecución», más grandes.
+    const d = await deckView(page);
+    s.check(d.status.hidden && d.status.w <= 1 && d.status.h <= 1 && d.status.role === 'status' && d.status.live === 'polite' && /^Cartucho «Rebote» en marcha/.test(d.status.text),
+      `${w}×${h}: la línea de estado no se ve (${d.status.w}×${d.status.h} px) pero sigue anunciando («${d.status.text.slice(0, 40)}…»)`, JSON.stringify(d.status));
+    if (w > 760) {
+      s.check(d.labelPx >= 14 && d.kbdPx >= 12.5 && d.capH >= 58 && d.over.length === 0,
+        `${w}×${h}: los botones de «Ejecución», más grandes (de ${d.capH} px, el nombre en letra de ${d.labelPx} px y la tecla de ${d.kbdPx}), con cada nombre y su tecla adentro del botón`, JSON.stringify(d));
+    } else {
+      s.check(d.over.length === 0, `${w}×${h}: cada nombre de «Ejecución» y su tecla, adentro de su botón (letra de ${d.labelPx} px)`, JSON.stringify(d));
+    }
+    await page.shot(`84-consola-${w}x${h}`);
+    if (w === 1920) {
+      // La ventana cambia: la consola se acomoda sola, sin recargar.
+      await page.setViewport(1440, 900);
+      await sleep(400);
+      const g = await fitView(page);
+      s.check(g.z < f.z && g.docH <= g.ih && g.console.b <= g.ih, `al pasar a 1440×900 sin recargar, se achica un poco más (zoom ${g.z}) y sigue entrando`, JSON.stringify(g));
+      // Y con la ventana muy baja, no se achica más que su mínimo (las teclas quedan de 44 px).
+      await page.setViewport(1440, 500);
+      await sleep(400);
+      const k = await page.ev("Math.min(...Array.from(document.querySelectorAll('#keypad .key')).map((x) => x.getBoundingClientRect().width))");
+      const z2 = await page.ev('window.chip8.consoleZoom()');
+      s.check(z2 === 0.72 && k >= 44, `en una ventana de 500 px de alto se queda en su mínimo (zoom ${z2}, teclas de ${k.toFixed(1)} px) y la página se scrollea`, String(k));
+    }
+    s.check(page.errors.length === 0, `${w}×${h}: sin errores de consola`, page.errors.join(' | '));
+    await page.close();
+  }
+});
+
+// 85 -------------------------------------------------------------------------------
+scenario(85, 'El monitor se oculta y se muestra: su botón de la barra (aria-expanded, mouse y teclado) y «Ocultar» en su cabecera (el foco pasa al botón); oculto, la consola queda sola en el medio y el cajón sale a su costado; se recuerda al recargar', async (ctx, s) => {
+  const page = await freshApp(ctx, s, { width: 1920, height: 945 });
+  const mv = () => page.ev(`(() => { const box = ${BOX_FN}, b = document.getElementById('btn-monitor'), m = document.getElementById('monitor'), c = box('#console');
+    let saved = null; try { saved = JSON.parse(localStorage.getItem('chip8-consola.ajustes')).monitorOpen; } catch (e) { saved = null; }
+    return { hidden: m.hidden, monitor: box('#monitor'), api: window.chip8.getMonitorOpen(), expanded: b.getAttribute('aria-expanded'), controls: b.getAttribute('aria-controls'), title: b.title,
+      center: c ? Math.round((c.l + c.r) / 2) : null, iw: innerWidth, console: c, saved, focus: document.activeElement ? (document.activeElement.id || document.activeElement.tagName) : null,
+      docH: document.documentElement.scrollHeight, ih: innerHeight, noMonitor: document.documentElement.classList.contains('no-monitor') }; })()`);
+  const bar = await page.ev(`(() => { const box = ${BOX_FN}; return ['btn-drawer', 'btn-monitor', 'btn-workshop', 'btn-help'].map((id) => box('#' + id)); })()`);
+  // (El del monitor está hundido: el monitor está a la vista. Hundido, baja 2 px.)
+  s.check(bar.every((b, i) => b && (i === 0 || b.l >= bar[i - 1].r) && Math.abs(b.t - bar[0].t) <= 2 && b.h === bar[0].h),
+    'en la barra de arriba, el botón del monitor va al lado del de las opciones y del lápiz del Taller, a la misma altura (hundido, con el monitor a la vista)', JSON.stringify(bar));
+  const m0 = await mv();
+  s.check(!m0.hidden && m0.api && m0.expanded === 'true' && m0.controls === 'monitor' && m0.title === 'Ocultar el monitor de depuración',
+    'de fábrica el monitor está a la vista y su botón dice aria-expanded="true" (controla #monitor)', JSON.stringify(m0));
+  // Con el mouse: lo oculta, la consola queda en el medio y el foco no se queda en el botón.
+  await clickHit(page, '#btn-monitor');
+  await sleep(150);
+  const m1 = await mv();
+  s.check(m1.hidden && !m1.api && m1.expanded === 'false' && m1.saved === false && m1.noMonitor && Math.abs(m1.center - m1.iw / 2) <= 2 && m1.focus !== 'btn-monitor' && m1.docH <= m1.ih,
+    `clic en el botón: el monitor se oculta entero, la consola queda sola en el medio (centro en ${m1.center} de ${m1.iw} px) y se guarda`, JSON.stringify(m1));
+  await page.shot('85-sin-monitor-1920');
+  // El cajón sale al costado, en el lugar libre, sin tapar la pantalla; a 1440×900 también, y a 1280×800 sube desde abajo.
+  for (const [w, h, side] of [[1920, 945, 'costado'], [1440, 900, 'costado'], [1280, 800, 'abajo']]) {
+    await page.setViewport(w, h);
+    await sleep(300);
+    await openDrawer(page, 'estados');
+    const d = await page.ev(`(() => { const box = ${BOX_FN}; return { info: window.chip8.drawerInfo(), drawer: box('#drawer'), console: box('#console'), iw: innerWidth, screen: ${SCREEN_IN_VIEW} }; })()`);
+    const ok = d.info.side === side && d.info.covers === null && d.screen && d.drawer.r <= d.iw - 16 + 1 &&
+      (side === 'abajo' || (d.drawer.l >= d.console.r - 3 && d.drawer.w >= 340 && d.drawer.w <= 450));
+    s.check(ok, `${w}×${h} sin monitor: el cajón ${side === 'costado' ? `sale al costado, en el lugar libre (${d.drawer.l}–${d.drawer.r} px)` : 'sube desde abajo (al costado no hay lugar)'} y la pantalla se ve entera`, JSON.stringify(d));
+    await page.shot(`85-sin-monitor-cajon-${w}`);
+    await closeDrawer(page);
+  }
+  await page.setViewport(1920, 945);
+  await sleep(300);
+  // Se recuerda al recargar.
+  await page.reload();
+  await sleep(300);
+  const m2 = await mv();
+  s.check(m2.hidden && m2.expanded === 'false', 'después de recargar sigue oculto', JSON.stringify(m2));
+  // Con el teclado: Enter en el botón lo muestra (el foco se queda en el botón) y lo trae al día.
+  await page.ev('window.chip8.pause()');
+  await page.ev("document.getElementById('btn-monitor').focus()");
+  await page.press('Enter');
+  await sleep(200);
+  const m3 = await mv();
+  const pc = await page.ev(`({ shown: document.getElementById('mon-pc').textContent, real: '0x' + window.chip8.cpu.pc.toString(16).toUpperCase().padStart(3, '0') })`);
+  s.check(!m3.hidden && m3.expanded === 'true' && m3.saved === true && m3.focus === 'btn-monitor' && !m3.noMonitor && pc.shown === pc.real,
+    `con el teclado (Enter en el botón) vuelve, al día (PC ${pc.shown}), y el foco se queda en el botón`, JSON.stringify({ m3, pc }));
+  // «Ocultar», en la cabecera del monitor, con el teclado: lo oculta y el foco pasa al botón de la barra.
+  await page.ev("document.getElementById('mon-toggle').focus()");
+  await page.press('Enter');
+  await sleep(200);
+  const m4 = await mv();
+  s.check(m4.hidden && m4.expanded === 'false' && m4.focus === 'btn-monitor', `«Ocultar» (con Enter) oculta el monitor entero y el foco pasa al botón de la barra (${m4.focus})`, JSON.stringify(m4));
+  // Y con el mouse: el botón de la barra lo trae y «Ocultar» lo vuelve a ocultar (los dos quedan de acuerdo).
+  await clickHit(page, '#btn-monitor');
+  await sleep(150);
+  await clickHit(page, '#mon-toggle');
+  await sleep(150);
+  const m5 = await mv();
+  s.check(m5.hidden && m5.expanded === 'false' && m5.saved === false && m5.focus !== 'mon-toggle', 'con el mouse, el botón de la barra lo trae y «Ocultar» lo vuelve a ocultar: el botón queda de acuerdo', JSON.stringify(m5));
+  // La API.
+  const api = await page.ev('[window.chip8.setMonitorOpen(true), window.chip8.getMonitorOpen(), document.getElementById("btn-monitor").getAttribute("aria-expanded")]');
+  s.check(api[0] === true && api[1] === true && api[2] === 'true', 'setMonitorOpen(true) de la API lo muestra y el botón lo dice', JSON.stringify(api));
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 86 -------------------------------------------------------------------------------
+scenario(86, 'La pestaña «Cartuchos»: cada tarjeta con la miniatura de su pantalla (igual que correr la ROM aparte) y su nombre; el cartel propio con el mouse y con el teclado (Esc lo cierra, sin title); Tab, flechas, Inicio y Fin; un clic carga y marca el cartucho; tus cartuchos con su miniatura; arrastrar una ROM y L siguen andando', async (ctx, s) => {
+  const page = await freshApp(ctx, s, { width: 1440, height: 900 });
+  await openDrawer(page);
+  const demos = await page.ev('window.chip8.demos.map((d) => ({ id: d.id, name: d.name, description: d.description, controls: d.controls, platform: d.platform, bytes: Array.from(d.bytes), sha1: d.sha1 }))');
+  const ok0 = await page.poll("Array.from(document.querySelectorAll('#shelf-list .ccard canvas')).every((c) => !c.hidden)", 5000);
+  const cards = await cardsView(page, '#shelf-list');
+  s.check(ok0 && cards.length === demos.length && cards.every((c, i) => c.name === demos[i].name && c.label === demos[i].name && c.thumb && c.title === null),
+    `las ${cards.length} tarjetas de los incluidos tienen la miniatura de su pantalla y su nombre (el nombre accesible), y ningún title`, JSON.stringify(cards.map((c) => [c.name, c.thumb, c.title])));
+  s.check(cards[0].current && cards[0].led && cards.slice(1).every((c) => !c.current && !c.led), 'la de Rebote (el que arrancó) lleva aria-current y su luz', JSON.stringify(cards.map((c) => c.current)));
+  // Cada miniatura es la que sale de correr la ROM aparte (en Node): la pantalla con más píxeles encendidos, con la paleta de fábrica.
+  const badThumbs = [];
+  for (let i = 0; i < demos.length; i++) {
+    const d = demos[i], got = await cardThumb(page, `#shelf-list .ccard:nth-child(${i + 1})`);
+    if (!got) { badThumbs.push(d.name + ': sin miniatura'); continue; }
+    let want = null;
+    try {
+      const spec = { sha1: d.sha1, bytes: d.bytes, platform: d.platform, quirks: {}, ipf: 15, rotation: 0, colors: FOSFORO };
+      want = archThumbInNode(spec, 1);
+      if (want.w !== got.w) want = archThumbInNode(spec, want.w / got.w);   // achicada (una pantalla de 128×64 en una ventanita chica)
+    } catch (e) { badThumbs.push(d.name + ': ' + e.message); continue; }
+    const same = want.w === got.w && want.h === got.h && want.px.every((v, k) => v === got.px[k]);
+    if (!same || !Number.isInteger(Math.round(got.scale * 1000) / 1000) || got.scale < 1 || !got.fits) badThumbs.push(`${d.name}: ${got.w}×${got.h} ×${got.scale} (${same ? 'igual' : 'DISTINTA'}, ${got.fits ? 'entra' : 'no entra'})`);
+  }
+  s.check(badThumbs.length === 0, 'cada miniatura es la pantalla con más píxeles encendidos de correr la ROM 240 frames aparte, con escala entera y adentro de su ventanita', badThumbs.join('; '));
+  await page.shot('86-cartuchos');
+
+  // El cartel con el mouse: aparece al rato, con todo; se puede pasar el mouse por encima; Esc lo cierra (y no el cajón).
+  const atrapa = demos.findIndex((d) => d.id === 'atrapa');
+  const r = await page.rect(`#shelf-list .ccard:nth-child(${atrapa + 1})`, false);
+  await page.mouse('mouseMoved', r.cx, r.cy);
+  await sleep(80);
+  const early = await tipView(page);
+  await sleep(500);
+  const t1 = await tipView(page);
+  const d = demos[atrapa];
+  const want1 = [d.name, d.description, 'Controles: ' + d.controls, `CHIP-8 · ${d.bytes.length} bytes · demo incluido`].join(' | ');
+  s.check(!early.shown && t1.shown && t1.text === want1 && t1.ariaHidden === 'true' && t1.box.l >= 0 && t1.box.r <= t1.iw && t1.box.b <= t1.ih && (t1.box.t >= r.y + r.h || t1.box.b <= r.y),
+    `con el mouse sobre Atrapa, al rato aparece el cartel de la consola con todo («${t1.text.slice(0, 90)}…»), al lado de la tarjeta y adentro de la ventana`, JSON.stringify({ early, t1, r }));
+  const desc = cards[atrapa].desc;
+  s.check(desc === [d.description, 'Controles: ' + d.controls, `CHIP-8 · ${d.bytes.length} bytes · demo incluido`].join('. ') + '.', 'la descripción de la tarjeta (para lectores de pantalla) dice lo mismo que el cartel', desc);
+  await page.mouse('mouseMoved', (t1.box.l + t1.box.r) / 2, (t1.box.t + t1.box.b) / 2);
+  await sleep(400);
+  const t2 = await tipView(page);
+  s.check(t2.shown && t2.name === d.name, 'se puede pasar el mouse por encima del cartel sin que se vaya', JSON.stringify(t2));
+  await page.press('Escape');
+  await sleep(100);
+  const t3 = await tipView(page);
+  const open3 = (await drawerView(page)).open;
+  s.check(!t3.shown && open3, 'Esc cierra el cartel y el cajón sigue afuera', JSON.stringify({ t3, open3 }));
+  await page.mouse('mouseMoved', r.cx, r.cy - 4);
+  await sleep(500);
+  await page.mouse('mouseMoved', 5, 5);
+  await sleep(300);
+  s.check(!(await tipView(page)).shown, 'al sacar el mouse de la tarjeta, el cartel se va');
+  await page.shot('86-cartel');
+
+  // Con el teclado: Tab entra al grupo por la tarjeta de la ranura (con su cartel); las flechas, Inicio y Fin recorren
+  // las tarjetas (sin llegar al keypad); Enter carga.
+  await page.ev("document.getElementById('btn-explorer').focus()");
+  await page.press('Tab');
+  const k1 = await page.ev("({ name: document.activeElement.querySelector('.ccard-name') && document.activeElement.querySelector('.ccard-name').textContent, stops: Array.from(document.querySelectorAll('#shelf-list .ccard')).filter((c) => c.tabIndex === 0).length })");
+  const tk1 = await tipView(page);
+  const moves = [['ArrowRight', 1], ['ArrowRight', 2], ['ArrowDown', -1], ['End', demos.length - 1], ['Home', 0], ['ArrowLeft', 0]];
+  const badMoves = [];
+  for (const [key, idx] of moves) {
+    await page.keyDown(key);
+    await sleep(40);
+    const held = await page.ev(KEYS_EXPR);
+    await page.keyUp(key);
+    await sleep(40);
+    const at = await page.ev("Array.from(document.querySelectorAll('#shelf-list .ccard')).indexOf(document.activeElement)");
+    const tt = await tipView(page);
+    const cols = await page.ev("(() => { const c = Array.from(document.querySelectorAll('#shelf-list .ccard')); let k = 1; while (k < c.length && Math.round(c[k].getBoundingClientRect().top) === Math.round(c[0].getBoundingClientRect().top)) k++; return k; })()");
+    const wantIdx = idx === -1 ? Math.min(2 + cols, demos.length - 1) : idx;
+    if (at !== wantIdx || !noKeys(held) || !tt.shown || tt.name !== demos[wantIdx].name) badMoves.push(`${key}: en ${at} (quería ${wantIdx}), cartel «${tt.name}», teclas ${held.join('')}`);
+  }
+  s.check(k1.name === 'Rebote' && k1.stops === 1 && tk1.shown && tk1.name === 'Rebote', `Tab entra al grupo por la tarjeta de la ranura (${k1.name}), la única del grupo en el orden del Tab, con su cartel`, JSON.stringify({ k1, tk1 }));
+  s.check(badMoves.length === 0, '→, ↓, Fin, Inicio y ← recorren las tarjetas (el cartel las sigue) y no aprietan teclas del CHIP-8', badMoves.join('; '));
+  await page.press('ArrowRight');
+  await page.press('Enter');
+  const kLoaded = await page.poll(`document.getElementById('cart-name').textContent === ${JSON.stringify(demos[1].name)}`, 3000);
+  const after = await cardsView(page, '#shelf-list');
+  s.check(kLoaded && after[1].current && !after[0].current, `Enter carga «${demos[1].name}» y su tarjeta queda marcada`, JSON.stringify(after.map((c) => c.current)));
+
+  // Un clic carga y marca (el cartel se va); la ranura, arriba de todo, dice qué cartucho es y sus controles.
+  await clickHit(page, `#shelf-list .ccard:nth-child(${atrapa + 1})`);
+  const loaded = await page.poll("document.getElementById('cart-name').textContent === 'Atrapa'", 3000);
+  const after2 = await cardsView(page, '#shelf-list');
+  const slot = await page.ev("({ ctrl: document.getElementById('cart-controls').textContent, bezel: document.getElementById('bezel-cart').textContent, tip: !document.getElementById('cart-tip').hidden })");
+  s.check(loaded && after2[atrapa].current && after2.filter((c) => c.current).length === 1 && slot.ctrl === 'Controles: ' + d.controls && slot.bezel === 'Atrapa' && !slot.tip,
+    'un clic en Atrapa la carga: queda marcada (solo ella), la ranura muestra sus controles y el bisel su nombre', JSON.stringify({ after2: after2.map((c) => c.current), slot }));
+
+  // Tus cartuchos: una ROM con «Cargar ROM» trae su tarjeta con su miniatura; arrastrar otra sobre la página también.
+  await loadWithButton(page, writeFixture(ctx, 'miniatura.ch8', romDigitos(4, 2)), 'miniatura.ch8');
+  const teclado = path.join(ROOT, 'roms', 'teclado.ch8');
+  await dropFileOn(page, teclado, 300, 300);
+  const dropped = await page.poll("document.getElementById('cart-name').textContent === 'teclado.ch8'", 3000);
+  await openDrawer(page, 'cartuchos');
+  const mine = await page.poll("(() => { const c = Array.from(document.querySelectorAll('#lib-list .ccard')); return c.length === 2 && c.every((x) => !x.querySelector('canvas').hidden) ? c.map((x) => x.querySelector('.ccard-name').textContent) : null; })()", 5000);
+  const mineCards = await cardsView(page, '#lib-list');
+  s.check(dropped && mine && mine.join() === 'teclado,miniatura' && mineCards[0].current, `«Cargar ROM» y arrastrar una ROM sobre la página la suman a «Tus cartuchos», cada una con su miniatura (${mine && mine.join(', ')})`, JSON.stringify(mineCards));
+  const g = await cardThumb(page, '#lib-list .lib-item:nth-child(2) .ccard');
+  const rom = romDigitos(4, 2), wantMine = archThumbInNode({ sha1: sha1Hex(rom), bytes: rom, platform: 'chip8', quirks: {}, ipf: 15, rotation: 0, colors: FOSFORO }, 1);
+  s.check(g && g.w === wantMine.w && wantMine.px.every((v, k) => v === g.px[k]), 'la miniatura de «miniatura» es la de correr su ROM aparte', JSON.stringify(g && { w: g.w, h: g.h }));
+  // L sigue abriendo el archivo de la comunidad, con el cajón afuera.
+  await page.click('.tagline');
+  await page.press('KeyL');
+  const xo = await page.poll("document.getElementById('explorer').open", 3000);
+  await page.press('Escape');
+  await sleep(150);
+  s.check(xo && (await drawerView(page)).open, 'L abre el archivo de la comunidad (y Esc lo cierra) con el cajón afuera');
+  await page.shot('86-tus-cartuchos');
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 87 -------------------------------------------------------------------------------
+// Ningún title en la página (ni los del marcado, ni los que el código pone después, ni los de las ventanas): el
+// cartel de la consola sale con el mouse y con el teclado, y el texto sigue llegando a los lectores de pantalla.
+const TITLES_LEFT = "Array.from(document.querySelectorAll('[title]')).map((e) => e.id || e.className || e.tagName).slice(0, 8)";
+const plainTip = (page) => page.ev(`(() => { const t = document.getElementById('cart-tip'), q = t.getBoundingClientRect();
+  return { shown: !t.hidden, plain: t.classList.contains('cart-tip--plain'), text: t.hidden ? '' : t.textContent, events: getComputedStyle(t).pointerEvents,
+    host: t.parentElement && (t.parentElement.id || t.parentElement.tagName), box: { l: q.left, t: q.top, r: q.right, b: q.bottom }, iw: innerWidth, ih: innerHeight }; })()`);
+scenario(87, 'Carteles: ningún title del navegador en toda la consola (el marcado, lo que se arma después, el monitor, el cajón, el Taller y las ventanas); el cartel propio con el mouse y con el foco del teclado, encima de las ventanas modales, que no se queda con los clics, y el texto sigue llegando a los lectores de pantalla', async (ctx, s) => {
+  const page = await freshApp(ctx, s, { width: 1440, height: 900 });
+  await sleep(300);
+  s.check((await page.ev(TITLES_LEFT)).length === 0, 'al arrancar no queda ningún atributo title en la página', JSON.stringify(await page.ev(TITLES_LEFT)));
+  // Con el mouse: Paso.
+  const r = await page.rect('#btn-step');
+  await page.mouse('mouseMoved', r.cx, r.cy);
+  await sleep(150);
+  const early = await plainTip(page);
+  await sleep(450);
+  const t1 = await plainTip(page);
+  const a1 = await page.ev(`(() => { const b = document.getElementById('btn-step'); return { title: b.getAttribute('title'), tip: b.dataset.tip, desc: b.getAttribute('aria-description'), label: b.getAttribute('aria-label'), prop: b.title }; })()`);
+  s.check(!early.shown && t1.shown && t1.plain && t1.text === 'Ejecutar una sola instrucción (N)' && t1.events === 'none' && t1.box.t >= r.y + r.h - 1 && t1.box.r <= t1.iw && t1.box.b <= t1.ih,
+    `el mouse sobre «Paso»: después de un momento sale el cartel de la consola («${t1.text}»), debajo del botón y sin quedarse con los clics`, JSON.stringify({ early, t1 }));
+  s.check(a1.title === null && a1.tip === 'Ejecutar una sola instrucción (N)' && a1.desc === a1.tip && a1.label === null && a1.prop === a1.tip,
+    'el botón no tiene title: el texto está en data-tip y, para los lectores de pantalla, en aria-description (el nombre sigue siendo «Paso»)', JSON.stringify(a1));
+  await page.mouse('mouseMoved', 5, 5);
+  await sleep(300);
+  s.check(!(await plainTip(page)).shown, 'al sacar el mouse, el cartel se va');
+  // Un title que el código cambia mientras se juega (Pausa / Continuar) tampoco queda como title.
+  await page.press('Space');
+  await sleep(200);
+  const pause = await page.ev("({ title: document.getElementById('btn-pause').getAttribute('title'), tip: document.getElementById('btn-pause').dataset.tip })");
+  s.check(pause.title === null && /Pausa \/ continuar/.test(pause.tip), `el de Pausa, que el código pone al pausar, va a data-tip («${pause.tip}»)`, JSON.stringify(pause));
+  // Con el teclado: un interruptor de «Compatibilidad».
+  await openDrawer(page, 'compatibilidad');
+  await focusDrawerTab(page, 'compatibilidad');
+  let k = null;
+  for (let i = 0; i < 12 && !(k && k.dip); i++) {
+    await page.press('Tab');
+    await sleep(60);
+    k = await page.ev("(() => { const a = document.activeElement; return { id: a.id, cls: a.className, dip: a.closest('#dip-bank') !== null && !!a.dataset.tip, tip: a.dataset.tip || '' }; })()");
+  }
+  await sleep(100);
+  const t2 = await plainTip(page);
+  s.check(k && k.dip && t2.shown && t2.text === k.tip && t2.text.length > 10, `con Tab hasta un interruptor de «Compatibilidad», el cartel dice qué hace («${t2.text.slice(0, 50)}…»)`, JSON.stringify({ k, t2 }));
+  await page.press('Escape');
+  await sleep(350);
+  const t3 = await plainTip(page);
+  const d3 = await page.ev('window.chip8.drawerInfo().open');
+  s.check(t3.text !== t2.text && !d3, `Esc cierra el cartel y sigue haciendo lo suyo: guarda el cajón (y el foco, de vuelta en su botón, muestra el de ese botón: «${t3.text.slice(0, 30)}…»)`, JSON.stringify({ t3, d3 }));
+  // Lo que se arma después: el monitor en pausa, las ranuras de «Estados» y la lista de puntos de corte.
+  await page.ev("window.chip8.saveSlot('rapido')");
+  await openDrawer(page, 'estados');
+  await closeDrawer(page);
+  const left = await page.ev(TITLES_LEFT);
+  const tips = await page.ev("document.querySelectorAll('[data-tip]').length");
+  s.check(left.length === 0 && tips > 40, `después de pausar, guardar un estado y abrir el cajón, sigue sin haber ningún title (${tips} elementos con cartel)`, JSON.stringify(left));
+  // En la ventana del archivo (modal): el cartel va encima de ella.
+  await page.press('KeyL');
+  await page.waitFor("document.getElementById('explorer').open", { timeout: 3000, desc: 'la ventana del archivo abierta' });
+  await sleep(300);
+  const c = await page.rect('#explorer-list .xcart', false);
+  await page.mouse('mouseMoved', c.cx, c.cy);
+  await sleep(600);
+  const t4 = await plainTip(page);
+  const top = await page.ev(`(() => { const t = document.getElementById('cart-tip'), q = t.getBoundingClientRect(); const at = document.elementsFromPoint(q.left + q.width / 2, q.top + q.height / 2);
+    return { inDialog: t.parentElement === document.getElementById('explorer'), visibleOnTop: getComputedStyle(t).visibility === 'visible' && at.length > 0 }; })()`);
+  s.check(t4.shown && /^Cargar «/.test(t4.text) && top.inDialog && (await page.ev(TITLES_LEFT)).length === 0,
+    `en la ventana del archivo, el cartel de un juego («${t4.text.slice(0, 40)}…») sale encima de la ventana, adentro de ella`, JSON.stringify({ t4, top }));
+  await page.shot('87-cartel-archivo');
+  await page.press('Escape');
+  await sleep(300);
+  // El Taller: los botones y los errores en el margen, también sin title.
+  await page.press('KeyY');
+  await sleep(500);
+  const ws = await page.ev("({ open: !document.getElementById('workshop').hidden, left: " + TITLES_LEFT + ", run: document.getElementById('ws-run').dataset.tip })");
+  s.check(ws.open && ws.left.length === 0 && /Ctrl\+Enter/.test(ws.run), `el Taller abierto: ningún title (el de «Ensamblar y correr» dice «${ws.run}»)`, JSON.stringify(ws));
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 88 -------------------------------------------------------------------------------
+// La curvatura con la consola achicada: una ROM que dibuja un marco en el borde de la pantalla; en una captura del
+// lienzo curvado, el margen de la izquierda tiene que ser igual al de la derecha, y el de arriba al de abajo (en
+// el medio y cerca de las esquinas).
+const MARCO_ASM = `
+        CLS
+        LD I, linea
+        LD V0, 0
+        LD V1, 0
+        LD V2, 31
+arriba: DRW V0, V1, 1
+        DRW V0, V2, 1
+        ADD V0, 8
+        SE V0, 64
+        JP arriba
+        LD I, punto
+        LD V0, 0
+        LD V3, 63
+        LD V1, 1
+        DRW V0, V1, 15
+        DRW V3, V1, 15
+        LD V1, 16
+        DRW V0, V1, 15
+        DRW V3, V1, 15
+fin:    JP fin
+linea:  DB 0xFF
+punto:  DB 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80
+`;
+function curveMargins(img, thr = 110) {
+  const lit = (x, y) => img.data[(y * img.width + x) * 4 + 1] > thr;
+  const row = (y) => { let l = -1, r = -1; for (let x = 0; x < img.width; x++) if (lit(x, y)) { if (l < 0) l = x; r = x; } return l < 0 ? null : [l, img.width - 1 - r]; };
+  const col = (x) => { let t = -1, b = -1; for (let y = 0; y < img.height; y++) if (lit(x, y)) { if (t < 0) t = y; b = y; } return t < 0 ? null : [t, img.height - 1 - b]; };
+  const avg = (list) => { const ok = list.filter(Boolean); return ok.length ? [0, 1].map((i) => Math.round(ok.reduce((a, v) => a + v[i], 0) / ok.length * 10) / 10) : null; };
+  const span = (from, to, f, n) => { const out = []; for (let v = Math.round(n * from); v < n * to; v++) out.push(f(v)); return out; };
+  return { sides: avg(span(0.3, 0.7, row, img.height)), ends: avg(span(0.3, 0.7, col, img.width)),
+    corners: avg([row(Math.round(img.height * 0.12)), row(Math.round(img.height * 0.88))]) };
+}
+scenario(88, 'Curvatura con la consola achicada: a 1920×945, 1440×900 y 1024×768 la curva es pareja (los márgenes de un marco dibujado en el borde, iguales a la izquierda y a la derecha, arriba y abajo, también cerca de las esquinas) y el mapa del filtro mide lo mismo que el lienzo en la ventana', async (ctx, s) => {
+  const file = writeFixture(ctx, 'marco.ch8', asm(MARCO_ASM));
+  for (const [w, h] of [[1920, 945], [1440, 900], [1024, 768]]) {
+    const page = await freshApp(ctx, s, { width: w, height: h });
+    await page.setFiles('#file-input', [file]);
+    await page.waitFor("document.getElementById('cart-name').textContent === 'marco.ch8'", { timeout: 3000, desc: 'el marco en la ranura' });
+    await page.ev('window.chip8.setCurvature(true)');
+    await sleep(1200);   // la estela del fósforo termina de apagarse
+    const g = await page.ev(`(() => { const c = document.getElementById('screen'), q = c.getBoundingClientRect(), m = document.getElementById('crt-warp-map');
+      return { z: window.chip8.consoleZoom(), x: q.x, y: q.y, w: q.width, h: q.height, cz: c.currentCSSZoom, curved: document.getElementById('crt').classList.contains('is-curved'),
+        mapW: Number(m.getAttribute('width')), mapH: Number(m.getAttribute('height')), scale: Number(document.getElementById('crt-warp-disp').getAttribute('scale')) }; })()`);
+    const { data } = await page.send('Page.captureScreenshot', { format: 'png', clip: { x: g.x, y: g.y, width: g.w, height: g.h, scale: 1 } }, 30000);
+    const m = curveMargins(decodePng(Buffer.from(data, 'base64')));
+    s.info(`${w}×${h} (zoom ${g.z}): lienzo de ${g.w.toFixed(1)}×${g.h.toFixed(1)} px, mapa de ${g.mapW.toFixed(1)}×${g.mapH.toFixed(1)}, scale ${g.scale}; márgenes ${JSON.stringify(m)}`);
+    s.check(g.curved && g.z < 1 && Math.abs(g.mapW - g.w) < 1 && Math.abs(g.mapH - g.h) < 1 && Math.abs(g.scale - 0.07 * Math.max(g.w, g.h)) < 0.1,
+      `${w}×${h}: con la consola al ${Math.round(g.z * 1000) / 10} %, el mapa de la curva mide lo mismo que el lienzo en la ventana (${g.mapW.toFixed(1)} y ${g.w.toFixed(1)} px)`, JSON.stringify(g));
+    const even = (p, tol) => p && Math.abs(p[0] - p[1]) <= tol;
+    s.check(m.sides && m.ends && m.corners && even(m.sides, 1.5) && even(m.ends, 1.5) && even(m.corners, 2) && m.corners[0] > m.sides[0] + 3,
+      `${w}×${h}: la curva es pareja: izquierda ${m.sides && m.sides[0]} y derecha ${m.sides && m.sides[1]} px; arriba ${m.ends && m.ends[0]} y abajo ${m.ends && m.ends[1]}; cerca de las esquinas, ${m.corners && m.corners.join(' y ')}`, JSON.stringify(m));
+    await page.shot(`88-curvatura-${w}x${h}`);
+    s.check(page.errors.length === 0, `${w}×${h}: sin errores de consola`, page.errors.join(' | '));
+    await page.close();
+  }
+});
+
+// 89 -------------------------------------------------------------------------------
+// «Cuidado», al final de «Ajustes»: cada acción pregunta en su diálogo (con el foco en «Cancelar»; Esc cancela),
+// dice qué se borra y cuánto, borra eso y nada más, y el aviso lo deshace; la configuración completa vuelve a
+// arrancar la consola de fábrica (sin estados) y deja tus cartuchos y el Taller.
+const DANGER_VIEW = `(() => { const d = document.getElementById('danger-ask'), read = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };
+  const roms = (read('chip8-consola.cartuchos') || {}).roms || {}, states = (read('chip8-consola.estados') || {}).roms || {}, lib = (read('chip8-consola.biblioteca') || {}).items || [];
+  return { open: d.open, title: document.getElementById('danger-ask-title').textContent, text: document.getElementById('danger-ask-text').textContent,
+    list: Array.from(document.querySelectorAll('#danger-ask-list li')).map((li) => li.textContent), focus: document.activeElement && document.activeElement.id,
+    remembered: Object.keys(roms).filter((k) => roms[k].ipf !== undefined || roms[k].palette !== undefined || roms[k].platform !== undefined),
+    states: Object.keys(states).reduce((n, k) => n + Object.keys(states[k].slots).length, 0), lib: lib.map((it) => it.name),
+    romOpts: Array.from(document.getElementById('danger-rom').options).map((o) => o.textContent), settings: read('chip8-consola.ajustes') }; })()`;
+async function dangerClick(page, sel) {
+  await page.click(sel);
+  await page.waitFor("document.getElementById('danger-ask').open", { timeout: 3000, desc: 'el diálogo de «Cuidado» abierto' });
+  await sleep(150);
+  return page.ev(DANGER_VIEW);
+}
+async function dangerYes(page) {
+  await page.click('#danger-ask-ok');
+  await page.waitFor("!document.getElementById('danger-ask').open", { timeout: 3000, desc: 'el diálogo de «Cuidado» cerrado' });
+  await sleep(200);
+}
+async function undoToast(page) {
+  await page.click('#toasts .toast:last-child .toast-act');
+  await sleep(250);
+}
+scenario(89, '«Cuidado»: borrar los ajustes y los estados de un juego, un cartucho tuyo, todos tus cartuchos y limpiar el Taller, cada uno con su diálogo (dice qué y cuánto, Esc cancela) y su «Deshacer»; borrar toda la configuración vuelve a arrancar de fábrica, sin estados, y deja tus cartuchos y el Taller', async (ctx, s) => {
+  const page = await freshApp(ctx, s, { width: 1440, height: 900 });
+  await loadWithButton(page, writeFixture(ctx, 'uno.ch8', romDigitos(1, 1)), 'uno.ch8');
+  await loadWithButton(page, writeFixture(ctx, 'dos.ch8', romDigitos(2, 2)), 'dos.ch8');
+  await page.click('#ipf-chips .chip:nth-child(4)');   // 100 IPF: «dos.ch8» los recuerda
+  await page.ev("window.chip8.saveSlot('rapido'); window.chip8.saveSlot('1')");
+  await sleep(700);   // lo recordado se guarda a los ROM_SAVE_MS
+  await page.reach('#danger-rom-go');
+  await page.ev("document.getElementById('danger-rom').focus()");
+  const v0 = await page.ev(DANGER_VIEW);
+  s.check(v0.remembered.length === 1 && v0.states === 2 && v0.lib.length === 2 && v0.romOpts.some((o) => /^dos\.ch8|^dos/.test(o)),
+    `al principio: «dos» con 100 IPF recordados y 2 estados, y 2 cartuchos tuyos (la lista de «Cuidado»: ${v0.romOpts.join(', ')})`, JSON.stringify(v0));
+  // (a) Los ajustes y los estados de un juego: Esc cancela; después, borra las dos cosas y «Deshacer» las devuelve.
+  const a1 = await dangerClick(page, '#danger-rom-go');
+  s.check(a1.open && /«dos(.ch8)?»/.test(a1.title) && a1.focus === 'danger-ask-cancel' && a1.list.some((l) => /100 instrucciones por frame/.test(l)) && a1.list.some((l) => /^2 estados guardados/.test(l)) && /estados/.test(a1.text),
+    `el diálogo dice qué se borra y cuánto («${a1.title}»: ${a1.list.join('; ')}), con el foco en «Cancelar»`, JSON.stringify(a1));
+  await page.press('Escape');
+  await sleep(200);
+  const a2 = await page.ev(DANGER_VIEW);
+  s.check(!a2.open && a2.remembered.length === 1 && a2.states === 2, 'Esc cancela: no se borró nada', JSON.stringify(a2));
+  await dangerClick(page, '#danger-rom-go');
+  await dangerYes(page);
+  const a3 = await page.ev(DANGER_VIEW);
+  s.check(a3.remembered.length === 0 && a3.states === 0 && a3.lib.length === 2, 'confirmado: se van los ajustes recordados y los 2 estados de «dos», y los cartuchos se quedan', JSON.stringify(a3));
+  await undoToast(page);
+  const a4 = await page.ev(DANGER_VIEW);
+  s.check(a4.remembered.length === 1 && a4.states === 2, '«Deshacer» devuelve los ajustes y los estados', JSON.stringify(a4));
+  // (c) Un cartucho tuyo, y (d) todos.
+  await page.ev("(() => { const s = document.getElementById('danger-lib'); s.value = Array.from(s.options).find((o) => /^uno/.test(o.textContent)).value; })()");
+  const c1 = await dangerClick(page, '#danger-lib-go');
+  await dangerYes(page);
+  const c2 = await page.ev(DANGER_VIEW);
+  s.check(/«uno(.ch8)?»/.test(c1.title) && c1.list.length === 1 && sameList(c2.lib, ['dos']), `«${c1.title}»: queda solo «dos»`, JSON.stringify({ c1, c2 }));
+  await undoToast(page);
+  const d1 = await dangerClick(page, '#danger-libs-go');
+  await dangerYes(page);
+  const d2 = await page.ev(DANGER_VIEW);
+  await undoToast(page);
+  const d3 = await page.ev(DANGER_VIEW);
+  s.check(/tus 2 cartuchos/.test(d1.title) && d1.list.length === 2 && d2.lib.length === 0 && d3.lib.length === 2 && d3.states === 2,
+    `«${d1.title}» los quita a los dos (y no toca los estados); «Deshacer» los devuelve`, JSON.stringify({ d1, d2, d3 }));
+  // (e) El Taller: un programa tuyo.
+  await page.press('KeyY');
+  await sleep(400);
+  await page.click('#ws-new');
+  await sleep(300);
+  const w0 = await page.ev('window.chip8.workshopInfo()');
+  await page.click('#ws-close');
+  await sleep(300);
+  await page.reach('#danger-ws-go');
+  const e1 = await dangerClick(page, '#danger-ws-go');
+  await dangerYes(page);
+  const w1 = await page.ev('window.chip8.workshopInfo()');
+  await undoToast(page);
+  const w2 = await page.ev('window.chip8.workshopInfo()');
+  s.check(/Limpiar el Taller/.test(e1.title) && e1.list.some((l) => /^1 programa tuyo/.test(l)) && w1.programs.length === 0 && w2.programs.length === 1,
+    `«${e1.title}»: ${e1.list.join('; ')}; se borra y «Deshacer» lo devuelve`, JSON.stringify({ w0: w0 && w0.programs.length, e1, w1: w1 && w1.programs.length, w2: w2 && w2.programs.length }));
+  // (b) Toda la configuración: dice que se van los estados; la consola vuelve a arrancar de fábrica.
+  const b1 = await dangerClick(page, '#danger-all-go');
+  s.check(b1.list.some((l) => /^2 estados guardados/.test(l)) && /estados guardados/.test(b1.text) && /No se puede deshacer/.test(b1.text),
+    `«${b1.title}» avisa que se van los estados (${b1.list.join('; ')})`, JSON.stringify(b1));
+  await page.click('#danger-ask-ok');
+  await sleep(1500);
+  await page.waitFor("window.chip8 && document.getElementById('cart-name')", { timeout: 8000, desc: 'la consola otra vez arrancada' });
+  await sleep(500);
+  const b2 = await page.ev(DANGER_VIEW);
+  const w3 = await page.ev('window.chip8.workshopInfo()');
+  s.check(b2.remembered.length === 0 && b2.states === 0 && b2.lib.length === 2 && b2.settings && b2.settings.ipf === 15 && w3.programs.length === 1,
+    'después de arrancar otra vez: ajustes de fábrica (15 IPF), ningún ajuste recordado ni estado, y siguen tus 2 cartuchos y tu programa del Taller', JSON.stringify({ b2, mine: w3.programs.length }));
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
 
 // ---------------------------------------------------------------- principal
 async function runScenario(ctx, sc) {

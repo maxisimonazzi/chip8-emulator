@@ -542,7 +542,7 @@ describe('docs/MANUAL.md', () => {
     // Textos de la interfaz que el manual nombra, tal como aparecen en el código.
     for (const s of [
       '>Compatibilidad<', '>Perfil</label>', '>Plataforma</label>', '>Personalizado<', 'Ajustes por cartucho',
-      "'Personalizada'", "'Del cartucho'", '>Tus cartuchos<', '>Tuyos:<', "' · ajustes del archivo'",
+      "'Personalizada'", "'Del cartucho'", '>Tus cartuchos<', '>Cartuchos</button>', "' · ajustes del archivo'",
       "' · ajustes recordados'", '>Olvidar ajustes<', "label: 'Usar ' + needed", "'Cambiar a ' + platformLabel(platform) + ' y reiniciar'",
       "'FIN DEL PROGRAMA', 'La ROM terminó con EXIT (00FD).'", "badge: 'Terminado'", "'planos 1+2'", '>MÁQUINA<',
       'solo entra en XO-CHIP (64 KB), así que pasé al perfil XO-CHIP.',
@@ -881,8 +881,8 @@ describe('docs/DESARROLLO.md', () => {
       ['`TURBO_FACTOR`', String(uiConst('TURBO_FACTOR'))],
       ['`SHOT_WIDTH`', String(uiConst('SHOT_WIDTH'))],
       ['`ROMS_MAX`, `ROM_SAVE_MS`, `FLAGS_CHECK_MS`', uiConst('ROMS_MAX') + ', ' + uiConst('ROM_SAVE_MS') + ' ms y ' + uiConst('FLAGS_CHECK_MS') + ' ms'],
-      ['`LIBRARY_MAX_ITEMS`, `LIBRARY_MAX_CHARS`, `LIBRARY_PICKS`',
-        uiConst('LIBRARY_MAX_ITEMS') + ', ' + String(uiConst('LIBRARY_MAX_CHARS')).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' y ' + uiConst('LIBRARY_PICKS')],
+      ['`LIBRARY_MAX_ITEMS`, `LIBRARY_MAX_CHARS`',
+        uiConst('LIBRARY_MAX_ITEMS') + ' y ' + String(uiConst('LIBRARY_MAX_CHARS')).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')],
     ];
     for (const [names, value] of want) {
       assert.ok(rows.has(names), 'la tabla de 4.1 no tiene la fila ' + names);
@@ -890,9 +890,9 @@ describe('docs/DESARROLLO.md', () => {
     }
   });
 
-  it('la tabla de 4.19 tiene cada campo de los ajustes guardados (loadSettings)', () => {
-    const m = /function loadSettings\(\) \{\s*var s = \{([^]*?)\};/.exec(html);
-    assert.ok(m, 'no encontré los ajustes de fábrica de loadSettings en chip8.html');
+  it('la tabla de 4.19 tiene cada campo de los ajustes guardados (defaultSettings)', () => {
+    const m = /function defaultSettings\(\) \{\s*return \{([^]*?)\};/.exec(html);
+    assert.ok(m, 'no encontré los ajustes de fábrica de defaultSettings en chip8.html');
     const fields = [...m[1].replace(/\/\/.*$/gm, '').matchAll(/(\w+):/g)].map((x) => x[1]);
     assert.ok(fields.includes('rewind') && fields.length >= 15, 'campos: ' + fields.join(', '));
     const rows = tableAfter(section('4.19'), '| Campo | De fábrica | Validación |').map((r) => r[0]);
