@@ -39,9 +39,13 @@ sola en el medio. Cada cartucho tiene cinco ranuras para guardar el estado de la
 archivo e importar en otro navegador. Y hay rebobinado: mientras mantenés apretada la B, la
 máquina vuelve hacia atrás hasta medio minuto.
 
-Para escribir programas está el Taller (la Y): un editor con el ensamblador del proyecto
-adentro. Trae los once ejemplos del tutorial y los fuentes de los seis cartuchos, marca los
-errores en su renglón y con Ctrl+Enter el programa corre en la consola.
+Para escribir programas está el Taller (la Y): un editor con dos lenguajes, el ensamblador del
+proyecto y el de Octo, con el compilador oficial de Octo adentro. Trae los once ejemplos del
+tutorial, los fuentes de los seis cartuchos y, en Octo, el pong para dos de una nota de
+Hackaday. Marca los errores en su renglón, con Ctrl+Enter el programa corre en la consola y,
+con la máquina en pausa, el margen marca el renglón por donde va. Un programa en Octo corre
+como en Octo: con sus quirks, en la plataforma que piden sus instrucciones, y sus
+`:breakpoint` son puntos de corte del monitor.
 
 ## Cómo se usa
 
@@ -117,11 +121,12 @@ herramientas.
 npm test
 ```
 
-Son **1657 pruebas** en 24 archivos y tardan unos segundos. Además de cada instrucción y cada
-quirk, revisan el ensamblador, el depurador, los demos, los estados guardados y sus archivos,
-la tabla del archivo, los juegos de itch.io y sus ROMs, y que la documentación no mienta: los ejemplos del manual y
-del tutorial se ensamblan y se ejecutan. `npm run e2e` corre 89 escenarios en Chrome o Edge
-sin ventana, con teclado, mouse y toques de verdad.
+Son **1678 pruebas** en 25 archivos y tardan unos segundos. Además de cada instrucción y cada
+quirk, revisan el ensamblador, el compilador de Octo, el depurador, los demos, los estados
+guardados y sus archivos, la tabla del archivo, los juegos de itch.io y sus ROMs, y que la
+documentación no mienta: los ejemplos del manual y del tutorial se ensamblan y se ejecutan.
+`npm run e2e` corre 91 escenarios en Chrome o Edge sin ventana, con teclado, mouse y toques
+de verdad.
 
 Las otras herramientas:
 
@@ -129,7 +134,8 @@ Las otras herramientas:
   en `chip8.html`, porque lo usa el Taller, y la herramienta lo saca de ahí; la sintaxis está
   explicada al principio de su bloque, `chip8-asm`.
 - `npm run roms` vuelve a armar los cartuchos incluidos a partir de `roms/*.asm`, junto con
-  los fuentes que trae el Taller.
+  los fuentes que trae el Taller; los ejemplos en Octo los compila con el compilador de
+  `chip8.html` y deja su ROM al lado.
 - `npm run archive -- download` baja las ROMs del archivo; `update` actualiza su tabla,
   `itch` suma los juegos de las Octojam en itch.io que no están en el archivo, `embed` mete
   las tablas y las ROMs comprimidas de todos los juegos en `chip8.html`, y `test` corre
@@ -140,7 +146,7 @@ Las otras herramientas:
 ## Estructura del repositorio
 
 ```
-chip8.html                   La consola entera: estilos, interfaz, núcleo, ensamblador, cartuchos y el archivo.
+chip8.html                   La consola entera: estilos, interfaz, núcleo, ensamblador, compilador de Octo, cartuchos y el archivo.
 roms/                        Los seis cartuchos incluidos, en assembler (.asm) y ensamblados (.ch8).
 roms/archivo/                Los 104 juegos del archivo de la comunidad y su índice.
 roms/octojam/                Los 68 juegos de las Octojam en itch.io que no están en el archivo, y su índice.
@@ -155,6 +161,7 @@ tests/                       Las pruebas, con node:test; harness.js carga los bl
 docs/MANUAL.md               El manual de referencia.
 docs/TUTORIAL.md             El tutorial.
 docs/ejemplos/               Los programas del tutorial.
+docs/ejemplos/octo/          Los ejemplos en Octo del Taller (el pong), con su ROM.
 docs/DESARROLLO.md           La documentación del desarrollo.
 ```
 
@@ -164,9 +171,9 @@ docs/DESARROLLO.md           La documentación del desarrollo.
 
 No ejecuta código de máquina del RCA 1802: las instrucciones `0NNN` se ignoran. Tampoco imita
 las rarezas de SUPER-CHIP en la calculadora HP-48 (el scroll de medio píxel en baja
-resolución, las colisiones que cuentan filas). Ni la consola ni el Taller entienden el
-lenguaje de Octo (`.8o`): hay que cargar la ROM ya armada o escribir el programa en el
-assembler del proyecto. Los puntos de corte son por dirección: no hay puntos de corte con
+resolución, las colisiones que cuentan filas). De Octo, el Taller trae el compilador y nada
+más: no tiene sus editores de sprites, de sonido ni de paleta, ni sus enlaces para compartir,
+y `:monitor` no hace nada. Los puntos de corte son por dirección: no hay puntos de corte con
 condiciones ni al leer o escribir la memoria, y desde el monitor no se cambian los registros
 ni la memoria. Las pruebas de navegador corren en Chrome: no se probó en un teléfono de
 verdad, con un joystick físico ni en Firefox o Safari. De los 172 juegos,
@@ -175,7 +182,11 @@ Octo.
 
 ## Licencia
 
-El código es MIT. Las ROMs de `roms/archivo/` y los datos de `data/archive.json` vienen del
+El código es MIT. El compilador de Octo que va adentro de `chip8.html` es el de
+[John Earnest](https://github.com/JohnEarnest/Octo), también MIT, y su aviso va con él. Las
+ROMs de `roms/archivo/` y los datos de `data/archive.json` vienen del
 [archivo de John Earnest](https://github.com/JohnEarnest/chip8Archive) y son CC0. Las de
 `roms/octojam/` son de sus autores: salen de las páginas de las Octojam en itch.io, que no les
-ponen una licencia común, y la de cada juego dice lo suyo.
+ponen una licencia común, y la de cada juego dice lo suyo. El pong de `docs/ejemplos/octo/`
+es de Al Williams y sale de su repositorio,
+[wd5gnr/chip8pong](https://github.com/wd5gnr/chip8pong).

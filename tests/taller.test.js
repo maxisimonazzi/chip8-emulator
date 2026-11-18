@@ -1,13 +1,16 @@
 'use strict';
 // Tests de los fuentes del Taller: lo que tools/embed-roms.js incrusta en el bloque
-// chip8-roms, después de CHIP8_DEMOS, como globalThis.CHIP8_SOURCES = { demos, examples }.
+// chip8-roms, después de CHIP8_DEMOS, como globalThis.CHIP8_SOURCES = { demos, examples, octo }.
 //   - demos: el fuente de cada cartucho (roms/*.asm), por su id y en el orden de @order;
 //   - examples: los ejemplos del tutorial (docs/ejemplos/*.asm), con su nombre, su
 //     descripción, su plataforma (solo si tienen @platform) y su fuente;
-//   - cada fuente es el archivo tal cual (con LF) y se ensambla a su .ch8;
+//   - octo: los ejemplos en el lenguaje de Octo (docs/ejemplos/octo/*.8o), con su nombre, su
+//     descripción y su fuente;
+//   - cada fuente es el archivo tal cual (con LF) y se ensambla (o se compila) a su .ch8;
 //   - embed-roms.js con los ejemplos: @platform y @description, errores en castellano
 //     (una etiqueta que no vale, un ejemplo que no ensambla), CRLF, --check, y sin la
-//     carpeta docs/ejemplos/.
+//     carpeta docs/ejemplos/; con los de Octo: el compilador de chip8.html, su .ch8 al
+//     lado, su descripción, @ipf y los errores.
 // El Taller (la interfaz) se prueba en el navegador: escenarios 51 a 107 de tools/e2e.js.
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
@@ -16,7 +19,7 @@ const os = require('node:os');
 const path = require('node:path');
 const vm = require('node:vm');
 const { spawnSync } = require('node:child_process');
-const { ROOT, loadDemos, loadSources, loadAssembler, extractScript } = require('./harness');
+const { ROOT, loadDemos, loadSources, loadAssembler, loadOcto, extractScript } = require('./harness');
 
 const { assemble, headerTags } = loadAssembler();
 const EJEMPLOS = path.join(ROOT, 'docs', 'ejemplos');
@@ -60,6 +63,22 @@ describe('CHIP8_SOURCES: los fuentes del Taller en chip8.html', () => {
     assert.equal(sources.examples[2].description, 'Cazamonedas, etapa A: dibujar un sprite propio');
   });
 
+  it('trae los ejemplos en Octo (docs/ejemplos/octo/*.8o), con su descripción, y cada uno compila a su .ch8', () => {
+    const { compile } = loadOcto();
+    const files = fs.readdirSync(path.join(EJEMPLOS, 'octo')).filter((f) => f.endsWith('.8o')).sort();
+    assert.deepEqual(files, ['pong.8o']);
+    assert.deepEqual(sources.octo.map((x) => x.name), files);
+    for (const x of sources.octo) {
+      assert.deepEqual(Object.keys(x), ['name', 'description', 'source'], x.name);
+      assert.equal(x.source, read(path.join(EJEMPLOS, 'octo', x.name)), x.name);
+      const r = compile(x.source);
+      assert.deepEqual(r.errors, [], x.name);
+      const ch8 = fs.readFileSync(path.join(EJEMPLOS, 'octo', x.name.replace(/\.8o$/, '.ch8')));
+      assert.ok(ch8.equals(Buffer.from(r.result.bytes)), x.name);
+    }
+    assert.equal(sources.octo[0].description, 'Pong para dos, de la nota de Hackaday «CHIP-8: The Pong Game\'s Afoot»');
+  });
+
   it('los textos van escapados: el bloque no tiene ni un «<» (un fuente con «<», como Atrapa, no puede cerrar el <script>)', () => {
     assert.ok(read(path.join(ROMS, 'atrapa.asm')).includes('<'), 'atrapa.asm ya no tiene un «<»: la prueba no prueba nada');
     const { code } = extractScript('chip8-roms');
@@ -81,9 +100,10 @@ describe('CHIP8_SOURCES: los fuentes del Taller en chip8.html', () => {
   });
 });
 
-// Una copia de embed-roms.js (con chip8asm.js y el chip8.html de donde saca el ensamblador)
-// en una carpeta temporal, con sus propios cartuchos y ejemplos (examples: null = sin la carpeta).
-function sandbox({ roms, examples }, fn) {
+// Una copia de embed-roms.js (con chip8asm.js y el chip8.html de donde saca el ensamblador y el
+// compilador de Octo) en una carpeta temporal, con sus propios cartuchos y ejemplos (examples: null
+// = sin la carpeta; octo: los ejemplos en Octo, en docs/ejemplos/octo/).
+function sandbox({ roms, examples, octo }, fn) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'taller-embed-'));
   try {
     fs.mkdirSync(path.join(dir, 'tools'));
@@ -94,6 +114,10 @@ function sandbox({ roms, examples }, fn) {
     if (examples) {
       fs.mkdirSync(path.join(dir, 'docs', 'ejemplos'), { recursive: true });
       for (const [name, text] of Object.entries(examples)) fs.writeFileSync(path.join(dir, 'docs', 'ejemplos', name), text);
+    }
+    if (octo) {
+      fs.mkdirSync(path.join(dir, 'docs', 'ejemplos', 'octo'), { recursive: true });
+      for (const [name, text] of Object.entries(octo)) fs.writeFileSync(path.join(dir, 'docs', 'ejemplos', 'octo', name), text);
     }
     const html = path.join(dir, 'pagina.html');
     fs.writeFileSync(html, '<script id="chip8-roms">\n</script>\n');
@@ -185,7 +209,52 @@ describe('tools/embed-roms.js y los ejemplos del tutorial', () => {
       const res = run();
       assert.equal(res.status, 0, res.stderr);
       assert.match(res.stdout, /Ejemplos del tutorial para el Taller \(0, no está docs\/ejemplos\/\)/);
-      assert.deepEqual(evaluate(), { demos: { una: DEMO }, examples: [] });
+      assert.match(res.stdout, /Ejemplos en Octo para el Taller \(0, no está docs\/ejemplos\/octo\/\)/);
+      assert.deepEqual(evaluate(), { demos: { una: DEMO }, examples: [], octo: [] });
     });
+  });
+});
+
+describe('tools/embed-roms.js y los ejemplos en Octo', () => {
+  const HOLA = '# hola.8o — Un sprite en el medio\n# @ipf 200\n\n: main\n  i := hex v0\n  sprite v0 v0 5\n  loop again\n';
+  const XO = '# Otro sin el nombre del archivo\n: main\n  plane 3\n  loop again\n';
+
+  it('cada .8o se compila con el compilador de chip8.html: su ROM queda al lado (.ch8) y el bloque lleva su nombre, su descripción y su fuente', () => {
+    sandbox({ roms: { 'una.asm': DEMO }, examples: {}, octo: { 'hola.8o': HOLA, 'xo.8o': XO } }, ({ run, evaluate, dir }) => {
+      const res = run();
+      assert.equal(res.status, 0, res.stderr);
+      assert.match(res.stdout, /Ejemplos en Octo para el Taller \(2\):\n {2}hola\.8o\s+6 bytes \(chip8\)\n {2}xo\.8o\s+4 bytes \(xochip\)/);
+      assert.match(res.stdout, /Escribí roms\/una\.ch8, docs\/ejemplos\/octo\/hola\.ch8, docs\/ejemplos\/octo\/xo\.ch8\./);
+      assert.deepEqual(evaluate().octo, [
+        { name: 'hola.8o', description: 'Un sprite en el medio', source: HOLA },
+        { name: 'xo.8o', description: 'Otro sin el nombre del archivo', source: XO },
+      ]);
+      // La ROM: el salto a main no hace falta (main está en 0x200), F029, D005 y el bucle (un salto a sí mismo).
+      assert.equal(fs.readFileSync(path.join(dir, 'docs', 'ejemplos', 'octo', 'hola.ch8')).toString('hex'), 'f029d0051204');
+      assert.equal(run('--check').status, 0);
+      fs.writeFileSync(path.join(dir, 'docs', 'ejemplos', 'octo', 'hola.ch8'), Buffer.from([0]));
+      const stale = run('--check');
+      assert.equal(stale.status, 1);
+      assert.match(stale.stderr, /docs\/ejemplos\/octo\/hola\.ch8 no coincide con docs\/ejemplos\/octo\/hola\.8o/);
+    });
+  });
+
+  it('un ejemplo que no compila o con un @ipf que no vale es un error en castellano, con su renglón, y no escribe nada', () => {
+    for (const [text, msg] of [
+      [': main\n  v0 := 300\n', 'embed-roms: docs/ejemplos/octo/malo.8o: Línea 2: 300 no entra en un byte: tiene que estar entre -128 y 255.'],
+      ['# @ipf rápido\n: main\n  loop again\n', 'embed-roms: docs/ejemplos/octo/malo.8o: @ipf tiene que ser un número de 1 a 10000 (dice "rápido")'],
+      ['# @ipf 20000\n: main\n  loop again\n', 'embed-roms: docs/ejemplos/octo/malo.8o: @ipf tiene que ser un número de 1 a 10000 (dice "20000")'],
+    ]) {
+      sandbox({ roms: { 'una.asm': DEMO }, examples: {}, octo: { 'malo.8o': text } }, ({ run, html, dir }) => {
+        const before = read(html);
+        for (const args of [[], ['--check']]) {
+          const res = run(...args);
+          assert.equal(res.status, 1, msg);
+          assert.equal(res.stderr.trim(), msg);
+        }
+        assert.equal(read(html), before);
+        assert.ok(!fs.existsSync(path.join(dir, 'docs', 'ejemplos', 'octo', 'malo.ch8')));
+      });
+    }
   });
 });

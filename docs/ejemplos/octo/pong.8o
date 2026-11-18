@@ -1,0 +1,263 @@
+# pong.8o — Pong para dos, de la nota de Hackaday «CHIP-8: The Pong Game's Afoot»
+#
+# Lo escribió Al Williams (wd5gnr) para esa nota, del 11 de noviembre de 2026, y lo publicó
+# en github.com/wd5gnr/chip8pong: del primer comentario en inglés para abajo es su
+# chip8pong.8o, sin cambios. Es CHIP-8 común: no usa nada de SUPER-CHIP ni de XO-CHIP.
+#
+# Izquierda: 1 sube y Q baja. Derecha: 4 sube y R baja. Gana el primero que llega a 9.
+# El ritmo lo marca el temporizador (30 cuadros por segundo), así que desde unas 100
+# instrucciones por cuadro va igual de rápido; con la etiqueta de abajo corre a 500.
+# @ipf 500
+
+# CHIP-8 Pong for Octo
+# Left player:  1 = up, 4 = down      Right player: C = up, D = down
+# On Octo that is 1/Q and 4/R
+# Ball angle depends on where it strikes the paddle (see bounce).
+# Hits are detected with VF from the ball sprite; scores are drawn
+# in the hex font; a short buzz plays on a hit, a long one on a miss.
+
+# ---- registers ----
+:alias left_y   v0   # top row of left paddle
+:alias right_y  v1   # top row of right paddle
+:alias ball_x   v2
+:alias ball_y   v3
+:alias dx       v4   # RIGHT (1) or LEFT (255)
+:alias dy       v5   # DOWN (1) or UP (255)
+:alias offset   v6   # where the ball struck a paddle, 0..4
+:alias tmp      v7   # scratch: sprite x, key code, delay, buzzer
+:alias period   v8   # frames per vertical step (0 = flat)
+:alias count    v9   # frames until the next vertical step
+:alias hit      vA   # copy of VF after drawing the ball
+:alias score_l  vC   # left score
+:alias score_r  vD   # right score
+
+# ---- constants ----
+:const RIGHT 1
+:const LEFT  255
+:const DOWN  1
+:const UP    255
+
+:const PADDLE_H   5
+:const PADDLE_L_X 2
+:const PADDLE_R_X 61
+:calc  PADDLE_MAX { 32 - PADDLE_H }   # lowest legal paddle top row
+:const BALL_MAX_Y 31
+:const EDGE_L     0                   # ball x past which left misses
+:const EDGE_R     63
+
+:const SERVE_X 32
+:const SERVE_Y 16
+
+:const STEEP   6    # edge hit: 1 Y step per 6 X steps  (~10 degrees)
+:const SHALLOW 11   # near-centre hit: 1 per 11 (~5 degrees)
+:const FLAT    0    # centre hit: no vertical motion
+
+:const FRAME_DELAY 2   # 60 Hz ticks per frame (2 = 30 fps)
+:const WIN_SCORE   9
+:const GAME_OVER_PAUSE 180   # 60 Hz ticks (3 seconds)
+:const HIT_BUZZ    3
+:const MISS_BUZZ   15
+:const SCORE_L_X   26
+:const SCORE_R_X   34
+:const SCORE_Y     1
+
+# ---- keys ----
+:const KEY_L_UP   0x1
+:const KEY_L_DOWN 0x4
+:const KEY_R_UP   0xC
+:const KEY_R_DOWN 0xD
+
+: main
+  left_y  := 13
+  right_y := 13
+  score_l := 0
+  score_r := 0
+  dx := RIGHT
+  clear
+  serve
+  draw_scores
+  draw_sprites          # first draw only; later frames erase first
+  loop
+    erase_sprites
+    read_keys
+    move_ball
+    check_miss
+    draw_sprites        # leaves hit = ball/paddle overlap
+    check_hit
+    wait_frame
+  again
+
+# XOR-draw both paddles and the ball. Ball goes last so VF
+# reports only ball-vs-paddle overlap (VF is copied immediately,
+# because comparisons clobber it).
+: draw_sprites
+  draw_paddles
+  i := ball
+  sprite ball_x ball_y 1
+  hit := vf
+  return
+
+# Same drawing, run a second time, removes everything.
+: erase_sprites
+  i := ball
+  sprite ball_x ball_y 1
+  draw_paddles
+  return
+
+: draw_paddles
+  i := paddle
+  tmp := PADDLE_L_X
+  sprite tmp left_y PADDLE_H
+  tmp := PADDLE_R_X
+  sprite tmp right_y PADDLE_H
+  return
+
+: read_keys
+  tmp := KEY_L_UP
+  if tmp key then left_up
+  tmp := KEY_L_DOWN
+  if tmp key then left_down
+  tmp := KEY_R_UP
+  if tmp key then right_up
+  tmp := KEY_R_DOWN
+  if tmp key then right_down
+  return
+
+: left_up
+  if left_y != 0 then left_y -= 1
+  return
+: left_down
+  if left_y != PADDLE_MAX then left_y += 1
+  return
+: right_up
+  if right_y != 0 then right_y -= 1
+  return
+: right_down
+  if right_y != PADDLE_MAX then right_y += 1
+  return
+
+# Horizontal every frame; vertical once per `period` frames.
+# Reflecting off the top/bottom happens on the same step.
+: move_ball
+  ball_x += dx
+  if period == 0 then return
+  count -= 1
+  if count != 0 then return
+  count := period
+  if dy == DOWN begin
+    if ball_y == BALL_MAX_Y then dy := UP
+  else
+    if ball_y == 0 then dy := DOWN
+  end
+  ball_y += dy
+  return
+
+# The ball was erased at the top of the frame and not yet redrawn,
+# so the scores can be changed safely here.
+: check_miss
+  if ball_x == EDGE_L then jump right_scores
+  if ball_x == EDGE_R then jump left_scores
+  return
+
+: left_scores         # ball got past the right paddle
+  draw_scores         # erase old digits
+  score_l += 1
+  dx := RIGHT         # serve toward the player who missed
+  jump point_done
+: right_scores
+  draw_scores
+  score_r += 1
+  dx := LEFT
+: point_done
+  draw_scores
+  tmp := MISS_BUZZ
+  buzzer := tmp
+  if score_l == WIN_SCORE then jump game_over
+  if score_r == WIN_SCORE then jump game_over
+  jump serve
+
+# Hold the final score for a moment, then start a new game.
+: game_over
+  draw_paddles        # show paddles during the pause
+  tmp := GAME_OVER_PAUSE
+  delay := tmp
+  wait_delay
+  draw_paddles        # erase them again
+  draw_scores         # erase old digits
+  score_l := 0
+  score_r := 0
+  draw_scores
+  # fall through
+
+# Center the ball with a random vertical direction.
+: serve
+  ball_x := SERVE_X
+  ball_y := SERVE_Y
+  period := STEEP
+  count  := period
+  tmp := random 1
+  dy := DOWN
+  if tmp == 0 then dy := UP
+  return
+
+: draw_scores
+  offset := SCORE_Y
+  tmp := SCORE_L_X
+  i := hex score_l
+  sprite tmp offset 5
+  tmp := SCORE_R_X
+  i := hex score_r
+  sprite tmp offset 5
+  return
+
+# Accept hits only while the ball is approaching that paddle.
+: check_hit
+  if hit == 0 then return
+  if ball_x == PADDLE_L_X then jump hit_left
+  if ball_x == PADDLE_R_X then jump hit_right
+  return
+: hit_left
+  if dx != LEFT then return
+  offset := ball_y
+  offset -= left_y
+  dx := RIGHT
+  jump bounce
+: hit_right
+  if dx != RIGHT then return
+  offset := ball_y
+  offset -= right_y
+  dx := LEFT
+
+# offset 0 or 4 -> steep, 1 or 3 -> shallow, 2 -> flat.
+# Offsets 0-1 send the ball up, 2-4 down.
+: bounce
+  tmp := HIT_BUZZ
+  buzzer := tmp
+  # Un-draw the ball (restores the paddle pixel it toggled off),
+  # step it off the paddle, and draw it again: no notch, no overlap.
+  i := ball
+  sprite ball_x ball_y 1
+  ball_x += dx
+  sprite ball_x ball_y 1
+  period := STEEP
+  if offset == 1 then period := SHALLOW
+  if offset == 2 then period := FLAT
+  if offset == 3 then period := SHALLOW
+  dy := DOWN
+  if offset < 2 then dy := UP
+  count := period
+  return
+
+: wait_frame
+  tmp := FRAME_DELAY
+  delay := tmp
+: wait_delay
+  loop
+    tmp := delay
+    if tmp == 0 then return
+  again
+
+: paddle
+  0x80 0x80 0x80 0x80 0x80
+: ball
+  0x80

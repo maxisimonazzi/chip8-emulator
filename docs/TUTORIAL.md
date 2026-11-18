@@ -1331,8 +1331,9 @@ ensamblador. En una computadora va a la derecha, con la pantalla a la vista; en 
 pantalla angosta, debajo de la consola.
 
 - En **Programa** están los once ejemplos de este tutorial, con su nombre de archivo
-  (*01-a-mano.asm*, *02-hola.asm*...), los fuentes de los seis cartuchos incluidos y los
-  programas tuyos (**Nuevo** empieza uno, **Abrir .asm** trae un archivo).
+  (*01-a-mano.asm*, *02-hola.asm*...), los fuentes de los seis cartuchos incluidos, el
+  ejemplo en Octo (sección 4.9) y los programas tuyos (**Nuevo** empieza uno, **Abrir
+  archivo** trae un `.asm` o un `.8o`).
 - **Ensamblar y correr**, o **Ctrl+Enter**, ensambla el programa y lo carga en la
   consola, que lo corre enseguida. No pasa por *Tus cartuchos*. Para tocar el keypad con
   el teclado, hacé clic en la pantalla: mientras escribís en el editor, las teclas son del
@@ -1344,9 +1345,49 @@ pantalla angosta, debajo de la consola.
   cambiaste vuelve a como venía con **Restaurar el original**: los archivos del
   repositorio no se tocan.
 - **Descargar .ch8** baja la ROM ensamblada, y **Descargar .asm**, el texto.
+- Una etiqueta `; @ipf 500` en el encabezado (los comentarios del principio, como
+  `@platform`) hace que el programa corra a 500 instrucciones por frame; sin ella, va a la
+  velocidad que tenga la consola.
 
 Con un ejemplo cargado así, el DESENSAMBLADO muestra sus etiquetas, y todo lo demás
-(Paso, el monitor, la [parte 7](#7-depurar)) funciona igual que con el `.ch8`.
+(Paso, el monitor, la [parte 7](#7-depurar)) funciona igual que con el `.ch8`. Y con la
+máquina en pausa (o detenida en un punto de corte), el margen del editor marca en amarillo
+el renglón de la instrucción que sigue: con **Paso** se ve al programa avanzar por el
+fuente, renglón por renglón.
+
+### 4.9 El otro lenguaje del Taller: Octo
+
+Casi todo lo que se escribe hoy para CHIP-8 se escribe en Octo, el lenguaje de John
+Earnest: casi todos los 172 juegos del archivo de la comunidad ([1.7](#17-ajustes-por-cartucho-y-el-archivo-de-la-comunidad))
+salieron de él. Es más cómodo que un ensamblador (las cuentas se escriben `v0 := 5` o
+`v0 += 1`, hay `if ... then`, bucles `loop ... again`, macros y constantes calculadas) y
+produce las mismas ROMs. El Taller trae el compilador oficial de Octo, así que un programa
+en Octo se escribe y se corre como uno del ensamblador:
+
+- En **Programa**, en *Ejemplos en Octo*, está *pong.8o*: el Pong para dos de la nota de
+  Hackaday «CHIP-8: The Pong Game's Afoot», de noviembre de 2026. **Compilar y correr**
+  (Ctrl+Enter) lo compila y se juega: 1 y Q mueven la paleta de la izquierda; 4 y R, la de
+  la derecha.
+- **Lenguaje** dice en qué está escrito el programa. Los incluidos vienen en el suyo; uno
+  tuyo se cambia ahí: si todavía es la plantilla de **Nuevo**, pasa a ser la del otro
+  lenguaje, y si no, el texto queda como está (sirve para un programa de Octo pegado en uno
+  nuevo). **Nuevo** empieza un programa en el lenguaje del que tenés abierto, **Abrir
+  archivo** reconoce los `.8o` y un `.8o` soltado sobre la consola se abre en el Taller.
+- La plataforma no se elige: sale de las instrucciones del programa (CHIP-8, si no usa
+  ninguna de SUPER-CHIP ni de XO-CHIP). Y corre como en Octo: con sus quirks, que son los
+  del perfil XO-CHIP (sin la espera del vblank), y a 20 instrucciones por frame, salvo que
+  el encabezado diga otra cosa con `# @ipf` (en Octo los comentarios empiezan con `#`; el
+  pong lleva `# @ipf 500`). Eso, con **Ajustes por cartucho** prendido, como viene de
+  fábrica.
+- Los errores son los del compilador de Octo, en castellano y en su renglón. Octo se
+  detiene en el primero, así que se ven de a uno.
+- Cada `:breakpoint nombre` del programa es un punto de corte del monitor: la máquina se
+  detiene antes de esa instrucción y el aviso dice su nombre.
+
+Este tutorial sigue con el ensamblador, porque deja ver cada instrucción tal como la lee la
+máquina. Para aprender Octo, su manual está en el repositorio de Octo
+([github.com/JohnEarnest/Octo](https://github.com/JohnEarnest/Octo)), y el pong, con sus
+comentarios, es un buen programa para leer.
 
 ---
 

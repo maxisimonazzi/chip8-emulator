@@ -1493,7 +1493,8 @@
   .ws-head { display: flex; align-items: center; gap: 10px; padding: 2px 4px 0; }
   .ws-title { margin: 0; font: 800 12px/1 var(--font-ui); letter-spacing: .26em; color: #d4cab8; }
   .ws-title:focus { outline: none; }
-  .ws-pick { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 10px; padding: 0 4px; }
+  .ws-pick { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px 10px; padding: 0 4px; }
+  .ws-pick > [hidden] { display: none; }
   .ws-field { display: grid; gap: 4px; min-width: 0; }
   .ws-field label { font-size: 11px; font-weight: 700; letter-spacing: .04em; color: #b3a898; }
   .ws-field--name { grid-column: 1 / -1; }
@@ -1537,6 +1538,8 @@
   .ws-lines { padding: 8px 8px 8px 0; will-change: transform; }
   .ws-ln { height: 20px; padding-left: 4px; white-space: nowrap; }
   .ws-ln.is-err { color: #ffe3de; background: linear-gradient(90deg, rgba(255, 123, 107, .55), rgba(255, 123, 107, .2)); box-shadow: inset 3px 0 0 var(--term-err); }
+  /* El renglón donde quedó la máquina en pausa (el del PC), con el programa del Taller en la ranura. */
+  .ws-ln.is-pc { color: #10170f; background: linear-gradient(90deg, var(--term-hot), rgba(255, 209, 138, .45)); box-shadow: inset 3px 0 0 #fff2d6; font-weight: 700; }
   .ws-text {
     flex: 1; min-width: 0; margin: 0; padding: 8px 10px; border: 0; border-radius: 0 10px 10px 0;
     resize: none; overflow: auto; white-space: pre; overflow-wrap: normal; tab-size: 8;
@@ -1739,7 +1742,7 @@
             <button class="round-btn round-btn--dark" id="btn-monitor" type="button" aria-expanded="true" aria-controls="monitor" aria-label="Monitor" title="Ocultar el monitor de depuración">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M2 3.5h20v13.5H2zM4.2 5.7v9.1h15.6V5.7z"/><path fill="currentColor" d="M8 18.6h8v2.4H8z"/><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" stroke-linecap="round" d="M5.6 10.6h2.6l1.7-3 2.6 6 1.8-3h4.1"/></svg>
             </button>
-            <button class="round-btn round-btn--dark" id="btn-workshop" type="button" aria-expanded="false" aria-controls="workshop" aria-label="Taller (Y)" title="Taller: escribí un programa, ensamblalo y correlo en la consola (Y)" hidden>
+            <button class="round-btn round-btn--dark" id="btn-workshop" type="button" aria-expanded="false" aria-controls="workshop" aria-label="Taller (Y)" title="Taller: escribí un programa en el ensamblador o en Octo y correlo en la consola (Y)" hidden>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M2 5h11v2H2zM2 10h8v2H2zM2 15h5v2H2zM18.6 6.6l2.8 2.8-8.6 8.6-3.8 1 1-3.8z"/></svg>
             </button>
             <button class="round-btn" id="btn-help" type="button" aria-label="Ayuda (H)" title="Ayuda (H)">?</button>
@@ -2018,8 +2021,8 @@
         </div>
       </section>
 
-      <!-- El Taller: escribir, ensamblar y correr un programa. Desde 1200 px va fijo a la derecha (la
-           consola se corre a la izquierda y la pantalla queda a la vista); más angosto, va acá. -->
+      <!-- El Taller: escribir, ensamblar (o compilar, en Octo) y correr un programa. Desde 1200 px va fijo a la
+           derecha (la consola se corre a la izquierda y la pantalla queda a la vista); más angosto, va acá. -->
       <section class="workshop" id="workshop" aria-labelledby="ws-title" hidden>
         <div class="ws-head">
           <h2 class="ws-title" id="ws-title" tabindex="-1">TALLER</h2>
@@ -2031,7 +2034,11 @@
             <label for="ws-program">Programa</label>
             <select class="select" id="ws-program" aria-describedby="ws-about"></select>
           </div>
-          <div class="ws-field ws-field--platform">
+          <div class="ws-field ws-field--lang">
+            <label for="ws-lang">Lenguaje</label>
+            <select class="select" id="ws-lang" title="En qué está escrito el programa: el ensamblador del proyecto o el lenguaje de Octo"></select>
+          </div>
+          <div class="ws-field ws-field--platform" id="ws-platform-field">
             <label for="ws-platform">Plataforma</label>
             <select class="select" id="ws-platform" title="Escribe la etiqueta «; @platform» en el encabezado del programa"></select>
           </div>
@@ -2046,13 +2053,13 @@
           <button class="act-btn ws-run" id="ws-run" type="button" title="Ensambla el programa y lo carga en la consola (Ctrl+Enter)">Ensamblar y correr<kbd>Ctrl+Enter</kbd></button>
           <button class="ws-btn" id="ws-save" type="button" title="Guarda el programa en este navegador">Guardar</button>
           <button class="ws-btn" id="ws-new" type="button" title="Empieza un programa tuyo">Nuevo</button>
-          <button class="ws-btn" id="ws-open" type="button" title="Abre un archivo .asm como un programa tuyo">Abrir .asm</button>
+          <button class="ws-btn" id="ws-open" type="button" title="Abre un archivo .asm o .8o (de Octo) como un programa tuyo">Abrir archivo</button>
           <button class="ws-btn" id="ws-dl-asm" type="button" title="Baja el programa como archivo .asm">Descargar .asm</button>
           <button class="ws-btn" id="ws-dl-ch8" type="button" title="Ensambla el programa y baja la ROM (.ch8)">Descargar .ch8</button>
           <button class="ws-btn" id="ws-restore" type="button" title="Vuelve al programa como viene incluido" hidden>Restaurar el original</button>
           <button class="ws-btn" id="ws-delete" type="button" title="Borra este programa tuyo" hidden>Borrar</button>
         </div>
-        <input type="file" id="ws-file" class="visually-hidden" tabindex="-1" aria-hidden="true" accept=".asm,.s,.txt,text/plain">
+        <input type="file" id="ws-file" class="visually-hidden" tabindex="-1" aria-hidden="true" accept=".asm,.s,.8o,.txt,text/plain">
         <div class="ws-editor" id="ws-editor">
           <div class="ws-gutter" id="ws-gutter" aria-hidden="true"><div class="ws-lines" id="ws-lines"></div></div>
           <textarea class="ws-text" id="ws-text" wrap="off" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" aria-label="Programa en el assembler de CHIP-8" aria-describedby="ws-keys" aria-errormessage="ws-errors"></textarea>
@@ -2259,7 +2266,7 @@
           <tr><th><kbd>T</kbd></th><td>Mantenela apretada: avance rápido (la máquina corre 4 veces más rápido)</td></tr>
           <tr><th><kbd>P</kbd></th><td>Pantalla completa (para salir, otra vez <kbd>P</kbd> o <kbd>Esc</kbd>)</td></tr>
           <tr><th><kbd>G</kbd></th><td>Guardar una captura de la pantalla (PNG)</td></tr>
-          <tr><th><kbd>Y</kbd></th><td>Abrir o cerrar el Taller (escribir, ensamblar y correr programas)</td></tr>
+          <tr><th><kbd>Y</kbd></th><td>Abrir o cerrar el Taller (escribir programas en el ensamblador o en Octo y correrlos)</td></tr>
           <tr><th><kbd>M</kbd></th><td>Abrir o cerrar el cajón de opciones (cartuchos, ajustes y estados)</td></tr>
           <tr><th><kbd>I</kbd></th><td>Guardar el estado de la máquina en la ranura rápida</td></tr>
           <tr><th><kbd>U</kbd></th><td>Cargar el estado de la ranura rápida</td></tr>
@@ -2299,7 +2306,8 @@
 
       <h3>Taller</h3>
       <p>Con <kbd>Y</kbd> o el botón del lápiz, arriba, se abre el <strong>Taller</strong>: escribís un programa en el assembler de la consola (el del tutorial), lo ensamblás y corre enseguida, con <strong>Ensamblar y correr</strong> o <kbd>Ctrl</kbd> + <kbd>Enter</kbd>, sin pasar por «Tus cartuchos». En una computadora el Taller va a la derecha y la pantalla queda a la vista; en un teléfono, debajo de la consola. Si el ensamblador encuentra errores, los marca en el margen, junto al número del renglón, los lista abajo y lleva el cursor al primero; mientras los corregís, la lista se pone al día sola.</p>
-      <p>En <strong>Programa</strong> están los ejemplos del tutorial, los fuentes de los cartuchos incluidos y los tuyos (<strong>Nuevo</strong> o <strong>Abrir .asm</strong>). Lo que cambiás se anota solo, sin guardar, hasta que tocás <strong>Guardar</strong>; un ejemplo o un cartucho que editaste vuelve a como venía con <strong>Restaurar el original</strong>. <strong>Plataforma</strong> escribe la etiqueta <code>; @platform</code> en el encabezado del programa (sin la etiqueta, el programa es de CHIP-8). En el editor, <kbd>Tab</kbd> agrega espacios hasta la columna siguiente y <kbd>Mayús</kbd> + <kbd>Tab</kbd> los saca; para salir del editor con el teclado, <kbd>Esc</kbd> y después <kbd>Tab</kbd> (<kbd>Esc</kbd> dos veces cierra el Taller). Para jugar con el teclado el programa que está corriendo, tocá la pantalla.</p>
+      <p>En <strong>Programa</strong> están los ejemplos del tutorial, los fuentes de los cartuchos incluidos, los ejemplos en Octo y los tuyos (<strong>Nuevo</strong> o <strong>Abrir archivo</strong>, con un <code>.asm</code> o un <code>.8o</code>). Lo que cambiás se anota solo, sin guardar, hasta que tocás <strong>Guardar</strong>; un ejemplo o un cartucho que editaste vuelve a como venía con <strong>Restaurar el original</strong>. <strong>Plataforma</strong> escribe la etiqueta <code>; @platform</code> en el encabezado del programa (sin la etiqueta, el programa es de CHIP-8), y <code>; @ipf 500</code> lo hace correr a 500 instrucciones por frame. En el editor, <kbd>Tab</kbd> agrega espacios hasta la columna siguiente y <kbd>Mayús</kbd> + <kbd>Tab</kbd> los saca; para salir del editor con el teclado, <kbd>Esc</kbd> y después <kbd>Tab</kbd> (<kbd>Esc</kbd> dos veces cierra el Taller). Para jugar con el teclado el programa que está corriendo, tocá la pantalla. Con la máquina en pausa, el margen marca en amarillo el renglón por donde va.</p>
+      <p><strong>Lenguaje</strong> dice si el programa es del ensamblador o de Octo, el lenguaje de John Earnest en que se escribió casi todo el archivo de la comunidad; en uno tuyo, se cambia ahí. Un programa en Octo se compila con el compilador oficial de Octo (<strong>Compilar y correr</strong>), en la plataforma que piden sus instrucciones, con los quirks de Octo y a 20 IPF (o a lo que diga <code># @ipf</code>), y cada <code>:breakpoint</code> es un punto de corte. El ejemplo es un pong para dos: 1 y Q mueven la paleta de la izquierda; 4 y R, la de la derecha. Un <code>.8o</code> o un <code>.asm</code> soltado sobre la consola se abre en el Taller.</p>
 
       <h3>Velocidad</h3>
       <p>El CHIP-8 no tiene una velocidad fija: en <strong>Velocidad</strong>, en la pestaña <strong>Ajustes</strong> del cajón de opciones, elegís cuántas instrucciones se ejecutan en cada frame de 60 Hz (IPF). Con 15 IPF se parece a un COSMAC VIP; muchos juegos modernos piden entre 30 y 1000, y algunos de la Octojam, miles (hasta 10.000). Los timers de delay y de sonido bajan siempre a 60 Hz, sin importar la velocidad.</p>
@@ -5326,6 +5334,1342 @@
   globalThis.Chip8Asm = { assemble, check, formatListing, headerTags };
 })();
 </script>
+<script id="chip8-octo">
+/*
+ * El compilador de Octo, sin dependencias.
+ *
+ * Octo es el lenguaje de John Earnest para CHIP-8, SUPER-CHIP y XO-CHIP: en él están escritos casi
+ * todos los juegos del archivo de la comunidad y de las Octojam. Este bloque trae su compilador
+ * oficial, el archivo js/compiler.js del repositorio de Octo (github.com/JohnEarnest/Octo), tal cual
+ * está en el commit aa7f36e (24 de septiembre de 2021, el último que lo cambió). Va envuelto en una
+ * función, así sus nombres (parse, tokenize, Compiler...) no quedan sueltos en la página, y después
+ * vienen la API que usa la consola y la traducción de sus mensajes. Como el ensamblador, es código
+ * puro: no toca el DOM y corre igual en la página y en Node. Expone un único global:
+ * globalThis.Chip8Octo. La consola lo usa en el Taller, para los programas escritos en el lenguaje de
+ * Octo (.8o); tools/embed-roms.js, para compilar los ejemplos de Octo del Taller.
+ *
+ * API
+ *   compile(fuente) -> { errors: [{ line, message }], truncated: false, result }
+ *   Compila como Octo y no lanza. Sin errores, errors está vacío y result es
+ *     { bytes: Uint8Array (desde 0x200), platform: 'chip8' | 'schip' | 'xochip',
+ *       labels: { nombre: dirección }, lines: [renglón de cada byte, desde 1; 0 si no salió de ninguno],
+ *       breakpoints: [{ addr, name }] (los :breakpoint del programa, por dirección) }.
+ *   platform es la menor que tiene todas las instrucciones del programa: el compilador anota si usa
+ *   alguna de SUPER-CHIP o de XO-CHIP (compile le tapa dos huecos: ver ahí). Un programa que no entra
+ *   en la memoria de su plataforma (3584
+ *   bytes; 65024 en XO-CHIP) es un error. Octo se detiene en el primer error: con errores, errors tiene
+ *   uno solo, con su renglón y el mensaje en castellano ("Línea N: ...", como el ensamblador), y result
+ *   es null. Una fuente que no es texto lanza un TypeError.
+ *
+ *   headerTags(fuente) -> { nombre: { value, line } }
+ *   Como el del ensamblador, con los comentarios de Octo: las líneas "# @nombre valor" del bloque de
+ *   comentarios con que empieza la fuente (las vacías no lo cortan). Las usa el Taller (@ipf).
+ *
+ *   translate(mensaje) -> el mensaje del compilador de Octo en castellano (uno que no conoce, tal cual).
+ *   Compiler: el compilador de Octo, sin tocar: new Compiler(fuente), go(), rom, dict, dbginfo...
+ *   VERSION: el commit de Octo de donde sale.
+ *
+ * El compilador de Octo tiene esta licencia:
+ *
+ *   The MIT License (MIT)
+ *
+ *   Copyright (c) 2015, John Earnest
+ *
+ *   Permission is hereby granted, free of charge, to any person obtaining a copy
+ *   of this software and associated documentation files (the "Software"), to deal
+ *   in the Software without restriction, including without limitation the rights
+ *   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ *   copies of the Software, and to permit persons to whom the Software is
+ *   furnished to do so, subject to the following conditions:
+ *
+ *   The above copyright notice and this permission notice shall be included in
+ *   all copies or substantial portions of the Software.
+ *
+ *   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ *   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ *   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ *   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ *   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ *   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ *   THE SOFTWARE.
+ */
+(function () {
+  'use strict';
+  var octo = {};
+  (function () {
+/* ==== js/compiler.js de Octo, commit aa7f36ea9e3cf23212c151008729cf233fd56529, sin cambios ==== */
+"use strict";
+
+////////////////////////////////////
+//
+//   Tokenization:
+//
+////////////////////////////////////
+
+function parse(token) {
+	var num = parseNumber(token);
+	return isNaN(num) ? token : num;
+}
+
+function parseNumber(token) {
+
+	// Check if this token is a valid binary number
+	if (/^[+\-]?0b[01]+$/.test(token)) {
+
+		var bitstring;
+		var isNegative = (token.indexOf('-') == 0);
+
+		// Check for any leading +/- sign character
+		if(isNegative || (token.indexOf('+') == 0)) {
+			// Remove sign character and 0b- prefix
+			bitstring = token.slice(3);
+		} else {
+			// Remove 0b- prefix
+			bitstring = token.slice(2);
+		}
+
+		var value = parseInt(bitstring, 2);
+		return (isNegative) ? -value : value;
+	}
+
+	// Check if this token is a valid hexadecimal number
+	if (/^[+\-]?0x[0-9a-f]+$/i.test(token)) {
+		return parseInt(token, 16);
+	}
+
+	// Check if this token is a valid decimal number
+	if (/^[+\-]?[0-9]+$/.test(token)) {
+		return parseInt(token, 10);
+	}
+
+	return NaN;
+}
+
+function compileFormat(text) {
+	/**
+	* %[bytes][typecode]
+	*
+	* if [bytes] is omitted, imply length 1.
+	*
+	* c -> 7-bit ascii character(s)
+	* i -> signed integer (two's complement)
+	* b -> binary (zero-padded)
+	* x -> hex (zero-padded, uppercase)
+	**/
+	let r=[], i=0
+	while(i<text.length) {
+		if (text[i]=='%') {
+			let m=/^([0-9]+)?([cibx])/.exec(text.slice(i+1))
+			if (!m) throw `Unknown format character %${text[i+1]}- should be %Nc,%Ni,%Nb, or %Nx.`
+			if (m[1]=='0') throw `format byte count cannot be 0.`
+			r.push({type:m[2],len:m[1]||1})
+			i+=m[0].length+1
+		}
+		let s=''
+		while(text[i]!='%'&&i<text.length)s+=text[i++]
+		if (s.length) r.push({type:'t',value:s})
+	}
+	return r
+}
+
+var escapeChars = {
+	't' : '\t',
+	'n' : '\n',
+	'r' : '\r',
+	'v' : '\v',
+	'0' : '\0',
+	'\\': '\\',
+	'"' : '\"',
+}
+
+function tokenize(text, compiler) {
+	var ret   = [];
+	var index = 0;
+	var token = "";
+	var tokenStart = -1;
+
+	while(index < text.length) {
+		var c = text.charAt(index++);
+		if (c == '#') {
+			if (token.length > 0) {
+				ret.push([ parse(token), tokenStart, index ]);
+				tokenStart = -1;
+			}
+			token = "";
+			while(c != '\n' && index < text.length) {
+				c = text.charAt(index++);
+			}
+		}
+		else if (c == '"') {
+			if (token.length > 0) {
+				ret.push([ parse(token), tokenStart, index ]);
+			}
+			var str = '';
+			tokenStart = index;
+			while (true) {
+				if (index >= text.length) {
+					compiler.pos=['<EOF>',index+1,index+2];
+					throw `Missing a closing " in a string literal.`;
+				}
+				c = text.charAt(index++);
+				if (c == '"') { break; }
+				if (c == '\\') {
+					var esc = text.charAt(index++);
+					if (esc=='') {
+						compiler.pos=['<EOF>',index,index+1];
+						throw `Missing a closing " in a string literal.`;
+					}
+					if (!(esc in escapeChars)) {
+						compiler.pos=[esc,index,index+1];
+						throw "Unrecognized escape character '"+esc+"' in a string literal.";
+					}
+					c = escapeChars[esc];
+				}
+				str = str + c;
+			}
+			ret.push([ str, tokenStart, index+1 ]);
+			tokenStart = -1;
+		}
+		else if (" \t\n\r\v".indexOf(c) >= 0) {
+			if (token.length > 0) {
+				ret.push([ parse(token), tokenStart, index ]);
+				tokenStart = -1;
+			}
+			token = "";
+		}
+		else {
+			if (tokenStart == -1) { tokenStart = index; }
+			token += c;
+		}
+	}
+	if (token.length > 0) {
+		ret.push([ parse(token), tokenStart, index+1]);
+	}
+	return ret;
+}
+
+////////////////////////////////////
+//
+//   The Octo Compiler:
+//
+////////////////////////////////////
+
+function DebugInfo(source) {
+	this.lines = source.split('\n');
+	this._locs = {}; // map<addr, line>
+}
+
+DebugInfo.prototype.mapAddr = function(addr, pos) {
+	this._locs[addr] = pos;
+}
+
+DebugInfo.prototype.getLine = function(addr) {
+	var i = this._locs[addr];
+	return i != undefined? this.posToLine(i): undefined
+}
+
+DebugInfo.prototype.getAddr = function(line) {
+	for (var addr in this._locs) {
+		if (this.posToLine(this._locs[addr]) == line) return addr
+	}
+	return undefined
+}
+
+DebugInfo.prototype.posToLine = function(pos) {
+	var i;
+	for (i = 0; i < this.lines.length; i++) {
+		pos -= this.lines[i].length + 1;
+		if (pos <= 0)
+			break;
+	}
+	return i;
+}
+
+var unaryFunc = {
+	'-'    : function(x) { return -x; },
+	'~'    : function(x) { return ~x; },
+	'!'    : function(x) { return +!x; },
+	'sin'  : function(x) { return Math.sin(x);   },
+	'cos'  : function(x) { return Math.cos(x);   },
+	'tan'  : function(x) { return Math.tan(x);   },
+	'exp'  : function(x) { return Math.exp(x);   },
+	'log'  : function(x) { return Math.log(x);   },
+	'abs'  : function(x) { return Math.abs(x);   },
+	'sqrt' : function(x) { return Math.sqrt(x);  },
+	'sign' : function(x) { return Math.sign(x);  },
+	'ceil' : function(x) { return Math.ceil(x);  },
+	'floor': function(x) { return Math.floor(x); },
+	'@'    : function(x,m) { return m[(0|x)-0x200]||0; },
+};
+var binaryFunc = {
+	'-'    : function(x,y) { return x-y; },
+	'+'    : function(x,y) { return x+y; },
+	'*'    : function(x,y) { return x*y; },
+	'/'    : function(x,y) { return x/y; },
+	'%'    : function(x,y) { return x%y; },
+	'&'    : function(x,y) { return x&y; },
+	'|'    : function(x,y) { return x|y; },
+	'^'    : function(x,y) { return x^y; },
+	'<<'   : function(x,y) { return x<<y; },
+	'>>'   : function(x,y) { return x>>y; },
+	'pow'  : function(x,y) { return Math.pow(x, y); },
+	'min'  : function(x,y) { return Math.min(x, y); },
+	'max'  : function(x,y) { return Math.max(x, y); },
+	'<'    : function(x,y) { return +(x<y); },
+	'>'    : function(x,y) { return +(x>y); },
+	'<='   : function(x,y) { return +(x<=y); },
+	'>='   : function(x,y) { return +(x>=y); },
+	'=='   : function(x,y) { return +(x==y); },
+	'!='   : function(x,y) { return +(x!=y); },
+};
+
+function Compiler(source) {
+	this.rom       = []; // list<int>
+	this.dbginfo   = new DebugInfo(source);
+	this.loops     = []; // stack<[addr, marker]>
+	this.branches  = []; // stack<[addr, marker, type]>
+	this.whiles    = []; // stack<int>
+	this.dict      = {}; // map<name, addr>
+	this.protos    = {}; // map<name, list<addr>>
+	this.longproto = {}; // set<name, true>
+	this.aliases   = {}; // map<name, registernum>
+	this.constants = {   // map<name, token>
+		'OCTO_KEY_1': 0x1,
+		'OCTO_KEY_2': 0x2,
+		'OCTO_KEY_3': 0x3,
+		'OCTO_KEY_4': 0xC,
+		'OCTO_KEY_Q': 0x4,
+		'OCTO_KEY_W': 0x5,
+		'OCTO_KEY_E': 0x6,
+		'OCTO_KEY_R': 0xD,
+		'OCTO_KEY_A': 0x7,
+		'OCTO_KEY_S': 0x8,
+		'OCTO_KEY_D': 0x9,
+		'OCTO_KEY_F': 0xE,
+		'OCTO_KEY_Z': 0xA,
+		'OCTO_KEY_X': 0x0,
+		'OCTO_KEY_C': 0xB,
+		'OCTO_KEY_V': 0xF,
+	};
+	this.mutables  = {}; // map<name, bool> // distinguish :calc from :const
+	this.macros    = {}; // map<name, {args, body}>
+	this.stringmodes = {}; // map<name, map<chars,{args, body}>}>
+	this.hasmain = true;
+	this.schip = false;
+	this.xo = false;
+	this.breakpoints = {}; // map<address, name>
+	this.monitors = {}; // map<name, {type, base, length}>
+	this.hereaddr = 0x200;
+
+	this.pos = null;
+	this.currentToken = 0
+	this.source = source;
+	this.tokens = null;
+}
+
+Compiler.prototype.data = function(a) {
+	if (typeof this.rom[this.hereaddr-0x200] != "undefined" && this.hereaddr-0x200 >= 0) {
+		throw `Data overlap. Address 0x${this.hereaddr.toString(16).toUpperCase()} has already been defined.`;
+	}
+	this.rom[this.hereaddr-0x200] = (a & 0xFF);
+	if (this.pos) this.dbginfo.mapAddr(this.hereaddr, this.pos[1]);
+	this.hereaddr++;
+}
+
+Compiler.prototype.next = function() {
+	if (this.tokens[this.currentToken]==null) throw `Unexpected EOF.`;
+	this.pos = this.tokens[this.currentToken++];
+	return this.pos[0];
+}
+
+Compiler.prototype.end = function()     { return this.currentToken >= this.tokens.length }
+Compiler.prototype.raw  = function()    { this.pos = this.tokens[this.currentToken++]; return this.pos; }
+Compiler.prototype.peek = function()    { return this.tokens[this.currentToken][0]; }
+Compiler.prototype.here = function()    { return this.hereaddr; }
+Compiler.prototype.inst = function(a,b) { this.data(a); this.data(b); }
+
+Compiler.prototype.immediate = function(op, nnn) {
+	this.inst(op | ((nnn >> 8) & 0xF), (nnn & 0xFF));
+}
+
+Compiler.prototype.fourop = function(op, x, y, n) {
+	this.inst((op << 4) | x, (y << 4) | (n & 0xF));
+
+}
+Compiler.prototype.jump = function(addr, dest) {
+	this.rom[addr - 0x200] = (0x10 | ((dest >> 8) & 0xF));
+	this.rom[addr - 0x1FF] = (dest & 0xFF);
+}
+
+Compiler.prototype.isRegister = function(name) {
+	if (!name && (name != 0)) { name = this.peek(); }
+	if (typeof name != "string") { return false; }
+	if (name in this.aliases) { return true; }
+	name = name.toUpperCase();
+	if (name.length != 2) { return false; }
+	if (name[0] != 'V') { return false; }
+	return "0123456789ABCDEF".indexOf(name[1]) >= 0;
+}
+
+Compiler.prototype.register = function(name) {
+	if (!name) { name = this.next(); }
+	if (!this.isRegister(name)) {
+		throw "Expected register, got '" + name + "'.";
+	}
+	if (name in this.aliases) {
+		return this.aliases[name];
+	}
+	name = name.toUpperCase();
+	return "0123456789ABCDEF".indexOf(name[1]);
+}
+
+Compiler.prototype.expect = function(token) {
+	var thing = this.next();
+	if (thing != token) throw `Expected ${token}, got '${thing}'.`;
+}
+
+Compiler.prototype.constantValue = function() {
+	var number = this.next();
+	if (typeof number != "number") {
+		if (number in this.protos) {
+			throw `A constant reference to '${number}' may not be forward-declared.`;
+		}
+		else if (number in this.reservedNames) {
+			throw "Expected a constant name, but found the keyword '"+number+"'. Missing a token?";
+		}
+		else if (number in this.dict) {
+			number = this.dict[number];
+		}
+		else if (number in this.constants) {
+			number = this.constants[number];
+		}
+		else { throw "Undefined constant name '"+number+"'."; }
+	}
+	return number;
+}
+
+Compiler.prototype.reservedNames = {
+	":=":true, "|=":true, "&=":true, "^=":true, "-=":true, "=-":true, "+=":true,
+	">>=":true, "<<=":true, "==":true, "!=":true, "<":true, ">":true,
+	"<=":true, ">=":true, "key":true, "-key":true, "hex":true, "bighex":true,
+	"random":true, "delay":true, ":":true, ":next":true, ":unpack":true,
+	":breakpoint":true, ":proto":true, ":alias":true, ":const":true,
+	":org":true, ";":true, "return":true, "clear":true, "bcd":true,
+	"save":true, "load":true, "buzzer":true, "if":true, "then":true,
+	"begin":true, "else":true, "end":true, "jump":true, "jump0":true,
+	"native":true, "sprite":true, "loop":true, "while":true, "again":true,
+	"scroll-down":true, "scroll-right":true, "scroll-left":true,
+	"lores":true, "hires":true, "loadflags":true, "saveflags":true, "i":true,
+	"audio":true, "plane":true, "scroll-up":true, ":macro":true, ":calc":true, ":byte":true,
+	":call":true, ":stringmode":true, ":assert":true, ":monitor":true, ":pointer":true, "pitch":true,
+};
+
+Compiler.prototype.checkName = function(name, kind) {
+	if (name in this.reservedNames || (''+name).indexOf('OCTO_') == 0) {
+		throw `The name '${name}' is reserved and cannot be used for a ${kind}.`;
+	}
+	return name;
+}
+Compiler.prototype.identifier = function(kind){
+	var n = this.next();
+	if (typeof n != 'string') throw `Expected a name for a ${kind}, got ${n}.`;
+	return this.checkName(n,kind);
+}
+Compiler.prototype.string = function(){
+	var n = this.next();
+	if (typeof n != 'string') throw `Expected a string, got ${n}.`;
+	return n;
+}
+
+Compiler.prototype.valueFail = function(type,value,checkIfDefined) {
+	if (this.isRegister(value))      throw `Expected ${type} value, but found the register ${value}.`;
+	if (value in this.reservedNames) throw `Expected ${type} value, but found the keyword '${value}'. Missing a token?`;
+	if (checkIfDefined&&!(value in this.constants) && !(value in this.dict))
+		throw `Expected ${type} value, but found the undefined name '${value}'.`;
+}
+Compiler.prototype.valueRange = function(type,value,min,max) {
+	if ((typeof value != "number") || (value < min) || (value > max)) {
+		throw `Argument ${typeof value=="number"?value:`'${value}'`} does not fit in ${type}.`;
+	}
+}
+
+Compiler.prototype.veryWideValue = function(noForward, noOffset) {
+	// i := long NNNN, :unpack long NNNN
+	var nnnn = this.next();
+	var target = this.here() + (noOffset?0:2);
+	if (typeof nnnn != "number") {
+		this.valueFail('a 16-bit value',nnnn,false);
+		if (nnnn in this.constants) {
+			nnnn = this.constants[nnnn];
+		}
+		else if (nnnn in this.dict) {
+			nnnn = this.dict[nnnn];
+		}
+		else if (noForward) {
+			throw `The reference to '${nnnn}' may not be forward-declared.`;
+		}
+		else if (nnnn in this.protos) {
+			this.protos[nnnn].push(target);
+			this.longproto[target] = true;
+			nnnn = 0;
+		}
+		else {
+			var pl=[target];
+			pl.proto_pos=this.pos.slice(0);
+			this.protos[this.checkName(nnnn, "label")] = pl;
+			this.longproto[target] = true;
+			nnnn = 0;
+		}
+	}
+	this.valueRange('16 bits',nnnn,0,0xFFFF);
+	return (nnnn & 0xFFFF);
+}
+
+Compiler.prototype.wideValue = function(nnn) {
+	// can be forward references.
+	// call, jump, jump0, i:=
+	if (!nnn & (nnn != 0)) { nnn = this.next(); }
+	if (typeof nnn != "number") {
+		if (this.isRegister(nnn)) {
+			throw `Expected a 12-bit value, but found the register ${nnn}.`;
+		}
+		if (nnn in this.constants) {
+			nnn = this.constants[nnn];
+		}
+		else if (nnn in this.protos) {
+			this.protos[nnn].push(this.here());
+			nnn = 0;
+		}
+		else if (nnn in this.dict) {
+			nnn = this.dict[nnn];
+		}
+		else {
+			var pl=[this.here()];
+			pl.proto_pos=this.pos.slice(0);
+			this.protos[this.checkName(nnn, "label")] = pl;
+			nnn = 0;
+		}
+	}
+	this.valueRange('12 bits',nnn,0,0xFFF);
+	return (nnn & 0xFFF);
+}
+
+Compiler.prototype.shortValue = function(nn) {
+	// vx:=, vx+=, vx==, v!=, random
+	if (!nn && (nn != 0)) { nn = this.next(); }
+	if (typeof nn != "number") {
+		this.valueFail('an 8-bit',nn,true);
+		nn = this.constants[nn];
+	}
+	// silently trim negative numbers, but warn
+	// about positive numbers which are too large:
+	if ((typeof nn != "number") || (nn < -128) || (nn > 255)) {
+		throw `Argument ${typeof nn=="number"?nn:`'${nn}'`} does not fit in a byte- must be in range [-128,255].`;
+	}
+	return (nn & 0xFF);
+}
+
+Compiler.prototype.tinyValue = function() {
+	// sprite length, unpack high nybble
+	var n = this.next();
+	if (typeof n != "number") {
+		this.valueFail('a 4-bit',n,true);
+		n = this.constants[n];
+	}
+	if ((typeof n != "number") || (n < 0) || (n > 15)) {
+		throw `Argument ${typeof n=="number"?n:`'${n}'`} does not fit in 4 bits- must be in range [0,15].`;
+	}
+	return (n & 0xF);
+}
+
+Compiler.prototype.conditional = function(negated) {
+	var reg   = this.register();
+	var token = this.next();
+	var compTemp = 0xF;
+	if (negated) {
+		if      (token == "=="  ) { token = "!="; }
+		else if (token == "!="  ) { token = "=="; }
+		else if (token == "key" ) { token = "-key"; }
+		else if (token == "-key") { token = "key"; }
+		else if (token == "<"   ) { token = ">="; }
+		else if (token == ">"   ) { token = "<="; }
+		else if (token == ">="  ) { token = "<"; }
+		else if (token == "<="  ) { token = ">"; }
+	}
+	if (token == "==") {
+		if (this.isRegister()) { this.inst(0x90 | reg, this.register() << 4); }
+		else                   { this.inst(0x40 | reg, this.shortValue()); }
+	}
+	else if (token == "!=") {
+		if (this.isRegister()) { this.inst(0x50 | reg, this.register() << 4); }
+		else                   { this.inst(0x30 | reg, this.shortValue()); }
+	}
+	else if (token == "key") {
+		this.inst(0xE0 | reg, 0xA1);
+	}
+	else if (token == "-key") {
+		this.inst(0xE0 | reg, 0x9E);
+	}
+	else if (token == ">") {
+		if (this.isRegister()) { this.fourop(0x8, compTemp, this.register(), 0x0); }
+		else                   { this.inst  (0x60 | compTemp, this.shortValue()); }
+		this.fourop(0x8, compTemp, reg, 0x5); // vf -= v1
+		this.inst(0x4F, 0);                   // if vf != 0 then ...
+	}
+	else if (token == "<") {
+		if (this.isRegister()) { this.fourop(0x8, compTemp, this.register(), 0x0); }
+		else                   { this.inst  (0x60 | compTemp, this.shortValue()); }
+		this.fourop(0x8, compTemp, reg, 0x7); // vf =- v1
+		this.inst(0x4F, 0);                   // if vf != 0 then ...
+	}
+	else if (token == ">=") {
+		if (this.isRegister()) { this.fourop(0x8, compTemp, this.register(), 0x0); }
+		else                   { this.inst  (0x60 | compTemp, this.shortValue()); }
+		this.fourop(0x8, compTemp, reg, 0x7); // vf =- v1
+		this.inst(0x3F, 0);                   // if vf == 0 then ...
+	}
+	else if (token == "<=") {
+		if (this.isRegister()) { this.fourop(0x8, compTemp, this.register(), 0x0); }
+		else                   { this.inst  (0x60 | compTemp, this.shortValue()); }
+		this.fourop(0x8, compTemp, reg, 0x5); // vf -= v1
+		this.inst(0x3F, 0);                   // if vf == 0 then ...
+	}
+	else {
+		throw `Expected conditional operator, got ${typeof token=='string'?`'${token}'`:token}.`;
+	}
+}
+
+Compiler.prototype.controlToken = function() {
+	// ignore a condition
+	var op = this.tokens[this.currentToken + 1][0];
+	var index = 3;
+	if (op == "key" || op == "-key") { index = 2; }
+	if (index + this.currentToken >= this.tokens.length) { index = this.tokens.length - this.currentToken - 1; }
+	return this.tokens[index + this.currentToken];
+}
+
+Compiler.prototype.iassign = function(token) {
+	if (token == ":=") {
+		var o = this.next();
+		if (o == "hex") { this.inst(0xF0 | this.register(), 0x29); }
+		else if (o == "bighex") {
+			this.schip = true;
+			this.inst(0xF0 | this.register(), 0x30);
+		}
+		else if (o == "long") {
+			this.xo = true;
+			var addr = this.veryWideValue();
+			this.inst(0xF0, 0x00);
+			this.inst((addr>>8)&0xFF, addr&0xFF);
+		}
+		else { this.immediate(0xA0, this.wideValue(o)); }
+	}
+	else if (token == "+=") {
+		this.inst(0xF0 | this.register(), 0x1E);
+	}
+	else {
+		throw `'${token}' is not an operator that can target the i register.`;
+	}
+}
+
+Compiler.prototype.vassign = function(reg) {
+	var token = this.next();
+	if (token == ":=") {
+		var o = this.next();
+		if (this.isRegister(o)) { this.fourop(0x8, reg, this.register(o), 0x0); }
+		else if (o == "random") { this.inst(0xC0 | reg, this.shortValue()); }
+		else if (o == "key")    { this.inst(0xF0 | reg, 0x0A); }
+		else if (o == "delay")  { this.inst(0xF0 | reg, 0x07); }
+		else                    { this.inst(0x60 | reg, this.shortValue(o)); }
+	}
+	else if ("+=" == token) {
+		if (this.isRegister()) { this.fourop(0x8, reg, this.register(), 0x4); }
+		else                   { this.inst(0x70 | reg, this.shortValue()); }
+	}
+	else if ("|="  == token) { this.fourop(0x8, reg, this.register(), 0x1); }
+	else if ("&="  == token) { this.fourop(0x8, reg, this.register(), 0x2); }
+	else if ("^="  == token) { this.fourop(0x8, reg, this.register(), 0x3); }
+	else if ("-="  == token) {
+		if (this.isRegister()) { this.fourop(0x8, reg, this.register(), 0x5); }
+		else                   { this.inst(0x70 | reg, 0xFF&(1+~this.shortValue())); }
+	}
+	else if ("=-"  == token) { this.fourop(0x8, reg, this.register(), 0x7); }
+	else if (">>=" == token) { this.fourop(0x8, reg, this.register(), 0x6); }
+	else if ("<<=" == token) { this.fourop(0x8, reg, this.register(), 0xE); }
+	else {
+		throw "Unrecognized operator '"+token+"'.";
+	}
+}
+
+Compiler.prototype.resolveLabel = function(offset) {
+	var target = (this.here() + offset);
+	var label = this.identifier("label");
+	if ((target == 0x202 || target == 0x200) && (label == "main")) {
+		this.hasmain = false;
+		this.hereaddr = 0x200;
+		this.rom[0] = undefined; // erase reserved jump
+		this.rom[1] = undefined;
+		target = this.here();
+	}
+	if (label in this.dict) { throw "The name '"+label+"' has already been defined."; }
+	if (label in this.aliases) { throw "The name '"+label+"' is already used by an alias."; }
+	this.dict[label] = target;
+
+	if (label in this.protos) {
+		for(var z = 0; z < this.protos[label].length; z++) {
+			var addr  = this.protos[label][z];
+			if (this.longproto[addr] && (this.rom[addr - 0x200] & 0xF0) == 0x60) {
+				// :unpack long target
+				this.rom[addr - 0x1FF] = (target >> 8) & 0xFF;
+				this.rom[addr - 0x1FD] = (target & 0xFF);
+			}
+			else if (this.longproto[addr]) {
+				// i := long target
+				this.rom[addr - 0x200] = (target >> 8) & 0xFF;
+				this.rom[addr - 0x1FF] = (target & 0xFF);
+			}
+			else if ((target & 0xFFF) != target) {
+				throw `Value 0x${target.toString(16).toUpperCase()} for label '${label}' does not fit in 12 bits.`;
+			}
+			else if ((this.rom[addr - 0x200] & 0xF0) == 0x60) {
+				// :unpack target
+				this.rom[addr - 0x1FF] = (this.rom[addr - 0x1FF] & 0xF0) | ((target >> 8)&0xF);
+				this.rom[addr - 0x1FD] = (target & 0xFF);
+			}
+			else {
+				this.rom[addr - 0x200] = (this.rom[addr - 0x200] & 0xF0) | ((target >> 8)&0xF);
+				this.rom[addr - 0x1FF] = (target & 0xFF);
+			}
+		}
+		delete this.protos[label];
+	}
+}
+
+Compiler.prototype.parseTerminal = function(name) {
+	// NUMBER | CONSTANT | LABEL | VREGISTER | '(' expression ')'
+	var x = this.peek();
+	if (x == 'PI'  ) { this.next(); return Math.PI; }
+	if (x == 'E'   ) { this.next(); return Math.E; }
+	if (x == 'HERE') { this.next(); return this.hereaddr; }
+	if (this.isRegister(x)) { this.next(); return this.register(x); }
+	if (+x == +x) { return +this.next(); }
+	if (x in this.constants)  { return this.constants[this.next()]; }
+	if (x in this.dict)       { return this.dict[this.next()]; }
+	if (x in this.protos) {
+		throw this.next(), `Cannot use forward declaration '${x}' when calculating constant '${name}'.`;
+	}
+	var n = this.next();
+	if (n != '(') throw `Found undefined name '${n}' when calculating constant '${name}'.`;
+	var value = this.parseCalc(name);
+	if (this.next() != ')') { throw "Expected ')' for calculated constant '"+name+"'."; }
+	return value;
+}
+
+Compiler.prototype.parseCalc = function(name) {
+	// UNARY expression | terminal BINARY expression | terminal
+	if (this.peek() == 'strlen') {
+		return this.next(), this.string().length;
+	}
+	if (this.peek() in unaryFunc) {
+		return unaryFunc[this.next()](this.parseCalc(name), this.rom);
+	}
+	var t = this.parseTerminal(name);
+	if (this.peek() in binaryFunc) {
+		return binaryFunc[this.next()](t, this.parseCalc(name));
+	}
+	else {
+		return t;
+	}
+}
+
+Compiler.prototype.parseCalculated = function(name) {
+	if (this.next() != '{') { throw "Expected '{' for calculated constant '"+name+"'."; }
+	var value = this.parseCalc(name);
+	if (this.next() != '}') { throw "Expected '}' for calculated constant '"+name+"'."; }
+	return value;
+}
+
+Compiler.prototype.macroBody = function(name, desc) {
+	if (this.next() != '{') { throw "Expected '{' for definition of "+desc+" '"+name+"'."; }
+	var body = [];
+	var depth = 1;
+	while(!this.end()) {
+		if (this.peek() == '{') { depth += 1; }
+		if (this.peek() == '}') { depth -= 1; }
+		if (depth == 0) { break; }
+		body.push(this.raw());
+	}
+	if (this.next() != '}') { throw "Expected '}' for definition of "+desc+" '"+name+"'."; }
+	return body;
+}
+
+Compiler.prototype.instruction = function(token) {
+	if (token == ":") { this.resolveLabel(0); }
+	else if (token == ":next") { this.resolveLabel(1); }
+	else if (token == ":unpack") {
+		if (this.peek()=="long") {
+			this.next();
+			var a = this.veryWideValue(false,true);
+		}
+		else {
+			var v = this.tinyValue();
+			var a = (v << 12) | this.wideValue();
+		}
+		this.inst(0x60 | this.aliases["unpack-hi"], a >> 8);
+		this.inst(0x60 | this.aliases["unpack-lo"], a);
+	}
+	else if (token == ":breakpoint") { this.breakpoints[this.here()] = this.string(); }
+	else if (token == ":monitor") {
+		var name = this.peek()
+		if (this.isRegister()) {
+			var r = this.register()
+			var f = typeof this.peek() != 'number' && this.peek().indexOf('%')>=0 ? compileFormat(this.string()) : this.tinyValue()
+			this.monitors[name]={type:'register', base:r, length:f}
+		}
+		else {
+			var b = this.veryWideValue(true)
+			var f = typeof this.peek() != 'number' && this.peek().indexOf('%')>=0 ? compileFormat(this.string()) : this.veryWideValue(true)
+			this.monitors[name]={type:'memory', base:b, length:f}
+		}
+	}
+	else if (token == ":proto")  { this.next(); } // deprecated.
+	else if (token == ":alias") {
+		var name = this.identifier("alias");
+		if (name in this.dict) { throw `The name '${name}' is already used by a constant.`; }
+		var val = this.peek() == '{' ? this.parseCalculated('ANONYMOUS') : this.register();
+		if (val < 0 || val >= 16) { throw "Register index must be in the range [0,F]."; }
+		this.aliases[name] = val;
+	}
+	else if (token == ":const")  {
+		var name = this.identifier("constant");
+		if (name in this.constants) throw `The name '${name}' has already been defined.`;
+		this.constants[name] = this.constantValue();
+	}
+	else if (token == ":macro")  {
+		var name = this.identifier("macro");
+		if (name in this.macros) throw `The name '${name}' has already been defined.`;
+		var args = [];
+		while(this.peek() != '{' && !this.end()) {
+			args.push(this.checkName(this.next(), "macro argument"));
+		}
+		this.macros[name] = { args: args, body:this.macroBody(name, 'macro'), calls:0 };
+	}
+	else if (token in this.macros) {
+		var macro = this.macros[token];
+		var bindings = { 'CALLS':[macro.calls++,0,0] };
+		for (var x = 0; x < macro.args.length; x++) {
+			if (this.end()) {
+				this.pos=['<EOF>',this.source.length+1,this.source.length+2];
+				throw `Not enough arguments for expansion of macro '${token}'.`;
+			}
+			bindings[macro.args[x]] = this.raw();
+		}
+		for (var x = 0; x < macro.body.length; x++) {
+			var chunk = macro.body[x];
+			var value = (chunk[0] in bindings) ? bindings[chunk[0]] : chunk;
+			this.tokens.splice(x + this.currentToken, 0, value);
+		}
+	}
+	else if (token == ':stringmode') {
+		var name = this.identifier("stringmode");
+		if (!(name in this.stringmodes)) {
+			this.stringmodes[name] = {values:{}, bodies:{}, calls:0};
+		}
+		var mode = this.stringmodes[name];
+		var alphabet = this.string();
+		var alphabet_pos = this.pos.slice(0);
+		var macro = { args:[], body:this.macroBody(name, 'string mode') };
+		alphabet.split('').forEach((char,index) => {
+			if (mode.bodies[char]) {
+				this.pos=[char,alphabet_pos[1]+index+1,alphabet_pos[1]+index+2];
+				throw `String mode '${name}' is already defined for the character '${char}'.`;
+			}
+			mode.values[char] = index;
+			mode.bodies[char] = macro;
+		})
+	}
+	else if (token in this.stringmodes) {
+		var mode = this.stringmodes[token];
+		var string = this.next();
+		var string_pos = this.pos.slice(0);
+		if (typeof string == 'number') { throw "String mode '"+token+"' cannot be applied to a number ("+string+")."; }
+		var insertion = this.currentToken;
+
+		string.split('').forEach((char,index) => {
+			if (!(char in mode.bodies)) {
+				this.pos=[char,string_pos[1]+index+1,string_pos[1]+index+2];
+				throw `String mode '${token}' is not defined for the character '${char}'.`;
+			}
+			var macro = mode.bodies[char];
+			var bindings = {
+				'CALLS':[mode.calls++,0,0],       // how many times have we expanded this mode?
+				'CHAR' :[char.charCodeAt(0),0,0], // ascii value of the current character
+				'INDEX':[index,0,0],              // index of the current character in the input string
+				'VALUE':[mode.values[char],0,0],  // index of the current character in the character class's alphabet
+			};
+			for (var x = 0; x < macro.body.length; x++) {
+				var chunk = macro.body[x];
+				var value = (chunk[0] in bindings) ? bindings[chunk[0]] : chunk;
+				this.tokens.splice(insertion++, 0, value);
+			}
+		})
+	}
+	else if (token == ':calc') {
+		var name = this.identifier("calculated constant");
+		if (name in this.constants && !(name in this.mutables)) throw `Cannot redefine the name '${name}' with :calc.`
+		this.constants[name] = this.parseCalculated(name); this.mutables[name]=true;
+	}
+	else if (token == ":byte") {
+		this.data(this.peek() == '{' ? this.parseCalculated('ANONYMOUS') : this.shortValue());
+	}
+	else if (token == ":pointer") {
+		var addr = this.peek() == '{' ? this.parseCalculated('ANONYMOUS') : this.veryWideValue(false, true);
+		this.inst(addr >> 8, addr);
+	}
+	else if (token == ":org") {
+		var addr = this.peek() == '{' ? this.parseCalculated('ANONYMOUS') : this.constantValue();
+		this.hereaddr = 0xFFFF & addr;
+	}
+	else if (token == ":assert") {
+		var message = this.peek() == '{' ? null : this.string();
+		var value = this.parseCalculated(message ? 'assert '+message : 'assert');
+		if (!value) { throw message ? "Assertion failed: "+message : "Assertion failed."; }
+	}
+	else if (token == ";")       { this.inst(0x00, 0xEE); }
+	else if (token == "return")  { this.inst(0x00, 0xEE); }
+	else if (token == "clear")   { this.inst(0x00, 0xE0); }
+	else if (token == "bcd")     { this.inst(0xF0 | this.register(), 0x33); }
+	else if (token == "save")    {
+		var reg = this.register();
+		if (!this.end() && this.peek() == "-") {
+			this.expect("-");
+			this.xo = true;
+			this.inst(0x50 | reg, (this.register() << 4) | 0x02);
+		}
+		else {
+			this.inst(0xF0 | reg, 0x55);
+		}
+	}
+	else if (token == "load") {
+		var reg = this.register();
+		if (!this.end() && this.peek() == "-") {
+			this.expect("-");
+			this.xo = true;
+			this.inst(0x50 | reg, (this.register() << 4) | 0x03);
+		}
+		else {
+			this.inst(0xF0 | reg, 0x65);
+		}
+	}
+	else if (token == "delay")   { this.expect(":="); this.inst(0xF0 | this.register(), 0x15); }
+	else if (token == "buzzer")  { this.expect(":="); this.inst(0xF0 | this.register(), 0x18); }
+	else if (token == "pitch")   { this.expect(":="); this.inst(0xF0 | this.register(), 0x3A); }
+	else if (token == "if") {
+		var control = this.controlToken();
+		if (control[0] == "then") {
+			this.conditional(false);
+			this.expect("then");
+		}
+		else if (control[0] == "begin") {
+			this.conditional(true);
+			this.expect("begin");
+			this.branches.push([this.here(), this.pos, "begin"]);
+			this.inst(0x00, 0x00);
+		}
+		else {
+			this.pos = control;
+			throw "Expected 'then' or 'begin'.";
+		}
+	}
+	else if (token == "else") {
+		if (this.branches.length < 1) {
+			throw "This 'else' does not have a matching 'begin'.";
+		}
+		this.jump(this.branches.pop()[0], this.here()+2);
+		this.branches.push([this.here(), this.pos, "else"]);
+		this.inst(0x00, 0x00);
+	}
+	else if (token == "end") {
+		if (this.branches.length < 1) {
+			throw "This 'end' does not have a matching 'begin'.";
+		}
+		this.jump(this.branches.pop()[0], this.here());
+	}
+	else if (token == "jump0")   { this.immediate(0xB0, this.wideValue()); }
+	else if (token == "jump")    { this.immediate(0x10, this.wideValue()); }
+	else if (token == "native")  { this.immediate(0x00, this.wideValue()); }
+	else if (token == "sprite")  {
+		var r1 = this.register();
+		var r2 = this.register();
+		var size = this.tinyValue();
+		if (size == 0) { this.schip = true; }
+		this.inst(0xD0 | r1, (r2 << 4) | size);
+	}
+	else if (token == "loop") {
+		this.loops.push([this.here(), this.pos]);
+		this.whiles.push(null);
+	}
+	else if (token == "while") {
+		if (this.loops.length < 1) {
+			throw "This 'while' is not within a loop.";
+		}
+		this.conditional(true);
+		this.whiles.push(this.here());
+		this.immediate(0x10, 0);
+	}
+	else if (token == "again") {
+		if (this.loops.length < 1) {
+			throw "This 'again' does not have a matching 'loop'.";
+		}
+		this.immediate(0x10, this.loops.pop()[0]);
+		while (this.whiles[this.whiles.length - 1] != null) {
+			this.jump(this.whiles.pop(), this.here());
+		}
+		this.whiles.pop();
+	}
+	else if (token == "plane") {
+		var plane = this.tinyValue();
+		if (plane > 3) throw `The plane bitmask must be [0,3], was ${plane}.`
+		this.xo = true;
+		this.inst(0xF0 | plane, 0x01);
+	}
+	else if (token == "audio") {
+		this.xo = true;
+		this.inst(0xF0, 0x02);
+	}
+	else if (token == "scroll-down")  { this.schip = true; this.inst(0x00, 0xC0 | this.tinyValue()); }
+	else if (token == "scroll-up")    { this.xo    = true; this.inst(0x00, 0xD0 | this.tinyValue()); }
+	else if (token == "scroll-right") { this.schip = true; this.inst(0x00, 0xFB); }
+	else if (token == "scroll-left")  { this.schip = true; this.inst(0x00, 0xFC); }
+	else if (token == "exit")         { this.schip = true; this.inst(0x00, 0xFD); }
+	else if (token == "lores")        { this.schip = true; this.inst(0x00, 0xFE); }
+	else if (token == "hires")        { this.schip = true; this.inst(0x00, 0xFF); }
+	else if (token == "saveflags")    {
+		var flags = this.register();
+		this.schip = true; this.xo = flags > 7;
+		this.inst(0xF0 | flags, 0x75);
+	}
+	else if (token == "loadflags") {
+		var flags = this.register();
+		this.schip = true; this.xo = flags > 7;
+		this.inst(0xF0 | flags, 0x85);
+	}
+	else if (token == "i") {
+		this.iassign(this.next());
+	}
+	else if (this.isRegister(token)) {
+		this.vassign(this.register(token));
+	}
+	else if (token == ":call") {
+		var addr = this.peek() == '{' ? this.parseCalculated('ANONYMOUS') : this.wideValue(this.next());
+		this.immediate(0x20, 0xFFF & addr);
+	}
+	else {
+		this.immediate(0x20, this.wideValue(token));
+	}
+}
+
+Compiler.prototype.go = function() {
+	this.aliases["unpack-hi"] = 0x0;
+	this.aliases["unpack-lo"] = 0x1;
+
+	this.tokens = tokenize(this.source,this);
+	this.inst(0, 0); // reserve a jump slot
+	while(!this.end()) {
+		if (typeof this.peek() == "number") {
+			var nn = this.next();
+			if (nn < -128 || nn > 255) throw `Literal value '${nn}' does not fit in a byte- must be in range [-128,255].`;
+			this.data(nn);
+		}
+		else {
+			this.instruction(this.next());
+		}
+	}
+	if (this.hasmain == true) {
+		if (!('main' in this.constants) && !('main' in this.dict)) {
+			this.pos=['<EOF>',this.source.length+1,this.source.length+2];
+			throw "This program is missing a 'main' label."
+		}
+		this.jump(0x200, this.wideValue("main"));
+	}
+	var keys=Object.keys(this.protos);
+	if (keys.length > 0) {
+		this.pos = this.protos[keys[0]].proto_pos;
+		throw `Undefined forward reference: ${keys[0]}`;
+	}
+	if (this.loops.length > 0) {
+		this.pos = this.loops.pop()[1];
+		throw "This 'loop' does not have a matching 'again'.";
+	}
+	if (this.branches.length > 0) {
+		var flow=this.branches.pop()
+		this.pos = flow[1];
+		throw `This '${flow[2]}' does not have a matching 'end'.`;
+	}
+	for(var index = 0; index < this.rom.length; index++) {
+		if (typeof this.rom[index] == "undefined") { this.rom[index] = 0x00; }
+	}
+}
+
+this.Compiler = Compiler;
+/* ==== fin de js/compiler.js ==== */
+  }).call(octo);
+
+  var VERSION = 'aa7f36ea9e3cf23212c151008729cf233fd56529';
+  var Compiler = octo.Compiler;
+  var PROGRAM_START = 0x200;
+  // Lo que entra desde 0x200 en cada plataforma (como el ensamblador): hasta 0xFFF, o hasta 0xFFFF en XO-CHIP.
+  var MAX_BYTES = { chip8: 3584, schip: 3584, xochip: 65024 };
+
+  // ------------------------------------------------------------------
+  // Los mensajes, en castellano
+  // ------------------------------------------------------------------
+  // Lo que Octo intercala en sus mensajes: qué se estaba nombrando, de qué es una definición y qué valor
+  // esperaba.
+  var KIND = {
+    'label': 'una etiqueta', 'alias': 'un alias', 'constant': 'una constante',
+    'calculated constant': 'una constante calculada', 'macro': 'una macro',
+    'macro argument': 'un argumento de macro', 'stringmode': 'un modo de texto'
+  };
+  var DEFINITION = { 'macro': 'la macro', 'string mode': 'el modo de texto' };
+  var VALUE = {
+    'a 4-bit': 'un valor de 4 bits', 'an 8-bit': 'un valor de 8 bits', 'a 12-bit': 'un valor de 12 bits',
+    'a 16-bit value': 'un valor de 16 bits'
+  };
+  function word(table, w) { return Object.prototype.hasOwnProperty.call(table, w) ? table[w] : w; }
+  // Un valor que Octo muestra entre comillas simples ('nombre') va entre comillas latinas; un número, tal cual.
+  function quoted(v) {
+    var m = /^'([\s\S]*)'$/.exec(v);
+    return m ? '«' + m[1] + '»' : v;
+  }
+  var KEYWORD_HINT = ', que es una palabra de Octo. ¿Falta algo antes?';
+  // [patrón del mensaje de Octo, traducción]: uno por cada mensaje que puede dar el compilador, los más
+  // específicos antes que los generales (los dos «Expected ..., got» del final).
+  var MESSAGES = [
+    [/^Unknown format character %([\s\S]*)- should be %Nc,%Ni,%Nb, or %Nx\.$/,
+      function (c) { return 'El formato %' + c + ' no existe: tiene que ser %Nc, %Ni, %Nb o %Nx.'; }],
+    [/^format byte count cannot be 0\.$/,
+      function () { return 'Un formato no puede mostrar 0 bytes.'; }],
+    [/^Missing a closing " in a string literal\.$/,
+      function () { return 'Falta la comilla (") que cierra el texto.'; }],
+    [/^Unrecognized escape character '([\s\S]*)' in a string literal\.$/,
+      function (c) { return 'El texto tiene una barra invertida seguida de «' + c + '», que no es un escape conocido.'; }],
+    [/^Data overlap\. Address (0x[0-9A-F]+) has already been defined\.$/,
+      function (a) { return 'Datos encimados: en la dirección ' + a + ' ya hay algo.'; }],
+    [/^Unexpected EOF\.$/,
+      function () { return 'El programa termina antes de tiempo: falta algo al final.'; }],
+    [/^A constant reference to '([\s\S]*)' may not be forward-declared\.$/,
+      function (n) { return '«' + n + '» se usa como constante antes de definirla: tiene que estar definida más arriba.'; }],
+    [/^Expected a constant name, but found the keyword '([\s\S]*)'\. Missing a token\?$/,
+      function (n) { return 'Acá va el nombre de una constante, pero dice «' + n + '»' + KEYWORD_HINT; }],
+    [/^Undefined constant name '([\s\S]*)'\.$/,
+      function (n) { return '«' + n + '» no es una constante definida.'; }],
+    [/^The name '([\s\S]*)' is reserved and cannot be used for a ([\s\S]+)\.$/,
+      function (n, k) { return '«' + n + '» es una palabra de Octo: no puede ser el nombre de ' + word(KIND, k) + '.'; }],
+    [/^Expected a name for a ([\s\S]+), got ([\s\S]*)\.$/,
+      function (k, n) { return 'Acá va el nombre de ' + word(KIND, k) + ', pero dice ' + n + '.'; }],
+    [/^Expected a string, got ([\s\S]*)\.$/,
+      function (n) { return 'Acá va un texto entre comillas, pero dice ' + n + '.'; }],
+    [/^Expected ([\s\S]+?) value, but found the register ([\s\S]*)\.$/,
+      function (t, r) { return 'Acá va ' + word(VALUE, t) + ', pero dice el registro ' + r + '.'; }],
+    [/^Expected ([\s\S]+?) value, but found the keyword '([\s\S]*)'\. Missing a token\?$/,
+      function (t, n) { return 'Acá va ' + word(VALUE, t) + ', pero dice «' + n + '»' + KEYWORD_HINT; }],
+    [/^Expected ([\s\S]+?) value, but found the undefined name '([\s\S]*)'\.$/,
+      function (t, n) { return 'Acá va ' + word(VALUE, t) + ', pero «' + n + '» no está definido.'; }],
+    [/^Argument ([\s\S]+) does not fit in a byte- must be in range \[-128,255\]\.$/,
+      function (v) { return quoted(v) + ' no entra en un byte: tiene que estar entre -128 y 255.'; }],
+    [/^Argument ([\s\S]+) does not fit in 4 bits- must be in range \[0,15\]\.$/,
+      function (v) { return quoted(v) + ' no entra en 4 bits: tiene que estar entre 0 y 15.'; }],
+    [/^Argument ([\s\S]+) does not fit in ([\s\S]+)\.$/,
+      function (v, t) { return quoted(v) + ' no entra en ' + t + '.'; }],
+    [/^The reference to '([\s\S]*)' may not be forward-declared\.$/,
+      function (n) { return '«' + n + '» se usa antes de definirlo, y acá eso no se puede: tiene que estar definido más arriba.'; }],
+    [/^Expected conditional operator, got ([\s\S]*)\.$/,
+      function (v) { return 'Acá va una comparación (==, !=, <, >, <=, >=, key o -key), pero dice ' + quoted(v) + '.'; }],
+    [/^'([\s\S]*)' is not an operator that can target the i register\.$/,
+      function (o) { return '«' + o + '» no es una operación que se pueda hacer con el registro i.'; }],
+    [/^Unrecognized operator '([\s\S]*)'\.$/,
+      function (o) { return '«' + o + '» no es una operación conocida.'; }],
+    [/^The name '([\s\S]*)' has already been defined\.$/,
+      function (n) { return '«' + n + '» ya está definido.'; }],
+    [/^The name '([\s\S]*)' is already used by an alias\.$/,
+      function (n) { return '«' + n + '» ya es el nombre de un alias.'; }],
+    [/^The name '([\s\S]*)' is already used by a constant\.$/,
+      function (n) { return '«' + n + '» ya es el nombre de una etiqueta.'; }],
+    [/^Value (0x[0-9A-F]+) for label '([\s\S]*)' does not fit in 12 bits\.$/,
+      function (a, n) { return 'La etiqueta «' + n + '» quedó en ' + a + ', que no entra en 12 bits (pasa de 0xFFF).'; }],
+    [/^Cannot use forward declaration '([\s\S]*)' when calculating constant '([\s\S]*)'\.$/,
+      function (n, c) { return 'Para calcular «' + c + '» hace falta «' + n + '», que todavía no está definido.'; }],
+    [/^Found undefined name '([\s\S]*)' when calculating constant '([\s\S]*)'\.$/,
+      function (n, c) { return 'Para calcular «' + c + '» hace falta «' + n + '», que no está definido.'; }],
+    [/^Expected '\)' for calculated constant '([\s\S]*)'\.$/,
+      function (c) { return 'Falta cerrar un paréntesis en el cálculo de «' + c + '».'; }],
+    [/^Expected '\{' for calculated constant '([\s\S]*)'\.$/,
+      function (c) { return 'El cálculo de «' + c + '» va entre llaves: falta la «{».'; }],
+    [/^Expected '\}' for calculated constant '([\s\S]*)'\.$/,
+      function (c) { return 'Al cálculo de «' + c + '» le falta la «}» que lo cierra.'; }],
+    [/^Expected '\{' for definition of ([\s\S]+?) '([\s\S]*)'\.$/,
+      function (d, n) { return 'Falta la «{» que abre ' + word(DEFINITION, d) + ' «' + n + '».'; }],
+    [/^Expected '\}' for definition of ([\s\S]+?) '([\s\S]*)'\.$/,
+      function (d, n) { return 'Falta la «}» que cierra ' + word(DEFINITION, d) + ' «' + n + '».'; }],
+    [/^Register index must be in the range \[0,F\]\.$/,
+      function () { return 'El número de registro tiene que ser de 0 a F.'; }],
+    [/^Not enough arguments for expansion of macro '([\s\S]*)'\.$/,
+      function (n) { return 'Faltan argumentos para la macro «' + n + '».'; }],
+    [/^String mode '([\s\S]*)' is already defined for the character '([\s\S]*)'\.$/,
+      function (n, c) { return 'El modo de texto «' + n + '» ya tiene definido el carácter «' + c + '».'; }],
+    [/^String mode '([\s\S]*)' cannot be applied to a number \(([\s\S]*)\)\.$/,
+      function (n, v) { return 'El modo de texto «' + n + '» va con un texto entre comillas, no con un número (' + v + ').'; }],
+    [/^String mode '([\s\S]*)' is not defined for the character '([\s\S]*)'\.$/,
+      function (n, c) { return 'El modo de texto «' + n + '» no tiene definido el carácter «' + c + '».'; }],
+    [/^Cannot redefine the name '([\s\S]*)' with :calc\.$/,
+      function (n) { return '«' + n + '» ya está definido y :calc no lo puede cambiar.'; }],
+    [/^Assertion failed: ([\s\S]*)$/,
+      function (m) { return 'No se cumple el :assert: ' + m; }],
+    [/^Assertion failed\.$/,
+      function () { return 'No se cumple el :assert.'; }],
+    [/^Expected 'then' or 'begin'\.$/,
+      function () { return 'Después de la condición va «then» o «begin».'; }],
+    [/^This 'else' does not have a matching 'begin'\.$/,
+      function () { return 'Este «else» no tiene su «begin».'; }],
+    [/^This 'end' does not have a matching 'begin'\.$/,
+      function () { return 'Este «end» no tiene su «begin».'; }],
+    [/^This 'while' is not within a loop\.$/,
+      function () { return 'Este «while» no está dentro de un «loop».'; }],
+    [/^This 'again' does not have a matching 'loop'\.$/,
+      function () { return 'Este «again» no tiene su «loop».'; }],
+    [/^The plane bitmask must be \[0,3\], was ([\s\S]*)\.$/,
+      function (v) { return 'El plano tiene que ser de 0 a 3 (dice ' + v + ').'; }],
+    [/^Literal value '([\s\S]*)' does not fit in a byte- must be in range \[-128,255\]\.$/,
+      function (v) { return 'El número ' + v + ' no entra en un byte: tiene que estar entre -128 y 255.'; }],
+    [/^This program is missing a 'main' label\.$/,
+      function () { return 'Falta la etiqueta «main» («: main»), donde empieza el programa.'; }],
+    [/^Undefined forward reference: ([\s\S]*)$/,
+      function (n) { return '«' + n + '» se usa pero nunca se define.'; }],
+    [/^This 'loop' does not have a matching 'again'\.$/,
+      function () { return 'Este «loop» no tiene su «again».'; }],
+    [/^This '([\s\S]*)' does not have a matching 'end'\.$/,
+      function (w) { return 'Este «' + w + '» no tiene su «end».'; }],
+    [/^Expected register, got '([\s\S]*)'\.$/,
+      function (n) { return 'Acá va un registro (de v0 a vF), pero dice «' + n + '».'; }],
+    [/^Expected ([\s\S]+?), got '([\s\S]*)'\.$/,
+      function (t, n) { return 'Acá va «' + t + '», pero dice «' + n + '».'; }]
+  ];
+
+  function translate(message) {
+    var text = String(message);
+    for (var i = 0; i < MESSAGES.length; i++) {
+      var m = MESSAGES[i][0].exec(text);
+      if (m) return MESSAGES[i][1].apply(null, m.slice(1));
+    }
+    return text;
+  }
+
+  // ------------------------------------------------------------------
+  // Compilar
+  // ------------------------------------------------------------------
+  // Dónde empieza cada renglón de la fuente (en caracteres), para pasar de una posición a su renglón sin
+  // recorrer la fuente entera por cada byte (DebugInfo.posToLine lo hace así, y con un programa grande de
+  // XO-CHIP serían miles de millones de pasos).
+  function lineStarts(source) {
+    var starts = [0], at = -1;
+    while ((at = source.indexOf('\n', at + 1)) >= 0) starts.push(at + 1);
+    return starts;
+  }
+  // El renglón (desde 1) de una posición de Octo: la de su token, que cuenta desde 1 (la del primer carácter
+  // más uno). Da lo mismo que DebugInfo.posToLine más uno.
+  function lineOf(starts, pos) {
+    var offset = pos - 1, lo = 0, hi = starts.length - 1;
+    while (lo < hi) {
+      var mid = (lo + hi + 1) >> 1;
+      if (starts[mid] <= offset) lo = mid; else hi = mid - 1;
+    }
+    return lo + 1;
+  }
+  // El error, como los del ensamblador: "Línea N: " y el mensaje, que sigue en minúscula.
+  function failure(line, message) {
+    var text = 'Línea ' + line + ': ' + message.charAt(0).toLowerCase() + message.slice(1);
+    return { errors: [{ line: line, message: text }], truncated: false, result: null };
+  }
+
+  // El último renglón que tiene algo (los errores del final del programa van ahí, no en un renglón vacío).
+  function lastLine(source, starts) {
+    for (var i = starts.length - 1; i > 0; i--) if (/\S/.test(source.slice(starts[i], starts[i + 1]))) return i + 1;
+    return 1;
+  }
+
+  function compile(source) {
+    if (typeof source !== 'string') throw new TypeError('compile: la fuente tiene que ser un texto (llegó ' + typeof source + ')');
+    var c = new Compiler(source), starts = lineStarts(source);
+    // El compilador anota si el programa usa instrucciones de SUPER-CHIP (schip) o de XO-CHIP (xo), con dos huecos:
+    // saveflags y loadflags pisan xo (con v0 a v7 lo dejan en false, aunque antes hubiera otra instrucción de XO-CHIP)
+    // y pitch no lo anota. Acá cada marca queda prendida una vez que se prende, y pitch cuenta como de XO-CHIP.
+    var uses = { schip: false, xo: false };
+    ['schip', 'xo'].forEach(function (k) {
+      Object.defineProperty(c, k, {
+        enumerable: true, configurable: true,
+        get: function () { return uses[k]; },
+        set: function (on) { if (on) uses[k] = true; }
+      });
+    });
+    try {
+      c.go();
+    } catch (e) {
+      // Un error al final de la fuente (falta main, un loop sin again...) va en el último renglón con algo.
+      var where = c.pos && typeof c.pos[1] === 'number' && c.pos[1] <= source.length ? lineOf(starts, c.pos[1]) : lastLine(source, starts);
+      // Octo lanza textos; otra cosa es un error de su código (por ejemplo, con un :macro sin cuerpo al final).
+      var message = typeof e === 'string' ? translate(e)
+        : 'El compilador de Octo no pudo seguir desde acá (' + (e && e.message ? e.message : String(e)) + ').';
+      return failure(where, message);
+    }
+    var pitch = c.tokens.some(function (t) { return t[0] === 'pitch'; });
+    var platform = uses.xo || pitch ? 'xochip' : uses.schip ? 'schip' : 'chip8';
+    var size = c.rom.length, max = MAX_BYTES[platform];
+    var bytes = new Uint8Array(size), lines = new Array(size);
+    for (var i = 0; i < size; i++) {
+      bytes[i] = c.rom[i] & 0xFF;
+      lines[i] = 0;
+    }
+    var locs = c.dbginfo._locs;
+    Object.keys(locs).forEach(function (key) {
+      var k = Number(key) - PROGRAM_START;
+      if (k >= 0 && k < size) lines[k] = lineOf(starts, locs[key]);
+    });
+    if (size > max) {
+      // El renglón del primer byte que no entra (o el último, si ese byte no salió de ninguno).
+      var over = lines[max] || starts.length;
+      return failure(over, platform === 'xochip'
+        ? 'El programa no entra en la memoria de XO-CHIP: se pasa de la dirección 0xFFFF (ocupa ' + size + ' bytes y entran ' + max + ').'
+        : 'El programa no entra en la memoria: se pasa de la dirección 0xFFF (ocupa ' + size + ' bytes y entran ' + max +
+          '; con instrucciones de XO-CHIP, la memoria llega hasta 0xFFFF).');
+    }
+    var labels = {};
+    Object.keys(c.dict).forEach(function (name) { labels[name] = c.dict[name]; });
+    var breakpoints = Object.keys(c.breakpoints).map(function (a) {
+      return { addr: Number(a), name: String(c.breakpoints[a]) };
+    }).sort(function (a, b) { return a.addr - b.addr; });
+    return {
+      errors: [], truncated: false,
+      result: { bytes: bytes, platform: platform, labels: labels, lines: lines, breakpoints: breakpoints }
+    };
+  }
+
+  // Las líneas "# @nombre valor" de los comentarios con que empieza la fuente.
+  function headerTags(source) {
+    var tags = Object.create(null), lines = String(source).split(/\r\n|\r|\n/);
+    for (var i = 0; i < lines.length; i++) {
+      var trimmed = lines[i].trim();
+      if (trimmed === '') continue;
+      if (trimmed.charAt(0) !== '#') break;   // terminó el encabezado
+      var m = /^#+\s*@(\w+)(?:\s+(.*?))?\s*$/.exec(trimmed);
+      if (m) tags[m[1]] = { value: m[2] || '', line: i + 1 };
+    }
+    return tags;
+  }
+
+  globalThis.Chip8Octo = { compile: compile, headerTags: headerTags, translate: translate, Compiler: Compiler, VERSION: VERSION };
+})();
+</script>
 <script id="chip8-roms">
 /* GENERADO por tools/embed-roms.js a partir de roms/*.asm — no editar a mano. */
 globalThis.CHIP8_DEMOS = [
@@ -5373,7 +6717,7 @@ globalThis.CHIP8_DEMOS = [
     hex: "00FF601EF015A347F002F101A35760026101620AD01AF21E700A303E12146000F0306062D01A606CD01A6076D01A6114621E63026402A393D120654C661467FC68FEF201A3F3D560F10169006C006E0012A86005E09E6000A3B35340A3D3DAB081348244410022D0417222D8420E22E0423222E8300012A0F201470400FB370400FC480200C2380200D2F10185748684450022F0457022F84600230046302308390012C03E0023108A1033027AFE8B2034027BFEF007300012B46005F0151252F93A6004F0186900A344FC336E0312A8630269737C0100EE63FE698F7C0100EE640269A37C0100EE64FE69837C0100EE670469437C0100EE67FC695F7C0100EE680269737C0100EE68FE69537C0100EEA343FE1E5DD3A33CFE1EFE1E5AB39AD0133A4A0A8AD0FA306001DB0A5AD06A0AA33CFE1EFE1E5AA200EE7EFF00EE0062006C0076000000F000F000F000F000F000F000F000F000FCFEC3C3FEFCC0C0C0C0C0C0C0C0C0C0C0C0FFFF3C7EC3C3C3FFFFC3C3C3C3E3F3F3DBDBCFCFC7C37EFFC3C3C3C3C3C3FF7E7EFFC0C0FE7F0303FF7E07801FE03FF07FF87FF8FFFCFFFCFFFCFFFC7FF87FF83FF01FE007800000000007801FE03E1078007004E002E002C003C00340074007200E001E087C07F801E001E007F8087C001E200E40074007C003C003E002E002700478003E101FE00780018003C007E00FF01FF83FFC7FFEFFFFFFFF7FFE3FFC1FF80FF007E003C00180"
   }
 ];
-/* También GENERADO: los fuentes del Taller, los de las demos (roms/*.asm) y los ejemplos del tutorial (docs/ejemplos/*.asm). */
+/* También GENERADO: los fuentes del Taller, los de las demos (roms/*.asm), los ejemplos del tutorial (docs/ejemplos/*.asm) y los de Octo (docs/ejemplos/octo/*.8o). */
 globalThis.CHIP8_SOURCES = {
   demos: {
     "rebote": "; @name Rebote\n; @description Una pelotita sonriente rebota por la pantalla y suena cada vez que toca un borde.\n; @controls Ninguno: solo mirá.\n; @order 1\n;\n; ======================================================================\n;  REBOTE — el \"hola mundo\" animado de CHIP-8\n; ======================================================================\n;\n; Qué muestra este programa:\n;   - Cómo dibujar con DRW (DXYN) y cómo el dibujo por XOR permite BORRAR\n;     un sprite volviendo a dibujarlo en el mismo lugar.\n;   - Cómo animar a velocidad constante usando el temporizador de retardo\n;     (DT), que baja 60 veces por segundo sin importar lo rápido que corra\n;     la CPU.\n;   - Cómo hacer sonar un pitido corto con el temporizador de sonido (ST).\n;\n; La pantalla:\n;   filas 1..5   el título \"CHIP-8\" (sprites propios de 4x5)\n;   fila 7       una línea horizontal\n;   filas 9..31  el área donde rebota la pelota (sprite de 8x8)\n;\n; Cómo se mueve:\n;   En cada paso dibujamos la pelota en la posición NUEVA y recién después\n;   borramos la VIEJA (dibujándola otra vez, que por XOR la apaga). Entre los\n;   dos DRW, la pantalla muestra las dos pelotas mezcladas por XOR: los\n;   píxeles que comparten se APAGAN, así que ese cuadro intermedio no muestra\n;   la pelota entera sino una silueta deformada (36 píxeles en vez de 44, con\n;   la cara irreconocible). Igual se ve algo en ese lugar, que es mejor que\n;   borrar primero y dejar un cuadro vacío.\n;   En el COSMAC VIP (quirk \"espera de vblank\") cada DRW espera al próximo\n;   cuadro, así que la silueta queda en pantalla uno de cada dos cuadros y la\n;   pelota \"vibra\"; la opción Persistencia de la consola lo suaviza. Sin ese\n;   quirk los dos DRW suelen caer en el mismo cuadro: a 15 instrucciones por\n;   cuadro la silueta aparece en uno de cada cinco cuadros, y desde 30 no\n;   aparece nunca.\n;   La otra forma de no tener cuadro intermedio es mover el sprite con un solo\n;   DRW que dibuje solo la diferencia entre la posición vieja y la nueva, como\n;   hace Atrapa. Acá no alcanza: la pelota mide 8 de ancho y se mueve en\n;   diagonal, así que entre las dos posiciones ocupa 9x9 y esa diferencia no\n;   entra en un sprite de 8 píxeles de ancho.\n;\n; La velocidad:\n;   Cada paso dura exactamente 2 cuadros (TICK): 30 pasos por segundo, 1 píxel\n;   por paso. Como en el VIP cada DRW espera al próximo cuadro, un paso usa\n;   como mínimo dos cuadros, y hace falta que las instrucciones del paso\n;   entren en ellos: la velocidad es exacta con 15 o más instrucciones por\n;   cuadro (15, 30, 100, 500 y 1000 dan lo mismo; alcanza con 14 en el VIP y\n;   con 10 en SUPER-CHIP y XO-CHIP). Con 7, el ajuste más lento de la consola,\n;   no entran y la pelota va más despacio: unos 19 pasos por segundo en el VIP\n;   y 22 en los otros dos.\n;\n; Registros:\n;   V1, V2  posición que se ve ahora (x, y)\n;   V5, V6  posición siguiente (la que se dibuja en este paso)\n;   V7, V8  posición de después (se calcula por adelantado)\n;   V3, V4  dirección en x y en y: 1 (avanza) o 0xFF (= -1, retrocede)\n;   VA      constante 0xFE: hacer XOR con ella convierte 1 en 0xFF y al revés\n;   VB      duración del pitido (en sesentavos de segundo)\n;   V0      temporal\n;   VF      lo pisan DRW y ADD Vx, Vy: acá no lo usamos para nada\n\nTICK    EQU 2           ; cuadros por paso de animación\nXMIN    EQU 0           ; límites de la esquina superior izquierda de la pelota\nXMAX    EQU 56          ; 64 - 8\nYMIN    EQU 9           ; justo debajo de la línea\nYMAX    EQU 24          ; 32 - 8\nBEEP    EQU 3           ; pitido de 3/60 s\n\ninicio:\n        CLS\n        CALL titulo             ; dibuja \"CHIP-8\" y la línea (una sola vez)\n\n        LD VA, 0xFE\n        LD VB, BEEP\n        LD V3, 1                ; empieza yendo hacia abajo a la derecha\n        LD V4, 1\n        LD V1, 20               ; posición actual\n        LD V2, 14\n        LD V5, 21               ; posición siguiente = actual + dirección\n        LD V6, 15\n\n        LD I, pelota            ; I apunta a la pelota durante todo el bucle\n        DRW V1, V2, 8           ; primera aparición\n\n; ----------------------------------------------------------------------\n; Bucle principal: un paso de animación cada TICK cuadros.\n; ----------------------------------------------------------------------\nbucle:\n        LD V0, DT               ; esperar a que el temporizador llegue a 0\n        SE V0, 0\n        JP bucle\n        LD V0, TICK             ; y volver a cargarlo para el próximo paso\n        LD DT, V0\n\n        LD V7, V5               ; calcular la posición de después\n        ADD V7, V3\n        LD V8, V6\n        ADD V8, V4\n\n        DRW V5, V6, 8           ; 1) dibujar la pelota en la posición nueva\n\n        SNE V7, XMIN            ; ¿la próxima posición toca un borde?\n        CALL rebota_x           ;   (SNE saltea el CALL si NO es igual)\n        SNE V7, XMAX\n        CALL rebota_x\n        SNE V8, YMIN\n        CALL rebota_y\n        SNE V8, YMAX\n        CALL rebota_y\n\n        DRW V1, V2, 8           ; 2) borrar la pelota vieja (XOR la apaga)\n\n        LD V1, V5               ; avanzar: actual \u003c- siguiente \u003c- después\n        LD V2, V6\n        LD V5, V7\n        LD V6, V8\n        JP bucle\n\n; Invierte la dirección horizontal y hace sonar el pitido.\nrebota_x:\n        XOR V3, VA              ; 1 \u003c-> 0xFF\n        LD ST, VB\n        RET\n\n; Invierte la dirección vertical y hace sonar el pitido.\nrebota_y:\n        XOR V4, VA\n        LD ST, VB\n        RET\n\n; ----------------------------------------------------------------------\n; Título \"CHIP-8\" en la fila 1 y línea en la fila 7.\n; ----------------------------------------------------------------------\ntitulo:\n        LD V1, 1                ; y del título\n        LD V0, 17               ; x de la primera letra\n        LD I, letra_c\n        DRW V0, V1, 5\n        LD V0, 22\n        LD I, letra_h\n        DRW V0, V1, 5\n        LD V0, 27\n        LD I, letra_i\n        DRW V0, V1, 5\n        LD V0, 32\n        LD I, letra_p\n        DRW V0, V1, 5\n        LD V0, 37\n        LD I, guion\n        DRW V0, V1, 5\n        LD V0, 42\n        LD I, ocho\n        DRW V0, V1, 5\n\n        LD I, linea             ; 8 tramos de 8 píxeles = 64 columnas\n        LD V0, 0\n        LD V1, 7\ntitulo_linea:\n        DRW V0, V1, 1\n        ADD V0, 8\n        SE V0, 64\n        JP titulo_linea\n        RET\n\n; ----------------------------------------------------------------------\n; Sprites. Cada byte es una fila; el bit más alto es el píxel de la izquierda.\n; ----------------------------------------------------------------------\npelota:                         ; una pelotita con cara\n        DB %00111100            ;   ..####..\n        DB %01111110            ;   .######.\n        DB %11011011            ;   ##.##.##   ojos\n        DB %11111111            ;   ########\n        DB %10111101            ;   #.####.#   comisuras\n        DB %11000011            ;   ##....##   sonrisa\n        DB %01111110            ;   .######.\n        DB %00111100            ;   ..####..\n\nletra_c: DB %11110000, %10000000, %10000000, %10000000, %11110000\nletra_h: DB %10010000, %10010000, %11110000, %10010000, %10010000\nletra_i: DB %11100000, %01000000, %01000000, %01000000, %11100000\nletra_p: DB %11110000, %10010000, %11110000, %10000000, %10000000\nguion:   DB %00000000, %00000000, %11100000, %00000000, %00000000\nocho:    DB %11110000, %10010000, %11110000, %10010000, %11110000\nlinea:   DB %11111111\n",
@@ -5438,6 +6782,13 @@ globalThis.CHIP8_SOURCES = {
       name: "11-sin-fin.asm",
       description: "un programa al que le falta el final (ver la parte 7)",
       source: "; 11-sin-fin.asm — un programa al que le falta el final (ver la parte 7)\n;\n; Es la etapa A del Cazamonedas (03-fantasma.asm) sin la última\n; instrucción, \"fin: JP fin\". Después de dibujar el fantasmita, la CPU\n; sigue de largo y empieza a ejecutar los bytes del sprite como si fueran\n; instrucciones.\n\n        CLS\n        LD V4, 29       ; x = (64 - 6) / 2\n        LD V5, 13       ; y = (32 - 6) / 2\n        LD I, fantasma  ; I apunta a los 6 bytes del sprite\n        DRW V4, V5, 6   ; dibujar 6 filas\n\nfantasma:\n        DB %01111000    ; .####.\n        DB %11111100    ; ######\n        DB %10110100    ; #.##.#\n        DB %11111100    ; ######\n        DB %11111100    ; ######\n        DB %10101000    ; #.#.#.\n"
+    }
+  ],
+  octo: [
+    {
+      name: "pong.8o",
+      description: "Pong para dos, de la nota de Hackaday «CHIP-8: The Pong Game's Afoot»",
+      source: "# pong.8o — Pong para dos, de la nota de Hackaday «CHIP-8: The Pong Game's Afoot»\n#\n# Lo escribió Al Williams (wd5gnr) para esa nota, del 11 de noviembre de 2026, y lo publicó\n# en github.com/wd5gnr/chip8pong: del primer comentario en inglés para abajo es su\n# chip8pong.8o, sin cambios. Es CHIP-8 común: no usa nada de SUPER-CHIP ni de XO-CHIP.\n#\n# Izquierda: 1 sube y Q baja. Derecha: 4 sube y R baja. Gana el primero que llega a 9.\n# El ritmo lo marca el temporizador (30 cuadros por segundo), así que desde unas 100\n# instrucciones por cuadro va igual de rápido; con la etiqueta de abajo corre a 500.\n# @ipf 500\n\n# CHIP-8 Pong for Octo\n# Left player:  1 = up, 4 = down      Right player: C = up, D = down\n# On Octo that is 1/Q and 4/R\n# Ball angle depends on where it strikes the paddle (see bounce).\n# Hits are detected with VF from the ball sprite; scores are drawn\n# in the hex font; a short buzz plays on a hit, a long one on a miss.\n\n# ---- registers ----\n:alias left_y   v0   # top row of left paddle\n:alias right_y  v1   # top row of right paddle\n:alias ball_x   v2\n:alias ball_y   v3\n:alias dx       v4   # RIGHT (1) or LEFT (255)\n:alias dy       v5   # DOWN (1) or UP (255)\n:alias offset   v6   # where the ball struck a paddle, 0..4\n:alias tmp      v7   # scratch: sprite x, key code, delay, buzzer\n:alias period   v8   # frames per vertical step (0 = flat)\n:alias count    v9   # frames until the next vertical step\n:alias hit      vA   # copy of VF after drawing the ball\n:alias score_l  vC   # left score\n:alias score_r  vD   # right score\n\n# ---- constants ----\n:const RIGHT 1\n:const LEFT  255\n:const DOWN  1\n:const UP    255\n\n:const PADDLE_H   5\n:const PADDLE_L_X 2\n:const PADDLE_R_X 61\n:calc  PADDLE_MAX { 32 - PADDLE_H }   # lowest legal paddle top row\n:const BALL_MAX_Y 31\n:const EDGE_L     0                   # ball x past which left misses\n:const EDGE_R     63\n\n:const SERVE_X 32\n:const SERVE_Y 16\n\n:const STEEP   6    # edge hit: 1 Y step per 6 X steps  (~10 degrees)\n:const SHALLOW 11   # near-centre hit: 1 per 11 (~5 degrees)\n:const FLAT    0    # centre hit: no vertical motion\n\n:const FRAME_DELAY 2   # 60 Hz ticks per frame (2 = 30 fps)\n:const WIN_SCORE   9\n:const GAME_OVER_PAUSE 180   # 60 Hz ticks (3 seconds)\n:const HIT_BUZZ    3\n:const MISS_BUZZ   15\n:const SCORE_L_X   26\n:const SCORE_R_X   34\n:const SCORE_Y     1\n\n# ---- keys ----\n:const KEY_L_UP   0x1\n:const KEY_L_DOWN 0x4\n:const KEY_R_UP   0xC\n:const KEY_R_DOWN 0xD\n\n: main\n  left_y  := 13\n  right_y := 13\n  score_l := 0\n  score_r := 0\n  dx := RIGHT\n  clear\n  serve\n  draw_scores\n  draw_sprites          # first draw only; later frames erase first\n  loop\n    erase_sprites\n    read_keys\n    move_ball\n    check_miss\n    draw_sprites        # leaves hit = ball/paddle overlap\n    check_hit\n    wait_frame\n  again\n\n# XOR-draw both paddles and the ball. Ball goes last so VF\n# reports only ball-vs-paddle overlap (VF is copied immediately,\n# because comparisons clobber it).\n: draw_sprites\n  draw_paddles\n  i := ball\n  sprite ball_x ball_y 1\n  hit := vf\n  return\n\n# Same drawing, run a second time, removes everything.\n: erase_sprites\n  i := ball\n  sprite ball_x ball_y 1\n  draw_paddles\n  return\n\n: draw_paddles\n  i := paddle\n  tmp := PADDLE_L_X\n  sprite tmp left_y PADDLE_H\n  tmp := PADDLE_R_X\n  sprite tmp right_y PADDLE_H\n  return\n\n: read_keys\n  tmp := KEY_L_UP\n  if tmp key then left_up\n  tmp := KEY_L_DOWN\n  if tmp key then left_down\n  tmp := KEY_R_UP\n  if tmp key then right_up\n  tmp := KEY_R_DOWN\n  if tmp key then right_down\n  return\n\n: left_up\n  if left_y != 0 then left_y -= 1\n  return\n: left_down\n  if left_y != PADDLE_MAX then left_y += 1\n  return\n: right_up\n  if right_y != 0 then right_y -= 1\n  return\n: right_down\n  if right_y != PADDLE_MAX then right_y += 1\n  return\n\n# Horizontal every frame; vertical once per `period` frames.\n# Reflecting off the top/bottom happens on the same step.\n: move_ball\n  ball_x += dx\n  if period == 0 then return\n  count -= 1\n  if count != 0 then return\n  count := period\n  if dy == DOWN begin\n    if ball_y == BALL_MAX_Y then dy := UP\n  else\n    if ball_y == 0 then dy := DOWN\n  end\n  ball_y += dy\n  return\n\n# The ball was erased at the top of the frame and not yet redrawn,\n# so the scores can be changed safely here.\n: check_miss\n  if ball_x == EDGE_L then jump right_scores\n  if ball_x == EDGE_R then jump left_scores\n  return\n\n: left_scores         # ball got past the right paddle\n  draw_scores         # erase old digits\n  score_l += 1\n  dx := RIGHT         # serve toward the player who missed\n  jump point_done\n: right_scores\n  draw_scores\n  score_r += 1\n  dx := LEFT\n: point_done\n  draw_scores\n  tmp := MISS_BUZZ\n  buzzer := tmp\n  if score_l == WIN_SCORE then jump game_over\n  if score_r == WIN_SCORE then jump game_over\n  jump serve\n\n# Hold the final score for a moment, then start a new game.\n: game_over\n  draw_paddles        # show paddles during the pause\n  tmp := GAME_OVER_PAUSE\n  delay := tmp\n  wait_delay\n  draw_paddles        # erase them again\n  draw_scores         # erase old digits\n  score_l := 0\n  score_r := 0\n  draw_scores\n  # fall through\n\n# Center the ball with a random vertical direction.\n: serve\n  ball_x := SERVE_X\n  ball_y := SERVE_Y\n  period := STEEP\n  count  := period\n  tmp := random 1\n  dy := DOWN\n  if tmp == 0 then dy := UP\n  return\n\n: draw_scores\n  offset := SCORE_Y\n  tmp := SCORE_L_X\n  i := hex score_l\n  sprite tmp offset 5\n  tmp := SCORE_R_X\n  i := hex score_r\n  sprite tmp offset 5\n  return\n\n# Accept hits only while the ball is approaching that paddle.\n: check_hit\n  if hit == 0 then return\n  if ball_x == PADDLE_L_X then jump hit_left\n  if ball_x == PADDLE_R_X then jump hit_right\n  return\n: hit_left\n  if dx != LEFT then return\n  offset := ball_y\n  offset -= left_y\n  dx := RIGHT\n  jump bounce\n: hit_right\n  if dx != RIGHT then return\n  offset := ball_y\n  offset -= right_y\n  dx := LEFT\n\n# offset 0 or 4 -> steep, 1 or 3 -> shallow, 2 -> flat.\n# Offsets 0-1 send the ball up, 2-4 down.\n: bounce\n  tmp := HIT_BUZZ\n  buzzer := tmp\n  # Un-draw the ball (restores the paddle pixel it toggled off),\n  # step it off the paddle, and draw it again: no notch, no overlap.\n  i := ball\n  sprite ball_x ball_y 1\n  ball_x += dx\n  sprite ball_x ball_y 1\n  period := STEEP\n  if offset == 1 then period := SHALLOW\n  if offset == 2 then period := FLAT\n  if offset == 3 then period := SHALLOW\n  dy := DOWN\n  if offset \u003c 2 then dy := UP\n  count := period\n  return\n\n: wait_frame\n  tmp := FRAME_DELAY\n  delay := tmp\n: wait_delay\n  loop\n    tmp := delay\n    if tmp == 0 then return\n  again\n\n: paddle\n  0x80 0x80 0x80 0x80 0x80\n: ball\n  0x80\n"
     }
   ]
 };
@@ -5831,8 +7182,9 @@ globalThis.CHIP8_ARCHIVE.data = {
  *   archiveRomBytes(sha1)              promesa con los bytes de un juego del archivo (o null).
  *   findCartridge(sha1)                promesa con un cartucho que no está en la ranura: demo,
  *                                      «Tus cartuchos» o archivo ({ name, bytes, source }) o null.
- *   workshopSymbols()                  etiquetas y listado del programa del Taller que está en la
- *                                      ranura, o null; disasmLabel(dirección) las usa en el monitor.
+ *   workshopSymbols()                  etiquetas, listado (null en Octo) y renglón de cada byte del
+ *                                      programa del Taller que está en la ranura, o null;
+ *                                      disasmLabel(dirección) usa las etiquetas en el monitor.
  * Las funciones que cambian ajustes (applyProfile, applyPlatform, applyQuirks, setIpf) cuentan como
  * un cambio de la persona salvo que se las llame con auto (la autoconfiguración usa auto).
  *
@@ -6169,7 +7521,7 @@ globalThis.CHIP8_ARCHIVE.data = {
   var state = {
     romLoaded: false, romName: '', romSize: 0, demoId: null,
     romSha: null,             // SHA-1 de la ROM que está en la ranura
-    romSource: 'ninguno',     // de dónde salieron sus ajustes: 'recordado', 'archivo', 'demo' o 'ninguno'
+    romSource: 'ninguno',     // de dónde salieron sus ajustes: 'recordado', 'archivo', 'octo' (un programa en Octo del Taller), 'demo' o 'ninguno'
     romArchive: null,         // su entrada del archivo de Octo, si es un juego conocido
     paused: false, errorShown: false, instr: 0,
     pausedBeforeHalt: false,  // si el usuario tenía la máquina en pausa (o iba de a un paso) justo antes del error
@@ -7495,6 +8847,9 @@ globalThis.CHIP8_ARCHIVE.data = {
         tip = 'Arrancó con los ajustes que le cambiaste la última vez que la jugaste.';
       } else if (state.romSource === 'archivo') {
         text += ' · ajustes del archivo';
+      } else if (state.romSource === 'octo') {
+        text += ' · ajustes de Octo';
+        tip = 'Un programa en Octo del Taller: corre con los quirks de Octo y a su velocidad (la de Octo o la de su etiqueta @ipf).';
       }
       if (state.romArchive) tip = archiveTooltip(state.romArchive) + (tip ? ' ' + tip : '');
     }
@@ -7720,7 +9075,9 @@ globalThis.CHIP8_ARCHIVE.data = {
   // opts: { demoId, quiet, origin: 'archivo' (selector o arrastre) | 'biblioteca' | 'demo' | 'api' |
   // 'taller' | 'explorador' (la ventana del archivo de la comunidad; estos dos no van a la biblioteca),
   // fileName, item (el cartucho de la biblioteca), platform (la que pide el programa: el Taller la manda,
-  // y vale por encima de la recordada) }. Devuelve true si cargó.
+  // y vale por encima de la recordada), octo (un programa en Octo del Taller: con «Ajustes por cartucho»
+  // corre con los quirks y la velocidad de Octo, salvo que la ROM tenga ajustes recordados), ipf (la que
+  // pide la etiqueta @ipf del programa: vale por encima de todo, como platform) }. Devuelve true si cargó.
   function loadCartridge(bytes, name, opts) {
     opts = opts || {};
     var arr = toBytes(bytes);
@@ -7730,6 +9087,13 @@ globalThis.CHIP8_ARCHIVE.data = {
     var cfg = sha && settings.perRom ? resolveConfig(sha, demo) : null;
     var asked = platformLevel(opts.platform) >= 0 ? opts.platform : null;
     if (cfg && asked) cfg.platform = asked;
+    if (cfg && opts.octo && cfg.source !== 'recordado') {
+      cfg.quirks = copyQuirks(OCTO_QUIRKS);
+      cfg.ipf = OCTO_IPF;
+      cfg.source = 'octo';
+    }
+    var ipfAsked = isInt(opts.ipf, IPF_MIN, IPF_MAX) ? opts.ipf : null;
+    if (cfg && ipfAsked) cfg.ipf = ipfAsked;
     // Un juego conocido cargado desde un archivo (o por la API) se llama como en el archivo de Octo.
     var label = arch && (opts.origin === 'archivo' || opts.origin === 'api') ? arch.title : name;
     var before = cpu.platform;
@@ -7754,6 +9118,7 @@ globalThis.CHIP8_ARCHIVE.data = {
         // Los colores y el giro eran del cartucho anterior: no pasan a este.
         setCartridgeColors(null);
         setRotation(0);
+        if (ipfAsked) setIpf(ipfAsked, null, true);
         state.romSource = 'ninguno';
       }
       flagsSaved.set(cpu.flags);
@@ -7767,6 +9132,7 @@ globalThis.CHIP8_ARCHIVE.data = {
       var how = '';
       if (state.romSource === 'recordado') how = ' con los ajustes que recordé para esta ROM';
       else if (state.romSource === 'archivo') how = ' con los ajustes del archivo de Octo';
+      else if (state.romSource === 'octo') how = ' con los quirks y la velocidad de Octo';
       else if (cpu.platform !== before) how = ' en la plataforma ' + platformLabel(cpu.platform) + (demo ? ', que pide este cartucho' : '');
       announce('Cartucho «' + state.romName + '» cargado (' + formatInt(state.romSize) + ' bytes)' + how + '. Ejecutando.');
       if (cfg && (cfg.source === 'archivo' || cfg.source === 'recordado')) showConfigToast(cfg);
@@ -7851,6 +9217,12 @@ globalThis.CHIP8_ARCHIVE.data = {
   function loadFile(file) {
     if (!file) return;
     var name = file.name || 'archivo';
+    // Un programa (.8o, de Octo, o .asm) no es una ROM: se abre en el Taller como un programa tuyo.
+    if (Asm && /\.(8o|asm)$/i.test(name)) {
+      openWorkshop('api');
+      wsOpenFile(file);
+      return;
+    }
     if (file.size === 0) { toast('El archivo «' + name + '» está vacío.', 'error'); return; }
     if (file.size > MAX_ROM_ANY) {
       toast('«' + name + '» pesa ' + formatInt(file.size) + ' bytes: una ROM puede ocupar como máximo ' + formatInt(MAX_ROM_ANY) +
@@ -7903,7 +9275,9 @@ globalThis.CHIP8_ARCHIVE.data = {
     rewind.top = false;   // la foto más nueva del rebobinado es la del final del frame anterior
     setPaused(true, true);
     var where = addrText(stop.addr) + ' («' + insnText(stop.addr) + '»)';
-    if (stop.kind === 'breakpoint') announce('Punto de corte en ' + where + ': en pausa, antes de ejecutarla.');
+    var bpName = stop.kind === 'breakpoint' ? workshopBreakpointName(stop.addr) : null;   // un :breakpoint de Octo
+    if (bpName) announce('Punto de corte «' + bpName + '» en ' + where + ': en pausa, antes de ejecutarla.');
+    else if (stop.kind === 'breakpoint') announce('Punto de corte en ' + where + ': en pausa, antes de ejecutarla.');
     else if (run === 'over') announce('Paso por encima: la subrutina volvió. PC = ' + where + '.');
     else if (run === 'out') announce('Salir: la subrutina volvió. PC = ' + where + '.');
     else announce('Hasta acá: llegó a ' + where + '.');
@@ -13496,6 +14870,7 @@ globalThis.CHIP8_ARCHIVE.data = {
     syncAudioSource();
     updateMonitor(false);
     updateRewindInfo(false);
+    if (ws.open) wsTrackPc();
   }
 
   // ------------------------------------------------------------------ armado de la interfaz
@@ -13759,15 +15134,20 @@ globalThis.CHIP8_ARCHIVE.data = {
   }
 
   // ------------------------------------------------------------------ taller: los programas
-  // El Taller escribe, ensambla (con Chip8Asm, el bloque chip8-asm) y corre programas: el que se ensambla
-  // se carga con loadCartridge (origin 'taller': valen los ajustes por cartucho, pero no va a «Tus
-  // cartuchos»). Los programas son los ejemplos del tutorial y los fuentes de los cartuchos (de
-  // CHIP8_SOURCES, que arma tools/embed-roms.js) y los tuyos. La plataforma de un programa es la de su
-  // etiqueta «; @platform» (sin ella, CHIP-8): el selector Plataforma escribe esa etiqueta, así el fuente
-  // dice todo y un .asm bajado o abierto la conserva.
+  // El Taller escribe, ensambla (con Chip8Asm, el bloque chip8-asm) o compila (con Chip8Octo, el bloque
+  // chip8-octo) y corre programas: el que se arma se carga con loadCartridge (origin 'taller': valen los
+  // ajustes por cartucho, pero no va a «Tus cartuchos»). Los programas son los ejemplos del tutorial, los
+  // fuentes de los cartuchos y los ejemplos en Octo (de CHIP8_SOURCES, que arma tools/embed-roms.js) y los
+  // tuyos. Cada programa está en un lenguaje (lang): 'asm', el ensamblador del proyecto, o 'octo', el de
+  // Octo (los ejemplos en Octo y los tuyos que lo dicen). En el ensamblador, la plataforma de un programa es
+  // la de su etiqueta «; @platform» (sin ella, CHIP-8): el selector Plataforma escribe esa etiqueta, así el
+  // fuente dice todo y un .asm bajado o abierto la conserva. En Octo la plataforma sale del programa (la
+  // menor con todas sus instrucciones) y corre con los quirks y la velocidad de Octo. En los dos lenguajes
+  // la etiqueta «@ipf N» del encabezado dice a cuántas instrucciones por cuadro corre.
   // localStorage 'chip8-consola.taller':
-  //   { version: 1, next, open, programs: [{ id: 'mio:N', name, source, saved }],
-  //     edited: { 'ejemplo:<archivo>' | 'demo:<id>': { source, saved } }, drafts: { <id>: fuente } }
+  //   { version: 1, next, open, programs: [{ id: 'mio:N', name, source, saved, lang? }],
+  //     edited: { 'ejemplo:<archivo>' | 'demo:<id>' | 'octo:<archivo>': { source, saved } }, drafts: { <id>: fuente } }
+  // lang solo está en los programas en Octo (lang: 'octo'); sin él, el programa es del ensamblador.
   // edited son los ejemplos y los cartuchos que cambiaste y guardaste («Restaurar el original» los
   // borra); drafts, lo que cambiaste y todavía no guardaste (se anota solo, a los WS_DRAFT_MS de dejar
   // de escribir, así no se pierde al recargar). Al leer se valida campo por campo: lo roto se descarta y
@@ -13793,26 +15173,73 @@ globalThis.CHIP8_ARCHIVE.data = {
     'fin:    JP fin                  ; un programa termina en un salto a sí mismo',
     ''
   ].join('\n');
+  // El mismo programa, en el lenguaje de Octo.
+  var WS_TEMPLATE_OCTO = [
+    '# Mi programa en el lenguaje de Octo: dibuja la letra A de la fuente en el medio de la pantalla.',
+    '# Ctrl+Enter lo compila y lo corre en la consola.',
+    '',
+    ': main',
+    '  clear',
+    '  v0 := 0xA',
+    '  i := hex v0            # i apunta al dígito A de la fuente',
+    '  v1 := 30               # x',
+    '  v2 := 13               # y',
+    '  sprite v1 v2 5',
+    '  loop again             # un programa termina en un bucle que no hace nada',
+    ''
+  ].join('\n');
   // El ensamblador del bloque chip8-asm: sin él, el Taller no aparece.
   var Asm = globalThis.Chip8Asm && typeof globalThis.Chip8Asm.check === 'function' &&
     typeof globalThis.Chip8Asm.headerTags === 'function' ? globalThis.Chip8Asm : null;
+  // El compilador de Octo del bloque chip8-octo: sin él, el Taller anda igual, solo con el ensamblador.
+  var Octo = globalThis.Chip8Octo && typeof globalThis.Chip8Octo.compile === 'function' &&
+    typeof globalThis.Chip8Octo.headerTags === 'function' ? globalThis.Chip8Octo : null;
+  // Lo que cambia con el lenguaje del programa: los textos del Taller y la plantilla de «Nuevo».
+  var WS_LANG = {
+    asm: {
+      label: 'Ensamblador', ext: '.asm', comment: ';', template: WS_TEMPLATE,
+      run: 'Ensamblar y correr', runTip: 'Ensambla el programa y lo carga en la consola (Ctrl+Enter)', verb: 'ensambla',
+      ch8Tip: 'Ensambla el programa y baja la ROM (.ch8)', editor: 'Programa en el assembler de CHIP-8',
+      errors: 'Errores del ensamblador', ready: 'Sin errores: ya se puede ensamblar y correr.'
+    },
+    octo: {
+      label: 'Octo', ext: '.8o', comment: '#', template: WS_TEMPLATE_OCTO,
+      run: 'Compilar y correr', runTip: 'Compila el programa con el compilador de Octo y lo carga en la consola (Ctrl+Enter)', verb: 'compila',
+      ch8Tip: 'Compila el programa y baja la ROM (.ch8)', editor: 'Programa en el lenguaje de Octo',
+      errors: 'Errores del compilador de Octo', ready: 'Sin errores: ya se puede compilar y correr.'
+    }
+  };
+  // Un programa en Octo corre como en Octo: con sus quirks (todas sus opciones apagadas, que son los del perfil
+  // XO-CHIP) y su velocidad de siempre (tickrate 20), salvo que su etiqueta @ipf pida otra.
+  var OCTO_QUIRKS = Core.QUIRK_PRESETS.xochip.quirks;
+  var OCTO_IPF = 20;
+  function langOf(name) { return /\.8o$/i.test(name) ? 'octo' : 'asm'; }
+  function stripExt(name) { return name.replace(/\.(asm|8o)$/i, ''); }
 
   function toLf(text) { return String(text).replace(/\r\n|\r/g, '\n'); }
   function endSentence(text) { return /[.!?…]$/.test(text) ? text : text + '.'; }
 
-  // Los incluidos: { id, kind: 'ejemplo' | 'demo', name, file, description, source }.
+  // Los incluidos: { id, kind: 'ejemplo' | 'demo' | 'octo', lang, name, file, description, source }. Los ejemplos en
+  // Octo están solo si está el compilador.
   var wsBuiltins = (function () {
     var src = globalThis.CHIP8_SOURCES, out = [];
     if (!src || typeof src !== 'object') return out;
     (Array.isArray(src.examples) ? src.examples : []).forEach(function (x) {
       if (!x || typeof x.name !== 'string' || !/^[a-z0-9_-]+\.asm$/.test(x.name) || typeof x.source !== 'string') return;
-      out.push({ id: 'ejemplo:' + x.name, kind: 'ejemplo', name: x.name, file: x.name,
+      out.push({ id: 'ejemplo:' + x.name, kind: 'ejemplo', lang: 'asm', name: x.name, file: x.name,
         description: cleanText(x.description, 200), source: toLf(x.source) });
     });
+    if (Octo) {
+      (Array.isArray(src.octo) ? src.octo : []).forEach(function (x) {
+        if (!x || typeof x.name !== 'string' || !/^[a-z0-9_-]+\.8o$/.test(x.name) || typeof x.source !== 'string') return;
+        out.push({ id: 'octo:' + x.name, kind: 'octo', lang: 'octo', name: x.name, file: x.name,
+          description: cleanText(x.description, 200), source: toLf(x.source) });
+      });
+    }
     var ds = src.demos && typeof src.demos === 'object' ? src.demos : {};
     demos.forEach(function (d) {
       if (!hasOwn(ds, d.id) || typeof ds[d.id] !== 'string') return;
-      out.push({ id: 'demo:' + d.id, kind: 'demo', name: d.name, file: d.id + '.asm', demoId: d.id,
+      out.push({ id: 'demo:' + d.id, kind: 'demo', lang: 'asm', name: d.name, file: d.id + '.asm', demoId: d.id,
         description: d.description, source: toLf(ds[d.id]) });
     });
     return out;
@@ -13831,8 +15258,14 @@ globalThis.CHIP8_ARCHIVE.data = {
     try { raw = JSON.parse(text); } catch (e) { raw = null; }
     if (!raw || typeof raw !== 'object' || raw.version !== 1) return { store: store, damaged: 'todo' };
     function source(v) { return typeof v === 'string' && v.length <= WS_SOURCE_MAX ? toLf(v) : null; }
-    function addMine(name, src, saved) {
-      store.programs.push({ id: 'mio:' + store.next++, name: name, source: src, saved: saved });
+    // Un programa tuyo: lang solo se anota si es de Octo (así los del ensamblador quedan como siempre).
+    function mine(id, name, src, saved, lang) {
+      var p = { id: id, name: name, source: src, saved: saved };
+      if (lang === 'octo') p.lang = 'octo';
+      return p;
+    }
+    function addMine(name, src, saved, lang) {
+      store.programs.push(mine('mio:' + store.next++, name, src, saved, lang));
     }
     var maxN = 0;
     (Array.isArray(raw.programs) ? raw.programs : []).forEach(function (p) {
@@ -13841,7 +15274,8 @@ globalThis.CHIP8_ARCHIVE.data = {
       if (src === null || hasOwn(seen, p.id) || store.programs.length >= WS_PROGRAMS_MAX) { dropped++; return; }
       seen[p.id] = true;
       maxN = Math.max(maxN, Number(m[1]));
-      store.programs.push({ id: p.id, name: cleanText(p.name, WS_NAME_MAX) || 'Programa ' + m[1], source: src, saved: isTime(p.saved) ? p.saved : 0 });
+      store.programs.push(mine(p.id, cleanText(p.name, WS_NAME_MAX) || 'Programa ' + m[1], src, isTime(p.saved) ? p.saved : 0,
+        p.lang === 'octo' ? 'octo' : 'asm'));
     });
     store.next = Math.max(isInt(raw.next, 1, 999999999) ? raw.next : 1, maxN + 1);
     var edited = raw.edited && typeof raw.edited === 'object' ? raw.edited : {};
@@ -13850,8 +15284,10 @@ globalThis.CHIP8_ARCHIVE.data = {
       if (src === null) { dropped++; return; }
       var saved = isTime(e.saved) ? e.saved : 0;
       if (wsBuiltin(id)) store.edited[id] = { source: src, saved: saved };
-      // Un ejemplo o un cartucho editado que ya no viene incluido pasa a tus programas: no se pierde.
-      else if (/^(ejemplo|demo):/.test(id) && store.programs.length < WS_PROGRAMS_MAX) addMine(cleanText(id.replace(/^\w+:/, ''), WS_NAME_MAX) || 'Programa', src, saved);
+      // Un ejemplo o un cartucho editado que ya no viene incluido pasa a tus programas, en su lenguaje: no se pierde.
+      else if (/^(ejemplo|demo|octo):/.test(id) && store.programs.length < WS_PROGRAMS_MAX) {
+        addMine(cleanText(id.replace(/^\w+:/, ''), WS_NAME_MAX) || 'Programa', src, saved, /^octo:/.test(id) ? 'octo' : 'asm');
+      }
     });
     var drafts = raw.drafts && typeof raw.drafts === 'object' ? raw.drafts : {};
     Object.keys(drafts).forEach(function (id) {
@@ -13878,7 +15314,10 @@ globalThis.CHIP8_ARCHIVE.data = {
     listDirty: true,    // cambiaron los programas (uno nuevo, borrado o que volvió): la lista se rearma
     unsaved: false,     // lo último no entró en el almacenamiento: está solo en memoria
     damaged: wsLoaded.damaged,
-    build: null,        // { sha, labels, listing } del último programa que se ensambló y se cargó
+    build: null,        // { sha, id, text, lang, labels, listing, lines, names } del último programa que se armó y se cargó
+    version: 0,         // sube con cada cambio del texto del editor (y al abrir otro programa)
+    pcLine: 0,          // el renglón marcado en el margen como el del PC (0: ninguno)
+    langShown: null,    // el lenguaje con que están puestos los textos del Taller
     draftTimer: 0, checkTimer: 0
   };
 
@@ -13886,15 +15325,21 @@ globalThis.CHIP8_ARCHIVE.data = {
     for (var i = 0; i < wsStore.programs.length; i++) if (wsStore.programs[i].id === id) return wsStore.programs[i];
     return null;
   }
-  // Un programa como está guardado: { id, kind, name, builtin | mine, source, saved, edited }.
+  // Un programa como está guardado: { id, kind, lang, name, builtin | mine, source, saved, edited }.
   function wsEntry(id) {
     var b = wsBuiltin(id);
     if (b) {
       var e = hasOwn(wsStore.edited, id) ? wsStore.edited[id] : null;
-      return { id: id, kind: b.kind, name: b.name, builtin: b, mine: null, source: e ? e.source : b.source, saved: e ? e.saved : 0, edited: !!e };
+      return { id: id, kind: b.kind, lang: b.lang, name: b.name, builtin: b, mine: null, source: e ? e.source : b.source, saved: e ? e.saved : 0, edited: !!e };
     }
     var p = wsMine(id);
-    return p ? { id: id, kind: 'mio', name: p.name, builtin: null, mine: p, source: p.source, saved: p.saved, edited: false } : null;
+    return p ? { id: id, kind: 'mio', lang: p.lang === 'octo' ? 'octo' : 'asm', name: p.name, builtin: null, mine: p, source: p.source,
+      saved: p.saved, edited: false } : null;
+  }
+  // El lenguaje del programa abierto en el editor.
+  function wsLang() {
+    var e = ws.current ? wsEntry(ws.current) : null;
+    return e ? e.lang : 'asm';
   }
   function wsExists(id) { return !!(id && (wsBuiltin(id) || wsMine(id))); }
   // El primero que se abre: el último que tenías abierto o, la primera vez, el fuente del cartucho de la
@@ -13951,40 +15396,58 @@ globalThis.CHIP8_ARCHIVE.data = {
     while ((at = text.indexOf('\n', at + 1)) >= 0 && at < pos) n++;
     return n;
   }
-  // El encabezado: los comentarios (y renglones vacíos) del principio, donde van las etiquetas. Devuelve
-  // { text: el encabezado, insert: dónde agregar una etiqueta (después de su último comentario) }.
-  function wsHeader(text) {
-    var at = 0, insert = 0;
+  // El encabezado: los comentarios (y renglones vacíos) del principio, donde van las etiquetas (los comentarios
+  // empiezan con «;» en el ensamblador y con «#» en Octo). Devuelve { text: el encabezado, insert: dónde agregar
+  // una etiqueta (después de su último comentario) }.
+  function wsHeader(text, lang) {
+    var mark = WS_LANG[lang || 'asm'].comment, at = 0, insert = 0;
     while (at < text.length) {
       var nl = text.indexOf('\n', at), end = nl < 0 ? text.length : nl;
       var line = text.slice(at, end).trim();
-      if (line !== '' && line.charAt(0) !== ';') break;
+      if (line !== '' && line.charAt(0) !== mark) break;
       if (line !== '') insert = nl < 0 ? end : nl + 1;
       at = end + 1;
     }
     return { text: text.slice(0, Math.min(at, text.length)), insert: insert };
   }
-  // La etiqueta @platform del programa: { value, line, platform (null si no es una plataforma) } o null.
-  function wsPlatformTag(text) {
-    var tags = Asm.headerTags(wsHeader(text).text);
+  // Las etiquetas del encabezado de un programa en su lenguaje: { nombre: { value, line } }.
+  function wsTags(text, lang) {
+    var head = wsHeader(text, lang).text;
+    return lang === 'octo' ? (Octo ? Octo.headerTags(head) : {}) : Asm.headerTags(head);
+  }
+  // La etiqueta @platform del programa (solo en el ensamblador: en Octo la plataforma sale del programa):
+  // { value, line, platform (null si no es una plataforma) } o null.
+  function wsPlatformTag(text, lang) {
+    if (lang === 'octo') return null;
+    var tags = wsTags(text, 'asm');
     if (!hasOwn(tags, 'platform')) return null;
     var t = tags.platform;
     return { value: t.value, line: t.line, platform: platformLevel(t.value) >= 0 ? t.value : null };
   }
-  // La plataforma del programa: la de su etiqueta o, sin etiqueta (o con una que no vale), CHIP-8.
+  // La plataforma de un programa del ensamblador: la de su etiqueta o, sin etiqueta (o con una que no vale), CHIP-8.
   function wsPlatformOf(text) {
-    var tag = wsPlatformTag(text);
+    var tag = wsPlatformTag(text, 'asm');
     return tag && tag.platform ? tag.platform : 'chip8';
+  }
+  // La etiqueta @ipf del programa: { value, line, ipf (null si no es un número de IPF_MIN a IPF_MAX) } o null.
+  function wsIpfTag(text, lang) {
+    var tags = wsTags(text, lang);
+    if (!hasOwn(tags, 'ipf')) return null;
+    var t = tags.ipf, n = /^\d{1,6}$/.test(t.value) ? Number(t.value) : NaN;
+    return { value: t.value, line: t.line, ipf: n >= IPF_MIN && n <= IPF_MAX ? n : null };
   }
 
   // ------------------------------------------------------------------ taller: el editor
   var wsEl = $('workshop'), wsOpenBtn = $('btn-workshop'), wsText = $('ws-text'), wsLines = $('ws-lines'), wsEditorBox = $('ws-editor');
   var wsProgramSel = $('ws-program'), wsPlatformSel = $('ws-platform'), wsNameField = $('ws-name-field'), wsName = $('ws-name');
+  var wsLangSel = $('ws-lang'), wsPlatformField = $('ws-platform-field');
   var wsAbout = $('ws-about'), wsNote = $('ws-note'), wsStatusEl = $('ws-status'), wsErrorsEl = $('ws-errors'), wsKeys = $('ws-keys');
   var wsBadge = $('ws-badge'), wsFile = $('ws-file');
   var wsBtn = { run: $('ws-run'), save: $('ws-save'), create: $('ws-new'), open: $('ws-open'), asm: $('ws-dl-asm'), ch8: $('ws-dl-ch8'),
     restore: $('ws-restore'), remove: $('ws-delete') };
-  var WS_KEYS_TEXT = wsKeys.innerHTML;
+  // La ayuda de las teclas, debajo del editor (Ctrl+Enter ensambla o compila, según el lenguaje).
+  var WS_KEYS_HTML = wsKeys.innerHTML;
+  function wsKeysHtml() { return WS_KEYS_HTML.replace(/ensambla y corre/, WS_LANG[wsLang()].verb + ' y corre'); }
   var wsLineEls = [], wsMarked = [];
 
   function wsStatus(msg) { wsStatusEl.textContent = msg; }
@@ -14019,6 +15482,44 @@ globalThis.CHIP8_ARCHIVE.data = {
       el.classList.add('is-err');
       wsMarked.push(el);
     });
+  }
+  // El renglón del PC en el margen (0: ninguno). Su cartel dice dónde quedó la máquina.
+  var wsPcEl = null;
+  function wsMarkPc(line, pc) {
+    var el = line ? wsLineEls[line - 1] || null : null;
+    if (wsPcEl && wsPcEl !== el) {
+      wsPcEl.classList.remove('is-pc');
+      if (!wsPcEl.classList.contains('is-err')) wsPcEl.title = '';
+    }
+    wsPcEl = el;
+    if (el) {
+      el.classList.add('is-pc');
+      el.title = 'Acá quedó la máquina: la próxima instrucción es la de ' + addrText(pc) + '.';
+    }
+  }
+  // Con la máquina en pausa (o detenida) y en la ranura el programa del editor tal como se armó, el margen marca el
+  // renglón de la instrucción del PC, la próxima que va a ejecutar (sale del listado del ensamblador o de lo que anota
+  // el compilador de Octo). Si cambió de renglón y el foco no está en el editor, ese renglón queda a la vista.
+  // Corriendo no se marca nada: cambiaría 60 veces por segundo. Lo llama el bucle de la consola, con el Taller abierto.
+  function wsTrackPc() {
+    var b = ws.build, line = 0, pc = cpu.pc & memMask();
+    if (b && !isRunning() && b.id === ws.current) {
+      // ¿El editor tiene el texto que se armó? Se compara una vez por cambio (ws.version), no a cada cuadro.
+      if (b.checked !== ws.version) { b.checked = ws.version; b.same = wsText.value === b.text; }
+      if (b.same && state.romLoaded && state.romSha === b.sha) line = b.lines[pc - Core.PROGRAM_START] || 0;
+    }
+    if (line === ws.pcLine) return;
+    ws.pcLine = line;
+    wsMarkPc(line, pc);
+    if (line && document.activeElement !== wsText) wsRevealLine(line);
+  }
+  // Deja un renglón a la vista sin mover el cursor (con un poco de contexto arriba).
+  function wsRevealLine(line) {
+    var top = WS_PAD_PX + (line - 1) * WS_LINE_PX, view = wsText.clientHeight;
+    if (top < wsText.scrollTop + WS_PAD_PX || top + WS_LINE_PX > wsText.scrollTop + view - WS_PAD_PX) {
+      wsText.scrollTop = Math.max(0, top - Math.round(view / 3));
+      wsSyncScroll();
+    }
   }
   function wsSortedErrors() {
     return ws.errors.slice().sort(function (a, b) { return a.line - b.line; });
@@ -14114,8 +15615,11 @@ globalThis.CHIP8_ARCHIVE.data = {
   }
 
   // Cada cambio del texto: el margen, la plataforma (la etiqueta puede haber cambiado), lo que falta
-  // guardar y, con errores a la vista, una revisión nueva.
+  // guardar y, con errores a la vista, una revisión nueva. El renglón del PC deja de marcarse: el texto ya no
+  // es el que se armó.
   function wsOnInput() {
+    ws.version++;
+    if (ws.pcLine) { ws.pcLine = 0; wsMarkPc(0); }
     wsRenderGutter();
     wsRefresh();
     window.clearTimeout(ws.draftTimer);
@@ -14150,20 +15654,25 @@ globalThis.CHIP8_ARCHIVE.data = {
     } else {
       ws.live = false;
       wsSetErrors([], false);
-      wsStatus('Sin errores: ya se puede ensamblar y correr.');
+      wsStatus(WS_LANG[wsLang()].ready);
     }
   }
 
   // ------------------------------------------------------------------ taller: la interfaz
-  // La descripción del programa (tag: su etiqueta @platform, de wsPlatformTag).
-  function wsAboutText(e, tag) {
-    var now = Date.now(), parts = [];
+  // La descripción del programa (tag: su etiqueta @platform, de wsPlatformTag; ipf: su etiqueta @ipf, de wsIpfTag).
+  function wsAboutText(e, tag, ipf) {
+    var now = Date.now(), parts = [], octo = e.lang === 'octo';
     if (e.kind === 'ejemplo') parts.push(e.builtin.description ? 'Ejemplo del tutorial: ' + endSentence(e.builtin.description) : 'Ejemplo del tutorial.');
+    else if (e.kind === 'octo') parts.push(e.builtin.description ? 'Ejemplo en el lenguaje de Octo: ' + endSentence(e.builtin.description) : 'Ejemplo en el lenguaje de Octo.');
     else if (e.kind === 'demo') parts.push('Fuente del cartucho «' + e.name + '»' + (e.builtin.description ? ': ' + endSentence(e.builtin.description) : '.'));
-    else parts.push(e.saved ? 'Tu programa, guardado ' + savedWhen(e.saved, now).long + '.' : 'Tu programa.');
+    else parts.push((octo ? 'Tu programa en el lenguaje de Octo' : 'Tu programa') + (e.saved ? ', guardado ' + savedWhen(e.saved, now).long + '.' : '.'));
     if (e.edited) parts.push('Lo cambiaste y lo guardaste ' + savedWhen(e.saved, now).long + '.');
+    if (octo && !Octo) parts.push('Ojo: este chip8.html no trae el compilador de Octo, así que no se puede compilar.');
+    else if (octo) parts.push('La plataforma sale de las instrucciones que usa, y corre con los quirks de Octo.');
     if (tag && tag.platform) parts.push('Es de ' + platformLabel(tag.platform) + ': lo dice «@platform ' + tag.value + '», en el encabezado.');
     else if (tag) parts.push('Ojo: «@platform ' + tag.value + '» no es una plataforma (tiene que ser chip8, schip o xochip).');
+    if (ipf && ipf.ipf) parts.push('Va a ' + formatInt(ipf.ipf) + ' IPF: lo dice «@ipf ' + ipf.value + '».');
+    else if (ipf) parts.push('Ojo: «@ipf ' + ipf.value + '» no vale (tiene que ser un número de ' + IPF_MIN + ' a ' + formatInt(IPF_MAX) + ').');
     return parts.join(' ');
   }
   function wsOptionText(id) {
@@ -14172,14 +15681,16 @@ globalThis.CHIP8_ARCHIVE.data = {
     if (id === ws.current ? ws.dirty : hasOwn(wsStore.drafts, id)) flags.push('sin guardar');
     return e.name + (flags.length ? ' · ' + flags.join(', ') : '');
   }
-  // La lista de programas: los tuyos (por nombre), los ejemplos del tutorial y los fuentes de los cartuchos.
+  // La lista de programas: los tuyos (por nombre), los ejemplos del tutorial, los ejemplos en Octo y los fuentes de
+  // los cartuchos.
   function wsRenderList() {
     wsProgramSel.textContent = '';
     var mine = wsStore.programs.slice().sort(function (a, b) {
       try { return a.name.localeCompare(b.name, 'es', { numeric: true, sensitivity: 'base' }); } catch (err) { return a.name < b.name ? -1 : 1; }
     });
-    [['Tus programas', mine], ['Ejemplos del tutorial', wsBuiltins.filter(function (b) { return b.kind === 'ejemplo'; })],
-      ['Cartuchos incluidos', wsBuiltins.filter(function (b) { return b.kind === 'demo'; })]].forEach(function (g) {
+    function kind(k) { return wsBuiltins.filter(function (b) { return b.kind === k; }); }
+    [['Tus programas', mine], ['Ejemplos del tutorial', kind('ejemplo')], ['Ejemplos en Octo', kind('octo')],
+      ['Cartuchos incluidos', kind('demo')]].forEach(function (g) {
       if (!g[1].length) return;
       var group = make('optgroup');
       group.label = g[0];
@@ -14196,7 +15707,27 @@ globalThis.CHIP8_ARCHIVE.data = {
     var o = wsProgramSel.querySelector('option[value="' + id.replace(/["\\]/g, '\\$&') + '"]');
     if (o) o.textContent = wsOptionText(id);
   }
-  // Lo que depende del programa abierto y de su texto: la plataforma, el nombre, la descripción, qué
+  // Los textos que dependen del lenguaje del programa abierto: los botones, sus carteles, los nombres del editor y
+  // de la lista de errores (para los lectores de pantalla) y la ayuda de las teclas. Se cambian solo si cambió el
+  // lenguaje. En Octo no va el selector de plataforma: la plataforma sale del programa.
+  function wsApplyLang(e) {
+    var lang = e.lang, L = WS_LANG[lang];
+    wsLangSel.value = lang;
+    // Los incluidos están en su lenguaje; uno tuyo se puede pasar al otro (sin el compilador de Octo, no hay otro).
+    wsLangSel.disabled = !e.mine || (!Octo && lang === 'asm');
+    if (ws.langShown === lang) return;
+    ws.langShown = lang;
+    wsPlatformField.hidden = lang === 'octo';
+    wsBtn.run.firstChild.nodeValue = L.run;
+    wsBtn.run.title = L.runTip;
+    wsBtn.asm.textContent = 'Descargar ' + L.ext;
+    wsBtn.asm.title = 'Baja el programa como archivo ' + L.ext;
+    wsBtn.ch8.title = L.ch8Tip;
+    wsText.setAttribute('aria-label', L.editor);
+    wsErrorsEl.setAttribute('aria-label', L.errors);
+    if (!ws.escArmed) wsKeys.innerHTML = wsKeysHtml();
+  }
+  // Lo que depende del programa abierto y de su texto: el lenguaje, la plataforma, el nombre, la descripción, qué
   // falta guardar y qué botones van.
   function wsRefresh() {
     var e = ws.current ? wsEntry(ws.current) : null;
@@ -14206,11 +15737,12 @@ globalThis.CHIP8_ARCHIVE.data = {
       ws.dirty = dirty;
       wsRenderOption(e.id);
     }
-    var tag = wsPlatformTag(wsText.value);
+    wsApplyLang(e);
+    var tag = wsPlatformTag(wsText.value, e.lang), ipf = wsIpfTag(wsText.value, e.lang);
     wsPlatformSel.value = tag && tag.platform ? tag.platform : 'chip8';
     wsNameField.hidden = !e.mine;
     if (e.mine && document.activeElement !== wsName) wsName.value = e.name;
-    wsAbout.textContent = wsAboutText(e, tag);
+    wsAbout.textContent = wsAboutText(e, tag, ipf);
     wsBadge.hidden = !dirty;
     wsSetOff(wsBtn.save, 'disabled', !dirty && !ws.unsaved);
     wsSetOff(wsBtn.restore, 'hidden', !e.builtin || !(e.edited || dirty));
@@ -14260,6 +15792,8 @@ globalThis.CHIP8_ARCHIVE.data = {
     ws.current = id;
     wsStore.open = id;
     var e = wsEntry(id);
+    ws.version++;
+    if (ws.pcLine) { ws.pcLine = 0; wsMarkPc(0); }
     wsText.value = hasOwn(wsStore.drafts, id) ? wsStore.drafts[id] : e.source;
     ws.dirty = wsText.value !== e.source;
     ws.live = false;
@@ -14281,25 +15815,63 @@ globalThis.CHIP8_ARCHIVE.data = {
     return true;
   }
 
-  // ------------------------------------------------------------------ taller: ensamblar y correr
-  // Revisa el programa del editor: { errors, truncated, result, platform }. Una etiqueta @platform que no
-  // vale es un error en su renglón; el resto se revisa entonces sin el tope de 4 KB (si no, el programa de
-  // XO-CHIP con la etiqueta mal escrita daría además un "no entra en la memoria" que confunde).
+  // ------------------------------------------------------------------ taller: ensamblar (o compilar) y correr
+  // Revisa el programa del editor en su lenguaje: { errors, truncated, result, platform, ipf, lang }. Una etiqueta
+  // @ipf que no vale es un error en su renglón (ipf queda null: sin etiqueta, no se toca la velocidad). En el
+  // ensamblador, una etiqueta @platform que no vale también; el resto se revisa entonces sin el tope de 4 KB (si
+  // no, el programa de XO-CHIP con la etiqueta mal escrita daría además un "no entra en la memoria" que confunde).
+  // En Octo compila el compilador de Octo, que se detiene en el primer error, y la plataforma sale del programa.
   function wsCheck() {
-    var text = wsText.value, tag = wsPlatformTag(text), errors = [];
-    var platform = tag && tag.platform ? tag.platform : 'chip8';
+    var text = wsText.value, lang = wsLang(), errors = [], ipf = wsIpfTag(text, lang);
+    if (ipf && !ipf.ipf) {
+      errors.push({ line: ipf.line, message: 'Línea ' + ipf.line + ': @ipf tiene que ser un número de ' + IPF_MIN + ' a ' + IPF_MAX + ' (dice "' + ipf.value + '")' });
+    }
+    var out = { errors: errors, truncated: false, result: null, platform: 'chip8', ipf: ipf ? ipf.ipf : null, lang: lang };
+    if (lang === 'octo') {
+      if (!Octo) {
+        errors.push({ line: 1, message: 'Línea 1: este programa está en el lenguaje de Octo, y este chip8.html no trae su compilador' });
+        return out;
+      }
+      var o = Octo.compile(text);
+      out.errors = errors.concat(o.errors);
+      if (o.result) {
+        out.result = o.result;
+        out.platform = o.result.platform;
+      }
+      return out;
+    }
+    var tag = wsPlatformTag(text, 'asm');
+    out.platform = tag && tag.platform ? tag.platform : 'chip8';
     if (tag && !tag.platform) {
       errors.push({ line: tag.line, message: 'Línea ' + tag.line + ': @platform tiene que ser chip8, schip o xochip (dice "' + tag.value + '")' });
     }
-    var r = Asm.check(text, { xochip: platform === 'xochip' || errors.length > 0 });
-    return { errors: errors.concat(r.errors), truncated: r.truncated, result: r.result, platform: platform };
+    var r = Asm.check(text, { xochip: out.platform === 'xochip' || errors.length > 0 });
+    out.errors = errors.concat(r.errors);
+    out.truncated = r.truncated;
+    out.result = r.result;
+    return out;
+  }
+  // El renglón del fuente de cada byte del programa (desde 0x200; 0 si no salió de ninguno), del listado del
+  // ensamblador: lo que el compilador de Octo da hecho.
+  function wsLinesFromListing(listing, size) {
+    var lines = new Array(size), i, k;
+    for (i = 0; i < size; i++) lines[i] = 0;
+    for (i = 0; i < listing.length; i++) {
+      var it = listing[i];
+      for (k = 0; k < it.bytes.length; k++) {
+        var at = it.addr + k - Core.PROGRAM_START;
+        if (at >= 0 && at < size) lines[at] = it.line;
+      }
+    }
+    return lines;
   }
   function wsErrorsText(errors, truncated) {
     var first = errors.slice().sort(function (a, b) { return a.line - b.line; })[0];
     if (errors.length === 1) return 'Un error. ' + first.message;
     return (truncated ? 'Más de ' + formatInt(errors.length) : formatInt(errors.length)) + ' errores. El primero: ' + first.message;
   }
-  // Ensambla el programa del editor. Con errores, los marca, lleva el cursor al primero y devuelve null.
+  // Ensambla (o compila) el programa del editor. Con errores, los marca, lleva el cursor al primero y devuelve
+  // null. Si no: { bytes, labels, listing (null en Octo), lines, breakpoints, platform, ipf, lang }.
   function wsAssemble() {
     window.clearTimeout(ws.checkTimer);
     var r = wsCheck();
@@ -14316,34 +15888,51 @@ globalThis.CHIP8_ARCHIVE.data = {
       wsStatus('El programa está vacío: no tiene ninguna instrucción ni ningún dato.');
       return null;
     }
-    return { bytes: r.result.bytes, labels: r.result.labels, listing: r.result.listing, platform: r.platform };
+    var octo = r.lang === 'octo';
+    return {
+      bytes: r.result.bytes, labels: r.result.labels, listing: octo ? null : r.result.listing,
+      lines: octo ? r.result.lines : wsLinesFromListing(r.result.listing, r.result.bytes.length),
+      breakpoints: octo ? r.result.breakpoints : [], platform: r.platform, ipf: r.ipf, lang: r.lang
+    };
   }
-  // El nombre con que el programa entra en la ranura (el del ejemplo, sin .asm).
-  function wsCartName(e) { return e.kind === 'ejemplo' ? e.name.replace(/\.asm$/, '') : e.name; }
+  // El nombre con que el programa entra en la ranura (el del ejemplo, sin .asm ni .8o).
+  function wsCartName(e) { return e.kind === 'ejemplo' || e.kind === 'octo' ? stripExt(e.name) : e.name; }
   // Para los archivos que se bajan: el del ejemplo o del cartucho, o el nombre del programa sin tildes ni símbolos.
-  function wsFileBase(e) { return e.builtin ? e.builtin.file.replace(/\.asm$/, '') : fileSlug(e.name); }
+  function wsFileBase(e) { return e.builtin ? stripExt(e.builtin.file) : fileSlug(e.name); }
   function wsRange(bytes) {
     var end = Core.PROGRAM_START + bytes.length - 1, d = end > 0xFFF ? 4 : 3;
     return '0x' + hex(Core.PROGRAM_START, d) + ' a 0x' + hex(end, d);
   }
 
-  // «Ensamblar y correr»: si no hay errores, el programa entra en la ranura (con loadCartridge) y corre.
+  // «Ensamblar y correr» (o «Compilar y correr»): si no hay errores, el programa entra en la ranura (con
+  // loadCartridge) y corre. Uno en Octo lleva los quirks y la velocidad de Octo (si la ROM no tiene ajustes
+  // recordados) y sus :breakpoint quedan como puntos de corte del depurador; la etiqueta @ipf, en los dos
+  // lenguajes, pone la velocidad.
   function wsRun() {
     var e = ws.current ? wsEntry(ws.current) : null;
     if (!e) return false;
     var built = wsAssemble();
     if (!built) return false;
-    var name = wsCartName(e);
-    if (!loadCartridge(built.bytes, name, { origin: 'taller', platform: built.platform })) {
+    var name = wsCartName(e), octo = built.lang === 'octo';
+    if (!loadCartridge(built.bytes, name, { origin: 'taller', platform: built.platform, octo: octo, ipf: built.ipf })) {
       ws.build = null;
-      wsStatus('El programa se ensambló, pero no se pudo cargar en la consola.');
+      wsStatus('El programa se ' + (octo ? 'compiló' : 'ensambló') + ', pero no se pudo cargar en la consola.');
       return false;
     }
-    ws.build = { sha: state.romSha, labels: built.labels, listing: built.listing };
+    var names = {};
+    built.breakpoints.forEach(function (bp) {
+      names[bp.addr] = bp.name;
+      if (!cpu.hasBreakpoint(bp.addr)) toggleBreakpoint(bp.addr, true);
+    });
+    ws.build = { sha: state.romSha, id: e.id, text: wsText.value, checked: -1, same: false, lang: built.lang,
+      labels: built.labels, listing: built.listing, lines: built.lines, names: names };
     // Con el foco en el editor (Ctrl+Enter), lo que se teclea va al programa recién después de tocar la pantalla.
     var hint = !wsDocked() ? ' La pantalla está arriba, en la consola.' : document.activeElement === wsText ? ' Para usar el teclado en el programa, tocá la pantalla.' : '';
-    wsStatus('«' + name + '» corre en la consola, en ' + platformLabel(cpu.platform) + ': ' + formatInt(built.bytes.length) +
-      ' bytes, de ' + wsRange(built.bytes) + '.' + hint);
+    var how = state.romSource === 'octo' ? ', con los quirks de Octo' : '';
+    if (built.ipf || state.romSource === 'octo') how += ', a ' + formatInt(liveIpf) + ' IPF';
+    var bps = built.breakpoints.length;
+    wsStatus('«' + name + '» corre en la consola, en ' + platformLabel(cpu.platform) + how + ': ' + formatInt(built.bytes.length) +
+      ' bytes, de ' + wsRange(built.bytes) + '.' + (bps ? (bps === 1 ? ' Tiene un :breakpoint: es un punto de corte.' : ' Sus ' + bps + ' :breakpoint son puntos de corte.') : '') + hint);
     // Con el Taller al costado, que la pantalla quede a la vista.
     if (wsDocked()) {
       var r = crtEl.getBoundingClientRect();
@@ -14351,11 +15940,17 @@ globalThis.CHIP8_ARCHIVE.data = {
     }
     return true;
   }
-  // Las etiquetas y el listado (direcciones y renglones del fuente) del programa del Taller que está en la
-  // ranura, o null si en la ranura hay otra cosa. Para el desensamblado del monitor: no modificarlos.
+  // Las etiquetas, el listado (direcciones y renglones del fuente; null en Octo) y el renglón de cada byte del
+  // programa del Taller que está en la ranura, o null si en la ranura hay otra cosa. Para el desensamblado del
+  // monitor: no modificarlos.
   function workshopSymbols() {
     var b = ws.build;
-    return b && state.romLoaded && state.romSha === b.sha ? { labels: b.labels, listing: b.listing } : null;
+    return b && state.romLoaded && state.romSha === b.sha ? { labels: b.labels, listing: b.listing, lines: b.lines } : null;
+  }
+  // El nombre del :breakpoint de Octo de una dirección, si el programa del Taller que está en la ranura tiene uno ahí.
+  function workshopBreakpointName(a) {
+    var b = ws.build;
+    return b && state.romLoaded && state.romSha === b.sha && hasOwn(b.names, a) ? b.names[a] : null;
   }
 
   // ------------------------------------------------------------------ taller: guardar, abrir y bajar
@@ -14401,14 +15996,16 @@ globalThis.CHIP8_ARCHIVE.data = {
       if (!taken[n.toLowerCase()]) return n;
     }
   }
-  // Un programa tuyo nuevo (vacío, con la plantilla, o con lo que trae un archivo), abierto en el editor.
-  function wsCreate(source, name, how) {
+  // Un programa tuyo nuevo (vacío, con la plantilla, o con lo que trae un archivo), abierto en el editor. lang: 'asm'
+  // (si no se dice) u 'octo'.
+  function wsCreate(source, name, how, lang) {
     if (wsStore.programs.length >= WS_PROGRAMS_MAX) {
       wsStatus('Ya tenés ' + WS_PROGRAMS_MAX + ' programas: borrá alguno que no uses para hacer lugar.');
       return null;
     }
     var n = wsStore.next++;
     var p = { id: 'mio:' + n, name: wsUniqueName(name || 'Programa ' + n), source: source, saved: Date.now() };
+    if (lang === 'octo') p.lang = 'octo';
     wsStore.programs.push(p);
     ws.listDirty = true;
     wsShow(p.id, true);
@@ -14417,6 +16014,7 @@ globalThis.CHIP8_ARCHIVE.data = {
     wsText.focus();
     return p;
   }
+  // Abre un archivo como un programa tuyo: uno .8o es de Octo; cualquier otro, del ensamblador.
   function wsOpenFile(file) {
     var name = file.name || 'programa.asm';
     if (file.size > WS_SOURCE_MAX * 4) {
@@ -14434,7 +16032,7 @@ globalThis.CHIP8_ARCHIVE.data = {
         wsStatus('«' + name + '» es demasiado largo para un programa: tiene ' + formatInt(text.length) + ' caracteres y el máximo es ' + formatInt(WS_SOURCE_MAX) + '.');
         return;
       }
-      wsCreate(text, cleanText(name.replace(/\.[^.\s]{1,8}$/, ''), WS_NAME_MAX) || 'Programa', 'Abriste');
+      wsCreate(text, cleanText(name.replace(/\.[^.\s]{1,8}$/, ''), WS_NAME_MAX) || 'Programa', 'Abriste', langOf(name));
     };
     reader.onerror = function () { wsStatus('No se pudo leer «' + name + '».'); };
     reader.readAsText(file);
@@ -14532,10 +16130,11 @@ globalThis.CHIP8_ARCHIVE.data = {
     if (blob) window.setTimeout(function () { URL.revokeObjectURL (url); }, 60000);
     return name;
   }
+  // «Descargar .asm» (o «.8o», en Octo): el texto del editor.
   function wsDownloadAsm() {
     var e = ws.current ? wsEntry(ws.current) : null;
     if (!e) return null;
-    var name = wsFileBase(e) + '.asm';
+    var name = wsFileBase(e) + WS_LANG[e.lang].ext;
     if (!wsDownload([wsText.value], 'text/plain;charset=utf-8', name)) return null;
     wsStatus('Bajaste «' + name + '».');
     return name;
@@ -14553,7 +16152,8 @@ globalThis.CHIP8_ARCHIVE.data = {
   // La plataforma elegida queda escrita en la etiqueta @platform del encabezado (sin etiqueta, el
   // programa es de CHIP-8: elegir CHIP-8 no la agrega).
   function wsSetPlatform(p) {
-    var text = wsText.value, tag = wsPlatformTag(text);
+    if (wsLang() === 'octo') return;   // en Octo la plataforma sale del programa (el selector no está)
+    var text = wsText.value, tag = wsPlatformTag(text, 'asm');
     if (tag) {
       if (tag.value === p) return;
       var start = wsLineStart(text, tag.line), end = text.indexOf('\n', start);
@@ -14569,6 +16169,31 @@ globalThis.CHIP8_ARCHIVE.data = {
   function wsReplace(start, end, str) {
     wsText.setRangeText(str, start, end, 'preserve');
     wsOnInput();
+  }
+  // El lenguaje de un programa tuyo (los incluidos están en el suyo). Si el texto es la plantilla de «Nuevo» del otro
+  // lenguaje (no lo tocaste), pasa a ser la de este; si no, el texto queda como está y se lee en el lenguaje nuevo
+  // (así, un programa de Octo pegado en uno nuevo se arregla eligiendo «Octo»).
+  function wsSetLang(lang) {
+    var e = ws.current ? wsEntry(ws.current) : null;
+    if (!e) return false;
+    if (!e.mine || !hasOwn(WS_LANG, lang) || e.lang === lang || (lang === 'octo' && !Octo)) {
+      wsLangSel.value = e.lang;
+      return false;
+    }
+    var from = WS_LANG[e.lang], to = WS_LANG[lang];
+    if (lang === 'octo') e.mine.lang = 'octo'; else delete e.mine.lang;
+    window.clearTimeout(ws.checkTimer);
+    ws.live = false;
+    wsSetErrors([], false);   // eran de la revisión en el otro lenguaje
+    if (wsText.value === from.template) {
+      if (e.mine.source === from.template) e.mine.source = to.template;   // lo guardado tampoco tenía cambios
+      wsReplace(0, wsText.value.length, to.template);
+    } else {
+      wsRefresh();
+    }
+    wsCommit('«' + e.name + '»');
+    wsStatus('Lenguaje: ' + to.label + '. Ctrl+Enter lo ' + to.verb + ' y lo corre.');
+    return true;
   }
 
   // ------------------------------------------------------------------ taller: abrir y cerrar
@@ -14615,7 +16240,7 @@ globalThis.CHIP8_ARCHIVE.data = {
     window.clearTimeout(ws.checkTimer);
     ws.open = false;
     ws.escArmed = false;
-    wsKeys.innerHTML = WS_KEYS_TEXT;
+    wsKeys.innerHTML = wsKeysHtml();
     wsEl.hidden = true;
     document.documentElement.classList.remove('has-workshop');
     wsOpenBtn.setAttribute('aria-expanded', 'false');
@@ -14660,13 +16285,21 @@ globalThis.CHIP8_ARCHIVE.data = {
     });
     sel.addEventListener('blur', function () { if (timer) apply(); });
   }
+  // El estado del Taller, para la API. platform: la del programa (en Octo, la que da compilarlo; null si no compila);
+  // pcLine: el renglón marcado como el del PC (0: ninguno).
   function workshopInfo() {
-    var e = ws.current ? wsEntry(ws.current) : null;
+    var e = ws.current ? wsEntry(ws.current) : null, lang = e ? e.lang : 'asm', platform;
+    if (lang === 'octo') {
+      var o = Octo ? Octo.compile(wsText.value) : null;
+      platform = o && o.result ? o.result.platform : null;
+    } else {
+      platform = wsPlatformOf(wsText.value);
+    }
     return {
-      open: ws.open, docked: wsDocked(), id: ws.current, kind: e ? e.kind : null, name: e ? e.name : null,
-      platform: wsPlatformOf(wsText.value), dirty: ws.dirty, edited: e ? e.edited : false, unsaved: ws.unsaved,
+      open: ws.open, docked: wsDocked(), id: ws.current, kind: e ? e.kind : null, lang: lang, name: e ? e.name : null,
+      platform: platform, dirty: ws.dirty, edited: e ? e.edited : false, unsaved: ws.unsaved, pcLine: ws.pcLine,
       errors: wsSortedErrors().map(function (x) { return { line: x.line, message: x.message }; }),
-      programs: wsStore.programs.map(function (p) { return { id: p.id, name: p.name }; })
+      programs: wsStore.programs.map(function (p) { return { id: p.id, name: p.name, lang: p.lang === 'octo' ? 'octo' : 'asm' }; })
     };
   }
 
@@ -14679,6 +16312,12 @@ globalThis.CHIP8_ARCHIVE.data = {
       o.title = PLATFORM_DESC[p];
       wsPlatformSel.appendChild(o);
     });
+    Object.keys(WS_LANG).forEach(function (lang) {
+      var o = make('option', null, WS_LANG[lang].label);
+      o.value = lang;
+      o.disabled = lang === 'octo' && !Octo;   // sin el compilador de Octo, solo el ensamblador
+      wsLangSel.appendChild(o);
+    });
     wsOpenBtn.addEventListener('click', function (e) {
       // Con el mouse, sin foco en el botón (como «?»): el foco va al editor o vuelve a la página.
       if (e.detail > 0) this.blur();
@@ -14687,13 +16326,18 @@ globalThis.CHIP8_ARCHIVE.data = {
     $('ws-close').addEventListener('click', function () { closeWorkshop(true); });
     wsBindSelect(wsProgramSel, function (id) { wsShow(id); }, false);
     wsBindSelect(wsPlatformSel, wsSetPlatform, true);
+    wsBindSelect(wsLangSel, wsSetLang, true);
     wsName.addEventListener('change', wsRename);
     wsName.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); wsRename(); } });
     // «Ensamblar y correr» con el mouse deja el foco en la página (como los botones de la consola), así el
     // teclado ya juega; si hay errores, el foco va al editor, al primero.
     wsBtn.run.addEventListener('click', function () { wsRun(); });
     wsBtn.save.addEventListener('click', function (e) { wsSave(); wsAfterMouse(e); });
-    wsBtn.create.addEventListener('click', function () { wsCreate(WS_TEMPLATE, '', 'Empezaste'); });
+    // «Nuevo» empieza un programa en el lenguaje del que está abierto (con su plantilla).
+    wsBtn.create.addEventListener('click', function () {
+      var lang = wsLang() === 'octo' && Octo ? 'octo' : 'asm';
+      wsCreate(WS_LANG[lang].template, '', 'Empezaste', lang);
+    });
     wsBtn.open.addEventListener('click', function () { wsFile.value = ''; wsFile.click(); });
     wsFile.addEventListener('change', function () { if (wsFile.files && wsFile.files[0]) wsOpenFile(wsFile.files[0]); });
     wsBtn.asm.addEventListener('click', function () { wsDownloadAsm(); });
@@ -14707,14 +16351,14 @@ globalThis.CHIP8_ARCHIVE.data = {
     wsText.addEventListener('blur', function () {
       if (!ws.escArmed) return;
       ws.escArmed = false;
-      wsKeys.innerHTML = WS_KEYS_TEXT;
+      wsKeys.innerHTML = wsKeysHtml();
     });
     wsText.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') return;   // lo maneja el Taller (abajo)
       if (e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey) {
         if (ws.escArmed) {   // después de Esc, Tab sale del editor (como siempre)
           ws.escArmed = false;
-          wsKeys.innerHTML = WS_KEYS_TEXT;
+          wsKeys.innerHTML = wsKeysHtml();
           return;
         }
         e.preventDefault();
@@ -14723,7 +16367,7 @@ globalThis.CHIP8_ARCHIVE.data = {
       }
       if (ws.escArmed && e.key !== 'Shift') {
         ws.escArmed = false;
-        wsKeys.innerHTML = WS_KEYS_TEXT;
+        wsKeys.innerHTML = wsKeysHtml();
       }
     });
     // En todo el Taller: Ctrl+Enter (o Cmd+Enter) ensambla y corre; Esc cierra (en el editor, la primera

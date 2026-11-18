@@ -35,8 +35,8 @@ escenarios E2E) los controla `tests/manual.test.js`
 ### 1.1 Qué es y qué hay en el repositorio
 
 Un emulador de CHIP-8, SUPER-CHIP y XO-CHIP que corre en el navegador desde **un solo
-archivo HTML**, `chip8.html` (unos 1,5 MB y 13.900 líneas; casi la mitad del peso son las
-ROMs de los 104 juegos del archivo de la comunidad, comprimidas), **sin dependencias**: no
+archivo HTML**, `chip8.html` (unos 2,1 MB y 16.600 líneas; más de la mitad del peso son las
+ROMs de los 172 juegos de la comunidad, comprimidas), **sin dependencias**: no
 pide nada a la red, no usa bibliotecas, fuentes ni imágenes externas, y ni siquiera
 contiene una dirección `http(s)`. Se abre con doble clic (`file://`) o por HTTP. Todo lo
 que ve el usuario, los mensajes de error, los comentarios y la documentación están en
@@ -197,11 +197,27 @@ El archivo de John Earnest no tiene todas las entradas de las Octojam: desde la 
 | **Las dos colecciones en el bloque**: `embed` mete los 68 junto a los 104, cada entrada con su `collection` (`'archivo'` o `'itch'`) y los de itch.io con su página sin `https://`; `embed --check` controla los dos | `withCollections`, `toEntry`, `readItchRoms` y `cmdEmbed` | `tests/archive.test.js` y `tests/octojam.test.js` |
 | **La ventana con todos juntos**: los 172 en un solo paquete, sin colecciones a la vista (ni filtro, ni marca, ni cuentas por colección; el aviso y el cartel son iguales para todos), con los filtros de plataforma y de evento o año de siempre | Las secciones «archivo de la comunidad» de `chip8-ui` ([4.25](#425-la-ventana-del-archivo-de-la-comunidad)) | E2E 66 a 70 |
 
-### 1.8 Requisitos no funcionales
+### 1.8 La séptima ronda: Octo en el Taller
+
+Octo es el lenguaje en que la comunidad escribe CHIP-8, y hasta acá el Taller solo entendía
+el ensamblador del proyecto: un programa publicado como fuente `.8o` (como el pong de una
+nota de Hackaday de noviembre de 2026) no se podía correr. La séptima ronda le sumó al
+Taller el compilador oficial de Octo ([7.24](#724-séptima-ronda-octo-en-el-taller)):
+
+| Pieza | Dónde está | Cómo se verifica |
+|---|---|---|
+| **El compilador de Octo**: `js/compiler.js` del repositorio de Octo tal cual (commit aa7f36e, con su licencia), envuelto en una función; alrededor, `compile` (los bytes, la plataforma, las etiquetas, el renglón de cada byte y los `:breakpoint`), `headerTags` con comentarios `#` y la traducción de sus mensajes | El bloque `chip8-octo`, entre `chip8-asm` y `chip8-roms` ([2.1](#21-los-siete-bloques)) | `tests/octo.test.js` (la huella SHA-1 del original, ningún global de más, los bytes, la plataforma, los renglones contra los de Octo, los errores en castellano, cada mensaje traducido y el pong) |
+| **Dos lenguajes en el Taller**: el selector Lenguaje, los botones y los textos de cada uno, la plantilla de Nuevo, Abrir y Descargar `.8o`, y en Octo la plataforma sale del programa | La sección «taller» de `chip8-ui` ([4.23](#423-el-taller)) | E2E 90 y 91 |
+| **Los ajustes de Octo**: un programa en Octo corre con los quirks de Octo y a 20 IPF (salvo que tenga ajustes recordados), y la etiqueta `@ipf` pone la velocidad en los dos lenguajes; la ranura dice «ajustes de Octo» | `loadCartridge` ([4.9](#49-ajustes-por-cartucho)) | E2E 90 y 91 |
+| **El fuente en el depurador**: con la máquina en pausa, el margen del editor marca el renglón del PC (en los dos lenguajes), y los `:breakpoint` de Octo son puntos de corte con nombre | `wsTrackPc`, `wsRun` y `handleDebugStop` ([4.24](#424-el-depurador)) | E2E 90 y 91 |
+| **Los ejemplos en Octo**: el pong de la nota, de Al Williams, con su ROM al lado; `tools/embed-roms.js` los compila con el bloque de `chip8.html` | `docs/ejemplos/octo/` y `buildOctoExamples` ([5.2](#52-el-incrustador-toolsembed-romsjs)) | `tests/taller.test.js` |
+| **Un `.8o` (o un `.asm`) soltado sobre la consola**, o elegido en «Cargar ROM», se abre en el Taller en vez de cargarse como ROM | `loadFile` | E2E 91 |
+
+### 1.9 Requisitos no funcionales
 
 | Requisito | Cómo se cumple | Cómo se verifica |
 |---|---|---|
-| Un solo archivo, sin dependencias ni red | Todo va en línea, también el ensamblador y las ROMs del archivo; el ícono de la pestaña es un SVG en una URL `data:`; la tabla del archivo guarda su fuente sin `https://` ([8.23](#823-ninguna-dirección-de-red-en-chip8html)) | `tests/single-file.test.js` (sin `http(s)`, `@import` ni `src`/`href`/`url()` externos; los seis bloques bien formados); E2E 1 (sin errores ni 404) y 23 (el servidor solo recibe `/chip8.html`) |
+| Un solo archivo, sin dependencias ni red | Todo va en línea, también el ensamblador, el compilador de Octo y las ROMs del archivo; el ícono de la pestaña es un SVG en una URL `data:`; la tabla del archivo guarda su fuente sin `https://` ([8.23](#823-ninguna-dirección-de-red-en-chip8html)) | `tests/single-file.test.js` (sin `http(s)`, `@import` ni `src`/`href`/`url()` externos; los siete bloques bien formados); E2E 1 (sin errores ni 404) y 23 (el servidor solo recibe `/chip8.html`) |
 | Funciona abierto desde el disco | Sin `fetch`, sin módulos ES, sin workers, y la huella SHA-1 en JavaScript puro ([2.6](#26-compatibilidad-con-file)); las ROMs del archivo van adentro del HTML, porque desde `file://` la página no puede leer `roms/archivo/` | E2E 1 carga la página por `file://` y por HTTP; E2E 67 carga un juego del archivo por `file://` |
 | Un programa roto no rompe el emulador | La máquina se detiene con un mensaje ([3.7](#37-errores-avisos-y-fin-del-programa)) | `tests/core-api.test.js` (unos 50 opcodes inválidos, pila); `tests/platform.test.js` (errores de plataforma); E2E 14 y 22 |
 | Se puede manejar solo con el teclado y con lector de pantalla | ARIA, modelo de foco, activación sin puntero ([4.20](#420-accesibilidad)); las listas del monitor y la ventana del archivo se recorren con las flechas, y las ventanas modales se quedan con el teclado ([8.45](#845-las-ventanas-modales-se-quedan-con-el-teclado)) | E2E 5, 20 y 21; desde la cuarta ronda, 57 (el Taller), 58 (puntos de corte con el teclado), 66 y 67 (la ventana del archivo) y 73 y 74 (las de los estados); desde la quinta, 78 y 79 (el cajón de opciones), 85 (el botón del monitor y «Ocultar») y 86 (las tarjetas de «Cartuchos» y su cartel) |
@@ -215,36 +231,38 @@ El archivo de John Earnest no tiene todas las entradas de las Octojam: desde la 
 
 ## 2. Arquitectura del archivo único
 
-### 2.1 Los seis bloques
+### 2.1 Los siete bloques
 
-`chip8.html` tiene seis bloques con un `id` fijo, más el marcado:
+`chip8.html` tiene siete bloques con un `id` fijo, más el marcado:
 
 ```
 chip8.html
 ├── <head>
 │   ├── <link rel="icon" href="data:image/svg+xml,...">    ícono embebido: ningún pedido de red
-│   └── <style id="chip8-style">     ~1440 líneas   carcasa, CRT, keypad, panel, estados, monitor, Taller, ventanas
+│   └── <style id="chip8-style">     ~1710 líneas   carcasa, CRT, keypad, panel, estados, monitor, Taller, ventanas
 └── <body>
-    ├── <main class="desk" id="app">   ~640 líneas   consola, cajón de opciones, Taller, monitor, avisos, ayuda, ventanas
+    ├── <main class="desk" id="app">   ~700 líneas   consola, cajón de opciones, Taller, monitor, avisos, ayuda, ventanas
     ├── <script id="chip8-core">      ~2140 líneas   núcleo puro        → globalThis.Chip8Core
     ├── <script id="chip8-asm">        ~770 líneas   ensamblador puro   → globalThis.Chip8Asm
-    ├── <script id="chip8-roms">       ~115 líneas   GENERADO           → globalThis.CHIP8_DEMOS y CHIP8_SOURCES
-    ├── <script id="chip8-archive">    ~220 líneas   GENERADO           → globalThis.CHIP8_ARCHIVE (y .data, las ROMs)
-    └── <script id="chip8-ui">        ~8055 líneas   interfaz y bucle   → window.chip8
+    ├── <script id="chip8-octo">      ~1340 líneas   compilador de Octo → globalThis.Chip8Octo
+    ├── <script id="chip8-roms">       ~120 líneas   GENERADO           → globalThis.CHIP8_DEMOS y CHIP8_SOURCES
+    ├── <script id="chip8-archive">    ~360 líneas   GENERADO           → globalThis.CHIP8_ARCHIVE (y .data, las ROMs)
+    └── <script id="chip8-ui">        ~9430 líneas   interfaz y bucle   → window.chip8
 ```
 
-En bytes, de los 1,5 MB del archivo, unos 726.000 son las ROMs del archivo de la
-comunidad (`CHIP8_ARCHIVE.data`), 397.000 la interfaz, 102.000 los fuentes del Taller
-(`CHIP8_SOURCES`), 94.000 el núcleo, 84.000 los estilos, 60.000 el marcado y 35.000 el
-ensamblador.
+En bytes, de los 2,1 MB del archivo, unos 1.119.000 son las ROMs de los 172 juegos de la
+comunidad (`CHIP8_ARCHIVE.data`), 475.000 la interfaz, 109.000 los fuentes del Taller
+(`CHIP8_SOURCES`), 102.000 los estilos, 94.000 el núcleo, 70.000 el marcado, 69.000 la
+tabla del archivo, 53.000 el compilador de Octo y 35.000 el ensamblador.
 
 Quién usa a quién:
 
 ```
- roms/*.asm, docs/ejemplos/*.asm ──► tools/embed-roms.js ───────────────────► <script id="chip8-roms">
+ roms/*.asm, docs/ejemplos/ (.asm y octo/*.8o) ──► tools/embed-roms.js ─────► <script id="chip8-roms">
                                                                                         │ CHIP8_DEMOS y CHIP8_SOURCES
  data/archive.json, roms/archivo/ ──► tools/archive.js ──► <script id="chip8-archive"> ─┤ CHIP8_ARCHIVE (la tabla y las ROMs)
  <script id="chip8-asm"> ── Chip8Asm ───────────────────────────────────────────────────┤
+ <script id="chip8-octo"> ── Chip8Octo (también lo usa tools/embed-roms.js) ───────────┤
                                                                                         ▼
  <script id="chip8-core"> ── Chip8Core ──────────────────────────────────────► <script id="chip8-ui">
           ▲                                                                             │
@@ -262,10 +280,16 @@ Quién usa a quién:
   `globalThis.Chip8Asm`. Lo usa el Taller, y `tools/chip8asm.js` lo saca de acá para la
   línea de comandos ([5.1](#51-el-ensamblador-chip8-asm-y-toolschip8asmjs)). Se edita a
   mano, como el núcleo.
+- **`chip8-octo`** es el compilador de Octo, también código puro: el `js/compiler.js` del
+  repositorio de Octo tal cual, entre dos marcas, envuelto en una función para que sus
+  nombres no queden sueltos, con su licencia arriba; después, la API que usa el Taller y
+  la traducción de sus mensajes. Define solo `globalThis.Chip8Octo`. Lo de Octo no se
+  toca: para otra versión se reemplaza lo que está entre las marcas y se pone al día la
+  huella que controla `tests/octo.test.js` ([8.60](#860-el-compilador-de-octo-tal-cual)).
 - **`chip8-roms`** lo escribe `tools/embed-roms.js`: una lista de objetos con el nombre,
   la descripción, los controles, la plataforma (si no es CHIP-8) y los bytes en
   hexadecimal de cada cartucho, y después los fuentes que trae el Taller: el de cada
-  cartucho y los ejemplos del tutorial. No se edita a mano. Ver
+  cartucho, los ejemplos del tutorial y los ejemplos en Octo. No se edita a mano. Ver
   [5.2](#52-el-incrustador-toolsembed-romsjs).
 - **`chip8-archive`** lo escribe `tools/archive.js`: la fuente, la licencia, el commit del
   archivo de la comunidad y, para cada uno de sus programas, indexado por la huella SHA-1
@@ -276,14 +300,15 @@ Quién usa a quién:
 - **`chip8-ui`** es todo lo demás: pantalla, keypad, controles, monitor y depurador,
   sonido, ajustes por cartucho, biblioteca, la ventana del archivo, comodidades, estados
   guardados y sus archivos, rebobinado, el Taller y el bucle principal. Solo lee
-  `Chip8Core`, `Chip8Asm`, `CHIP8_DEMOS`, `CHIP8_SOURCES` y `CHIP8_ARCHIVE`. Ver
-  [4](#4-la-interfaz-chip8-ui).
+  `Chip8Core`, `Chip8Asm`, `Chip8Octo`, `CHIP8_DEMOS`, `CHIP8_SOURCES` y `CHIP8_ARCHIVE`.
+  Ver [4](#4-la-interfaz-chip8-ui).
 
 El núcleo y la interfaz están escritos en JavaScript de estilo ES5 (`var`, funciones y
 prototipos, dentro de una IIFE con `'use strict'`). El ensamblador es la excepción: vino
 tal cual de `tools/chip8asm.js`, en ES2015 (`const`, funciones flecha), que entienden
-todos los navegadores donde corre la consola. Las herramientas y las pruebas usan
-JavaScript moderno, porque corren en Node 22 o más nuevo.
+todos los navegadores donde corre la consola. El compilador de Octo también: es el de
+Octo, con sus plantillas de texto (`` `...${x}` ``); lo que lo envuelve es ES5. Las
+herramientas y las pruebas usan JavaScript moderno, porque corren en Node 22 o más nuevo.
 
 ### 2.2 Por qué un solo archivo
 
@@ -359,10 +384,10 @@ exactamente así**, sin atributos de más: `<style id="chip8-style">`,
 `<script id="chip8-archive">` y `<script id="chip8-ui">`. Las herramientas buscan esos
 textos literales.
 
-Para revisar la sintaxis de los cinco bloques de código sin abrir el navegador:
+Para revisar la sintaxis de los seis bloques de código sin abrir el navegador:
 
 ```sh
-node -e "const h=require('./tests/harness');const vm=require('vm');for(const id of ['chip8-core','chip8-asm','chip8-roms','chip8-archive','chip8-ui']){new vm.Script(h.extractScript(id).code,{filename:id});}console.log('sintaxis ok')"
+node -e "const h=require('./tests/harness');const vm=require('vm');for(const id of ['chip8-core','chip8-asm','chip8-octo','chip8-roms','chip8-archive','chip8-ui']){new vm.Script(h.extractScript(id).code,{filename:id});}console.log('sintaxis ok')"
 ```
 
 ### 2.5 Cómo los tests sacan los bloques
@@ -2080,8 +2105,8 @@ La interfaz expone `window.chip8` para depurar desde la consola del navegador y 
 | `screenColors()` | Los colores distintos que hay en el lienzo (`'#RRGGBB'`, ordenados). |
 | `pressKey(k)`, `releaseKey(k)` | Teclas, como una fuente más ([4.6](#46-teclado-keypad-y-foco)). |
 | `audioState()` | El estado del audio ([4.7](#47-sonido)). |
-| `workshopInfo()` | El Taller: `{ open, docked, id, kind, name, platform, dirty, edited, unsaved, errors: [{ line, message }], programs: [{ id, name }] }` ([4.23](#423-el-taller)). |
-| `workshopSymbols()` | `{ labels, listing }` del programa del Taller que está en la ranura (una copia), o `null` si en la ranura hay otra cosa. |
+| `workshopInfo()` | El Taller: `{ open, docked, id, kind, lang, name, platform, dirty, edited, unsaved, pcLine, errors: [{ line, message }], programs: [{ id, name, lang }] }` (en Octo, `platform` es la que da compilarlo, o `null` si no compila) ([4.23](#423-el-taller)). |
+| `workshopSymbols()` | `{ labels, listing, lines }` del programa del Taller que está en la ranura (una copia; `listing` es `null` en Octo y `lines` es el renglón del fuente de cada byte), o `null` si en la ranura hay otra cosa. |
 | `romInfo()` | `{ name, size, sha1, source, archiveId }` de la ROM de la ranura, o `null`. |
 | `forgetRomSettings()` | «Olvidar ajustes» de la ROM de la ranura. |
 | `setPerRom(on)`, `getPerRom()` | El interruptor «Ajustes por cartucho». |
@@ -2245,10 +2270,11 @@ prueban los escenarios E2E 41 a 50 y 64 ([6.7](#67-los-escenarios-e2e)).
 
 ### 4.23 El Taller
 
-El Taller escribe, ensambla y corre programas en el assembler del proyecto. Es el
-conjunto de secciones «taller: …» de `chip8-ui`, al final, antes de la API de depuración.
-Se abre y se cierra con el botón del lápiz (`#btn-workshop`, al lado del «?»), con Y o con
-`openWorkshop`/`closeWorkshop`; sin `Chip8Asm` no aparece.
+El Taller escribe, ensambla (o compila) y corre programas en dos lenguajes: el assembler
+del proyecto y, desde la séptima ronda, el de Octo. Es el conjunto de secciones «taller: …»
+de `chip8-ui`, al final, antes de la API de depuración. Se abre y se cierra con el botón
+del lápiz (`#btn-workshop`, al lado del «?»), con Y o con `openWorkshop`/`closeWorkshop`;
+sin `Chip8Asm` no aparece, y sin `Chip8Octo` anda solo con el ensamblador.
 
 **Dónde va.** Desde 1200 px de ancho, fijo a la derecha, de arriba abajo, y la consola se
 corre a la izquierda: la clase `has-workshop` del `<html>` le da al `.desk` un
@@ -2269,14 +2295,29 @@ al abrir el Taller el cajón se guarda; abierto después, tapa el Taller
 
 **Los programas.** `wsBuiltins` arma los incluidos a partir de `CHIP8_SOURCES`
 ([5.2](#52-el-incrustador-toolsembed-romsjs)): los once ejemplos del tutorial
-(`ejemplo:<archivo>`) y el fuente de cada cartucho (`demo:<id>`); los tuyos son `mio:N`.
-El selector **Programa** los agrupa (Tus programas, Ejemplos del tutorial, Cartuchos
-incluidos) y marca «· editado» y «· sin guardar». Un incluido se cambia y se guarda
-(queda «editado») y **Restaurar el original** lo devuelve; los tuyos, además, se
-renombran y se borran, con «Deshacer». **Nuevo** empieza uno con `WS_TEMPLATE`, que ya
-corre (dibuja la A de la fuente en el medio); **Abrir .asm** trae un archivo de texto de
-hasta `WS_SOURCE_MAX` caracteres; **Descargar .asm** y **Descargar .ch8** bajan el texto
-y la ROM.
+(`ejemplo:<archivo>`), los ejemplos en Octo (`octo:<archivo>`, solo si está el
+compilador) y el fuente de cada cartucho (`demo:<id>`); los tuyos son `mio:N`. El
+selector **Programa** los agrupa (Tus programas, Ejemplos del tutorial, Ejemplos en
+Octo, Cartuchos incluidos) y marca «· editado» y «· sin guardar». Un incluido se cambia y
+se guarda (queda «editado») y **Restaurar el original** lo devuelve; los tuyos, además,
+se renombran y se borran, con «Deshacer». **Nuevo** empieza uno en el lenguaje del que
+está abierto, con su plantilla (`WS_TEMPLATE` o `WS_TEMPLATE_OCTO`), que ya corre (las dos
+dibujan la A de la fuente en el medio); **Abrir archivo** trae un archivo de texto de
+hasta `WS_SOURCE_MAX` caracteres (uno `.8o` es de Octo); **Descargar .asm** (o **.8o**) y
+**Descargar .ch8** bajan el texto y la ROM. Un `.8o` o un `.asm` soltado sobre la consola,
+o elegido en «Cargar ROM», no se carga como ROM: `loadFile` abre el Taller y lo trae como
+un programa tuyo.
+
+**El lenguaje.** Cada programa está en uno (`lang`): los incluidos, en el suyo (los
+ejemplos en Octo, `'octo'`; el resto, `'asm'`); los tuyos, en el que dice `lang: 'octo'`
+o, sin él, en el ensamblador. `WS_LANG` junta lo que cambia con el lenguaje: el texto del
+botón de correr («Ensamblar y correr» o «Compilar y correr») y de los de bajar, sus
+carteles, los nombres del editor y de la lista de errores para los lectores de pantalla,
+la ayuda de las teclas, el comentario (`;` o `#`) y la plantilla; `wsApplyLang` los pone
+cuando cambia el lenguaje del programa abierto. El selector **Lenguaje** está fijo en los
+incluidos; en uno tuyo lo cambia (`wsSetLang`): si el texto es la plantilla del otro
+lenguaje, pasa a la de este, y si no, queda como está y los errores que había se borran
+(eran de la revisión en el otro lenguaje).
 
 **El editor.** Un `textarea` sin ajuste de línea, con un margen de números de renglón que
 se corre con el texto (renglones de `WS_LINE_PX`, movido con `translateY`). Tab agrega
@@ -2295,7 +2336,11 @@ los comentarios del encabezado. Con el mouse se aplica enseguida; con el teclado
 cuando se deja de mover (0,6 s) o al salir del selector, así recorrer las opciones no
 reescribe el texto a cada flecha
 ([8.34](#834-la-plataforma-de-un-programa-es-su-etiqueta-platform)). Una etiqueta que no
-vale es un error en su renglón.
+vale es un error en su renglón. En Octo el selector no está: la plataforma la da el
+compilador, la menor que tiene todas las instrucciones del programa
+([8.61](#861-en-octo-la-plataforma-sale-del-programa)). En los dos lenguajes, la etiqueta
+`@ipf N` (`; @ipf` o `# @ipf`) dice a cuántas instrucciones por frame corre, de 1 a
+10.000; otro valor es un error en su renglón ([8.63](#863-ipf-la-velocidad-en-el-fuente)).
 
 **Ensamblar y correr.** `wsRun` llama a `wsAssemble`, que revisa el programa con
 `Chip8Asm.check` (con `xochip: true` si la plataforma es XO-CHIP). Con errores, los marca
@@ -2303,21 +2348,41 @@ en el margen (el número en rojo, con el mensaje en el `title`), los lista debaj
 editor (un clic lleva a su renglón), pone `aria-invalid` y lleva el cursor al primero;
 mientras se corrige, el programa se vuelve a revisar solo, `WS_CHECK_MS` después de la
 última tecla, y la consola no cambia. Sin errores, carga los bytes con
-`loadCartridge(bytes, nombre, { origin: 'taller', platform })`
+`loadCartridge(bytes, nombre, { origin: 'taller', platform, octo, ipf })`
 ([4.8](#48-carga-de-roms)): el programa corre con los ajustes por cartucho de siempre,
-pero en la plataforma de su etiqueta, y no entra a «Tus cartuchos». `ws.build` recuerda la
-huella, las etiquetas y el listado del último que se cargó, y `workshopSymbols()` los
+pero en la plataforma de su etiqueta (o la de sus instrucciones, en Octo) y a la velocidad
+de su `@ipf`, y no entra a «Tus cartuchos». Uno en Octo, si la ROM no tiene ajustes
+recordados, arranca con los quirks y la velocidad de Octo (`OCTO_QUIRKS`, los del perfil
+XO-CHIP, y `OCTO_IPF`, 20), y la ranura dice «ajustes de Octo» (`state.romSource ===
+'octo'`, [8.62](#862-un-programa-de-octo-corre-como-en-octo)). En Octo revisa el
+compilador de Octo, que se detiene en el primer error: la lista tiene uno solo, con el
+mensaje en castellano. `ws.build` recuerda la huella, el programa y su texto, las
+etiquetas, el listado (en el ensamblador) y el renglón de cada byte (`lines`: en Octo
+los da el compilador; en el ensamblador, `wsLinesFromListing`), y `workshopSymbols()` los
 devuelve mientras esa huella sea la de la ranura: el desensamblado los usa para mostrar
-las etiquetas (`disasmLabel`, [4.24](#424-el-depurador)).
+las etiquetas (`disasmLabel`, [4.24](#424-el-depurador)). Los `:breakpoint nombre` de un
+programa en Octo quedan como puntos de corte al cargarlo, y al detenerse en uno el aviso
+dice su nombre (`workshopBreakpointName`).
+
+**El renglón del PC.** Con la máquina en pausa o detenida y, en la ranura, el programa
+del editor tal como se armó (el mismo programa y el mismo texto: `ws.build.text`, que se
+compara una sola vez por cambio gracias a `ws.version`), `wsTrackPc` marca en el margen el
+renglón de la instrucción del PC (la clase `is-pc`, en amarillo, con un cartel que dice la
+dirección); si el renglón cambió y el foco no está en el editor, lo deja a la vista. Lo
+llama el bucle principal en cada cuadro, con el Taller abierto; corriendo no marca nada
+([8.64](#864-el-renglón-del-pc-en-el-margen)).
 
 **Lo que se guarda.** Todo va a `localStorage['chip8-consola.taller']`:
 
 ```
 { version: 1, next, open,
-  programs: [{ id: 'mio:N', name, source, saved }],
-  edited: { 'ejemplo:<archivo>' | 'demo:<id>': { source, saved } },
+  programs: [{ id: 'mio:N', name, source, saved, lang? }],
+  edited: { 'ejemplo:<archivo>' | 'demo:<id>' | 'octo:<archivo>': { source, saved } },
   drafts: { <id>: fuente } }
 ```
+
+`lang` está solo en los programas en Octo (`'octo'`): los del ensamblador quedan
+exactamente como antes de la séptima ronda, y una página vieja los sigue leyendo.
 
 `edited` son los incluidos que cambiaste y guardaste (Restaurar los borra); `drafts`, lo
 que cambiaste y todavía no guardaste, que se anota solo `WS_DRAFT_MS` después de la última
@@ -2331,9 +2396,12 @@ almacenamiento o sin lugar, todo sigue en memoria y lo dice la línea del Taller
 diferencia de los ajustes, el Taller no le saca lugar a nadie para guardar lo suyo. Los
 límites: `WS_PROGRAMS_MAX` programas tuyos y nombres de hasta `WS_NAME_MAX` caracteres.
 
-**Fuera de sus secciones** el Taller tocó poco: la opción `platform` de `loadCartridge`,
-el `case 'KeyY'` de `onKeyDown`, `buildWorkshop()` en el arranque y dos miembros de
-`window.chip8`, `workshopInfo` y `workshopSymbols` ([4.21](#421-la-api-de-depuración-windowchip8)).
+**Fuera de sus secciones** el Taller tocó poco: las opciones `platform`, `octo` e `ipf` de
+`loadCartridge`, `loadFile` (los `.8o` y `.asm` van al Taller), el `case 'KeyY'` de
+`onKeyDown`, el nombre del `:breakpoint` en `handleDebugStop`, `wsTrackPc` en el bucle
+principal, `buildWorkshop()` en el arranque y dos miembros de `window.chip8`,
+`workshopInfo` (que dice también el lenguaje y el renglón del PC) y `workshopSymbols`
+(que trae también `lines`) ([4.21](#421-la-api-de-depuración-windowchip8)).
 
 ### 4.24 El depurador
 
@@ -2988,7 +3056,7 @@ node tools/embed-roms.js --html otro.html  # actualiza otro HTML
   ([4.23](#423-el-taller)):
 
   ```js
-  /* También GENERADO: los fuentes del Taller, los de las demos (roms/*.asm) y los ejemplos del tutorial (docs/ejemplos/*.asm). */
+  /* También GENERADO: los fuentes del Taller, los de las demos (roms/*.asm), los ejemplos del tutorial (docs/ejemplos/*.asm) y los de Octo (docs/ejemplos/octo/*.8o). */
   globalThis.CHIP8_SOURCES = {
     demos: { "rebote": "; @name Rebote\n; @description Una pelotita sonriente ...", ... },
     examples: [
@@ -2996,6 +3064,11 @@ node tools/embed-roms.js --html otro.html  # actualiza otro HTML
         description: "el programa de la parte 3, ahora en ensamblador",
         source: "; 01-a-mano.asm — el programa de la parte 3, ahora en ensamblador\n;\n..." },
       ...
+    ],
+    octo: [
+      { name: "pong.8o",
+        description: "Pong para dos, de la nota de Hackaday «CHIP-8: The Pong Game's Afoot»",
+        source: "# pong.8o — Pong para dos, de la nota de Hackaday ...\n#\n..." }
     ]
   };
   ```
@@ -3007,7 +3080,15 @@ node tools/embed-roms.js --html otro.html  # actualiza otro HTML
   (hoy ninguno). Cada ejemplo tiene que ensamblarse para su plataforma y no estar vacío;
   si no, falla con «embed-roms: docs/ejemplos/x.asm: Línea N: …». Los textos van con fin de
   línea LF. Sin la carpeta `docs/ejemplos/` (una copia de la herramienta con otros
-  cartuchos), `examples` queda vacía. Los fuentes ocupan unos 100 KB del HTML.
+  cartuchos), `examples` queda vacía. Los fuentes ocupan unos 110 KB del HTML.
+- `octo` son los ejemplos en el lenguaje de Octo, `docs/ejemplos/octo/*.8o` en orden
+  alfabético (hoy, el pong). Cada uno se compila con el compilador del bloque `chip8-octo`
+  de `chip8.html` (`loadOcto` lo evalúa aparte, con `node:vm`, sin dejar globales), y su
+  ROM queda al lado, en `docs/ejemplos/octo/<nombre>.ch8`, como la de cada demo: se
+  escribe si cambió, y `--check` avisa si no coincide. Su descripción es la primera línea
+  de comentario sin el «nombre.8o — » del principio, y una etiqueta `# @ipf` tiene que
+  ser un número de 1 a 10.000. Un ejemplo que no compila falla con el mensaje del
+  compilador, en castellano y con su renglón.
 - Las etiquetas se leen con `headerTags`, del ensamblador ([5.1](#51-el-ensamblador-chip8-asm-y-toolschip8asmjs)),
   y los programas se ensamblan con el mismo: `tools/embed-roms.js` hace `require` de
   `tools/chip8asm.js`, que saca el bloque `chip8-asm` del `chip8.html` del repositorio
@@ -3231,7 +3312,7 @@ percentil 95) mientras se corre y se rebobina con XO-CHIP a 1000 IPF.
 
 Los de la cuarta ronda (del 51 al 77) suman otras: las teclas `PageUp` y `PageDown`, para
 las listas del monitor y la ventana del archivo; el selector de archivos interceptado
-también para «Abrir .asm» e «Importar»; las descargas del Taller y de los estados,
+también para «Abrir archivo» (antes «Abrir .asm») e «Importar»; las descargas del Taller y de los estados,
 recibidas en la carpeta temporal y comparadas byte por byte (los `.ch8` con los que da
 `tools/chip8asm.js`, los archivos de estados campo por campo y sus pantallitas, PNG
 decodificados, píxel por píxel); los colores leídos del lienzo del mapa de la memoria y
@@ -3316,15 +3397,16 @@ Antes de dar por terminado un cambio: `node --test` y, si tocaste la interfaz,
 | `tests/estados-archivos.test.js` | Los archivos de estados, el giro de las pantallitas y `findCartridge` ([4.26](#426-estados-en-archivos-y-la-lista-de-todos)): evalúa sola la sección «estados guardados: archivos» de `chip8-ui`, con las ayudas que usa sacadas de `chip8.html`; el archivo que se arma (campos y su orden, ida y vuelta, estados reales de las tres plataformas, los nombres de archivo), el mensaje de cada archivo que no sirve (vacío, no JSON, otro programa, otra versión, un estado suelto, todo dañado), cada estado dañado con su motivo, ranuras y fechas, la ROM (buena, ajena, rota, del tamaño máximo), qué pasa con cada ranura al importar y el resumen, el giro contra una referencia escrita aparte, distinguir un archivo de estados de una ROM, y `findCartridge` con demos, «Tus cartuchos» y `archiveRomBytes`. |
 | `tests/depurador.test.js` | El depurador del núcleo: la traza (orden, tope, la instrucción que falla), el mapa de accesos (cada instrucción que lee o escribe, el operando de `F000 NNNN`, la vuelta en `0xFFF`), el registro de dibujos, los puntos de corte (se detiene antes y al seguir ejecuta, el frame abierto, frenar y seguir da lo mismo frame por frame, no son parte del estado), `runTo` (paso por encima con recursión, salir, «hasta acá», una subrutina que no vuelve) y qué borran `reset` y `loadState`. |
 | `tests/cajon.test.js` | El cajón de opciones, la consola entera en la ventana y el botón del monitor, sin navegador ([4.27](#427-el-cajón-de-opciones), [4.28](#428-la-consola-entera-en-la-ventana) y [4.16](#416-el-monitor)): evalúa las secciones «constantes», «utilidades», «validación de lo guardado», «ajustes guardados», «cajón de opciones», «la consola en la ventana» y «miniaturas de cartuchos» de `chip8-ui` con un `localStorage` de mentira; los ajustes `drawerTab` y `monitorOpen` de fábrica, guardados y dañados (las pestañas de la primera vuelta vuelven a «Cartuchos» y un `keypadFolded` guardado se ignora), sin llevarse puestos a los demás; `tabStep`; `drawerBox` y `drawerSide` al costado (con el monitor, con el Taller, sin columna, con la página corrida, con la consola fuera de la ventana, con las esquinas detrás del borde recto de la consola) y desde abajo (en un teléfono, en una tableta, sin lugar); `consoleFitZoom`; `thumbKey`; y el marcado: la región, el botón de la barra, las tres pestañas con sus paneles, las cuatro secciones de «Ajustes», cada control del panel de antes en su lugar con su id, la pestaña «Cartuchos», la ranura rápida sola arriba, la M en la ayuda, el frente de la consola (sin la ranura ni los estantes, sin el keypad plegable, con el cartucho impreso en el bisel, la línea de estado oculta a la vista, los botones de «Ejecución» más grandes y el pie con el nombre del autor y su página, como texto) y la barra de arriba con el botón del monitor; «Cuidado» al final de «Ajustes», con sus cinco botones y su diálogo, y ningún `confirm()` ni `alert()`. |
-| `tests/taller.test.js` | Los fuentes del Taller (`CHIP8_SOURCES`, [5.2](#52-el-incrustador-toolsembed-romsjs)): el de cada cartucho y los once ejemplos del tutorial, iguales a sus archivos y ensamblando a sus `.ch8`, la descripción de cada ejemplo, el bloque sin ningún `<`; y `embed-roms.js` con los ejemplos en una carpeta temporal (`@platform`, `@description`, los errores en castellano, un nombre de archivo que no vale, CRLF, `--check` y sin la carpeta `docs/ejemplos/`). |
+| `tests/taller.test.js` | Los fuentes del Taller (`CHIP8_SOURCES`, [5.2](#52-el-incrustador-toolsembed-romsjs)): el de cada cartucho, los once ejemplos del tutorial y los ejemplos en Octo, iguales a sus archivos y ensamblando (o compilando) a sus `.ch8`, la descripción de cada ejemplo, el bloque sin ningún `<`; y `embed-roms.js` con los ejemplos en una carpeta temporal (`@platform`, `@description`, los errores en castellano, un nombre de archivo que no vale, CRLF, `--check` y sin la carpeta `docs/ejemplos/`; los de Octo: su `.ch8` al lado, su descripción, `@ipf` y un ejemplo que no compila). |
+| `tests/octo.test.js` | El compilador de Octo del bloque `chip8-octo` ([1.8](#18-la-séptima-ronda-octo-en-el-taller)): lo que está entre sus marcas es `js/compiler.js` de Octo sin cambios (su huella SHA-1) y va con su licencia; evaluado aparte define solo `Chip8Octo`; `compile` (los bytes, el salto a `main`, las etiquetas, la plataforma de cada instrucción de SUPER-CHIP y XO-CHIP, también con los dos huecos de Octo, el renglón de cada byte igual al de `posToLine`, los `:breakpoint`, un programa de 60 KB en menos de 3 s); los errores en castellano con su renglón y el tope de memoria de cada plataforma; una traducción por cada mensaje del compilador (y cuántos `throw` tiene); `headerTags`; y el pong, que corre igual a 100 IPF que a 10.000. |
 | `tests/tutorial.test.js` | El tutorial y sus ejemplos ([6.6](#66-pruebas-de-la-documentación)). |
 | `tests/manual.test.js` | El manual, el README y este documento ([6.6](#66-pruebas-de-la-documentación)). |
-| `tests/single-file.test.js` | El contrato del archivo único: los seis bloques, cada uno una vez, con la etiqueta de apertura exacta y en orden; ningún `</script` ni `</style` adentro; ninguna dirección `http(s)`, `@import`, ni `src`/`href`/`url()` que no sea `data:` o `#ancla`; y que los cinco bloques de código compilen. |
+| `tests/single-file.test.js` | El contrato del archivo único: los siete bloques, cada uno una vez, con la etiqueta de apertura exacta y en orden; ningún `</script` ni `</style` adentro; ninguna dirección `http(s)`, `@import`, ni `src`/`href`/`url()` que no sea `data:` o `#ancla`; y que los seis bloques de código compilen. |
 
 ### 6.3 Números actuales
 
-Medido el 7 de noviembre de 2026 con Node 24.18 (`node --test` desde la raíz), al
-terminar la sexta ronda: **1657 pruebas en 241 grupos**, todas pasan y ninguna
+Medido el 18 de noviembre de 2026 con Node 24.18 (`node --test` desde la raíz), al
+terminar la séptima ronda: **1678 pruebas en 247 grupos**, todas pasan y ninguna
 salteada, en unos 9 s (la regla de la plataforma, que corre los 172 juegos un minuto cada
 uno, se lleva unos 7 s de `tests/octojam.test.js`, en paralelo con los demás archivos).
 
@@ -3350,25 +3432,28 @@ uno, se lleva unos 7 s de `tests/octojam.test.js`, en paralelo con los demás ar
 | `tests/quirks.test.js` | 30 |
 | `tests/archive.test.js` | 29 |
 | `tests/asm-bloque.test.js` | 18 |
+| `tests/octo.test.js` | 18 |
 | `tests/octojam.test.js` | 17 |
 | `tests/mutation-gaps.test.js` | 12 |
-| `tests/taller.test.js` | 9 |
+| `tests/taller.test.js` | 12 |
 | `tests/single-file.test.js` | 4 |
-| **Total** | **1657** |
+| **Total** | **1678** |
 
 Todas pasan cuando los cartuchos, los fuentes del Taller, la tabla del archivo y sus ROMs
 incrustados están al día y `roms/archivo/` y `roms/octojam/` están completas. Las pruebas del grupo
 "chip8.html tiene las demos incrustadas" (`embed-roms --check` y la comparación de
 `CHIP8_DEMOS` con las fuentes), las de `CHIP8_SOURCES` en `tests/taller.test.js`, la de
 `archive.js embed --check`, las de las ROMs embebidas y las de `roms/archivo/` fallan a
-propósito si alguien cambia un `roms/*.asm`, un `docs/ejemplos/*.asm` o
+propósito si alguien cambia un `roms/*.asm`, un `docs/ejemplos/*.asm` (o un `.8o` de `docs/ejemplos/octo/`) o
 `data/archive.json` y no vuelve a incrustar o a bajar las ROMs.
 
 Fuera de `node --test`: `node tools/archive.js test` informa que 103 de los 104 juegos del
 archivo corren sin errores, y `node tools/archive.js test --itch`, que los 68 de las Octojam en
 itch.io también ([5.5](#55-toolsarchivejs)).
 
-La E2E: **89 escenarios** ([6.7](#67-los-escenarios-e2e)). En la segunda vuelta de la
+La E2E: **91 escenarios** ([6.7](#67-los-escenarios-e2e)). En la séptima ronda, la corrida
+completa pasó 90 de 91, y el que falló (el 51, que no contaba el grupo nuevo de la lista de
+programas) pasó solo con su verificación al día ([7.24](#724-séptima-ronda-octo-en-el-taller)). En la segunda vuelta de la
 quinta ronda, la corrida completa final pasó 86 de 89, y los tres que fallaron pasaron
 solos una vez corregidos ([7.22](#722-quinta-ronda-la-segunda-vuelta)); en la primera
 vuelta, los 85 de entonces ([7.21](#721-quinta-ronda-la-verificación)). En la cuarta
@@ -3566,7 +3651,8 @@ del 66 al 70, la ventana del archivo; del 71 al 76, los estados en archivos, y e
 dos puntos donde se tocan las piezas ([7.17](#717-cuarta-ronda-la-integración)); del 78 al
 89, de la quinta: del 78 al 83, el cajón de opciones; el 84, la consola entera en la
 ventana; el 85, el botón del monitor; el 86, la pestaña «Cartuchos»; el 87, los carteles;
-el 88, la curvatura con la consola achicada, y el 89, «Cuidado». El 84 y el 85 de la
+el 88, la curvatura con la consola achicada, y el 89, «Cuidado»; el 90 y el 91, de la
+séptima: Octo en el Taller (la sexta no sumó escenarios: cambió los del archivo). El 84 y el 85 de la
 primera vuelta de la quinta ronda probaban el keypad plegable, que la segunda sacó
 ([7.22](#722-quinta-ronda-la-segunda-vuelta)). Desde la quinta, los escenarios que tocan
 las opciones o los cartuchos abren el cajón como una persona ([5.7](#57-toolse2ejs)):
@@ -3662,6 +3748,8 @@ las opciones o los cartuchos abren el cajón como una persona ([5.7](#57-toolse2
 | 87 | Carteles: ningún atributo `title` en la página (al arrancar, después de pausar, guardar un estado y abrir el cajón, en el Taller y en la ventana del archivo); con el mouse sobre «Paso», el cartel de la consola sale a los 350 ms, debajo del botón, sin quedarse con los clics, y se va al sacar el mouse; el texto queda en `data-tip` y en `aria-description` (el nombre sigue siendo «Paso»); el de Pausa, que el código cambia al pausar, también; con Tab hasta un interruptor de «Compatibilidad» sale su cartel y Esc lo cierra (y guarda el cajón); en la ventana del archivo, el cartel de un juego va encima de la ventana. |
 | 88 | La curvatura con la consola achicada, a 1920×945, 1440×900 y 1024×768: con una ROM que dibuja un marco en el borde de la pantalla, los márgenes de la imagen curvada son iguales a la izquierda y a la derecha, arriba y abajo, también cerca de las esquinas, y el mapa del filtro mide lo mismo que el lienzo en la ventana. |
 | 89 | «Cuidado»: borrar los ajustes y los estados de un juego (el diálogo dice qué ajustes y cuántos estados, con el foco en «Cancelar»; Esc cancela; «Deshacer» devuelve todo), un cartucho tuyo, todos tus cartuchos y limpiar el Taller, cada uno con su «Deshacer»; borrar toda la configuración avisa que se van los estados y vuelve a arrancar la consola de fábrica (15 IPF, sin ajustes recordados ni estados), con tus cartuchos y tu programa del Taller. |
+| 90 | Taller con Octo, el pong: con un ejemplo del tutorial, Lenguaje dice «Ensamblador» (fijo) y todo es como antes; el grupo «Ejemplos en Octo» trae el pong, que se abre con su texto y su descripción; en Octo, «Compilar y correr», «Descargar .8o», sin selector de plataforma y los nombres para los lectores de pantalla y la ayuda de las teclas, de Octo; Ctrl+Enter lo compila (la huella es la de los 332 bytes que da el compilador en Node) y corre en CHIP-8, con los quirks de Octo y a 500 IPF, y la ranura y la línea del Taller lo dicen; `workshopSymbols()` trae las etiquetas y el renglón de cada byte; con las teclas 1, Q, 4 y R se mueven las dos paletas; en pausa el margen marca el renglón del PC, lo sigue con Paso y su cartel dice la dirección, el desensamblado muestra las etiquetas y corriendo no se marca nada; «Descargar .8o» y «.ch8» bajan el fuente y la ROM exactos. |
+| 91 | Taller con Octo, un programa tuyo: Nuevo desde un ejemplo del tutorial es del ensamblador; Lenguaje → Octo cambia la plantilla sin dejar nada sin guardar, y la de Octo dibuja la A a 20 IPF con los quirks de Octo; un número que no entra en un byte es el error del compilador en castellano, en su renglón, con el cursor ahí, y corregido la revisión sola lo dice; `# @ipf 1000` y un `:breakpoint dibujo`: la máquina se detiene antes del sprite, el aviso dice el nombre y el margen marca el renglón, y tocando la pantalla Espacio sigue; `# @ipf mucho` es un error; con `plane` corre en XO-CHIP; Guardar lo deja con `lang: 'octo'`; Nuevo desde un programa de Octo es de Octo y Lenguaje → Ensamblador vuelve la plantilla y el selector de plataforma; código de Octo pegado en un programa del ensamblador da errores, y eligiendo Octo queda y compila; «Abrir archivo» con un `.8o` y un `.8o` soltado sobre la consola (con el Taller cerrado) se abren en el Taller como programas tuyos de Octo, sin cargarse como ROM. |
 
 `node tools/e2e.js --help` imprime esta misma lista (sale del comentario del principio del
 archivo).
@@ -3944,7 +4032,7 @@ se "emprolijaron". `650db04` (la integración de la primera ronda) pasa 725 de 7
 salteada hasta que existiera este documento; `199b896` deja cuatro en rojo hasta que se
 pongan al día el bloque de cartuchos y el tutorial; `1d966d0` todavía tiene en rojo las dos
 del bloque de cartuchos, que arregla `19d1dcd`. Los de la segunda ronda y los de esta
-pasan todas ([7.24](#724-cómo-creció-la-suite)).
+pasan todas ([7.25](#725-cómo-creció-la-suite)).
 
 Para correr las pruebas de un commit anterior a `63ad959` en Windows, sacalo con fin de
 línea LF: esos commits no tienen `.gitattributes`, y con `core.autocrlf` prendido los
@@ -4430,7 +4518,54 @@ los 172 juntos con los filtros de plataforma y de evento o año, ninguna tarjeta
 que hable de colecciones, un juego de itch.io cargado con un clic como cualquier otro y
 los cuatro controles enteros a 360 px.
 
-### 7.24 Cómo creció la suite
+### 7.24 Séptima ronda: Octo en el Taller
+
+**El pedido.** El 17 de noviembre de 2026 el usuario compartió una nota de Hackaday,
+«CHIP-8: The Pong Game's Afoot», y preguntó si se podía conseguir su pong. El pong está
+publicado solo como fuente de Octo (`chip8pong.8o`, en el repositorio de su autor), sin
+la ROM armada, y la consola corría ROMs pero no compilaba Octo. Integrar Octo al Taller ya
+estaba anotado como pendiente; el usuario pidió primero un punto de restauración (la
+etiqueta `antes-de-octo`, sobre el commit de la sexta ronda: no había nada para
+commitear) y después: «Ejecutá todo el plan nomás».
+
+**El plan.** Del IDE de Octo se toma solo el compilador: el emulador es el de la consola y
+los editores de sprites, de sonido y de paleta quedan para después
+([9.11](#911-limitaciones-conocidas-y-trabajo-futuro)). El compilador va en un bloque
+propio, tal cual ([8.60](#860-el-compilador-de-octo-tal-cual)); el Taller suma un selector
+de lenguaje, y cada lenguaje trae sus textos, su plantilla y su manera de revisar. Un
+programa en Octo tiene que correr como en Octo: la plataforma sale de sus instrucciones
+([8.61](#861-en-octo-la-plataforma-sale-del-programa)), y los quirks y la velocidad, de
+Octo ([8.62](#862-un-programa-de-octo-corre-como-en-octo)). La nota insiste en que la
+velocidad depende del intérprete: el pong dibuja seis sprites por cuadro, así que con la
+espera del vblank del perfil COSMAC VIP andaría a un tercio de su velocidad, y a los 20 IPF
+de Octo, también más lento; medido con el núcleo, desde 100 IPF va igual que a 10.000,
+porque el ritmo lo marca el temporizador. De ahí la etiqueta `@ipf` en el fuente
+([8.63](#863-ipf-la-velocidad-en-el-fuente)), y el pong lleva `# @ipf 500`. Ya que el
+compilador anota de qué renglón sale cada byte, el depurador lo aprovecha: en pausa, el
+margen marca el renglón del PC, también en el ensamblador
+([8.64](#864-el-renglón-del-pc-en-el-margen)).
+
+**El compilador.** Se bajó `js/compiler.js` del commit `aa7f36e` de Octo (el último que lo
+cambió, del 24 de septiembre de 2021) y se pegó entero entre dos marcas, sin tocar un
+byte; la prueba controla su huella. Los mensajes de Octo están en inglés: se traducen
+afuera, con un patrón por mensaje ([8.65](#865-los-mensajes-de-octo-en-castellano)).
+Probándolo aparecieron dos huecos de Octo en la marca de XO-CHIP: `saveflags` y
+`loadflags` con v0 a v7 la borran aunque antes haya otra instrucción de XO-CHIP, y `pitch`
+no la pone. Los dos se resuelven afuera, sin tocar el compilador
+([8.61](#861-en-octo-la-plataforma-sale-del-programa)), y una prueba avisa si Octo los
+arregla. Otro detalle: los errores del final del programa (falta `main`, un `loop` sin
+`again`) Octo los ubica en el fin del texto, que suele ser un renglón vacío; acá van al
+último renglón con algo.
+
+**La verificación.** `node --test` entero: 1678 pruebas, 18 nuevas en `tests/octo.test.js`
+y 3 en `tests/taller.test.js`. La E2E suma el 90 (el pong: compilarlo, jugarlo de a dos,
+el renglón del PC, bajar el fuente y la ROM) y el 91 (un programa tuyo: el lenguaje, los
+errores, `@ipf`, un `:breakpoint`, la plataforma, guardar, abrir y soltar un `.8o`).
+La corrida completa de los 91 pasó 90: el 51 falló porque esperaba dos grupos en la lista
+de programas, y ahora hay tres (el de Octo); con esa verificación al día pasó solo, y el 87
+(los carteles) también, después de cambiar el cartel del lápiz.
+
+### 7.25 Cómo creció la suite
 
 | Momento | Commit | Pruebas | Resultado |
 |---|---|---|---|
@@ -4459,6 +4594,7 @@ los cuatro controles enteros a 360 px.
 | Quinta ronda, primera vuelta: el cajón de opciones y el keypad plegable, con su documentación | — | 1624 | todas pasan |
 | Quinta ronda, segunda vuelta: los cartuchos en el cajón, la consola entera en la ventana, el monitor que se oculta, el frente sin la línea de estado, los carteles y «Cuidado», con su documentación | — | 1639 | todas pasan |
 | Sexta ronda: las Octojam de itch.io (el comando `itch`, las dos colecciones en el bloque y, a pedido del usuario, todos juntos en la ventana, `tests/octojam.test.js`), con su documentación | — | 1657 | todas pasan |
+| Séptima ronda: Octo en el Taller (el bloque `chip8-octo`, el Taller con dos lenguajes, `@ipf`, el renglón del PC, el pong, `tests/octo.test.js`), con su documentación | — | 1678 | todas pasan |
 
 ---
 
@@ -4975,7 +5111,7 @@ Cada decisión, en formato corto: el contexto, qué se decidió y qué implica.
   leyó, cuáles fueron las últimas instrucciones) y detenerse antes de una dirección. Lo
   primero se anota en cada instrucción; lo segundo, mirado en cada instrucción, frenaría a
   la consola a 10.000 IPF, y la plataforma CHIP-8 no podía volverse más lenta
-  ([1.8](#18-requisitos-no-funcionales)).
+  ([1.9](#19-requisitos-no-funcionales)).
 - **Decisión:** todo en el núcleo, con arreglos tipados reservados una sola vez: en
   `step`, la traza y la marca de código son tres escrituras y un `|=`, sin objetos ni
   llamadas, y las marcas de los datos van dentro de las instrucciones que ya recorren esos
@@ -5082,8 +5218,9 @@ Cada decisión, en formato corto: el contexto, qué se decidió y qué implica.
   entonces es un archivo de estados dañado, y se avisa. Todo lo demás es una ROM, como
   siempre.
 - **Consecuencias:** cualquiera de los dos se suelta en el mismo lugar y anda, y una ROM no
-  se lee entera dos veces. Un `.asm` soltado sigue cargándose como ROM: para abrirlo en el
-  Taller está **Abrir .asm** ([9.11](#911-limitaciones-conocidas-y-trabajo-futuro)).
+  se lee entera dos veces. Desde la séptima ronda, un `.asm` o un `.8o` soltado (o elegido
+  en «Cargar ROM») ya no se carga como ROM: decide el nombre, y se abre en el Taller
+  ([4.23](#423-el-taller)).
 
 ### 8.44 Las pantallitas, con el giro y los colores del cartucho
 
@@ -5402,6 +5539,94 @@ Cada decisión, en formato corto: el contexto, qué se decidió y qué implica.
   (para eso están sus botones). El escenario E2E 89 prueba las cinco acciones, sus
   diálogos y sus «Deshacer».
 
+### 8.60 El compilador de Octo, tal cual
+
+- **Contexto:** para correr un programa escrito en Octo hay que compilarlo, y el
+  compilador de Octo es un solo archivo (`js/compiler.js`, unos 33 KB, licencia MIT), sin
+  DOM ni dependencias. Se podía escribir uno propio, adaptar el de Octo o meterlo entero.
+- **Decisión:** meterlo entero, en un bloque propio (`chip8-octo`, entre el ensamblador y
+  los cartuchos), sin cambiar un byte: entre dos marcas, envuelto en una función que le da
+  un `this` donde deja `Compiler` (así `parse`, `tokenize` y los demás no quedan sueltos en
+  la página), con su licencia arriba. Lo propio va afuera: `compile` (que no lanza y
+  devuelve lo que necesita el Taller), `headerTags`, la traducción de los mensajes y los
+  arreglos de la plataforma ([8.61](#861-en-octo-la-plataforma-sale-del-programa)).
+- **Consecuencias:** compila exactamente como Octo, y otra versión se trae reemplazando lo
+  que está entre las marcas y la huella SHA-1 que controla `tests/octo.test.js`. El
+  archivo crece unos 53 KB. Como el ensamblador, el compilador vive en `chip8.html` y las
+  herramientas lo leen de ahí (`tools/embed-roms.js` lo usa para los ejemplos en Octo): no
+  hay una copia en `tools/`.
+
+### 8.61 En Octo la plataforma sale del programa
+
+- **Contexto:** en el ensamblador la plataforma la dice el fuente (`; @platform`). Un
+  programa de Octo no lo dice, pero el compilador anota si usa instrucciones de SUPER-CHIP
+  o de XO-CHIP. Esa marca tiene dos huecos: `saveflags` y `loadflags` la pisan (con v0 a
+  v7 la dejan en `false` aunque antes hubiera otra instrucción de XO-CHIP) y `pitch` no la
+  pone.
+- **Decisión:** la plataforma es la menor que tiene todas las instrucciones del programa,
+  y el Taller no muestra el selector. Las dos marcas del compilador son propiedades de su
+  objeto que, una vez prendidas, no se apagan (un `Object.defineProperty` antes de
+  compilar), y un programa con `pitch` es de XO-CHIP.
+- **Consecuencias:** no hay que acordarse de nada: un programa con `hires` corre en
+  SUPER-CHIP y uno con `plane`, en XO-CHIP. Un programa que no entra en la memoria de su
+  plataforma (3584 bytes, o 65.024 en XO-CHIP) es un error en el renglón del primer byte
+  que sobra. Si Octo arregla los huecos, una prueba lo avisa.
+
+### 8.62 Un programa de Octo corre como en Octo
+
+- **Contexto:** un programa escrito en Octo se prueba en Octo, con sus quirks de siempre
+  (todas sus opciones apagadas) y su velocidad (20 instrucciones por cuadro). La consola,
+  de fábrica, se comporta como el VIP, con la espera del vblank: el pong de la nota de
+  Hackaday andaría a un tercio de su velocidad.
+- **Decisión:** con «Ajustes por cartucho» prendido, un programa en Octo del Taller
+  arranca con los quirks de Octo (que son los del perfil XO-CHIP) y a 20 IPF, salvo que esa
+  ROM tenga ajustes recordados. La ranura dice «ajustes de Octo».
+- **Consecuencias:** es la misma regla que con los juegos del archivo, que llevan los
+  ajustes con que se juegan en Octo. Cambiar algo en el cajón mientras corre queda
+  recordado para esa ROM, como siempre; al editar el programa la ROM es otra y vuelve a
+  arrancar como en Octo. Con el interruptor apagado, corre con tus ajustes.
+
+### 8.63 @ipf: la velocidad en el fuente
+
+- **Contexto:** muchos programas necesitan más velocidad que la de fábrica (el pong va a su
+  ritmo desde unas 100 IPF), y cambiarla en el cajón no dura: cada vez que editás el
+  programa, la ROM es otra.
+- **Decisión:** una etiqueta en el encabezado, `@ipf N` (de 1 a 10.000), en los dos
+  lenguajes (`; @ipf` y `# @ipf`), como `@platform`. Vale por encima de todo, también de
+  los ajustes recordados: lo dice el fuente. Otro valor es un error en su renglón.
+- **Consecuencias:** el pong lleva `# @ipf 500` y se juega con Ctrl+Enter, sin tocar nada.
+  Un programa sin la etiqueta corre a la velocidad que tenga la consola (en el
+  ensamblador) o a la de Octo (en Octo). `tools/embed-roms.js` controla la etiqueta de los
+  ejemplos en Octo.
+
+### 8.64 El renglón del PC en el margen
+
+- **Contexto:** el compilador de Octo anota de qué renglón sale cada byte, y el
+  ensamblador lo dice en su listado. El depurador mostraba el desensamblado y las
+  etiquetas, pero no dónde estaba la máquina en el fuente.
+- **Decisión:** con la máquina en pausa (o detenida) y el programa del editor en la
+  ranura, tal como se armó, el margen marca el renglón de la instrucción del PC, y si
+  cambió y el foco no está en el editor, lo deja a la vista. Lo calcula el bucle principal
+  en cada cuadro con el Taller abierto, con una cuenta barata: si el texto es el mismo se
+  compara una sola vez por cambio. Corriendo no se marca nada, y en cuanto el texto cambia,
+  la marca se va.
+- **Consecuencias:** con Paso se ve al programa recorrer el fuente, en los dos lenguajes.
+  Un renglón que genera varias instrucciones (un `if ... then` de Octo da dos) queda
+  marcado mientras el PC está en cualquiera de ellas; en una macro, los bytes son del
+  renglón donde está escrita, como en Octo.
+
+### 8.65 Los mensajes de Octo, en castellano
+
+- **Contexto:** toda la consola está en castellano, y el compilador de Octo da sus
+  mensajes en inglés. No se lo puede cambiar ([8.60](#860-el-compilador-de-octo-tal-cual)).
+- **Decisión:** traducirlos afuera: un patrón por cada mensaje que puede dar el
+  compilador, con su traducción, y las palabras que intercala (qué se estaba nombrando,
+  qué valor esperaba) también traducidas. El error va como los del ensamblador: «Línea N:
+  » y el mensaje. Un mensaje que no conoce queda tal cual.
+- **Consecuencias:** si Octo cambia un mensaje, ese queda en inglés hasta que se lo
+  traduzca: `tests/octo.test.js` cuenta los `throw` del compilador y tiene un ejemplo de
+  cada mensaje para que no pase sin que se note.
+
 
 ---
 
@@ -5666,13 +5891,32 @@ ronda:
   consiga el usuario, metidas en `chip8.html` para todos, como los juegos del archivo: el
   `.ch8` y un archivito con sus datos en una carpeta del repositorio, y un comando que los
   embebe. El usuario va a avisar cuando quiera meter alguna.
-- **Ver si conviene integrar Octo** (el lenguaje `.8o` y su compilador) al Taller o hacer
-  una aplicación aparte. Todavía no se investigó.
+- **Editores en el Taller**, sin pasar por Octo: uno de sprites (una grilla, con los dos
+  planos de XO-CHIP, que escribe los bytes en el programa), uno de sonido para el patrón y
+  el tono de XO-CHIP, y uno de paleta. El usuario los pidió analizar en la sexta ronda;
+  Octo en el Taller (la séptima) era el primer paso.
 - **Probar con dispositivos y navegadores de verdad**: un teléfono, un joystick físico,
   Firefox y Safari. Todo se probó en Chrome, con entrada simulada
   ([6.8](#68-lo-que-no-se-verifica-automáticamente)).
 - **Las rarezas de SUPER-CHIP en la HP-48**, como el scroll de medio píxel y las
   colisiones que cuentan filas (abajo, en las limitaciones).
+
+**Lo que dejó afuera la séptima ronda (Octo en el Taller).**
+
+- Del IDE de Octo vino solo el compilador: no están su editor de sprites, el de sonido, el
+  de paleta ni los enlaces para compartir (que necesitan internet). `:monitor` compila pero
+  no hace nada: el monitor de la consola muestra la memoria y los registros.
+- Los colores de un programa en Octo son los de la consola: Octo los guarda aparte, en sus
+  opciones, y el fuente no los dice. Una etiqueta `# @colors` (la que pensó el editor de
+  paleta) podría decirlos.
+- Los quirks de un programa en Octo son siempre los de Octo por defecto: no hay una
+  etiqueta para pedir otros (en el cajón se cambian y quedan recordados para esa ROM).
+- Octo se detiene en el primer error: la lista de errores tiene uno solo, y la revisión
+  sola mientras se corrige compila el programa entero cada vez (unos milisegundos).
+- Los juegos del archivo y de las Octojam no traen su fuente: para abrir uno en el Taller
+  hay que bajarlo de su página. Se podrían meter los fuentes (el archivo los tiene en
+  `src/`, y las exportaciones de itch.io, en `program`) y compilarlos en las pruebas para
+  comparar con las ROMs.
 
 **Lo que dejó afuera la quinta ronda.**
 
@@ -5723,16 +5967,13 @@ ronda:
 **Lo que dejó afuera cada pieza de la cuarta ronda.**
 
 - **El Taller:**
-  - Arrastrar un `.asm` a la página lo sigue cargando como ROM (el arrastre es de la
-    consola; para el Taller está **Abrir .asm**). Se podría distinguir por la extensión
-    en `dropFile`, o con un `drop` propio sobre el Taller.
   - Resaltado de sintaxis (un `textarea` no tiene colores) y autocompletar.
   - Saltar de un error a otro con el teclado (F8 o algo así): hoy se llega por la lista o
     con el cursor.
   - Renombrar y borrar los ejemplos y los cartuchos: no son tuyos, se editan, se guardan y
     se restauran.
   - Exportar o importar todos los programas de una vez: hoy, de a uno, con **Descargar
-    .asm** y **Abrir .asm**.
+    .asm** (o **.8o**) y **Abrir archivo**.
   - Un tope de espacio propio: guarda lo que el navegador deje y, si no entra, avisa y lo
     deja en memoria, sin sacar cartuchos ni estados para hacerse lugar.
   - El ensamblador quedó en ES2015, como estaba en la herramienta, mientras que el núcleo y
@@ -5784,8 +6025,6 @@ ronda:
   una plataforma "SUPER-CHIP 1.1" los podría sumar.
 - **Sin código máquina del 1802.** `0NNN` se ignora; los programas del VIP que llaman a
   rutinas propias en código máquina no corren.
-- **Sin fuentes de Octo.** Ni la consola ni el Taller entienden el lenguaje de Octo
-  (`.8o`): la consola carga binarios, y el ensamblador usa los mnemónicos de Cowgod.
 - **El audio de XO-CHIP** vuelve al principio del patrón cuando cambian el patrón o el
   tono, no cuando ST llega a 0 como pide la especificación (y hace Octo); suena el beep
   hasta el primer `F002`. `vfOrderQuirks` de Octo no existe (ningún juego del archivo lo
@@ -5806,7 +6045,7 @@ ronda:
   estado `interrupted` del `AudioContext` de iOS no está manejado; no se probó con
   joysticks, pantallas táctiles ni lectores de pantalla reales ([6.8](#68-lo-que-no-se-verifica-automáticamente)).
   La ventana del archivo necesita `DecompressionStream` para cargar los juegos.
-- **`chip8.html` pesa 1,5 MB**, y casi la mitad son las ROMs del archivo
+- **`chip8.html` pesa 2,1 MB**, y más de la mitad son las ROMs del archivo
   ([8.40](#840-las-roms-del-archivo-adentro-de-chip8html-comprimidas-de-a-una)).
 - **El desensamblador** no refleja el quirk `shifting` (sigue mostrando VY en `SHR`/`SHL`).
 - **Los avisos** aparecen arriba al centro y en pantallas anchas pueden tapar unos segundos

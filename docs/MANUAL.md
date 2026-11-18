@@ -2689,6 +2689,15 @@ Lo que aplica la consola sola no cuenta como una elección tuya: no cambia tus a
 generales ni queda recordado para la ROM. Las banderas RPL de los juegos que guardan
 récords o partidas también se recuerdan por ROM ([13.8](#138-las-banderas-rpl)).
 
+Los programas que corre el Taller pasan por la misma tabla, con tres agregados. La
+plataforma que pide el programa (la etiqueta `; @platform` del ensamblador, o la que sale
+de las instrucciones de un programa en Octo) y la velocidad de su etiqueta `@ipf` valen
+por encima de todo, como si estuvieran en la fila 1: lo dice el fuente. Y un programa en
+Octo arranca, salvo que tenga ajustes recordados, con los quirks y la velocidad de Octo
+(los quirks del perfil XO-CHIP y 20 IPF), que es como lo corre Octo; en la ranura dice
+«ajustes de Octo». Cómo se usa el Taller, en las [partes 4.8 y 4.9 del
+tutorial](TUTORIAL.md#48-el-taller-ensamblar-sin-salir-de-la-consola).
+
 En el archivo, la plataforma de cada programa es la más chica en la que funciona bien
 (así lo pide el archivo), y por eso un juego "de CHIP-8" puede necesitar igual los
 quirks de Octo: 89 de los 104 usan exactamente los de Octo por defecto. Las velocidades

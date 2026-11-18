@@ -1092,7 +1092,8 @@ function commandSandbox() {
     fs.copyFileSync(path.join(ROOT, 'tools', 'chip8asm.js'), path.join(sandbox, 'tools', 'chip8asm.js'));
     fs.copyFileSync(path.join(ROOT, 'chip8.html'), path.join(sandbox, 'chip8.html'));
     fs.mkdirSync(path.join(sandbox, 'docs', 'ejemplos'), { recursive: true });
-    for (const f of fs.readdirSync(EJEMPLOS)) {
+    // Los archivos de los ejemplos (la carpeta octo/, con los de Octo, no hace falta: los comandos son del ensamblador).
+    for (const f of fs.readdirSync(EJEMPLOS, { withFileTypes: true }).filter((d) => d.isFile()).map((d) => d.name)) {
       fs.copyFileSync(path.join(EJEMPLOS, f), path.join(sandbox, 'docs', 'ejemplos', f));
     }
     fs.mkdirSync(path.join(sandbox, 'roms'));

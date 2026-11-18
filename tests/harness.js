@@ -129,7 +129,19 @@ function loadAssembler() {
   return assembler;
 }
 
-// Los fuentes del Taller que incrusta tools/embed-roms.js en el bloque chip8-roms: { demos, examples }.
+// El compilador de Octo, del bloque chip8-octo (el mismo código que usa el Taller).
+let octo = null;
+function loadOcto() {
+  if (!octo) {
+    delete globalThis.Chip8Octo;
+    runScript('chip8-octo');
+    octo = globalThis.Chip8Octo;
+    if (!octo) throw new Error('El bloque chip8-octo no definió globalThis.Chip8Octo');
+  }
+  return octo;
+}
+
+// Los fuentes del Taller que incrusta tools/embed-roms.js en el bloque chip8-roms: { demos, examples, octo }.
 let sources = null;
 function loadSources() {
   if (!sources) {
@@ -155,5 +167,6 @@ module.exports = {
   pixel,
   renderAscii,
   loadAssembler,
+  loadOcto,
   loadSources,
 };

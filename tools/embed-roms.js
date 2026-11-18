@@ -4,7 +4,8 @@
  * embed-roms.js — ensambla los programas de demostración y los incrusta en chip8.html.
  *
  * Uso:
- *   node tools/embed-roms.js                 ensambla roms/*.asm, escribe roms/<id>.ch8
+ *   node tools/embed-roms.js                 ensambla roms/*.asm, escribe roms/<id>.ch8 (y la ROM
+ *                                            de cada ejemplo en Octo, docs/ejemplos/octo/<nombre>.ch8)
  *                                            y actualiza <script id="chip8-roms"> en chip8.html
  *   node tools/embed-roms.js --html otro.html   actualiza otro archivo HTML en lugar de chip8.html
  *   node tools/embed-roms.js --check         no escribe nada: sale con código 1 si algún .ch8
@@ -28,10 +29,17 @@
  * valor) es un error.
  *
  * Los fuentes del Taller. Después de CHIP8_DEMOS el bloque lleva
- * globalThis.CHIP8_SOURCES = { demos, examples }, para editarlos en la consola:
+ * globalThis.CHIP8_SOURCES = { demos, examples, octo }, para editarlos en la consola:
  *   demos      el fuente de cada demo, por su id ({ rebote: "; @name Rebote\n..." }).
  *   examples   los ejemplos del tutorial (docs/ejemplos/*.asm, en orden alfabético):
  *              [{ name: "01-a-mano.asm", description, platform?, source }].
+ *   octo       los ejemplos en el lenguaje de Octo (docs/ejemplos/octo/*.8o, en orden
+ *              alfabético): [{ name: "pong.8o", description, source }]. Cada uno se compila
+ *              con el compilador de Octo de chip8.html (el bloque chip8-octo) y su ROM queda
+ *              al lado, en docs/ejemplos/octo/<nombre>.ch8, como la de cada demo. Su
+ *              descripción sale del primer renglón de comentario ("# pong.8o — Pong para
+ *              dos..." da "Pong para dos..."); una etiqueta "# @ipf N" tiene que ser un
+ *              número de 1 a 10000 (las instrucciones por cuadro con que corre en el Taller).
  * La descripción de un ejemplo es su @description o, si no tiene, la primera línea
  * de comentario del encabezado sin el nombre del archivo ("; 03-fantasma.asm —
  * Cazamonedas, etapa A: ..." da "Cazamonedas, etapa A: ..."). Un ejemplo puede
@@ -49,15 +57,21 @@
  */
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
 const { assemble, headerTags } = require('./chip8asm.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const ROMS_DIR = path.join(ROOT, 'roms');
 const EXAMPLES_DIR = path.join(ROOT, 'docs', 'ejemplos');
+const OCTO_DIR = path.join(EXAMPLES_DIR, 'octo');
 const OPEN_TAG = '<script id="chip8-roms">';
+const OCTO_TAG = '<script id="chip8-octo">';
 const CLOSE_TAG = '</script>';
 const HEADER = '/* GENERADO por tools/embed-roms.js a partir de roms/*.asm — no editar a mano. */';
-const SOURCES_HEADER = '/* También GENERADO: los fuentes del Taller, los de las demos (roms/*.asm) y los ejemplos del tutorial (docs/ejemplos/*.asm). */';
+const SOURCES_HEADER = '/* También GENERADO: los fuentes del Taller, los de las demos (roms/*.asm), los ejemplos del tutorial (docs/ejemplos/*.asm) y los de Octo (docs/ejemplos/octo/*.8o). */';
+// Las instrucciones por cuadro que puede pedir la etiqueta @ipf (las de la consola).
+const IPF_MIN = 1;
+const IPF_MAX = 10000;
 const REQUIRED_TAGS = ['name', 'description', 'controls', 'order'];
 // Valores de @platform y el tamaño máximo del programa en cada una (desde 0x200).
 const PLATFORM_MAX_BYTES = { chip8: 3584, schip: 3584, xochip: 65024 };
@@ -193,7 +207,62 @@ function buildExamples() {
   });
 }
 
-function renderBlock(demos, examples, eol) {
+// El compilador de Octo, del bloque chip8-octo de chip8.html (como chip8asm.js saca el ensamblador): el mismo
+// que usa el Taller. Se evalúa aparte, así no queda ningún global.
+let octo = null;
+function loadOcto() {
+  if (octo) return octo;
+  const file = path.join(ROOT, 'chip8.html');
+  const html = fs.readFileSync(file, 'utf8');
+  const start = html.indexOf(OCTO_TAG);
+  if (start < 0) fail('chip8.html no tiene el bloque ' + OCTO_TAG + ', donde está el compilador de Octo');
+  const bodyStart = start + OCTO_TAG.length;
+  const end = html.indexOf(CLOSE_TAG, bodyStart);
+  if (end < 0) fail('el bloque ' + OCTO_TAG + ' de chip8.html no está cerrado');
+  const sandbox = {};
+  try {
+    vm.runInNewContext(html.slice(bodyStart, end), sandbox, { filename: file, lineOffset: html.slice(0, bodyStart).split('\n').length - 1 });
+  } catch (e) {
+    fail('el bloque ' + OCTO_TAG + ' de chip8.html no anda: ' + e.message);
+  }
+  if (!sandbox.Chip8Octo || typeof sandbox.Chip8Octo.compile !== 'function') fail('el bloque ' + OCTO_TAG + ' no definió Chip8Octo');
+  octo = sandbox.Chip8Octo;
+  return octo;
+}
+
+// Los ejemplos en Octo (docs/ejemplos/octo/*.8o), para el Taller: cada uno se compila. Sin la carpeta, ninguno.
+function buildOctoExamples() {
+  if (!fs.existsSync(OCTO_DIR)) return [];
+  const files = fs.readdirSync(OCTO_DIR).filter((f) => f.toLowerCase().endsWith('.8o')).sort();
+  return files.map((file) => {
+    const where = 'docs/ejemplos/octo/' + file;
+    if (!/^[a-z0-9_-]+\.8o$/.test(file)) fail(where + ': el nombre del archivo solo puede tener minúsculas, dígitos, "_" y "-"');
+    const source = toLf(fs.readFileSync(path.join(OCTO_DIR, file), 'utf8'));
+    const { compile, headerTags: octoTags } = loadOcto();
+    const tags = octoTags(source);
+    if (tags.ipf) {
+      const ipf = Number(tags.ipf.value);
+      if (!/^\d+$/.test(tags.ipf.value) || ipf < IPF_MIN || ipf > IPF_MAX) {
+        fail(where + ': @ipf tiene que ser un número de ' + IPF_MIN + ' a ' + IPF_MAX + ' (dice "' + tags.ipf.value + '")');
+      }
+    }
+    const r = compile(source);
+    if (r.errors.length) fail(where + ': ' + r.errors[0].message);
+    let description = '';
+    for (const line of source.split('\n')) {
+      const trimmed = line.trim();
+      if (trimmed === '') continue;
+      if (!trimmed.startsWith('#')) break;
+      const text = trimmed.replace(/^#+\s*/, '');
+      if (text === '' || text.startsWith('@')) continue;
+      description = text.replace(/^\S+\.8o\s+[—–-]+\s+/, '');
+      break;
+    }
+    return { name: file, description, source, bytes: Uint8Array.from(r.result.bytes), platform: r.result.platform };
+  });
+}
+
+function renderBlock(demos, examples, octoExamples, eol) {
   const lines = ['', HEADER, 'globalThis.CHIP8_DEMOS = ['];
   demos.forEach((d, i) => {
     lines.push('  {');
@@ -220,6 +289,15 @@ function renderBlock(demos, examples, eol) {
     lines.push('      source: ' + jsString(x.source));
     lines.push('    }' + (i < examples.length - 1 ? ',' : ''));
   });
+  lines.push('  ],');
+  lines.push('  octo: [');
+  octoExamples.forEach((x, i) => {
+    lines.push('    {');
+    lines.push('      name: ' + jsString(x.name) + ',');
+    lines.push('      description: ' + jsString(x.description) + ',');
+    lines.push('      source: ' + jsString(x.source));
+    lines.push('    }' + (i < octoExamples.length - 1 ? ',' : ''));
+  });
   lines.push('  ]');
   lines.push('};');
   return lines.join(eol) + eol;
@@ -240,30 +318,37 @@ function main() {
   const opts = parseArgs(process.argv.slice(2));
   const demos = buildDemos();
   const examples = buildExamples();
+  const octoExamples = buildOctoExamples();
 
   if (!fs.existsSync(opts.html)) fail('no existe ' + opts.html);
   const html = fs.readFileSync(opts.html, 'utf8');
   const eol = html.includes('\r\n') ? '\r\n' : '\n';
   const [bodyStart, bodyEnd] = findBlock(html, path.basename(opts.html));
-  const block = renderBlock(demos, examples, eol);
+  const block = renderBlock(demos, examples, octoExamples, eol);
   const newHtml = html.slice(0, bodyStart) + block + html.slice(bodyEnd);
   const htmlChanged = newHtml !== html;
 
+  // Las ROMs que hay que escribir: la de cada demo (roms/<id>.ch8) y la de cada ejemplo en Octo, al lado de su .8o.
   const staleRoms = [];
-  for (const d of demos) {
-    const ch8 = path.join(ROMS_DIR, d.id + '.ch8');
-    const current = fs.existsSync(ch8) ? fs.readFileSync(ch8) : null;
-    if (!current || !Buffer.from(d.bytes).equals(current)) staleRoms.push(d);
+  const stale = (file, bytes, what) => {
+    const current = fs.existsSync(file) ? fs.readFileSync(file) : null;
+    if (!current || !Buffer.from(bytes).equals(current)) staleRoms.push({ file, bytes, what });
+  };
+  for (const d of demos) stale(path.join(ROMS_DIR, d.id + '.ch8'), d.bytes, 'roms/' + d.id + '.ch8 no coincide con roms/' + d.file);
+  for (const x of octoExamples) {
+    const base = x.name.replace(/\.8o$/, '');
+    stale(path.join(OCTO_DIR, base + '.ch8'), x.bytes, 'docs/ejemplos/octo/' + base + '.ch8 no coincide con docs/ejemplos/octo/' + x.name);
   }
 
   const report = demos.map((d) => '  ' + String(d.order).padStart(2) + '. ' + d.id.padEnd(10) + ' ' +
     String(d.bytes.length).padStart(5) + ' bytes  ' + d.name + (d.platform ? ' (' + d.platform + ')' : '')).join('\n') +
     '\nEjemplos del tutorial para el Taller (' + examples.length + (examples.length ? '):\n' : ', no está docs/ejemplos/)') +
-    examples.map((x) => '  ' + x.name.padEnd(26) + String(x.size).padStart(6) + ' bytes' + (x.platform ? ' (' + x.platform + ')' : '')).join('\n');
+    examples.map((x) => '  ' + x.name.padEnd(26) + String(x.size).padStart(6) + ' bytes' + (x.platform ? ' (' + x.platform + ')' : '')).join('\n') +
+    '\nEjemplos en Octo para el Taller (' + octoExamples.length + (octoExamples.length ? '):\n' : ', no está docs/ejemplos/octo/)') +
+    octoExamples.map((x) => '  ' + x.name.padEnd(26) + String(x.bytes.length).padStart(6) + ' bytes (' + x.platform + ')').join('\n');
 
   if (opts.check) {
-    const problems = [];
-    for (const d of staleRoms) problems.push('roms/' + d.id + '.ch8 no coincide con roms/' + d.file);
+    const problems = staleRoms.map((r) => r.what);
     if (htmlChanged) problems.push('el bloque <script id="chip8-roms"> de ' + path.basename(opts.html) + ' está desactualizado');
     if (problems.length) {
       console.error('Hay ROMs desactualizadas:\n  - ' + problems.join('\n  - ') +
@@ -274,11 +359,11 @@ function main() {
     return;
   }
 
-  for (const d of staleRoms) fs.writeFileSync(path.join(ROMS_DIR, d.id + '.ch8'), d.bytes);
+  for (const r of staleRoms) fs.writeFileSync(r.file, r.bytes);
   if (htmlChanged) fs.writeFileSync(opts.html, newHtml, 'utf8');
 
   console.log('Demos (' + demos.length + '):\n' + report);
-  console.log(staleRoms.length ? 'Escribí ' + staleRoms.map((d) => d.id + '.ch8').join(', ') + '.' : 'Los .ch8 ya estaban al día.');
+  console.log(staleRoms.length ? 'Escribí ' + staleRoms.map((r) => path.relative(ROOT, r.file).replace(/\\/g, '/')).join(', ') + '.' : 'Los .ch8 ya estaban al día.');
   console.log(htmlChanged ? 'Actualicé ' + path.relative(process.cwd(), opts.html) + '.' :
     path.relative(process.cwd(), opts.html) + ' ya estaba al día.');
 }

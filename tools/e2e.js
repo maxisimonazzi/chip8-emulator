@@ -206,6 +206,12 @@
  *      bordes, y el mapa del filtro del tamaño del lienzo en la ventana
  *   89 «Cuidado»: los ajustes y los estados de un juego, un cartucho tuyo, todos y el Taller, cada uno con su
  *      diálogo y su «Deshacer»; toda la configuración vuelve a arrancar de fábrica, sin estados
+ *   90 Taller con Octo: el pong de la nota de Hackaday se compila con Ctrl+Enter y se juega de a dos, con los
+ *      quirks de Octo y los 500 IPF de su @ipf; los textos del Taller según el lenguaje, sus etiquetas en el
+ *      desensamblado, el renglón del PC en el margen (en pausa y con Paso) y «Descargar .8o» y «.ch8» exactos
+ *   91 Taller con Octo, un programa tuyo: Lenguaje y la plantilla de «Nuevo», los errores del compilador en
+ *      castellano y la revisión sola, @ipf, un :breakpoint que detiene la máquina con su nombre, la plataforma
+ *      que sale del programa, Guardar con su lenguaje, y abrir o soltar un .8o
  */
 
 const { spawn, spawnSync } = require('node:child_process');
@@ -4467,7 +4473,7 @@ scenario(51, 'Taller: se abre al costado sin tapar la pantalla, trae los ejemplo
   s.check(geo.fixed === 'fixed' && geo.ws.r <= geo.iw && geo.ws.t >= 0 && geo.ws.b <= geo.ih && geo.ws.l > geo.con.r && geo.hit && geo.sw <= geo.iw,
     `1440×900: el Taller va fijo a la derecha (${geo.ws.l}–${geo.ws.r} px) y la consola entera queda a su izquierda (${geo.con.l}–${geo.con.r} px): la pantalla se ve y un clic en ella le llega`, JSON.stringify(geo));
   s.check(geo.expanded === 'true' && geo.focus === 'ws-text', 'el botón del lápiz dice que está abierto (aria-expanded) y el foco queda en el editor', JSON.stringify(geo));
-  s.check(sameList(geo.groups, ['Ejemplos del tutorial:11', 'Cartuchos incluidos:6']), `la lista trae los 11 ejemplos del tutorial y los 6 fuentes de los cartuchos (${geo.groups.join(', ')})`);
+  s.check(sameList(geo.groups, ['Ejemplos del tutorial:11', 'Ejemplos en Octo:1', 'Cartuchos incluidos:6']), `la lista trae los 11 ejemplos del tutorial, el ejemplo en Octo y los 6 fuentes de los cartuchos (${geo.groups.join(', ')})`);
   const first = await editorView(page);
   s.check(first.program === 'demo:rebote' && first.text === romSource('rebote') && first.lines === first.text.split('\n').length && /Fuente del cartucho «Rebote»/.test(first.about),
     `la primera vez abre el fuente del cartucho que está en la ranura (Rebote, ${first.lines} renglones numerados)`, JSON.stringify({ program: first.program, lines: first.lines, about: first.about }));
@@ -8137,6 +8143,230 @@ scenario(89, '«Cuidado»: borrar los ajustes y los estados de un juego, un cart
   const w3 = await page.ev('window.chip8.workshopInfo()');
   s.check(b2.remembered.length === 0 && b2.states === 0 && b2.lib.length === 2 && b2.settings && b2.settings.ipf === 15 && w3.programs.length === 1,
     'después de arrancar otra vez: ajustes de fábrica (15 IPF), ningún ajuste recordado ni estado, y siguen tus 2 cartuchos y tu programa del Taller', JSON.stringify({ b2, mine: w3.programs.length }));
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// ---------------------------------------------------------------- ayudas de los escenarios 90 y 91 (Octo en el Taller)
+const OCTO_PONG = fs.readFileSync(path.join(ROOT, 'docs', 'ejemplos', 'octo', 'pong.8o'), 'utf8');
+// El compilador de Octo de chip8.html, en Node (el mismo código que usa la página).
+const octoCompile = (src) => require(path.join(ROOT, 'tests', 'harness.js')).loadOcto().compile(src);
+const OCTO_QUIRKS = JSON.stringify({ vfReset: false, memory: true, shifting: false, jumping: false, clipping: false, displayWait: false });
+// Lo que cambia en el Taller con el lenguaje del programa abierto.
+const LANG_VIEW = `(() => { const $ = (id) => document.getElementById(id);
+  return { lang: $('ws-lang').value, langOff: $('ws-lang').disabled, platformShown: !$('ws-platform-field').hidden,
+    run: $('ws-run').firstChild.nodeValue, runTip: $('ws-run').getAttribute('data-tip'), src: $('ws-dl-asm').textContent,
+    editor: $('ws-text').getAttribute('aria-label'), errors: $('ws-errors').getAttribute('aria-label'), keys: $('ws-keys').textContent }; })()`;
+// El renglón marcado en el margen como el del PC (null si ninguno).
+const PC_MARK = `(() => { const el = document.querySelector('#ws-lines .ws-ln.is-pc'); return el ? Number(el.textContent) : null; })()`;
+
+// 90 -------------------------------------------------------------------------------
+scenario(90, 'Taller con Octo: el pong de la nota de Hackaday se compila con Ctrl+Enter y se juega (quirks de Octo, los 500 IPF de su @ipf, las teclas 1, Q, 4 y R), los textos del Taller cambian con el lenguaje, el desensamblado lleva sus etiquetas, en pausa el margen marca el renglón del PC (y sigue a Paso) y «Descargar .8o» y «.ch8» bajan el fuente y la ROM exactos', async (ctx, s) => {
+  const page = await freshApp(ctx, s, { width: 1440, height: 900 });
+  const dir = path.join(ctx.browser.tmp, 'descargas-octo');
+  fs.mkdirSync(dir, { recursive: true });
+  await ctx.browser.cdp.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: dir, eventsEnabled: true });
+  try {
+    await page.press('KeyY');
+    await wsOpen(page);
+    const asmView = await page.ev(LANG_VIEW);
+    s.check(asmView.lang === 'asm' && asmView.langOff && asmView.platformShown && asmView.run === 'Ensamblar y correr' && asmView.src === 'Descargar .asm' &&
+      asmView.editor === 'Programa en el assembler de CHIP-8' && asmView.errors === 'Errores del ensamblador' && /Ctrl\+Enter ensambla y corre/.test(asmView.keys),
+      'con un ejemplo del tutorial, Lenguaje dice «Ensamblador» (fijo: es un ejemplo) y el Taller es el del ensamblador, como siempre', JSON.stringify(asmView));
+    const groups = await page.ev(`Array.from(document.querySelectorAll('#ws-program optgroup')).map((g) => g.label + ': ' + Array.from(g.children).map((o) => o.value).join(','))`);
+    s.check(groups.includes('Ejemplos en Octo: octo:pong.8o'), 'la lista de programas trae el grupo «Ejemplos en Octo», con el pong', JSON.stringify(groups));
+    await chooseWithMouse(page, '#ws-program', 'octo:pong.8o');
+    const v = await editorView(page);
+    const lv = await page.ev(LANG_VIEW);
+    s.check(v.text === OCTO_PONG && v.option === 'pong.8o' && /^Ejemplo en el lenguaje de Octo: Pong para dos, de la nota de Hackaday/.test(v.about) && /Va a 500 IPF: lo dice «@ipf 500»\./.test(v.about),
+      'el pong se abre con su texto, y la descripción dice que es de Octo y que va a 500 IPF', JSON.stringify({ option: v.option, about: v.about }));
+    s.check(lv.lang === 'octo' && lv.langOff && !lv.platformShown && lv.run === 'Compilar y correr' && /compilador de Octo/.test(lv.runTip) && lv.src === 'Descargar .8o' &&
+      lv.editor === 'Programa en el lenguaje de Octo' && lv.errors === 'Errores del compilador de Octo' && /Ctrl\+Enter compila y corre/.test(lv.keys),
+      'en Octo: «Compilar y correr», «Descargar .8o», sin el selector de plataforma, y los nombres para los lectores de pantalla y la ayuda de las teclas son de Octo', JSON.stringify(lv));
+    // Ctrl+Enter, con el foco en el editor, compila y corre.
+    const want = octoCompile(OCTO_PONG).result;
+    await editorSelect(page, 0);
+    await comboKey(page, 'Enter', 2);
+    await page.waitFor(`window.chip8.romInfo() && window.chip8.romInfo().name === 'pong'`, { timeout: 3000, desc: 'el pong en la ranura' });
+    await sleep(500);
+    const run = await page.ev(`({ rom: window.chip8.romInfo(), platform: window.chip8.getPlatform(), ipf: window.chip8.getIpf(), quirks: window.chip8.cpu.quirks,
+      slot: document.getElementById('cart-size').textContent, status: document.getElementById('ws-status').textContent, running: !window.chip8.isPaused(),
+      lib: window.chip8.libraryList().length, sym: window.chip8.workshopSymbols() })`);
+    s.check(run.rom.sha1 === sha1Hex(want.bytes) && run.rom.size === 332 && run.platform === 'chip8' && run.running && run.lib === 0,
+      'Ctrl+Enter lo compila con el compilador de Octo de la página (los mismos 332 bytes que en Node) y corre en CHIP-8, sin ir a «Tus cartuchos»', JSON.stringify(run.rom));
+    s.check(run.ipf === 500 && JSON.stringify(run.quirks) === OCTO_QUIRKS && run.rom.source === 'octo' && run.slot === '332 bytes · ajustes de Octo' &&
+      run.status === '«pong» corre en la consola, en CHIP-8, con los quirks de Octo, a 500 IPF: 332 bytes, de 0x200 a 0x34B. Para usar el teclado en el programa, tocá la pantalla.',
+      'corre con los quirks de Octo (sin la espera del vblank) y a los 500 IPF de su @ipf, y la ranura y el Taller lo dicen', JSON.stringify({ ipf: run.ipf, quirks: run.quirks, slot: run.slot, status: run.status }));
+    s.check(run.sym && run.sym.listing === null && run.sym.lines.length === 332 && sameList(run.sym.lines, want.lines) && run.sym.labels.main === 0x200 && run.sym.labels.wait_frame === want.labels.wait_frame,
+      'workshopSymbols() trae las etiquetas de Octo y el renglón de cada byte (los del compilador)', JSON.stringify(run.sym && Object.keys(run.sym.labels).slice(0, 6)));
+    // Se juega: con la pantalla tocada, 1 y Q mueven la paleta de la izquierda (V0) y 4 y R la de la derecha (V1).
+    await page.click('#crt');
+    const paddles = async (code) => {
+      const before = await page.ev('[window.chip8.cpu.V[0], window.chip8.cpu.V[1]]');
+      await page.keyDown(code);
+      await sleep(400);
+      await page.keyUp(code);
+      return { before, after: await page.ev('[window.chip8.cpu.V[0], window.chip8.cpu.V[1]]') };
+    };
+    const up1 = await paddles('Digit1'), dn1 = await paddles('KeyQ'), up2 = await paddles('Digit4'), dn2 = await paddles('KeyR');
+    s.check(up1.after[0] < up1.before[0] && dn1.after[0] > dn1.before[0] && up2.after[1] < up2.before[1] && dn2.after[1] > dn2.before[1] &&
+      up1.after[1] === up1.before[1] && up2.after[0] === up2.before[0],
+      'con las teclas de siempre se juega de a dos: 1 sube y Q baja la paleta de la izquierda; 4 sube y R baja la de la derecha', JSON.stringify({ up1, dn1, up2, dn2 }));
+    await page.shot('90-octo-pong');
+    // En pausa, el margen marca el renglón del PC (el que dice el compilador) y lo sigue con Paso; corriendo, nada.
+    await page.press('Space');
+    await page.waitFor('window.chip8.isPaused()', { timeout: 2000, desc: 'en pausa' });
+    await sleep(150);
+    const lineOf = (pc) => want.lines[pc - 0x200];
+    // El monitor queda debajo de la consola (con el Taller al costado): a la vista, se pinta su desensamblado.
+    await page.ev(`document.getElementById('monitor').scrollIntoView({ block: 'start' })`);
+    await sleep(250);
+    const p0 = await page.ev(`({ pc: window.chip8.cpu.pc, mark: ${PC_MARK}, info: window.chip8.workshopInfo().pcLine, dis: document.getElementById('dis-view').textContent })`);
+    await page.press('KeyN');
+    await sleep(150);
+    const p1 = await page.ev(`({ pc: window.chip8.cpu.pc, mark: ${PC_MARK} })`);
+    const markTip = await page.ev(`document.querySelector('#ws-lines .ws-ln.is-pc').getAttribute('data-tip')`);
+    s.check(p0.mark === lineOf(p0.pc) && p0.info === p0.mark && p1.mark === lineOf(p1.pc) && p1.pc !== p0.pc &&
+      markTip === 'Acá quedó la máquina: la próxima instrucción es la de 0x' + p1.pc.toString(16).toUpperCase().padStart(3, '0') + '.',
+      `en pausa el margen marca el renglón ${p0.mark} (el del PC, 0x${p0.pc.toString(16)}), y después de Paso el ${p1.mark}; su cartel dice la dirección`, JSON.stringify({ p0: { pc: p0.pc, mark: p0.mark }, p1, markTip }));
+    s.check(/wait_(frame|delay): /.test(p0.dis), 'el desensamblado muestra las etiquetas del programa de Octo', p0.dis.slice(0, 160));
+    await page.press('Space');
+    await sleep(200);
+    s.check((await page.ev(PC_MARK)) === null, 'corriendo, el margen no marca ningún renglón');
+    // Descargar .8o y .ch8.
+    const p8o = nextDownload(ctx);
+    await clickHit(page, '#ws-dl-asm');
+    const d1 = await p8o;
+    s.check(d1.state === 'completed' && d1.name === 'pong.8o' && fs.readFileSync(d1.file || path.join(dir, d1.name), 'utf8') === OCTO_PONG,
+      `«Descargar .8o» baja «${d1.name}» con el fuente, exacto`, JSON.stringify(d1));
+    const pch8 = nextDownload(ctx);
+    await clickHit(page, '#ws-dl-ch8');
+    const d2 = await pch8;
+    const rom = fs.readFileSync(d2.file || path.join(dir, d2.name));
+    s.check(d2.state === 'completed' && d2.name === 'pong.ch8' && rom.equals(Buffer.from(want.bytes)) && rom.equals(fs.readFileSync(path.join(ROOT, 'docs', 'ejemplos', 'octo', 'pong.ch8'))),
+      `«Descargar .ch8» baja «${d2.name}»: los 332 bytes del compilador, los mismos de docs/ejemplos/octo/pong.ch8`, JSON.stringify(d2));
+  } finally {
+    await ctx.browser.cdp.send('Browser.setDownloadBehavior', { behavior: 'default' }).catch(() => {});
+  }
+  s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
+});
+
+// 91 -------------------------------------------------------------------------------
+scenario(91, 'Taller con Octo: un programa tuyo (Lenguaje pasa la plantilla de «Nuevo» de un lenguaje al otro y deja lo escrito; Nuevo sigue el lenguaje abierto), los errores del compilador en castellano en su renglón y la revisión sola, @ipf, un :breakpoint que detiene la máquina con su nombre y marca su renglón, la plataforma que sale del programa, Guardar con su lenguaje, y abrir o soltar un .8o', async (ctx, s) => {
+  const page = await freshApp(ctx, s, { width: 1440, height: 900 });
+  await page.press('KeyY');
+  await wsOpen(page);
+  // Nuevo desde un ejemplo del tutorial: un programa del ensamblador. Lenguaje → Octo cambia la plantilla.
+  await clickHit(page, '#ws-new');
+  let v = await editorView(page), lv = await page.ev(LANG_VIEW);
+  s.check(/^; Mi programa: dibuja la letra A/.test(v.text) && lv.lang === 'asm' && !lv.langOff && v.name === 'Programa 1',
+    '«Nuevo» desde un ejemplo del tutorial empieza un programa tuyo del ensamblador, con su plantilla, y su Lenguaje se puede cambiar', JSON.stringify({ lv, name: v.name }));
+  await chooseWithMouse(page, '#ws-lang', 'octo');
+  v = await editorView(page);
+  lv = await page.ev(LANG_VIEW);
+  s.check(/^# Mi programa en el lenguaje de Octo/.test(v.text) && !v.badge && lv.lang === 'octo' && lv.run === 'Compilar y correr' && v.status === 'Lenguaje: Octo. Ctrl+Enter lo compila y lo corre.',
+    'Lenguaje → Octo: como la plantilla estaba sin tocar, pasa a ser la de Octo (y no queda nada sin guardar)', JSON.stringify({ status: v.status, badge: v.badge, first: v.text.split('\n')[0] }));
+  await comboKey(page, 'Enter', 2);
+  await page.waitFor(`window.chip8.romInfo() && window.chip8.romInfo().name === 'Programa 1'`, { timeout: 3000, desc: 'el programa en la ranura' });
+  await sleep(300);
+  const a = await page.ev(`({ lit: Array.from(window.chip8.cpu.display).filter((x) => x).length, ipf: window.chip8.getIpf(), platform: window.chip8.getPlatform(), source: window.chip8.romInfo().source, quirks: window.chip8.cpu.quirks })`);
+  s.check(a.lit === 14 && a.ipf === 20 && a.platform === 'chip8' && a.source === 'octo' && JSON.stringify(a.quirks) === OCTO_QUIRKS,
+    'la plantilla de Octo dibuja la A de la fuente (14 píxeles), en CHIP-8, con los quirks de Octo y a 20 IPF, su velocidad de siempre', JSON.stringify(a));
+  // Un error: el del compilador, en castellano, en su renglón; corregido, la revisión sola lo dice.
+  await editorSelectLine(page, 6);
+  await insertText(page, '  v0 := 300');
+  await comboKey(page, 'Enter', 2);
+  v = await editorView(page);
+  const msg = 'Línea 6: 300 no entra en un byte: tiene que estar entre -128 y 255.';
+  s.check(sameList(v.errors, [msg]) && sameList(v.marked, [6]) && v.caretLine === 6 && v.invalid === 'true' && v.status === 'Un error. ' + msg,
+    'un número que no entra en un byte: el error del compilador de Octo, en castellano, en el margen del renglón 6, en la lista y con el cursor ahí', JSON.stringify({ errors: v.errors, marked: v.marked, status: v.status }));
+  await editorSelectLine(page, 6);
+  await insertText(page, '  v0 := 0xA');
+  await page.waitFor(`document.getElementById('ws-status').textContent === 'Sin errores: ya se puede compilar y correr.'`, { timeout: 3000, desc: 'la revisión sola, ya sin errores' });
+  s.check((await editorView(page)).marked.length === 0, 'corregido, la revisión sola (que también compila) saca la marca y dice «Sin errores: ya se puede compilar y correr.»');
+  // @ipf y un :breakpoint antes del sprite: la máquina se detiene ahí, con su nombre, y el margen marca ese renglón.
+  await editorSelect(page, 0);
+  await insertText(page, '# @ipf 1000\n');
+  await editorSelectLine(page, 11);
+  await insertText(page, '  :breakpoint dibujo\n  sprite v1 v2 5');
+  const src = (await editorView(page)).text;
+  const built = octoCompile(src).result;
+  s.check(sameList(built.breakpoints, [{ addr: 0x20A, name: 'dibujo' }]), 'el :breakpoint queda antes del sprite, en 0x20A', JSON.stringify(built.breakpoints));
+  await comboKey(page, 'Enter', 2);
+  await page.waitFor('window.chip8.isPaused()', { timeout: 3000, desc: 'detenida en el :breakpoint' });
+  await sleep(200);
+  const bp = await page.ev(`({ ipf: window.chip8.getIpf(), bps: window.chip8.getBreakpoints(), pc: window.chip8.cpu.pc, at: window.chip8.debugState().atBreakpoint,
+    status: document.getElementById('status').textContent, ws: document.getElementById('ws-status').textContent, mark: ${PC_MARK},
+    lit: Array.from(window.chip8.cpu.display).filter((x) => x).length })`);
+  s.check(bp.ipf === 1000 && sameList(bp.bps, [0x20A]) && bp.pc === 0x20A && bp.at && bp.lit === 0 &&
+    bp.status === 'Punto de corte «dibujo» en 0x20A («DRW V1, V2, 5»): en pausa, antes de ejecutarla.' && /Tiene un :breakpoint: es un punto de corte\./.test(bp.ws) && bp.mark === 12,
+    'a 1000 IPF (su @ipf), el :breakpoint es un punto de corte: la máquina se detiene antes del sprite, el aviso dice su nombre y el margen marca el renglón 12', JSON.stringify(bp));
+  // Espacio en el editor escribe un espacio: para seguir, primero se toca la pantalla.
+  await page.click('#crt');
+  await page.press('Space');
+  await sleep(300);
+  const cont = await page.ev(`({ lit: Array.from(window.chip8.cpu.display).filter((x) => x).length, running: !window.chip8.isPaused(), mark: ${PC_MARK}, text: document.getElementById('ws-text').value === ${JSON.stringify(src)} })`);
+  s.check(cont.lit === 14 && cont.running && cont.mark === null && cont.text, 'tocando la pantalla y con Espacio sigue: dibuja la A y el margen ya no marca nada', JSON.stringify(cont));
+  // Una etiqueta @ipf que no vale es un error en su renglón.
+  await editorSelectLine(page, 1);
+  await insertText(page, '# @ipf mucho');
+  await comboKey(page, 'Enter', 2);
+  v = await editorView(page);
+  s.check(sameList(v.errors, ['Línea 1: @ipf tiene que ser un número de 1 a 10000 (dice "mucho")']) && sameList(v.marked, [1]) && /Ojo: «@ipf mucho» no vale/.test(v.about),
+    '«# @ipf mucho» es un error en el renglón 1, y la descripción lo avisa', JSON.stringify({ errors: v.errors, about: v.about }));
+  // La plataforma sale del programa: con plane es de XO-CHIP.
+  await editorSelect(page, 0, v.text.length);
+  await insertText(page, ': main\n  plane 3\n  i := cuadro\n  sprite v0 v0 4\n  loop again\n: cuadro\n  0xF0 0x90 0x90 0xF0 0xF0 0x90 0x90 0xF0\n');
+  await comboKey(page, 'Enter', 2);
+  await page.waitFor(`window.chip8.getPlatform() === 'xochip'`, { timeout: 3000, desc: 'la consola en XO-CHIP' });
+  const xo = await page.ev(`({ status: document.getElementById('ws-status').textContent, info: window.chip8.workshopInfo().platform })`);
+  s.check(/en XO-CHIP, con los quirks de Octo, a 20 IPF: 16 bytes/.test(xo.status) && xo.info === 'xochip', 'un programa con «plane» corre en XO-CHIP sin que nadie lo diga: la plataforma sale de las instrucciones', JSON.stringify(xo));
+  // Guardar: el programa queda con su lenguaje.
+  await clickHit(page, '#ws-save');
+  const store = await page.ev(`JSON.parse(localStorage.getItem('${WORKSHOP_KEY}'))`);
+  s.check(store.programs.length === 1 && store.programs[0].lang === 'octo' && store.programs[0].name === 'Programa 1',
+    'Guardar lo deja en el navegador con lang: \'octo\'', JSON.stringify(store.programs.map((p) => ({ name: p.name, lang: p.lang }))));
+  // Nuevo desde un programa de Octo empieza otro de Octo; Lenguaje → Ensamblador le pone la plantilla del ensamblador.
+  await clickHit(page, '#ws-new');
+  v = await editorView(page);
+  s.check(/^# Mi programa en el lenguaje de Octo/.test(v.text) && (await page.ev(LANG_VIEW)).lang === 'octo', '«Nuevo» desde un programa de Octo empieza otro de Octo, con su plantilla');
+  await chooseWithMouse(page, '#ws-lang', 'asm');
+  v = await editorView(page);
+  s.check(/^; Mi programa: dibuja la letra A/.test(v.text) && (await page.ev(LANG_VIEW)).platformShown, 'Lenguaje → Ensamblador: vuelve la plantilla del ensamblador y el selector de plataforma');
+  // Código de Octo pegado en un programa del ensamblador: no ensambla; eligiendo Octo, el texto queda y compila.
+  const OCTO_SRC = ': main\n  v0 := 1\n  loop again\n';
+  await editorSelect(page, 0, v.text.length);
+  await insertText(page, OCTO_SRC);
+  await comboKey(page, 'Enter', 2);
+  const bad = await editorView(page);
+  await chooseWithMouse(page, '#ws-lang', 'octo');
+  v = await editorView(page);
+  s.check(bad.errors.length > 0 && v.text === OCTO_SRC && v.errors.length === 0 && v.status === 'Lenguaje: Octo. Ctrl+Enter lo compila y lo corre.',
+    'código de Octo pegado en un programa del ensamblador da errores; elegir Octo deja el texto como está y saca los errores del otro lenguaje', JSON.stringify({ before: bad.errors.slice(0, 2), after: v.errors }));
+  await comboKey(page, 'Enter', 2);
+  await page.waitFor(`window.chip8.romInfo() && window.chip8.romInfo().name === 'Programa 2'`, { timeout: 3000, desc: 'el programa 2 en la ranura' });
+  s.check(true, 'y ahora compila y corre');
+  // Abrir un .8o: un programa tuyo de Octo.
+  const fileA = path.join(ctx.browser.fixtures, 'hola.8o');
+  fs.writeFileSync(fileA, '# hola desde un archivo\n: main\n  clear\n  loop again\n');
+  await page.send('Page.setInterceptFileChooserDialog', { enabled: true });
+  const opened = page.cdp.waitEvent('Page.fileChooserOpened', page.sessionId, 5000);
+  await clickHit(page, '#ws-open');
+  const ev = await opened;
+  await page.send('DOM.setFileInputFiles', { files: [fileA], backendNodeId: ev.backendNodeId });
+  await page.waitFor(`window.chip8.workshopInfo().name === 'hola'`, { timeout: 3000, desc: '«hola» abierto en el Taller' });
+  await page.send('Page.setInterceptFileChooserDialog', { enabled: false });
+  s.check((await page.ev('window.chip8.workshopInfo().lang')) === 'octo' && (await editorView(page)).status === 'Abriste «hola».', '«Abrir archivo» con un .8o lo abre como un programa tuyo de Octo');
+  // Soltar un .8o sobre la consola (con el Taller cerrado): se abre en el Taller, no se carga como ROM.
+  await clickHit(page, '#ws-close');
+  const romBefore = await page.ev('window.chip8.romInfo().sha1');
+  const fileB = path.join(ctx.browser.fixtures, 'suelto.8o');
+  fs.writeFileSync(fileB, ': main\n  loop again\n');
+  await dropFileOn(page, fileB, 300, 300);
+  await page.waitFor(`!document.getElementById('workshop').hidden && window.chip8.workshopInfo().name === 'suelto'`, { timeout: 3000, desc: 'el .8o soltado, en el Taller' });
+  const dropped = await page.ev(`({ info: window.chip8.workshopInfo(), rom: window.chip8.romInfo().sha1 })`);
+  s.check(dropped.info.lang === 'octo' && dropped.rom === romBefore && dropped.info.programs.length === 4,
+    'un .8o soltado sobre la consola abre el Taller con el programa (de Octo) y no se carga como ROM', JSON.stringify({ lang: dropped.info.lang, programs: dropped.info.programs }));
+  await page.shot('91-octo-programa');
   s.check(page.errors.length === 0, 'sin errores de consola', page.errors.join(' | '));
 });
 
